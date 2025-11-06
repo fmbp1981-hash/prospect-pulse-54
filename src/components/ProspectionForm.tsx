@@ -11,9 +11,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Search, Loader2, Target, MapPin, Hash, Webhook, Settings, CheckCircle2 } from "lucide-react";
+import { Search, Loader2, Target, MapPin, Hash, Webhook, Settings, CheckCircle2, MessageCircle } from "lucide-react";
 import { ProspectionFormData } from "@/types/prospection";
+import { n8nMcp } from "@/lib/n8nMcp";
 
 interface ProspectionFormProps {
   onSearch: (data: ProspectionFormData) => void;
@@ -25,6 +27,8 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [tempWebhookUrl, setTempWebhookUrl] = useState("");
+  const [tempMcpUrl, setTempMcpUrl] = useState("");
+  const [tempWhatsAppUrl, setTempWhatsAppUrl] = useState("");
   const [formData, setFormData] = useState<ProspectionFormData>({
     niche: "",
     location: "",
@@ -32,18 +36,24 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
     webhookUrl: "",
   });
 
-  // Carregar webhook do localStorage
+  // Carregar webhooks do localStorage
   useEffect(() => {
     const savedWebhook = localStorage.getItem(WEBHOOK_STORAGE_KEY);
     if (savedWebhook) {
       setFormData(prev => ({ ...prev, webhookUrl: savedWebhook }));
       setTempWebhookUrl(savedWebhook);
     }
+    
+    const savedMcp = n8nMcp.getMcpWebhookUrl();
+    if (savedMcp) setTempMcpUrl(savedMcp);
+    
+    const savedWhatsApp = n8nMcp.getWhatsAppWebhookUrl();
+    if (savedWhatsApp) setTempWhatsAppUrl(savedWhatsApp);
   }, []);
 
   const handleSaveWebhook = () => {
     if (!tempWebhookUrl.trim()) {
-      toast.error("URL do webhook não pode estar vazia");
+      toast.error("URL do webhook de prospecção não pode estar vazia");
       return;
     }
 
@@ -51,11 +61,50 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
       new URL(tempWebhookUrl);
       localStorage.setItem(WEBHOOK_STORAGE_KEY, tempWebhookUrl);
       setFormData(prev => ({ ...prev, webhookUrl: tempWebhookUrl }));
-      setIsConfigOpen(false);
-      toast.success("Webhook configurado com sucesso!");
+      toast.success("Webhook de prospecção configurado!");
     } catch {
       toast.error("URL inválida. Verifique o formato.");
+      return;
     }
+  };
+
+  const handleSaveMcpWebhook = () => {
+    if (!tempMcpUrl.trim()) {
+      toast.error("URL do MCP não pode estar vazia");
+      return;
+    }
+
+    try {
+      new URL(tempMcpUrl);
+      n8nMcp.setMcpWebhookUrl(tempMcpUrl);
+      toast.success("MCP configurado com sucesso!");
+    } catch {
+      toast.error("URL inválida. Verifique o formato.");
+      return;
+    }
+  };
+
+  const handleSaveWhatsAppWebhook = () => {
+    if (!tempWhatsAppUrl.trim()) {
+      toast.error("URL do WhatsApp não pode estar vazia");
+      return;
+    }
+
+    try {
+      new URL(tempWhatsAppUrl);
+      n8nMcp.setWhatsAppWebhookUrl(tempWhatsAppUrl);
+      toast.success("Webhook WhatsApp configurado!");
+    } catch {
+      toast.error("URL inválida. Verifique o formato.");
+      return;
+    }
+  };
+
+  const handleSaveAll = () => {
+    handleSaveWebhook();
+    handleSaveMcpWebhook();
+    handleSaveWhatsAppWebhook();
+    setIsConfigOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -147,30 +196,97 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
                 )}
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>Configurar Webhook n8n</DialogTitle>
+                <DialogTitle>Configurar Webhooks n8n</DialogTitle>
                 <DialogDescription>
-                  Configure a URL do webhook que será usada para todas as prospecções
+                  Configure os webhooks para prospecção e integração WhatsApp
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="webhook-config">URL do Webhook</Label>
-                  <Input
-                    id="webhook-config"
-                    type="url"
-                    placeholder="https://seu-n8n.app.n8n.cloud/webhook/..."
-                    value={tempWebhookUrl}
-                    onChange={(e) => setTempWebhookUrl(e.target.value)}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Esta URL será salva localmente no seu navegador
-                  </p>
-                </div>
-                <Button onClick={handleSaveWebhook} className="w-full">
-                  Salvar Configuração
+              
+              <Tabs defaultValue="prospection" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="prospection">
+                    <Search className="h-4 w-4 mr-2" />
+                    Prospecção
+                  </TabsTrigger>
+                  <TabsTrigger value="mcp">
+                    <Webhook className="h-4 w-4 mr-2" />
+                    MCP Status
+                  </TabsTrigger>
+                  <TabsTrigger value="whatsapp">
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    WhatsApp
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="prospection" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="webhook-prospection">Webhook de Prospecção</Label>
+                    <Input
+                      id="webhook-prospection"
+                      type="url"
+                      placeholder="https://seu-n8n.app.n8n.cloud/webhook/prospection"
+                      value={tempWebhookUrl}
+                      onChange={(e) => setTempWebhookUrl(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Webhook que inicia o fluxo de busca de leads no Google Places
+                    </p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="mcp" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="webhook-mcp">MCP - Consulta de Status</Label>
+                    <Input
+                      id="webhook-mcp"
+                      type="url"
+                      placeholder="https://seu-n8n.app.n8n.cloud/webhook/check-whatsapp-status"
+                      value={tempMcpUrl}
+                      onChange={(e) => setTempMcpUrl(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Endpoint GET que retorna o status de envio WhatsApp para cada prospecção
+                    </p>
+                    <div className="mt-3 p-3 bg-muted rounded-md">
+                      <p className="text-xs font-semibold mb-1">Formato esperado:</p>
+                      <code className="text-xs">
+                        GET /check-whatsapp-status?ids=id1,id2
+                      </code>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="whatsapp" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="webhook-whatsapp">Webhook de Envio WhatsApp</Label>
+                    <Input
+                      id="webhook-whatsapp"
+                      type="url"
+                      placeholder="https://seu-n8n.app.n8n.cloud/webhook/send-whatsapp"
+                      value={tempWhatsAppUrl}
+                      onChange={(e) => setTempWhatsAppUrl(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Webhook que recebe as prospecções selecionadas e dispara mensagens WhatsApp
+                    </p>
+                    <div className="mt-3 p-3 bg-muted rounded-md">
+                      <p className="text-xs font-semibold mb-1">Payload enviado:</p>
+                      <code className="text-xs block overflow-x-auto">
+                        {`{ prospections: [{ id, niche, location, ... }] }`}
+                      </code>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              <div className="flex gap-2 pt-4">
+                <Button onClick={handleSaveAll} className="flex-1">
+                  Salvar Todas Configurações
                 </Button>
               </div>
             </DialogContent>
