@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Search, Loader2, Target, MapPin, Hash, Webhook, Settings, CheckCircle2, MessageCircle } from "lucide-react";
+import { Search, Loader2, Target, MapPin, Hash, Webhook, Settings, CheckCircle2, MessageCircle, RefreshCw } from "lucide-react";
 import { ProspectionFormData } from "@/types/prospection";
 import { n8nMcp } from "@/lib/n8nMcp";
 
@@ -29,6 +29,7 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
   const [tempWebhookUrl, setTempWebhookUrl] = useState("");
   const [tempMcpUrl, setTempMcpUrl] = useState("");
   const [tempWhatsAppUrl, setTempWhatsAppUrl] = useState("");
+  const [tempSyncUrl, setTempSyncUrl] = useState("");
   const [formData, setFormData] = useState<ProspectionFormData>({
     niche: "",
     location: "",
@@ -49,6 +50,9 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
     
     const savedWhatsApp = n8nMcp.getWhatsAppWebhookUrl();
     if (savedWhatsApp) setTempWhatsAppUrl(savedWhatsApp);
+    
+    const savedSync = n8nMcp.getSyncWebhookUrl();
+    if (savedSync) setTempSyncUrl(savedSync);
   }, []);
 
   const handleSaveWebhook = () => {
@@ -100,10 +104,27 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
     }
   };
 
+  const handleSaveSyncWebhook = () => {
+    if (!tempSyncUrl.trim()) {
+      toast.error("URL de sincronização não pode estar vazia");
+      return;
+    }
+
+    try {
+      new URL(tempSyncUrl);
+      n8nMcp.setSyncWebhookUrl(tempSyncUrl);
+      toast.success("Webhook de sincronização configurado!");
+    } catch {
+      toast.error("URL inválida. Verifique o formato.");
+      return;
+    }
+  };
+
   const handleSaveAll = () => {
     handleSaveWebhook();
     handleSaveMcpWebhook();
     handleSaveWhatsAppWebhook();
+    handleSaveSyncWebhook();
     setIsConfigOpen(false);
   };
 
@@ -205,7 +226,7 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
               </DialogHeader>
               
               <Tabs defaultValue="prospection" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="prospection">
                     <Search className="h-4 w-4 mr-2" />
                     Prospecção
@@ -217,6 +238,10 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
                   <TabsTrigger value="whatsapp">
                     <MessageCircle className="h-4 w-4 mr-2" />
                     WhatsApp
+                  </TabsTrigger>
+                  <TabsTrigger value="sync">
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sincronização
                   </TabsTrigger>
                 </TabsList>
 
@@ -279,6 +304,32 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
                       <code className="text-xs block overflow-x-auto">
                         {`{ prospections: [{ id, niche, location, ... }] }`}
                       </code>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="sync" className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="webhook-sync">Webhook de Sincronização CRM</Label>
+                    <Input
+                      id="webhook-sync"
+                      type="url"
+                      placeholder="https://seu-n8n.app.n8n.cloud/webhook"
+                      value={tempSyncUrl}
+                      onChange={(e) => setTempSyncUrl(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Webhook base para sincronização completa com Google Sheets (CRM)
+                    </p>
+                    <div className="mt-3 p-3 bg-muted rounded-md space-y-2">
+                      <p className="text-xs font-semibold mb-1">Endpoints implementados:</p>
+                      <code className="text-xs block">GET /sync-all-leads</code>
+                      <code className="text-xs block">PATCH /update-lead-status</code>
+                      <code className="text-xs block">PUT /update-lead/:leadId</code>
+                      <code className="text-xs block">POST /create-lead</code>
+                      <code className="text-xs block">GET /metrics</code>
+                      <code className="text-xs block">POST /send-whatsapp-and-update-sheets</code>
                     </div>
                   </div>
                 </TabsContent>
