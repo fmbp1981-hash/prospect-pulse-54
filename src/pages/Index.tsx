@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { ProspectionForm } from "@/components/ProspectionForm";
 import { SearchHistory } from "@/components/SearchHistory";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
-import { Rocket, TrendingUp } from "lucide-react";
+import { Rocket, TrendingUp, LayoutDashboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const Index = () => {
   const [searches, setSearches] = useState<ProspectionSearch[]>([]);
@@ -32,14 +34,22 @@ const Index = () => {
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50 shadow-card">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center shadow-card">
-              <Rocket className="h-6 w-6 text-primary-foreground" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center shadow-card">
+                <Rocket className="h-6 w-6 text-primary-foreground" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold">LeadFinder Pro</h1>
+                <p className="text-sm text-muted-foreground">Sistema de Prospecção Inteligente</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold">LeadFinder Pro</h1>
-              <p className="text-sm text-muted-foreground">Sistema de Prospecção Inteligente</p>
-            </div>
+            <Link to="/dashboard">
+              <Button variant="outline" size="sm">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                Dashboard
+              </Button>
+            </Link>
           </div>
         </div>
       </header>
