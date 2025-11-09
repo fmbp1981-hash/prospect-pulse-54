@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { n8nMcp } from "@/lib/n8nMcp";
 import { DashboardMetrics } from "@/types/prospection";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, LayoutDashboard } from "lucide-react";
+import { Loader2, RefreshCw, LayoutDashboard, Table, Home } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { MetricsCards } from "@/components/dashboard/MetricsCards";
 import { LeadsByStatusChart } from "@/components/dashboard/LeadsByStatusChart";
 import { LeadsByOriginChart } from "@/components/dashboard/LeadsByOriginChart";
@@ -93,24 +94,38 @@ const Dashboard = () => {
                 <p className="text-sm text-muted-foreground">Métricas e análise de leads</p>
               </div>
             </div>
-            <Button
-              onClick={handleSync}
-              variant="outline"
-              size="sm"
-              disabled={isSyncing}
-            >
-              {isSyncing ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sincronizando...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Atualizar
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Link to="/">
+                <Button variant="ghost" size="sm">
+                  <Home className="mr-2 h-4 w-4" />
+                  Início
+                </Button>
+              </Link>
+              <Link to="/leads">
+                <Button variant="ghost" size="sm">
+                  <Table className="mr-2 h-4 w-4" />
+                  Leads
+                </Button>
+              </Link>
+              <Button
+                onClick={handleSync}
+                variant="outline"
+                size="sm"
+                disabled={isSyncing}
+              >
+                {isSyncing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sincronizando...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Atualizar
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </header>

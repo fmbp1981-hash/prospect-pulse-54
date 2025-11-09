@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ProspectionForm } from "@/components/ProspectionForm";
 import { SearchHistory } from "@/components/SearchHistory";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
-import { Rocket, TrendingUp, LayoutDashboard } from "lucide-react";
+import { Rocket, TrendingUp, LayoutDashboard, Table } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 
@@ -44,12 +44,20 @@ const Index = () => {
                 <p className="text-sm text-muted-foreground">Sistema de Prospecção Inteligente</p>
               </div>
             </div>
-            <Link to="/dashboard">
-              <Button variant="outline" size="sm">
-                <LayoutDashboard className="mr-2 h-4 w-4" />
-                Dashboard
-              </Button>
-            </Link>
+            <div className="flex gap-2">
+              <Link to="/leads">
+                <Button variant="outline" size="sm">
+                  <Table className="mr-2 h-4 w-4" />
+                  Leads
+                </Button>
+              </Link>
+              <Link to="/dashboard">
+                <Button variant="outline" size="sm">
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </header>
