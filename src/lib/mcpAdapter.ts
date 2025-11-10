@@ -11,9 +11,91 @@ const TIMEOUT_MS = 30000;
 let requestIdCounter = 1;
 const getNextRequestId = () => requestIdCounter++;
 
+// Flag de inicialização
+let isServerInitialized = false;
+let initializationPromise: Promise<void> | null = null;
+
 // Obter URL do MCP (configurável via localStorage)
 const getMcpBaseUrl = (): string => {
   return localStorage.getItem("leadfinder_mcp_base_url") || DEFAULT_MCP_BASE_URL;
+};
+
+// Inicializar servidor MCP
+const initializeMCPServer = async (): Promise<void> => {
+  if (isServerInitialized) return;
+  
+  // Se já existe uma inicialização em andamento, aguardar
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+  
+  initializationPromise = (async () => {
+    const MCP_BASE_URL = getMcpBaseUrl();
+    
+    try {
+      // Passo 1: Enviar mensagem de inicialização
+      const initRequest = {
+        jsonrpc: "2.0",
+        id: getNextRequestId(),
+        method: "initialize",
+        params: {
+          protocolVersion: "2024-11-05",
+          capabilities: {
+            roots: { listChanged: true },
+            sampling: {}
+          },
+          clientInfo: {
+            name: "LeadFinder Pro",
+            version: "1.0.0"
+          }
+        }
+      };
+      
+      const initResponse = await fetch(MCP_BASE_URL, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/event-stream"
+        },
+        body: JSON.stringify(initRequest)
+      });
+      
+      if (!initResponse.ok) {
+        throw new Error(`Initialization failed: ${initResponse.status}`);
+      }
+      
+      const initResult = await initResponse.json();
+      
+      if (initResult.error) {
+        throw new Error(`MCP Init Error: ${initResult.error.message}`);
+      }
+      
+      // Passo 2: Enviar notificação de initialized
+      const initializedNotification = {
+        jsonrpc: "2.0",
+        method: "notifications/initialized",
+        params: {}
+      };
+      
+      await fetch(MCP_BASE_URL, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/event-stream"
+        },
+        body: JSON.stringify(initializedNotification)
+      });
+      
+      isServerInitialized = true;
+      console.log("✅ MCP Server initialized successfully");
+      
+    } catch (error) {
+      initializationPromise = null;
+      throw error;
+    }
+  })();
+  
+  return initializationPromise;
 };
 
 interface MCPToolCall {
@@ -33,6 +115,9 @@ interface MCPResponse<T = any> {
 }
 
 const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
+  // Garantir que o servidor está inicializado antes de fazer a chamada
+  await initializeMCPServer();
+  
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const MCP_BASE_URL = getMcpBaseUrl();
@@ -195,3 +280,11 @@ export const mcpTools = {
  * URL base do MCP para uso externo (se necessário)
  */
 export const getMCPBaseUrl = () => getMcpBaseUrl();
+
+/**
+ * Força reinicialização do servidor MCP (útil para debug/reconfiguração)
+ */
+export const reinitializeMCPServer = () => {
+  isServerInitialized = false;
+  initializationPromise = null;
+};
