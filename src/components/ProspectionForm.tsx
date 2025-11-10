@@ -24,6 +24,7 @@ interface ProspectionFormProps {
 
 export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [formData, setFormData] = useState<ProspectionFormData>({
     niche: "",
     location: {
@@ -103,6 +104,73 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
               Configure sua busca de leads no Google Places
             </CardDescription>
           </div>
+          
+          <Dialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
+            <DialogTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="relative"
+                type="button"
+              >
+                <Settings className="h-4 w-4" />
+                <CheckCircle2 className="h-3 w-3 text-green-500 absolute -top-1 -right-1" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Configurar Integrações n8n</DialogTitle>
+                <DialogDescription>
+                  Endpoints para prospecção e MCP Server (Google Sheets + WhatsApp)
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label>🎯 Webhook de Prospecção</Label>
+                  <div className="p-3 bg-muted rounded-lg font-mono text-xs break-all">
+                    {n8nMcp.getProspectionWebhook()}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Inicia a busca de leads no Google Places
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>🔄 MCP Server Base URL</Label>
+                  <div className="p-3 bg-muted rounded-lg font-mono text-xs break-all">
+                    https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Sincronização com Google Sheets, envio WhatsApp via Evolution API
+                  </p>
+                  <div className="mt-3 p-3 bg-primary/5 rounded-md border border-primary/20">
+                    <p className="text-xs font-semibold mb-2">Tools disponíveis:</p>
+                    <div className="space-y-1 text-xs">
+                      <code className="block">• get_rows - Buscar leads do CRM</code>
+                      <code className="block">• add_row - Adicionar novo lead</code>
+                      <code className="block">• update_row - Atualizar lead</code>
+                      <code className="block">• evo_send_message - Enviar WhatsApp</code>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-accent/10 border border-accent rounded-lg">
+                  <p className="text-sm font-medium mb-2">✅ Integração Ativa</p>
+                  <p className="text-xs text-muted-foreground">
+                    Os endpoints estão configurados e prontos para uso. Para alterá-los, 
+                    edite os valores no código-fonte (src/lib/n8nMcp.ts e src/lib/mcpAdapter.ts).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button onClick={() => setIsConfigOpen(false)} className="w-full">
+                  Fechar
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </CardHeader>
       <CardContent>
@@ -152,17 +220,6 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
               <p className="text-xs text-muted-foreground">Máximo: 500 leads por busca</p>
             </div>
 
-            <div className="p-3 bg-muted rounded-lg border border-border">
-              <div className="flex items-center gap-2 text-sm">
-                <Webhook className="h-4 w-4 text-primary" />
-                <span className="text-muted-foreground font-mono text-xs">
-                  {n8nMcp.getProspectionWebhook()}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                ✅ Integração MCP configurada com n8n
-              </p>
-            </div>
           </div>
 
           <Button
