@@ -7,14 +7,23 @@
 const DEFAULT_MCP_BASE_URL = "https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa";
 const TIMEOUT_MS = 30000;
 
+// Contador de IDs para requisições JSON-RPC
+let requestIdCounter = 1;
+const getNextRequestId = () => requestIdCounter++;
+
 // Obter URL do MCP (configurável via localStorage)
 const getMcpBaseUrl = (): string => {
   return localStorage.getItem("leadfinder_mcp_base_url") || DEFAULT_MCP_BASE_URL;
 };
 
 interface MCPToolCall {
-  tool: string;
-  params: Record<string, any>;
+  jsonrpc: "2.0";
+  id: number;
+  method: "tools/call";
+  params: {
+    name: string;
+    arguments: Record<string, any>;
+  };
 }
 
 interface MCPResponse<T = any> {
@@ -28,6 +37,17 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const MCP_BASE_URL = getMcpBaseUrl();
   
+  // Criar requisição no formato JSON-RPC 2.0
+  const requestBody: MCPToolCall = {
+    jsonrpc: "2.0",
+    id: getNextRequestId(),
+    method: "tools/call",
+    params: {
+      name: tool,
+      arguments: params || {}
+    }
+  };
+  
   try {
     const response = await fetch(MCP_BASE_URL, {
       method: "POST",
@@ -35,7 +55,7 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream"
       },
-      body: JSON.stringify({ tool, params } as MCPToolCall),
+      body: JSON.stringify(requestBody),
       signal: controller.signal
     });
     
@@ -46,8 +66,21 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
       throw new Error(`MCP Error ${response.status}: ${errorText}`);
     }
     
-    const result = await response.json();
-    return result;
+    const jsonRpcResponse = await response.json();
+    
+    // Extrair dados da resposta JSON-RPC
+    if (jsonRpcResponse.error) {
+      throw new Error(`MCP Error: ${jsonRpcResponse.error.message}`);
+    }
+    
+    // Resposta MCP vem em result.content[0].text (JSON string)
+    if (jsonRpcResponse.result?.content?.[0]?.text) {
+      return JSON.parse(jsonRpcResponse.result.content[0].text);
+    }
+    
+    // Fallback para resposta direta
+    return jsonRpcResponse.result || jsonRpcResponse;
+    
   } catch (error) {
     clearTimeout(timeoutId);
     
@@ -84,7 +117,19 @@ const callMCPGet = async <T = any>(params: Record<string, string>): Promise<T> =
       throw new Error(`MCP GET Error ${response.status}`);
     }
     
-    return await response.json();
+    const jsonRpcResponse = await response.json();
+    
+    // Processar resposta JSON-RPC
+    if (jsonRpcResponse.error) {
+      throw new Error(`MCP Error: ${jsonRpcResponse.error.message}`);
+    }
+    
+    if (jsonRpcResponse.result?.content?.[0]?.text) {
+      return JSON.parse(jsonRpcResponse.result.content[0].text);
+    }
+    
+    return jsonRpcResponse.result || jsonRpcResponse;
+    
   } catch (error) {
     clearTimeout(timeoutId);
     
