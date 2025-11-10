@@ -25,6 +25,9 @@ interface ProspectionFormProps {
 export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [tempProspectionWebhook, setTempProspectionWebhook] = useState("");
+  const [tempMcpUrl, setTempMcpUrl] = useState("");
+  
   const [formData, setFormData] = useState<ProspectionFormData>({
     niche: "",
     location: {
@@ -34,8 +37,45 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
       neighborhood: ""
     },
     quantity: 50,
-    webhookUrl: n8nMcp.getProspectionWebhook(), // Webhook fixo
+    webhookUrl: n8nMcp.getProspectionWebhook(),
   });
+
+  // Carregar URLs atuais ao abrir modal
+  useEffect(() => {
+    if (isConfigOpen) {
+      setTempProspectionWebhook(n8nMcp.getProspectionWebhook());
+      setTempMcpUrl(localStorage.getItem("leadfinder_mcp_base_url") || "https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa");
+    }
+  }, [isConfigOpen]);
+
+  const handleSaveConfig = () => {
+    if (!tempProspectionWebhook.trim()) {
+      toast.error("Webhook de prospecção não pode estar vazio");
+      return;
+    }
+
+    if (!tempMcpUrl.trim()) {
+      toast.error("URL do MCP não pode estar vazia");
+      return;
+    }
+
+    try {
+      new URL(tempProspectionWebhook);
+      new URL(tempMcpUrl);
+      
+      // Salvar configurações
+      localStorage.setItem("leadfinder_prospection_webhook", tempProspectionWebhook);
+      localStorage.setItem("leadfinder_mcp_base_url", tempMcpUrl);
+      
+      toast.success("Configurações salvas com sucesso!");
+      setIsConfigOpen(false);
+      
+      // Recarregar página para aplicar novas configurações
+      setTimeout(() => window.location.reload(), 1000);
+    } catch {
+      toast.error("URLs inválidas. Verifique o formato.");
+    }
+  };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,31 +161,41 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
               <DialogHeader>
                 <DialogTitle>Configurar Integrações n8n</DialogTitle>
                 <DialogDescription>
-                  Endpoints para prospecção e MCP Server (Google Sheets + WhatsApp)
+                  Edite os endpoints para prospecção e MCP Server
                 </DialogDescription>
               </DialogHeader>
               
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <Label>🎯 Webhook de Prospecção</Label>
-                  <div className="p-3 bg-muted rounded-lg font-mono text-xs break-all">
-                    {n8nMcp.getProspectionWebhook()}
-                  </div>
+                  <Label htmlFor="webhook-prospection">🎯 Webhook de Prospecção</Label>
+                  <Input
+                    id="webhook-prospection"
+                    type="url"
+                    placeholder="https://n8n.intellixai.com.br/webhook/xpag_prospecção_Outbound"
+                    value={tempProspectionWebhook}
+                    onChange={(e) => setTempProspectionWebhook(e.target.value)}
+                    className="font-mono text-sm"
+                  />
                   <p className="text-xs text-muted-foreground">
-                    Inicia a busca de leads no Google Places
+                    Endpoint que inicia a busca de leads no Google Places
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>🔄 MCP Server Base URL</Label>
-                  <div className="p-3 bg-muted rounded-lg font-mono text-xs break-all">
-                    https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa
-                  </div>
+                  <Label htmlFor="mcp-url">🔄 MCP Server Base URL</Label>
+                  <Input
+                    id="mcp-url"
+                    type="url"
+                    placeholder="https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa"
+                    value={tempMcpUrl}
+                    onChange={(e) => setTempMcpUrl(e.target.value)}
+                    className="font-mono text-sm"
+                  />
                   <p className="text-xs text-muted-foreground">
-                    Sincronização com Google Sheets, envio WhatsApp via Evolution API
+                    Base URL para sincronização com Google Sheets e envio WhatsApp via Evolution API
                   </p>
                   <div className="mt-3 p-3 bg-primary/5 rounded-md border border-primary/20">
-                    <p className="text-xs font-semibold mb-2">Tools disponíveis:</p>
+                    <p className="text-xs font-semibold mb-2">Tools disponíveis no MCP:</p>
                     <div className="space-y-1 text-xs">
                       <code className="block">• get_rows - Buscar leads do CRM</code>
                       <code className="block">• add_row - Adicionar novo lead</code>
@@ -156,17 +206,27 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
                 </div>
 
                 <div className="p-4 bg-accent/10 border border-accent rounded-lg">
-                  <p className="text-sm font-medium mb-2">✅ Integração Ativa</p>
+                  <p className="text-sm font-medium mb-2">💡 Importante</p>
                   <p className="text-xs text-muted-foreground">
-                    Os endpoints estão configurados e prontos para uso. Para alterá-los, 
-                    edite os valores no código-fonte (src/lib/n8nMcp.ts e src/lib/mcpAdapter.ts).
+                    Após salvar, a página será recarregada para aplicar as novas configurações.
+                    Certifique-se de que as URLs estão corretas antes de salvar.
                   </p>
                 </div>
               </div>
 
               <div className="flex gap-2 pt-4">
-                <Button onClick={() => setIsConfigOpen(false)} className="w-full">
-                  Fechar
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsConfigOpen(false)}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  onClick={handleSaveConfig}
+                  className="flex-1"
+                >
+                  Salvar Configurações
                 </Button>
               </div>
             </DialogContent>

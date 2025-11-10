@@ -1,15 +1,16 @@
 /**
  * MCP Adapter - Interface para comunicação com n8n MCP Server
- * Endpoint base: https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa
- * 
- * O MCP Server expõe tools para:
- * - Google Sheets (get_rows, add_row, update_row)
- * - Evolution API WhatsApp (evo_send_message)
- * - Outras integrações via HTTP Request
+ * Base URL configurável via localStorage (chave: leadfinder_mcp_base_url)
+ * Default: https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa
  */
 
-const MCP_BASE_URL = "https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa";
+const DEFAULT_MCP_BASE_URL = "https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa";
 const TIMEOUT_MS = 30000;
+
+// Obter URL do MCP (configurável via localStorage)
+const getMcpBaseUrl = (): string => {
+  return localStorage.getItem("leadfinder_mcp_base_url") || DEFAULT_MCP_BASE_URL;
+};
 
 interface MCPToolCall {
   tool: string;
@@ -22,12 +23,10 @@ interface MCPResponse<T = any> {
   error?: string;
 }
 
-/**
- * Faz chamada a uma tool do MCP Server com timeout de 30s
- */
 const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const MCP_BASE_URL = getMcpBaseUrl();
   
   try {
     const response = await fetch(MCP_BASE_URL, {
@@ -60,12 +59,10 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
   }
 };
 
-/**
- * Chamada GET ao MCP (usado para check de status)
- */
 const callMCPGet = async <T = any>(params: Record<string, string>): Promise<T> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const MCP_BASE_URL = getMcpBaseUrl();
   
   try {
     const queryString = new URLSearchParams(params).toString();
@@ -146,4 +143,4 @@ export const mcpTools = {
 /**
  * URL base do MCP para uso externo (se necessário)
  */
-export const getMCPBaseUrl = () => MCP_BASE_URL;
+export const getMCPBaseUrl = () => getMcpBaseUrl();

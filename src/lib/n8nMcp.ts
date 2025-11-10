@@ -4,14 +4,23 @@ import { mcpTools } from "./mcpAdapter";
 /**
  * Integração simplificada com n8n MCP Server e webhook de prospecção
  * 
- * MCP Base URL: https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa
- * - Usado para: sync de leads, WhatsApp, métricas (via mcpAdapter)
- * 
- * Prospection Webhook: https://n8n.intellixai.com.br/webhook/xpag_prospecção_Outbound
- * - Usado para: iniciar busca de leads no Google Places
+ * URLs podem ser configuradas via localStorage:
+ * - leadfinder_prospection_webhook: Webhook de prospecção
+ * - leadfinder_mcp_base_url: Base URL do MCP Server
  */
 
-const PROSPECTION_WEBHOOK = "https://n8n.intellixai.com.br/webhook/xpag_prospecção_Outbound";
+const DEFAULT_PROSPECTION_WEBHOOK = "https://n8n.intellixai.com.br/webhook/xpag_prospecção_Outbound";
+const DEFAULT_MCP_BASE_URL = "https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa";
+
+// Funções para obter URLs configuráveis
+const getProspectionWebhookUrl = (): string => {
+  return localStorage.getItem("leadfinder_prospection_webhook") || DEFAULT_PROSPECTION_WEBHOOK;
+};
+
+const getMcpBaseUrl = (): string => {
+  return localStorage.getItem("leadfinder_mcp_base_url") || DEFAULT_MCP_BASE_URL;
+};
+
 const TIMEOUT_MS = 30000;
 
 /**
@@ -280,17 +289,15 @@ export const n8nMcp = {
     }
   },
 
-  /**
-   * Inicia prospecção de leads no Google Places
-   * Usa webhook fixo de prospecção
-   */
   startProspection: async (data: {
     niche: string;
     location: any;
     quantity: number;
   }): Promise<{ success: boolean; message: string; totalLeads?: number }> => {
     try {
-      const response = await fetchWithTimeout(PROSPECTION_WEBHOOK, {
+      const webhookUrl = getProspectionWebhookUrl();
+      
+      const response = await fetchWithTimeout(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -324,5 +331,10 @@ export const n8nMcp = {
   /**
    * Retorna URL do webhook de prospecção (para exibição na UI)
    */
-  getProspectionWebhook: () => PROSPECTION_WEBHOOK,
+  getProspectionWebhook: () => getProspectionWebhookUrl(),
+  
+  /**
+   * Retorna URL base do MCP (para exibição na UI)
+   */
+  getMcpBaseUrl: () => getMcpBaseUrl(),
 };
