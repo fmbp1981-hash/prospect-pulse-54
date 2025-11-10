@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { MapPin, Loader2 } from "lucide-react";
+import { MapPin } from "lucide-react";
+import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 
 export interface LocationData {
   country: string;
@@ -90,74 +90,67 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
     onChange({ ...value, neighborhood: e.target.value });
   };
 
+  // Preparar opções para os Combobox
+  const countryOptions: ComboboxOption[] = [
+    { value: "Brasil", label: "Brasil" },
+    { value: "Portugal", label: "Portugal" },
+    { value: "Estados Unidos", label: "Estados Unidos" },
+  ];
+
+  const stateOptions: ComboboxOption[] = states.map(state => ({
+    value: state.nome,
+    label: state.nome,
+  }));
+
+  const cityOptions: ComboboxOption[] = cities.map(city => ({
+    value: city.nome,
+    label: city.nome,
+  }));
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* País */}
         <div className="space-y-2">
           <Label htmlFor="country">País</Label>
-          <Select value={value.country} onValueChange={handleCountryChange}>
-            <SelectTrigger id="country">
-              <SelectValue placeholder="Selecione o país" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Brasil">Brasil</SelectItem>
-              <SelectItem value="Portugal">Portugal</SelectItem>
-              <SelectItem value="Estados Unidos">Estados Unidos</SelectItem>
-            </SelectContent>
-          </Select>
+          <Combobox
+            options={countryOptions}
+            value={value.country}
+            onValueChange={handleCountryChange}
+            placeholder="Selecione o país"
+            searchPlaceholder="Digite para buscar país..."
+            emptyMessage="Nenhum país encontrado."
+          />
         </div>
 
         {/* Estado */}
         <div className="space-y-2">
           <Label htmlFor="state">Estado</Label>
-          <Select 
-            value={value.state} 
+          <Combobox
+            options={stateOptions}
+            value={value.state}
             onValueChange={handleStateChange}
-            disabled={!value.country || loadingStates}
-          >
-            <SelectTrigger id="state">
-              {loadingStates ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Carregando...</span>
-                </div>
-              ) : (
-                <SelectValue placeholder="Selecione o estado" />
-              )}
-            </SelectTrigger>
-            <SelectContent>
-              {states.map(state => (
-                <SelectItem key={state.id} value={state.nome}>{state.nome}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Selecione o estado"
+            searchPlaceholder="Digite para buscar estado..."
+            emptyMessage="Nenhum estado encontrado."
+            disabled={!value.country}
+            loading={loadingStates}
+          />
         </div>
 
         {/* Cidade */}
         <div className="space-y-2">
           <Label htmlFor="city">Cidade</Label>
-          <Select 
-            value={value.city} 
+          <Combobox
+            options={cityOptions}
+            value={value.city}
             onValueChange={handleCityChange}
-            disabled={!value.state || loadingCities}
-          >
-            <SelectTrigger id="city">
-              {loadingCities ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Carregando...</span>
-                </div>
-              ) : (
-                <SelectValue placeholder="Selecione a cidade" />
-              )}
-            </SelectTrigger>
-            <SelectContent className="max-h-60">
-              {cities.map(city => (
-                <SelectItem key={city.id} value={city.nome}>{city.nome}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Selecione a cidade"
+            searchPlaceholder="Digite para buscar cidade..."
+            emptyMessage="Nenhuma cidade encontrada."
+            disabled={!value.state}
+            loading={loadingCities}
+          />
         </div>
 
         {/* Bairro/Região */}
