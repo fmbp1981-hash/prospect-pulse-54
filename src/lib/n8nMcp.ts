@@ -1,203 +1,80 @@
-import { ProspectionSearch, Lead, DashboardMetrics, LeadStatus } from "@/types/prospection";
+import { Lead, DashboardMetrics, LeadStatus } from "@/types/prospection";
+import { mcpTools } from "./mcpAdapter";
 
-const MCP_WEBHOOK_KEY = "leadfinder_mcp_webhook_url";
-const WHATSAPP_WEBHOOK_KEY = "leadfinder_whatsapp_webhook_url";
-const SYNC_WEBHOOK_KEY = "leadfinder_sync_webhook_url";
+/**
+ * Integração simplificada com n8n MCP Server e webhook de prospecção
+ * 
+ * MCP Base URL: https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa
+ * - Usado para: sync de leads, WhatsApp, métricas (via mcpAdapter)
+ * 
+ * Prospection Webhook: https://n8n.intellixai.com.br/webhook/xpag_prospecção_Outbound
+ * - Usado para: iniciar busca de leads no Google Places
+ */
+
+const PROSPECTION_WEBHOOK = "https://n8n.intellixai.com.br/webhook/xpag_prospecção_Outbound";
+const TIMEOUT_MS = 30000;
+
+/**
+ * Wrapper com timeout para fetch
+ */
+const fetchWithTimeout = async (url: string, options: RequestInit) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Request timeout - servidor não respondeu em 30 segundos');
+    }
+    throw error;
+  }
+};
 
 export const n8nMcp = {
-  getMcpWebhookUrl: (): string | null => {
-    return localStorage.getItem(MCP_WEBHOOK_KEY);
-  },
-
-  setMcpWebhookUrl: (url: string): void => {
-    localStorage.setItem(MCP_WEBHOOK_KEY, url);
-  },
-
-  getWhatsAppWebhookUrl: (): string | null => {
-    return localStorage.getItem(WHATSAPP_WEBHOOK_KEY);
-  },
-
-  setWhatsAppWebhookUrl: (url: string): void => {
-    localStorage.setItem(WHATSAPP_WEBHOOK_KEY, url);
-  },
-
-  getSyncWebhookUrl: (): string | null => {
-    return localStorage.getItem(SYNC_WEBHOOK_KEY);
-  },
-
-  setSyncWebhookUrl: (url: string): void => {
-    localStorage.setItem(SYNC_WEBHOOK_KEY, url);
-  },
-
   /**
-   * Consulta o status de envio de WhatsApp para múltiplas prospecções
-   * Endpoint n8n esperado: GET /check-whatsapp-status?ids=id1,id2,id3
-   * Resposta esperada: { "id1": { status: "sent", sentAt: "2024-..." }, "id2": { status: "not_sent" }, ... }
-   */
-  checkWhatsAppStatus: async (
-    prospectionIds: string[]
-  ): Promise<Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }>> => {
-    const mcpUrl = n8nMcp.getMcpWebhookUrl();
-    
-    if (!mcpUrl) {
-      console.warn("MCP webhook URL not configured");
-      return {};
-    }
-
-    try {
-      const idsParam = prospectionIds.join(",");
-      const response = await fetch(`${mcpUrl}?ids=${idsParam}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`MCP request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error("Error checking WhatsApp status:", error);
-      return {};
-    }
-  },
-
-  /**
-   * Envia mensagens WhatsApp para múltiplas prospecções selecionadas
-   * Endpoint n8n esperado: POST /send-whatsapp
-   * Body: { prospections: [{ id, niche, location, quantity, timestamp }] }
-   */
-  sendWhatsAppMessages: async (
-    prospections: ProspectionSearch[]
-  ): Promise<{ success: boolean; message: string }> => {
-    const whatsappUrl = n8nMcp.getWhatsAppWebhookUrl();
-
-    if (!whatsappUrl) {
-      return {
-        success: false,
-        message: "Webhook WhatsApp não configurado",
-      };
-    }
-
-    try {
-      const response = await fetch(whatsappUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prospections: prospections.map((p) => ({
-            id: p.id,
-            niche: p.niche,
-            location: p.location,
-            quantity: p.quantity,
-            timestamp: p.timestamp,
-          })),
-          action: "send_whatsapp",
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`WhatsApp send failed: ${response.status}`);
-      }
-
-      return {
-        success: true,
-        message: "Mensagens enviadas com sucesso",
-      };
-    } catch (error) {
-      console.error("Error sending WhatsApp messages:", error);
-      return {
-        success: false,
-        message: "Erro ao enviar mensagens. Verifique a configuração.",
-      };
-    }
-  },
-
-  /**
-   * Sincroniza todos os leads do Google Sheets
-   * Endpoint n8n esperado: GET /sync-all-leads
-   * Resposta esperada: { leads: Lead[] }
+   * Sincroniza todos os leads do Google Sheets via MCP
+   * Tool: get_rows (sem filtros = retorna tudo)
    */
   syncAllLeads: async (): Promise<{
     success: boolean;
     leads: Lead[];
     message?: string;
   }> => {
-    const syncUrl = n8nMcp.getSyncWebhookUrl();
-
-    if (!syncUrl) {
-      return {
-        success: false,
-        leads: [],
-        message: "Webhook de sincronização não configurado",
-      };
-    }
-
     try {
-      const response = await fetch(`${syncUrl}/sync-all-leads`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Sync failed: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const response = await mcpTools.getRows();
+      
       return {
         success: true,
-        leads: data.leads || [],
+        leads: response.leads || response.data || [],
       };
     } catch (error) {
       console.error("Error syncing leads:", error);
       return {
         success: false,
         leads: [],
-        message: "Erro ao sincronizar com Google Sheets",
+        message: error instanceof Error ? error.message : "Erro ao sincronizar com Google Sheets",
       };
     }
   },
 
   /**
    * Atualiza o status de um lead no Google Sheets
-   * Endpoint n8n esperado: PATCH /update-lead-status
-   * Body: { leadId: string, status: LeadStatus }
+   * Tool: update_row
    */
   updateLeadStatus: async (
     leadId: string,
     status: LeadStatus
   ): Promise<{ success: boolean; message: string }> => {
-    const syncUrl = n8nMcp.getSyncWebhookUrl();
-
-    if (!syncUrl) {
-      return {
-        success: false,
-        message: "Webhook de sincronização não configurado",
-      };
-    }
-
     try {
-      const response = await fetch(`${syncUrl}/update-lead-status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          leadId,
-          status,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Update failed: ${response.status}`);
-      }
-
+      await mcpTools.updateRow(leadId, { Status: status });
+      
       return {
         success: true,
         message: "Status atualizado com sucesso",
@@ -206,42 +83,22 @@ export const n8nMcp = {
       console.error("Error updating lead status:", error);
       return {
         success: false,
-        message: "Erro ao atualizar status",
+        message: error instanceof Error ? error.message : "Erro ao atualizar status",
       };
     }
   },
 
   /**
    * Atualiza dados completos de um lead no Google Sheets
-   * Endpoint n8n esperado: PUT /update-lead/:leadId
-   * Body: Partial<Lead>
+   * Tool: update_row
    */
   updateLead: async (
     leadId: string,
     updates: Partial<Lead>
   ): Promise<{ success: boolean; message: string }> => {
-    const syncUrl = n8nMcp.getSyncWebhookUrl();
-
-    if (!syncUrl) {
-      return {
-        success: false,
-        message: "Webhook de sincronização não configurado",
-      };
-    }
-
     try {
-      const response = await fetch(`${syncUrl}/update-lead/${leadId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Update failed: ${response.status}`);
-      }
-
+      await mcpTools.updateRow(leadId, updates);
+      
       return {
         success: true,
         message: "Lead atualizado com sucesso",
@@ -250,150 +107,222 @@ export const n8nMcp = {
       console.error("Error updating lead:", error);
       return {
         success: false,
-        message: "Erro ao atualizar lead",
+        message: error instanceof Error ? error.message : "Erro ao atualizar lead",
       };
     }
   },
 
   /**
    * Cria um novo lead no Google Sheets
-   * Endpoint n8n esperado: POST /create-lead
-   * Body: Omit<Lead, 'id'>
+   * Tool: add_row
    */
   createLead: async (
     leadData: Omit<Lead, "id">
   ): Promise<{ success: boolean; leadId?: string; message: string }> => {
-    const syncUrl = n8nMcp.getSyncWebhookUrl();
-
-    if (!syncUrl) {
-      return {
-        success: false,
-        message: "Webhook de sincronização não configurado",
-      };
-    }
-
     try {
-      const response = await fetch(`${syncUrl}/create-lead`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(leadData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Create failed: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const response = await mcpTools.addRow(leadData);
+      
       return {
         success: true,
-        leadId: data.leadId,
+        leadId: response.leadId || response.id,
         message: "Lead criado com sucesso",
       };
     } catch (error) {
       console.error("Error creating lead:", error);
       return {
         success: false,
-        message: "Erro ao criar lead",
+        message: error instanceof Error ? error.message : "Erro ao criar lead",
       };
     }
   },
 
   /**
-   * Obtém métricas do dashboard calculadas a partir do Google Sheets
-   * Endpoint n8n esperado: GET /metrics
-   * Resposta esperada: DashboardMetrics
+   * Obtém métricas do dashboard
+   * Tool: get_rows com action: 'metrics'
    */
   getMetrics: async (): Promise<{
     success: boolean;
     metrics?: DashboardMetrics;
     message?: string;
   }> => {
-    const syncUrl = n8nMcp.getSyncWebhookUrl();
-
-    if (!syncUrl) {
-      return {
-        success: false,
-        message: "Webhook de sincronização não configurado",
-      };
-    }
-
     try {
-      const response = await fetch(`${syncUrl}/metrics`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Metrics request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const response = await mcpTools.getRows({ action: 'metrics' });
+      
       return {
         success: true,
-        metrics: data,
+        metrics: response.metrics || response.data,
       };
     } catch (error) {
       console.error("Error fetching metrics:", error);
       return {
         success: false,
-        message: "Erro ao buscar métricas",
+        message: error instanceof Error ? error.message : "Erro ao buscar métricas",
       };
     }
   },
 
   /**
-   * Envia mensagens WhatsApp para leads específicos e atualiza Google Sheets
-   * Endpoint n8n esperado: POST /send-whatsapp-and-update-sheets
-   * Body: { leadIds: string[] }
+   * NOVO FLUXO: Envia mensagens WhatsApp buscando mensagem do CRM
+   * 
+   * Processo:
+   * 1. Busca dados completos dos leads via get_rows
+   * 2. Filtra leads válidos (com mensagem e não enviados)
+   * 3. Para cada lead: envia via Evolution API (evo_send_message)
+   * 4. Atualiza Google Sheets com status e data de envio (update_row)
    */
   sendWhatsAppAndUpdateSheets: async (
     leadIds: string[]
   ): Promise<{
     success: boolean;
-    results?: Array<{ id: string; status: string; sentAt?: string }>;
+    results?: Array<{ id: string; status: string; sentAt?: string; error?: string }>;
     message: string;
   }> => {
-    const whatsappUrl = n8nMcp.getWhatsAppWebhookUrl();
-
-    if (!whatsappUrl) {
+    try {
+      // 1. Buscar dados completos dos leads
+      const leadsResponse = await mcpTools.getRows({ ids: leadIds.join(",") });
+      const leads = leadsResponse.leads || leadsResponse.data || [];
+      
+      if (leads.length === 0) {
+        return {
+          success: false,
+          message: "Nenhum lead encontrado com os IDs fornecidos",
+        };
+      }
+      
+      // 2. Filtrar leads válidos
+      const validLeads = leads.filter((lead: Lead) => 
+        lead.mensagemWhatsApp && 
+        lead.whatsapp &&
+        lead.statusMsgWA !== 'sent'
+      );
+      
+      if (validLeads.length === 0) {
+        return {
+          success: false,
+          message: "Nenhum lead válido para envio (sem mensagem configurada ou já enviados)",
+        };
+      }
+      
+      // 3. Enviar WhatsApp e atualizar status para cada lead
+      const results = [];
+      
+      for (const lead of validLeads) {
+        try {
+          // Enviar via Evolution API
+          const sendResult = await mcpTools.sendWhatsApp(
+            lead.whatsapp, 
+            lead.mensagemWhatsApp!
+          );
+          
+          const isSuccess = sendResult.success !== false; // Assume sucesso se não tiver erro explícito
+          const timestamp = new Date().toISOString();
+          
+          // Atualizar Google Sheets
+          await mcpTools.updateRow(lead.id, {
+            "Status Msg. WA": isSuccess ? "sent" : "failed",
+            "Data Envio WA": timestamp,
+          });
+          
+          results.push({
+            id: lead.id,
+            status: isSuccess ? "sent" : "failed",
+            sentAt: timestamp,
+          });
+          
+          // Delay entre envios (rate limiting)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } catch (error) {
+          console.error(`Erro ao enviar para lead ${lead.id}:`, error);
+          
+          // Marcar como falha no Google Sheets
+          await mcpTools.updateRow(lead.id, {
+            "Status Msg. WA": "failed",
+            "Data Envio WA": new Date().toISOString(),
+          });
+          
+          results.push({
+            id: lead.id,
+            status: "failed",
+            error: error instanceof Error ? error.message : "Erro desconhecido",
+          });
+        }
+      }
+      
+      const sentCount = results.filter(r => r.status === "sent").length;
+      
+      return {
+        success: true,
+        results,
+        message: `${sentCount} mensagem(ns) enviada(s) com sucesso`,
+      };
+    } catch (error) {
+      console.error("Error in sendWhatsAppAndUpdateSheets:", error);
       return {
         success: false,
-        message: "Webhook WhatsApp não configurado",
+        message: error instanceof Error ? error.message : "Erro ao enviar mensagens",
       };
     }
+  },
 
+  /**
+   * Verifica status de envio WhatsApp para múltiplos leads
+   * Usado antes de abrir modal de envio
+   */
+  checkWhatsAppStatus: async (
+    leadIds: string[]
+  ): Promise<Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }>> => {
     try {
-      const response = await fetch(`${whatsappUrl}/send-whatsapp-and-update-sheets`, {
+      const response = await mcpTools.checkWhatsAppStatus(leadIds);
+      return response;
+    } catch (error) {
+      console.error("Error checking WhatsApp status:", error);
+      return {};
+    }
+  },
+
+  /**
+   * Inicia prospecção de leads no Google Places
+   * Usa webhook fixo de prospecção
+   */
+  startProspection: async (data: {
+    niche: string;
+    location: any;
+    quantity: number;
+  }): Promise<{ success: boolean; message: string; totalLeads?: number }> => {
+    try {
+      const response = await fetchWithTimeout(PROSPECTION_WEBHOOK, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          leadIds,
-          action: "send_whatsapp",
+          niche: data.niche,
+          location: data.location,
+          quantity: data.quantity,
+          timestamp: new Date().toISOString(),
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`WhatsApp send failed: ${response.status}`);
+        throw new Error(`Prospection failed: ${response.status}`);
       }
 
-      const data = await response.json();
+      const result = await response.json();
+      
       return {
         success: true,
-        results: data.results,
-        message: "Mensagens enviadas e Google Sheets atualizado",
+        message: "Prospecção iniciada com sucesso",
+        totalLeads: result.totalLeads || result.leads?.length || data.quantity,
       };
     } catch (error) {
-      console.error("Error sending WhatsApp messages:", error);
+      console.error("Error starting prospection:", error);
       return {
         success: false,
-        message: "Erro ao enviar mensagens. Verifique a configuração.",
+        message: error instanceof Error ? error.message : "Erro ao iniciar prospecção",
       };
     }
   },
+
+  /**
+   * Retorna URL do webhook de prospecção (para exibição na UI)
+   */
+  getProspectionWebhook: () => PROSPECTION_WEBHOOK,
 };

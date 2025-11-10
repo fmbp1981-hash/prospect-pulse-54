@@ -3,7 +3,7 @@ import Papa from 'papaparse';
 import { Lead } from '@/types/prospection';
 
 // Sanitizar dados para prevenir CSV injection
-export const sanitizeForCSV = (value: string | number | undefined): string => {
+export const sanitizeForCSV = (value: string | number | boolean | undefined): string => {
   if (value === undefined || value === null) return '';
   
   const stringValue = String(value);

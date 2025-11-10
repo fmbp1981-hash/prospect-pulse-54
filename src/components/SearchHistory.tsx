@@ -74,34 +74,13 @@ export const SearchHistory = ({ searches }: SearchHistoryProps) => {
   };
 
   const handleSendWhatsApp = async () => {
-    if (selectedIds.size === 0) {
-      toast.error("Selecione ao menos uma prospecção");
-      return;
-    }
-
-    const selectedProspections = searches.filter(s => selectedIds.has(s.id));
+    toast.error("Funcionalidade descontinuada", {
+      description: "Use o envio de WhatsApp na tabela de leads",
+    });
     
-    setIsSending(true);
-    const result = await n8nMcp.sendWhatsAppMessages(selectedProspections);
-    setIsSending(false);
-
-    if (result.success) {
-      toast.success(`Mensagens enviadas!`, {
-        description: `${selectedIds.size} prospecção(ões) enviada(s) para o n8n`,
-      });
-      
-      // Atualizar status localmente
-      const updatedStatuses = { ...whatsappStatuses };
-      selectedIds.forEach(id => {
-        updatedStatuses[id] = { status: 'sent', sentAt: new Date().toISOString() };
-      });
-      setWhatsappStatuses(updatedStatuses);
-      setSelectedIds(new Set());
-    } else {
-      toast.error("Erro ao enviar mensagens", {
-        description: result.message,
-      });
-    }
+    // NOTA: Fluxo antigo de envio por prospecção foi substituído
+    // Agora o envio é feito na LeadsTable usando leads individuais
+    // com mensagens personalizadas do CRM
   };
 
   const getStatusColor = (status: ProspectionSearch['status']) => {
@@ -154,7 +133,7 @@ export const SearchHistory = ({ searches }: SearchHistoryProps) => {
   }
 
   const notSentCount = searches.filter(s => whatsappStatuses[s.id]?.status !== 'sent').length;
-  const hasWhatsAppConfig = !!n8nMcp.getWhatsAppWebhookUrl();
+  const hasWhatsAppConfig = true; // MCP integrado com webhook fixo
 
   return (
     <Card className="shadow-card animate-fade-in">

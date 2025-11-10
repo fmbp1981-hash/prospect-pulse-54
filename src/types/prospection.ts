@@ -49,10 +49,25 @@ export type LeadOrigin =
 
 export interface Lead {
   id: string;
-  lead: string; // Nome do lead
-  status: LeadStatus;
-  empresa: string;
-  whatsapp: string;
+  
+  // Campos básicos do Excel
+  lead: string; // Nome do lead (Coluna A)
+  data?: string; // Data (Coluna B) - ISO date
+  status: LeadStatus; // Status (Coluna C)
+  categoria?: string; // Categoria (Coluna D)
+  empresa: string; // Empresa (Coluna E)
+  cidade?: string; // Cidade (Coluna F)
+  endereco?: string; // Endereço (Coluna G)
+  
+  // Contato
+  whatsapp: string; // WhatsApp (Coluna H)
+  email?: string; // Email (Coluna I)
+  website?: string; // Website (Coluna J)
+  instagram?: string; // Instagram (Coluna K)
+  linkGMN?: string; // Link GMN (Coluna L)
+  aceitaCartao?: boolean; // Aceita Cartão (Coluna M)
+  
+  // CRM fields (mapeados ou adicionais)
   contatoPrincipal: string;
   segmento: string;
   regiao: string;
@@ -62,8 +77,11 @@ export interface Lead {
   proximoFollowUp?: string; // ISO date string
   prioridade: LeadPriority;
   observacoes?: string;
-  statusMsgWA: WhatsAppStatus;
-  dataEnvioWA?: string; // ISO date string
+  
+  // WhatsApp tracking
+  mensagemWhatsApp?: string; // Mensagem WhatsApp (Coluna O)
+  statusMsgWA: WhatsAppStatus; // Status Msg. WA (Coluna P)
+  dataEnvioWA?: string; // Data Envio WA (Coluna Q) - ISO date
   resultado?: string;
 }
 
