@@ -27,6 +27,11 @@ const Index = () => {
     localStorage.setItem("prospectionSearches", JSON.stringify(updatedSearches));
   };
 
+  const handleClearHistory = () => {
+    setSearches([]);
+    localStorage.removeItem("prospectionSearches");
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Hero Section */}
@@ -50,7 +55,7 @@ const Index = () => {
         </div>
         
         <div>
-          <SearchHistory searches={searches} />
+          <SearchHistory searches={searches} onClearHistory={handleClearHistory} />
         </div>
       </div>
 

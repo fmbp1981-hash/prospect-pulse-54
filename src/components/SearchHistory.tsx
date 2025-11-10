@@ -3,16 +3,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2, Trash2 } from "lucide-react";
 import { ProspectionSearch } from "@/types/prospection";
 import { LocationData } from "@/components/LocationCascade";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { n8nMcp } from "@/lib/n8nMcp";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface SearchHistoryProps {
   searches: ProspectionSearch[];
+  onClearHistory: () => void;
 }
 
 // Helper para formatar LocationData
@@ -30,7 +42,7 @@ const formatLocation = (location: string | LocationData): string => {
   return parts.join(', ') || 'Não especificada';
 };
 
-export const SearchHistory = ({ searches }: SearchHistoryProps) => {
+export const SearchHistory = ({ searches, onClearHistory }: SearchHistoryProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [whatsappStatuses, setWhatsappStatuses] = useState<Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }>>({});
   const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
@@ -138,16 +150,49 @@ export const SearchHistory = ({ searches }: SearchHistoryProps) => {
   return (
     <Card className="shadow-card animate-fade-in">
       <CardHeader>
-        <CardTitle className="text-2xl flex items-center gap-2">
-          <History className="h-6 w-6 text-primary" />
-          Histórico de Buscas
-        </CardTitle>
-        <CardDescription>
-          {searches.length} {searches.length === 1 ? 'prospecção realizada' : 'prospecções realizadas'}
-          {hasWhatsAppConfig && notSentCount > 0 && (
-            <span className="ml-2 text-primary">• {notSentCount} não enviada(s)</span>
-          )}
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-2xl flex items-center gap-2">
+              <History className="h-6 w-6 text-primary" />
+              Histórico de Buscas
+            </CardTitle>
+            <CardDescription>
+              {searches.length} {searches.length === 1 ? 'prospecção realizada' : 'prospecções realizadas'}
+              {hasWhatsAppConfig && notSentCount > 0 && (
+                <span className="ml-2 text-primary">• {notSentCount} não enviada(s)</span>
+              )}
+            </CardDescription>
+          </div>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Apagar Histórico de Prospecções</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tem certeza que deseja apagar todo o histórico local de prospecções? Esta ação não pode ser desfeita.
+                  <br /><br />
+                  <strong>Nota:</strong> Isso apenas remove o histórico da interface. Os leads no CRM não serão afetados.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    onClearHistory();
+                    toast.success("Histórico apagado com sucesso");
+                  }}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Apagar Histórico
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </CardHeader>
       <CardContent>
         {hasWhatsAppConfig && notSentCount > 0 && (
