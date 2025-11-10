@@ -15,6 +15,34 @@ const getNextRequestId = () => requestIdCounter++;
 let isServerInitialized = false;
 let initializationPromise: Promise<void> | null = null;
 
+/**
+ * Parseia resposta no formato Server-Sent Events (SSE)
+ * Formato esperado:
+ * event: message
+ * data: {"jsonrpc":"2.0","result":{...}}
+ */
+const parseSSEResponse = async (response: Response): Promise<any> => {
+  const text = await response.text();
+  
+  // Dividir por linhas
+  const lines = text.split('\n');
+  
+  // Procurar linha que começa com "data:"
+  for (const line of lines) {
+    if (line.startsWith('data:')) {
+      const jsonText = line.substring(5).trim(); // Remove "data:" e espaços
+      return JSON.parse(jsonText);
+    }
+  }
+  
+  // Se não encontrou formato SSE, tentar parsear como JSON direto
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`Formato de resposta inválido: ${text.substring(0, 100)}`);
+  }
+};
+
 // Obter URL do MCP (configurável via localStorage)
 const getMcpBaseUrl = (): string => {
   return localStorage.getItem("leadfinder_mcp_base_url") || DEFAULT_MCP_BASE_URL;
@@ -64,7 +92,7 @@ const initializeMCPServer = async (): Promise<void> => {
         throw new Error(`Initialization failed: ${initResponse.status}`);
       }
       
-      const initResult = await initResponse.json();
+      const initResult = await parseSSEResponse(initResponse);
       
       if (initResult.error) {
         throw new Error(`MCP Init Error: ${initResult.error.message}`);
@@ -151,7 +179,7 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
       throw new Error(`MCP Error ${response.status}: ${errorText}`);
     }
     
-    const jsonRpcResponse = await response.json();
+    const jsonRpcResponse = await parseSSEResponse(response);
     
     // Extrair dados da resposta JSON-RPC
     if (jsonRpcResponse.error) {
@@ -202,7 +230,7 @@ const callMCPGet = async <T = any>(params: Record<string, string>): Promise<T> =
       throw new Error(`MCP GET Error ${response.status}`);
     }
     
-    const jsonRpcResponse = await response.json();
+    const jsonRpcResponse = await parseSSEResponse(response);
     
     // Processar resposta JSON-RPC
     if (jsonRpcResponse.error) {
