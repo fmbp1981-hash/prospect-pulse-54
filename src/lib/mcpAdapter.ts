@@ -11,8 +11,7 @@ const TIMEOUT_MS = 30000;
 let requestIdCounter = 1;
 const getNextRequestId = () => requestIdCounter++;
 
-// Flag de inicialização
-let isServerInitialized = false;
+// Controle de inicialização via Promise (SEM flag booleana para evitar race conditions)
 let initializationPromise: Promise<void> | null = null;
 
 /**
@@ -50,17 +49,18 @@ const getMcpBaseUrl = (): string => {
 
 // Inicializar servidor MCP
 const initializeMCPServer = async (): Promise<void> => {
-  if (isServerInitialized) return;
-  
-  // Se já existe uma inicialização em andamento, aguardar
+  // Se já existe uma inicialização em andamento, aguardar ela
   if (initializationPromise) {
     return initializationPromise;
   }
   
+  // Criar nova Promise de inicialização
   initializationPromise = (async () => {
     const MCP_BASE_URL = getMcpBaseUrl();
     
     try {
+      console.log("🔄 Iniciando MCP Server...");
+      
       // Passo 1: Enviar mensagem de inicialização
       const initRequest = {
         jsonrpc: "2.0",
@@ -98,6 +98,13 @@ const initializeMCPServer = async (): Promise<void> => {
         throw new Error(`MCP Init Error: ${initResult.error.message}`);
       }
       
+      console.log("📡 Initialize response received:", initResult);
+      
+      // CRÍTICO: Aguardar 300ms antes de enviar notifications/initialized
+      // O servidor MCP precisa processar a inicialização antes de aceitar notificações
+      console.log("⏳ Aguardando 300ms antes de enviar notifications/initialized...");
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       // Passo 2: Enviar notificação de initialized
       const initializedNotification = {
         jsonrpc: "2.0",
@@ -105,7 +112,8 @@ const initializeMCPServer = async (): Promise<void> => {
         params: {}
       };
       
-      await fetch(MCP_BASE_URL, {
+      console.log("📤 Enviando notifications/initialized...");
+      const notifyResponse = await fetch(MCP_BASE_URL, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -114,11 +122,26 @@ const initializeMCPServer = async (): Promise<void> => {
         body: JSON.stringify(initializedNotification)
       });
       
-      isServerInitialized = true;
+      // Verificar se a notificação foi aceita (CRÍTICO)
+      if (!notifyResponse.ok) {
+        const errorText = await notifyResponse.text();
+        console.error("❌ Notification failed:", notifyResponse.status, errorText);
+        initializationPromise = null; // Resetar para permitir retry
+        throw new Error(`Notifications/initialized failed: ${notifyResponse.status} - ${errorText}`);
+      }
+      
+      console.log("✅ Notifications/initialized enviada com sucesso");
+      
+      // Aguardar mais 300ms para garantir que o servidor processou completamente
+      console.log("⏳ Aguardando 300ms para estabilização do servidor...");
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       console.log("✅ MCP Server initialized successfully");
       
     } catch (error) {
+      // Em caso de erro, resetar a promise para permitir nova tentativa
       initializationPromise = null;
+      console.error("❌ MCP Initialization failed:", error);
       throw error;
     }
   })();
@@ -209,6 +232,10 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
 };
 
 const callMCPGet = async <T = any>(params: Record<string, string>): Promise<T> => {
+  // CRÍTICO: Garantir inicialização também no GET
+  console.log("🔍 callMCPGet: Garantindo inicialização do servidor...");
+  await initializeMCPServer();
+  
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
   const MCP_BASE_URL = getMcpBaseUrl();
@@ -313,6 +340,6 @@ export const getMCPBaseUrl = () => getMcpBaseUrl();
  * Força reinicialização do servidor MCP (útil para debug/reconfiguração)
  */
 export const reinitializeMCPServer = () => {
-  isServerInitialized = false;
   initializationPromise = null;
+  console.log("🔄 MCP Server será reinicializado na próxima chamada");
 };
