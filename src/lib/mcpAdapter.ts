@@ -31,7 +31,10 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
   try {
     const response = await fetch(MCP_BASE_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream"
+      },
       body: JSON.stringify({ tool, params } as MCPToolCall),
       signal: controller.signal
     });
@@ -68,7 +71,10 @@ const callMCPGet = async <T = any>(params: Record<string, string>): Promise<T> =
     const queryString = new URLSearchParams(params).toString();
     const response = await fetch(`${MCP_BASE_URL}?${queryString}`, {
       method: "GET",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream"
+      },
       signal: controller.signal
     });
     
