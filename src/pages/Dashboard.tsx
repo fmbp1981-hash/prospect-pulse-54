@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import { n8nMcp } from "@/lib/n8nMcp";
 import { DashboardMetrics } from "@/types/prospection";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, LayoutDashboard } from "lucide-react";
-import { toast } from "sonner";
+import toast from "react-hot-toast";
 import { MetricsCards } from "@/components/dashboard/MetricsCards";
 import { LeadsByStatusChart } from "@/components/dashboard/LeadsByStatusChart";
 import { LeadsByOriginChart } from "@/components/dashboard/LeadsByOriginChart";
 import { LeadsTimeline } from "@/components/dashboard/LeadsTimeline";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
+import { SkeletonCard, SkeletonChart } from "@/components/ui/loading-skeleton";
 
 const Dashboard = () => {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -22,9 +24,7 @@ const Dashboard = () => {
     if (result.success && result.metrics) {
       setMetrics(result.metrics);
     } else {
-      toast.error("Erro ao carregar métricas", {
-        description: result.message || "Verifique a configuração do webhook",
-      });
+      toast.error(result.message || "Erro ao carregar métricas");
     }
     setIsLoading(false);
   };
@@ -42,18 +42,38 @@ const Dashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Carregando dashboard...</p>
+      <motion.div
+        className="container mx-auto px-4 py-8"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.28 }}
+      >
+        <div className="flex justify-end mb-6">
+          <div className="h-9 w-32 bg-muted animate-pulse rounded-md" />
         </div>
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonChart />
+          <SkeletonChart />
+        </div>
+      </motion.div>
     );
   }
 
   if (!metrics) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <motion.div
+        className="flex items-center justify-center min-h-[60vh]"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.28 }}
+      >
         <div className="text-center max-w-md">
           <LayoutDashboard className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h2 className="text-2xl font-bold mb-2">Configure o CRM</h2>
@@ -74,12 +94,18 @@ const Dashboard = () => {
             )}
           </Button>
         </div>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <motion.div
+      className="container mx-auto px-4 py-8"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.28 }}
+    >
       {/* Sync Button */}
       <div className="flex justify-end mb-6">
         <Button
@@ -120,7 +146,7 @@ const Dashboard = () => {
           <RecentActivity metrics={metrics} />
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
