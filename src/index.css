@@ -233,4 +233,33 @@ All colors MUST be HSL.
       background-position: 1000px 0;
     }
   }
+
+  /* Sidebar custom styles */
+  [data-sidebar] {
+    --sidebar-background: hsl(var(--background));
+    --sidebar-foreground: hsl(var(--foreground));
+    --sidebar-primary: #0F4C75;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: rgba(15, 76, 117, 0.1);
+    --sidebar-accent-foreground: #0F4C75;
+  }
+
+  /* Hover glow effect */
+  .sidebar-item-hover {
+    position: relative;
+    transition: all 0.2s ease;
+  }
+
+  .sidebar-item-hover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(15, 76, 117, 0.2), transparent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .sidebar-item-hover:hover::before {
+    opacity: 1;
+  }
 }

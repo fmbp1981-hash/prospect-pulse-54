@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LocationCascade, LocationData } from "@/components/LocationCascade";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,12 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
   const [tempSyncUrl, setTempSyncUrl] = useState("");
   const [formData, setFormData] = useState<ProspectionFormData>({
     niche: "",
-    location: "",
+    location: {
+      country: "",
+      state: "",
+      city: "",
+      neighborhood: ""
+    },
     quantity: 50,
     webhookUrl: "",
   });
@@ -137,7 +143,7 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
       return;
     }
 
-    if (!formData.niche || !formData.location) {
+    if (!formData.niche || !formData.location.city) {
       toast.error("Preencha todos os campos obrigatórios");
       return;
     }
@@ -172,7 +178,12 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
         // Reset form
         setFormData({
           niche: "",
-          location: "",
+          location: {
+            country: "",
+            state: "",
+            city: "",
+            neighborhood: ""
+          },
           quantity: 50,
           webhookUrl: formData.webhookUrl,
         });
@@ -363,17 +374,13 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="location" className="flex items-center gap-2">
+              <Label className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 Localização
               </Label>
-              <Input
-                id="location"
-                placeholder="Ex: São Paulo, Zona Sul, Pinheiros..."
+              <LocationCascade
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                required
-                className="transition-all focus:shadow-card"
+                onChange={(location) => setFormData({ ...formData, location })}
               />
             </div>
 

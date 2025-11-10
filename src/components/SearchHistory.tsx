@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { ProspectionSearch } from "@/types/prospection";
+import { LocationData } from "@/components/LocationCascade";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { n8nMcp } from "@/lib/n8nMcp";
@@ -13,6 +14,21 @@ import { toast } from "sonner";
 interface SearchHistoryProps {
   searches: ProspectionSearch[];
 }
+
+// Helper para formatar LocationData
+const formatLocation = (location: string | LocationData): string => {
+  if (typeof location === 'string') {
+    return location;
+  }
+  
+  const parts = [];
+  if (location.neighborhood) parts.push(location.neighborhood);
+  if (location.city) parts.push(location.city);
+  if (location.state) parts.push(location.state);
+  if (location.country) parts.push(location.country);
+  
+  return parts.join(', ') || 'Não especificada';
+};
 
 export const SearchHistory = ({ searches }: SearchHistoryProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -242,7 +258,7 @@ export const SearchHistory = ({ searches }: SearchHistoryProps) => {
                 <div className="flex items-center gap-2 text-sm">
                   <MapPin className="h-4 w-4 text-primary" />
                   <span className="font-medium">Localização:</span>
-                  <span className="text-muted-foreground">{search.location}</span>
+                  <span className="text-muted-foreground">{formatLocation(search.location)}</span>
                 </div>
                 
                 <div className="flex items-center gap-2 text-sm">

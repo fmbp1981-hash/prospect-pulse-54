@@ -1,7 +1,14 @@
+export interface LocationData {
+  country: string;
+  state: string;
+  city: string;
+  neighborhood?: string;
+}
+
 export interface ProspectionSearch {
   id: string;
   niche: string;
-  location: string;
+  location: string | LocationData;
   quantity: number;
   webhookUrl: string;
   timestamp: Date;
@@ -12,7 +19,7 @@ export interface ProspectionSearch {
 
 export interface ProspectionFormData {
   niche: string;
-  location: string;
+  location: LocationData;
   quantity: number;
   webhookUrl: string;
 }

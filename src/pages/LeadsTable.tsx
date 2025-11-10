@@ -3,11 +3,27 @@ import { n8nMcp } from "@/lib/n8nMcp";
 import { Lead, LeadStatus, LeadOrigin, LeadPriority } from "@/types/prospection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download } from "lucide-react";
 import { toast } from "sonner";
 import { LeadsFilters } from "@/components/leads/LeadsFilters";
+import { BulkActionsBar } from "@/components/BulkActionsBar";
+import { WhatsAppDispatchModal } from "@/components/WhatsAppDispatchModal";
+import { ExportModal } from "@/components/ExportModal";
+import { exportToCSV, exportToExcel } from "@/lib/export";
+import { auditExport, auditBulkDelete } from "@/lib/audit";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Pagination,
   PaginationContent,
@@ -25,6 +41,12 @@ const LeadsTable = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // Seleção em massa
+  const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -134,36 +156,74 @@ const LeadsTable = () => {
     }
   };
 
-  const exportToCSV = () => {
-    const headers = ["Lead", "Status", "Empresa", "WhatsApp", "Contato Principal", "Segmento", "Região", "Ticket Médio", "Origem", "Data Contato", "Prioridade"];
-    const csvData = filteredAndSortedLeads.map(lead => [
-      lead.lead,
-      lead.status,
-      lead.empresa,
-      lead.whatsapp,
-      lead.contatoPrincipal,
-      lead.segmento,
-      lead.regiao,
-      lead.ticketMedioEstimado.toString(),
-      lead.origem,
-      lead.dataContato,
-      lead.prioridade,
-    ]);
-    
-    const csv = [
-      headers.join(","),
-      ...csvData.map(row => row.join(","))
-    ].join("\n");
-    
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `leads-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    
-    toast.success("CSV exportado com sucesso!");
+  // Seleção em massa
+  const handleSelectAll = () => {
+    if (selectedLeads.size === paginatedLeads.length) {
+      setSelectedLeads(new Set());
+    } else {
+      setSelectedLeads(new Set(paginatedLeads.map(l => l.id)));
+    }
   };
+
+  const handleSelectLead = (leadId: string) => {
+    const newSelected = new Set(selectedLeads);
+    if (newSelected.has(leadId)) {
+      newSelected.delete(leadId);
+    } else {
+      newSelected.add(leadId);
+    }
+    setSelectedLeads(newSelected);
+  };
+
+  const getSelectedLeadsData = () => {
+    return leads.filter(lead => selectedLeads.has(lead.id));
+  };
+
+  // Exportação melhorada
+  const handleExport = (format: "csv" | "excel", columns: string[]) => {
+    const leadsToExport = selectedLeads.size > 0 ? getSelectedLeadsData() : filteredAndSortedLeads;
+    const filename = `leads-${new Date().toISOString().split('T')[0]}`;
+    
+    if (format === "csv") {
+      exportToCSV(leadsToExport, filename, columns);
+    } else {
+      exportToExcel(leadsToExport, filename, columns);
+    }
+    
+    auditExport(leadsToExport.length, format);
+    toast.success(`${leadsToExport.length} leads exportados em ${format.toUpperCase()}!`);
+  };
+
+  // WhatsApp em massa
+  const handleBulkWhatsApp = () => {
+    if (selectedLeads.size === 0) {
+      toast.error("Selecione pelo menos um lead");
+      return;
+    }
+    setIsWhatsAppModalOpen(true);
+  };
+
+  // Deletar em massa
+  const handleBulkDelete = async () => {
+    const selectedIds = Array.from(selectedLeads);
+    
+    // Log de auditoria
+    auditBulkDelete(selectedIds);
+    
+    // Remover da lista local (em produção, chamaria API)
+    setLeads(leads.filter(lead => !selectedLeads.has(lead.id)));
+    setSelectedLeads(new Set());
+    setIsDeleteDialogOpen(false);
+    
+    toast.success(`${selectedIds.length} lead(s) removido(s)`);
+  };
+
+  const exportColumns = [
+    "Lead", "Status", "Empresa", "WhatsApp", 
+    "Contato Principal", "Segmento", "Região", 
+    "Ticket Médio", "Origem", "Data Contato", 
+    "Prioridade", "Observações", "Status WhatsApp", "Data Envio WA"
+  ];
 
   const getStatusBadgeVariant = (status: LeadStatus) => {
     const variants: Record<LeadStatus, "default" | "secondary" | "destructive" | "outline"> = {
@@ -209,9 +269,9 @@ const LeadsTable = () => {
           </h2>
         </div>
         <div className="flex gap-2">
-          <Button onClick={exportToCSV} variant="outline" size="sm">
+          <Button onClick={() => setIsExportModalOpen(true)} variant="outline" size="sm">
             <Download className="mr-2 h-4 w-4" />
-            Exportar CSV
+            Exportar
           </Button>
           <Button onClick={handleSync} variant="outline" size="sm" disabled={isSyncing}>
             {isSyncing ? (
@@ -262,6 +322,12 @@ const LeadsTable = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox 
+                  checked={selectedLeads.size === paginatedLeads.length && paginatedLeads.length > 0}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <TableHead className="cursor-pointer" onClick={() => handleSort("lead")}>
                 <div className="flex items-center gap-2">
                   Lead
@@ -296,13 +362,22 @@ const LeadsTable = () => {
           <TableBody>
             {paginatedLeads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                   Nenhum lead encontrado com os filtros selecionados
                 </TableCell>
               </TableRow>
             ) : (
               paginatedLeads.map((lead) => (
-                <TableRow key={lead.id}>
+                <TableRow 
+                  key={lead.id}
+                  className={selectedLeads.has(lead.id) ? "bg-primary/5" : ""}
+                >
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedLeads.has(lead.id)}
+                      onCheckedChange={() => handleSelectLead(lead.id)}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{lead.lead}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusBadgeVariant(lead.status)}>
@@ -391,6 +466,53 @@ const LeadsTable = () => {
           </Pagination>
         </div>
       )}
+
+      {/* Bulk Actions Bar */}
+      <BulkActionsBar
+        selectedCount={selectedLeads.size}
+        onClearSelection={() => setSelectedLeads(new Set())}
+        onExport={() => setIsExportModalOpen(true)}
+        onWhatsApp={handleBulkWhatsApp}
+        onDelete={() => setIsDeleteDialogOpen(true)}
+      />
+
+      {/* WhatsApp Dispatch Modal */}
+      <WhatsAppDispatchModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => {
+          setIsWhatsAppModalOpen(false);
+          setSelectedLeads(new Set());
+          loadLeads(); // Recarregar após envio
+        }}
+        selectedLeads={getSelectedLeadsData()}
+      />
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExport={handleExport}
+        availableColumns={exportColumns}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir {selectedLeads.size} lead(s)? 
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDelete} className="bg-destructive hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
