@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, RefreshCw, Table as TableIcon, ArrowUpDown, Edit, MessageCircle, Download } from "lucide-react";
+import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download } from "lucide-react";
 import { toast } from "sonner";
-import { Link } from "react-router-dom";
 import { LeadsFilters } from "@/components/leads/LeadsFilters";
 import {
   Pagination,
@@ -191,7 +190,7 @@ const LeadsTable = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen gradient-hero flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Carregando leads...</p>
@@ -201,210 +200,197 @@ const LeadsTable = () => {
   }
 
   return (
-    <div className="min-h-screen gradient-hero">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50 shadow-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg gradient-primary flex items-center justify-center shadow-card">
-                <TableIcon className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold">Gestão de Leads</h1>
-                <p className="text-sm text-muted-foreground">
-                  {filteredAndSortedLeads.length} de {leads.length} leads
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={exportToCSV} variant="outline" size="sm">
-                <Download className="mr-2 h-4 w-4" />
-                Exportar CSV
-              </Button>
-              <Button onClick={handleSync} variant="outline" size="sm" disabled={isSyncing}>
-                {isSyncing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Sincronizando...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Atualizar
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
+    <div className="container mx-auto px-4 py-8">
+      {/* Header Actions */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-semibold">
+            {filteredAndSortedLeads.length} de {leads.length} leads
+          </h2>
         </div>
-      </header>
+        <div className="flex gap-2">
+          <Button onClick={exportToCSV} variant="outline" size="sm">
+            <Download className="mr-2 h-4 w-4" />
+            Exportar CSV
+          </Button>
+          <Button onClick={handleSync} variant="outline" size="sm" disabled={isSyncing}>
+            {isSyncing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sincronizando...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Atualizar
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Busca e Filtros */}
-        <div className="mb-6 space-y-4">
-          {/* Busca Full-Text */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nome, empresa, telefone, segmento, região..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Filtros Avançados */}
-          <LeadsFilters
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            originFilter={originFilter}
-            setOriginFilter={setOriginFilter}
-            priorityFilter={priorityFilter}
-            setPriorityFilter={setPriorityFilter}
-            regionFilter={regionFilter}
-            setRegionFilter={setRegionFilter}
-            segmentFilter={segmentFilter}
-            setSegmentFilter={setSegmentFilter}
+      {/* Busca e Filtros */}
+      <div className="mb-6 space-y-4">
+        {/* Busca Full-Text */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome, empresa, telefone, segmento, região..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
           />
         </div>
 
-        {/* Tabela */}
-        <div className="rounded-lg border bg-card shadow-card overflow-hidden">
-          <Table>
-            <TableHeader>
+        {/* Filtros Avançados */}
+        <LeadsFilters
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          originFilter={originFilter}
+          setOriginFilter={setOriginFilter}
+          priorityFilter={priorityFilter}
+          setPriorityFilter={setPriorityFilter}
+          regionFilter={regionFilter}
+          setRegionFilter={setRegionFilter}
+          segmentFilter={segmentFilter}
+          setSegmentFilter={setSegmentFilter}
+        />
+      </div>
+
+      {/* Tabela */}
+      <div className="rounded-lg border bg-card shadow-card overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="cursor-pointer" onClick={() => handleSort("lead")}>
+                <div className="flex items-center gap-2">
+                  Lead
+                  <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort("status")}>
+                <div className="flex items-center gap-2">
+                  Status
+                  <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead>Empresa</TableHead>
+              <TableHead>WhatsApp</TableHead>
+              <TableHead>Segmento</TableHead>
+              <TableHead>Região</TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort("ticketMedioEstimado")}>
+                <div className="flex items-center gap-2">
+                  Ticket Médio
+                  <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead className="cursor-pointer" onClick={() => handleSort("prioridade")}>
+                <div className="flex items-center gap-2">
+                  Prioridade
+                  <ArrowUpDown className="h-4 w-4" />
+                </div>
+              </TableHead>
+              <TableHead>Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paginatedLeads.length === 0 ? (
               <TableRow>
-                <TableHead className="cursor-pointer" onClick={() => handleSort("lead")}>
-                  <div className="flex items-center gap-2">
-                    Lead
-                    <ArrowUpDown className="h-4 w-4" />
-                  </div>
-                </TableHead>
-                <TableHead className="cursor-pointer" onClick={() => handleSort("status")}>
-                  <div className="flex items-center gap-2">
-                    Status
-                    <ArrowUpDown className="h-4 w-4" />
-                  </div>
-                </TableHead>
-                <TableHead>Empresa</TableHead>
-                <TableHead>WhatsApp</TableHead>
-                <TableHead>Segmento</TableHead>
-                <TableHead>Região</TableHead>
-                <TableHead className="cursor-pointer" onClick={() => handleSort("ticketMedioEstimado")}>
-                  <div className="flex items-center gap-2">
-                    Ticket Médio
-                    <ArrowUpDown className="h-4 w-4" />
-                  </div>
-                </TableHead>
-                <TableHead className="cursor-pointer" onClick={() => handleSort("prioridade")}>
-                  <div className="flex items-center gap-2">
-                    Prioridade
-                    <ArrowUpDown className="h-4 w-4" />
-                  </div>
-                </TableHead>
-                <TableHead>Ações</TableHead>
+                <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                  Nenhum lead encontrado com os filtros selecionados
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginatedLeads.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
-                    Nenhum lead encontrado com os filtros selecionados
+            ) : (
+              paginatedLeads.map((lead) => (
+                <TableRow key={lead.id}>
+                  <TableCell className="font-medium">{lead.lead}</TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusBadgeVariant(lead.status)}>
+                      {lead.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{lead.empresa}</TableCell>
+                  <TableCell className="font-mono text-sm">{lead.whatsapp}</TableCell>
+                  <TableCell>{lead.segmento}</TableCell>
+                  <TableCell>{lead.regiao}</TableCell>
+                  <TableCell>
+                    R$ {lead.ticketMedioEstimado.toLocaleString('pt-BR')}
+                  </TableCell>
+                  <TableCell>
+                    <span className={getPriorityColor(lead.prioridade)}>
+                      {lead.prioridade}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm">
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
-              ) : (
-                paginatedLeads.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium">{lead.lead}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusBadgeVariant(lead.status)}>
-                        {lead.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{lead.empresa}</TableCell>
-                    <TableCell className="font-mono text-sm">{lead.whatsapp}</TableCell>
-                    <TableCell>{lead.segmento}</TableCell>
-                    <TableCell>{lead.regiao}</TableCell>
-                    <TableCell>
-                      R$ {lead.ticketMedioEstimado.toLocaleString('pt-BR')}
-                    </TableCell>
-                    <TableCell>
-                      <span className={getPriorityColor(lead.prioridade)}>
-                        {lead.prioridade}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <MessageCircle className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-        {/* Paginação */}
-        {totalPages > 1 && (
-          <div className="mt-6">
-            <Pagination>
-              <PaginationContent>
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
-                </PaginationItem>
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="mt-6">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
                 
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  
-                  return (
-                    <PaginationItem key={pageNum}>
-                      <PaginationLink
-                        onClick={() => setCurrentPage(pageNum)}
-                        isActive={currentPage === pageNum}
-                        className="cursor-pointer"
-                      >
-                        {pageNum}
-                      </PaginationLink>
-                    </PaginationItem>
-                  );
-                })}
-                
-                {totalPages > 5 && currentPage < totalPages - 2 && (
-                  <PaginationItem>
-                    <PaginationEllipsis />
+                return (
+                  <PaginationItem key={pageNum}>
+                    <PaginationLink
+                      onClick={() => setCurrentPage(pageNum)}
+                      isActive={currentPage === pageNum}
+                      className="cursor-pointer"
+                    >
+                      {pageNum}
+                    </PaginationLink>
                   </PaginationItem>
-                )}
-                
+                );
+              })}
+              
+              {totalPages > 5 && currentPage < totalPages - 2 && (
                 <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                  />
+                  <PaginationEllipsis />
                 </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
-        )}
-      </main>
+              )}
+              
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
     </div>
   );
 };
