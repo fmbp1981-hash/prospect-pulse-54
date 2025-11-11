@@ -12,9 +12,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Search, Loader2, Target, MapPin, Hash, Webhook, Settings, CheckCircle2, MessageCircle, RefreshCw } from "lucide-react";
+import { Search, Loader2, Target, MapPin, Hash, Webhook, Settings, CheckCircle2, MessageCircle, RefreshCw, XCircle, AlertCircle } from "lucide-react";
 import { ProspectionFormData } from "@/types/prospection";
 import { n8nMcp } from "@/lib/n8nMcp";
 
@@ -22,11 +29,19 @@ interface ProspectionFormProps {
   onSearch: (data: ProspectionFormData) => void;
 }
 
+type ExecutionStatus = "idle" | "loading" | "success" | "error";
+
 export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [tempProspectionWebhook, setTempProspectionWebhook] = useState("");
   const [tempMcpUrl, setTempMcpUrl] = useState("");
+  
+  // Status modal states
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+  const [executionStatus, setExecutionStatus] = useState<ExecutionStatus>("idle");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [leadsCount, setLeadsCount] = useState(0);
   
   const [formData, setFormData] = useState<ProspectionFormData>({
     niche: "",
@@ -92,6 +107,10 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
     }
 
     setIsLoading(true);
+    setIsStatusModalOpen(true);
+    setExecutionStatus("loading");
+    setStatusMessage("Iniciando prospecção no Google Places...");
+    setLeadsCount(formData.quantity);
 
     try {
       const result = await n8nMcp.startProspection({
@@ -101,31 +120,33 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
       });
 
       if (result.success) {
-        toast.success("Prospecção iniciada com sucesso!", {
-          description: `${result.totalLeads || formData.quantity} leads serão buscados no Google Places.`,
-        });
+        setExecutionStatus("success");
+        setStatusMessage(`Prospecção concluída com sucesso! ${result.totalLeads || formData.quantity} leads foram encontrados.`);
+        setLeadsCount(result.totalLeads || formData.quantity);
+        
         onSearch(formData);
         
-        // Reset form
-        setFormData({
-          niche: "",
-          location: {
-            country: "",
-            state: "",
-            city: "",
-            neighborhood: ""
-          },
-          quantity: 50,
-          webhookUrl: n8nMcp.getProspectionWebhook(),
-        });
+        // Reset form após 2 segundos
+        setTimeout(() => {
+          setFormData({
+            niche: "",
+            location: {
+              country: "",
+              state: "",
+              city: "",
+              neighborhood: ""
+            },
+            quantity: 50,
+            webhookUrl: n8nMcp.getProspectionWebhook(),
+          });
+        }, 2000);
       } else {
         throw new Error(result.message);
       }
     } catch (error) {
       console.error("Erro ao iniciar prospecção:", error);
-      toast.error("Erro ao iniciar prospecção", {
-        description: error instanceof Error ? error.message : "Verifique a configuração do n8n.",
-      });
+      setExecutionStatus("error");
+      setStatusMessage(error instanceof Error ? error.message : "Falha na conexão com o webhook n8n. Verifique a configuração.");
     } finally {
       setIsLoading(false);
     }
@@ -302,6 +323,78 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
           </Button>
         </form>
       </CardContent>
+
+      {/* Status Execution Modal */}
+      <AlertDialog open={isStatusModalOpen} onOpenChange={setIsStatusModalOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {executionStatus === "loading" && (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  Prospecção em Andamento
+                </>
+              )}
+              {executionStatus === "success" && (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  Prospecção Concluída!
+                </>
+              )}
+              {executionStatus === "error" && (
+                <>
+                  <XCircle className="h-5 w-5 text-destructive" />
+                  Erro na Prospecção
+                </>
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 pt-4">
+                <div className="flex items-center gap-3 p-4 rounded-lg border bg-card">
+                  <div className="flex-shrink-0">
+                    {executionStatus === "loading" && (
+                      <div className="h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                    )}
+                    {executionStatus === "success" && (
+                      <div className="h-12 w-12 rounded-full bg-green-500/10 flex items-center justify-center">
+                        <CheckCircle2 className="h-6 w-6 text-green-500" />
+                      </div>
+                    )}
+                    {executionStatus === "error" && (
+                      <div className="h-12 w-12 rounded-full bg-destructive/10 flex items-center justify-center">
+                        <AlertCircle className="h-6 w-6 text-destructive" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">{statusMessage}</p>
+                    {executionStatus === "loading" && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Buscando até {leadsCount} leads...
+                      </p>
+                    )}
+                    {executionStatus === "success" && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {leadsCount} leads encontrados
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {executionStatus !== "loading" && (
+                  <Button
+                    onClick={() => setIsStatusModalOpen(false)}
+                    className="w-full"
+                    variant={executionStatus === "error" ? "destructive" : "default"}
+                  >
+                    {executionStatus === "error" ? "Tentar Novamente" : "Fechar"}
+                  </Button>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 };
