@@ -13,6 +13,8 @@ const getNextRequestId = () => requestIdCounter++;
 
 // Controle de inicialização via Promise (SEM flag booleana para evitar race conditions)
 let initializationPromise: Promise<void> | null = null;
+let initRetryCount = 0;
+const MAX_INIT_RETRIES = 3;
 
 /**
  * Parseia resposta no formato Server-Sent Events (SSE)
@@ -47,7 +49,7 @@ const getMcpBaseUrl = (): string => {
   return localStorage.getItem("leadfinder_mcp_base_url") || DEFAULT_MCP_BASE_URL;
 };
 
-// Inicializar servidor MCP
+// Inicializar servidor MCP com retry logic
 const initializeMCPServer = async (): Promise<void> => {
   // Se já existe uma inicialização em andamento, aguardar ela
   if (initializationPromise) {
@@ -58,54 +60,56 @@ const initializeMCPServer = async (): Promise<void> => {
   initializationPromise = (async () => {
     const MCP_BASE_URL = getMcpBaseUrl();
     
-    try {
-      console.log("🔄 Iniciando MCP Server...");
-      
-      // Passo 1: Enviar mensagem de inicialização
-      const initRequest = {
-        jsonrpc: "2.0",
-        id: getNextRequestId(),
-        method: "initialize",
-        params: {
-          protocolVersion: "2024-11-05",
-          capabilities: {
-            roots: { listChanged: true },
-            sampling: {}
-          },
-          clientInfo: {
-            name: "LeadFinder Pro",
-            version: "1.0.0"
+    while (initRetryCount < MAX_INIT_RETRIES) {
+      try {
+        initRetryCount++;
+        console.log(`🔄 Tentativa ${initRetryCount}/${MAX_INIT_RETRIES}: Iniciando MCP Server...`);
+        
+        // Passo 1: Enviar mensagem de inicialização
+        const initRequest = {
+          jsonrpc: "2.0",
+          id: getNextRequestId(),
+          method: "initialize",
+          params: {
+            protocolVersion: "2024-11-05",
+            capabilities: {
+              roots: { listChanged: true },
+              sampling: {}
+            },
+            clientInfo: {
+              name: "LeadFinder Pro",
+              version: "1.0.0"
+            }
           }
+        };
+        
+        const initResponse = await fetch(MCP_BASE_URL, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream"
+          },
+          body: JSON.stringify(initRequest)
+        });
+        
+        if (!initResponse.ok) {
+          throw new Error(`Initialization failed: ${initResponse.status}`);
         }
-      };
-      
-      const initResponse = await fetch(MCP_BASE_URL, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Accept": "application/json, text/event-stream"
-        },
-        body: JSON.stringify(initRequest)
-      });
-      
-      if (!initResponse.ok) {
-        throw new Error(`Initialization failed: ${initResponse.status}`);
-      }
-      
-      const initResult = await parseSSEResponse(initResponse);
-      
-      if (initResult.error) {
-        throw new Error(`MCP Init Error: ${initResult.error.message}`);
-      }
-      
-      console.log("📡 Initialize response received:", initResult);
-      
-      // CRÍTICO: Aguardar 300ms antes de enviar notifications/initialized
-      // O servidor MCP precisa processar a inicialização antes de aceitar notificações
-      console.log("⏳ Aguardando 300ms antes de enviar notifications/initialized...");
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Passo 2: Enviar notificação de initialized
+        
+        const initResult = await parseSSEResponse(initResponse);
+        
+        if (initResult.error) {
+          throw new Error(`MCP Init Error: ${initResult.error.message}`);
+        }
+        
+        console.log("📡 Initialize response received:", initResult);
+        
+        // CRÍTICO: Aguardar 500ms antes de enviar notifications/initialized (aumentado de 300ms)
+        // O servidor MCP precisa processar a inicialização antes de aceitar notificações
+        console.log("⏳ Aguardando 500ms antes de enviar notifications/initialized...");
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Passo 2: Enviar notificação de initialized
       const initializedNotification = {
         jsonrpc: "2.0",
         method: "notifications/initialized",
@@ -126,24 +130,41 @@ const initializeMCPServer = async (): Promise<void> => {
       if (!notifyResponse.ok) {
         const errorText = await notifyResponse.text();
         console.error("❌ Notification failed:", notifyResponse.status, errorText);
-        initializationPromise = null; // Resetar para permitir retry
         throw new Error(`Notifications/initialized failed: ${notifyResponse.status} - ${errorText}`);
       }
       
       console.log("✅ Notifications/initialized enviada com sucesso");
       
-      // Aguardar mais 300ms para garantir que o servidor processou completamente
-      console.log("⏳ Aguardando 300ms para estabilização do servidor...");
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Aguardar mais 500ms para garantir que o servidor processou completamente
+      console.log("⏳ Aguardando 500ms para estabilização do servidor...");
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       console.log("✅ MCP Server initialized successfully");
       
-    } catch (error) {
-      // Em caso de erro, resetar a promise para permitir nova tentativa
-      initializationPromise = null;
-      console.error("❌ MCP Initialization failed:", error);
-      throw error;
+      // Reset retry count on success
+      initRetryCount = 0;
+      return;
+      
+      } catch (error) {
+        console.error(`❌ Tentativa ${initRetryCount} falhou:`, error);
+        
+        if (initRetryCount >= MAX_INIT_RETRIES) {
+          initializationPromise = null;
+          initRetryCount = 0;
+          throw new Error(`MCP initialization failed after ${MAX_INIT_RETRIES} attempts: ${error}`);
+        }
+        
+        // Wait before retry with exponential backoff
+        const waitTime = 1000 * initRetryCount;
+        console.log(`⏳ Aguardando ${waitTime}ms antes de tentar novamente...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
     }
+    
+    // If we exit the loop without success, throw error
+    initializationPromise = null;
+    initRetryCount = 0;
+    throw new Error("MCP initialization failed after all retries");
   })();
   
   return initializationPromise;

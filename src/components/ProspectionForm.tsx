@@ -77,6 +77,29 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
     }
   };
 
+  const testWebhookConnection = async () => {
+    try {
+      const testToast = toast.loading("Testando conexão com webhook...");
+      
+      const response = await fetch(tempProspectionWebhook, {
+        method: "OPTIONS",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (response.ok) {
+        toast.success("✅ Webhook acessível e configurado!", { id: testToast });
+      } else {
+        toast.error(`⚠️ Webhook retornou status ${response.status}`, { 
+          id: testToast,
+          description: "Verifique se o workflow está ativo no n8n"
+        });
+      }
+    } catch (error) {
+      toast.error("❌ Falha na conexão", {
+        description: "Verifique CORS, URL e se o n8n está acessível"
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -132,10 +155,24 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
       }
     } catch (error) {
       console.error("Erro ao iniciar prospecção:", error);
-      toast.error("Erro ao iniciar prospecção", {
+      
+      let errorMsg = "Falha na conexão com o webhook n8n";
+      let errorDesc = "Verifique a configuração.";
+      
+      if (error instanceof Error) {
+        errorMsg = error.message;
+        
+        if (error.message.includes("No Respond to Webhook")) {
+          errorDesc = "Configure um nó 'Respond to Webhook' no workflow n8n";
+        } else if (error.message.includes("Failed to fetch")) {
+          errorDesc = "Possíveis causas:\n• Workflow não está ativo no n8n\n• CORS não configurado\n• URL incorreta";
+        }
+      }
+      
+      toast.error(errorMsg, {
         id: loadingToast,
-        description: error instanceof Error ? error.message : "Falha na conexão com o webhook n8n. Verifique a configuração.",
-        duration: 5000,
+        description: errorDesc,
+        duration: 6000,
       });
     } finally {
       setIsLoading(false);
@@ -226,6 +263,14 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
               </div>
 
               <div className="flex gap-2 pt-4">
+                <Button 
+                  variant="outline"
+                  onClick={testWebhookConnection}
+                  className="flex-1"
+                  type="button"
+                >
+                  🔍 Testar Conexão
+                </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => setIsConfigOpen(false)}

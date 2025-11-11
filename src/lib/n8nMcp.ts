@@ -299,7 +299,11 @@ export const n8nMcp = {
       
       const response = await fetchWithTimeout(webhookUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        mode: "cors",
         body: JSON.stringify({
           niche: data.niche,
           location: data.location,
@@ -309,7 +313,17 @@ export const n8nMcp = {
       });
 
       if (!response.ok) {
-        throw new Error(`Prospection failed: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`❌ Webhook error ${response.status}:`, errorText);
+        
+        if (response.status === 500 && errorText.includes("No Respond to Webhook")) {
+          throw new Error(
+            "Webhook n8n não configurado corretamente. " +
+            "Adicione um nó 'Respond to Webhook' no final do workflow."
+          );
+        }
+        
+        throw new Error(`Prospection failed: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
