@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { Search, Loader2, Target, MapPin, Hash, Settings, CheckCircle2 } from "lucide-react";
 import { ProspectionFormData } from "@/types/prospection";
 import { n8nMcp } from "@/lib/n8nMcp";
+import { QuickSelectNiches } from "@/components/QuickSelectNiches";
+import { QuickSelectLocations } from "@/components/QuickSelectLocations";
 
 interface ProspectionFormProps {
   onSearch: (data: ProspectionFormData) => void;
@@ -297,9 +299,15 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
                 <Target className="h-4 w-4 text-muted-foreground" />
                 Nicho de Negócios
               </Label>
+              
+              <QuickSelectNiches
+                selectedNiche={formData.niche}
+                onSelect={(niche) => setFormData({ ...formData, niche })}
+              />
+              
               <Input
                 id="niche"
-                placeholder="Ex: Restaurantes, Academias, Clínicas..."
+                placeholder="Ou digite manualmente..."
                 value={formData.niche}
                 onChange={(e) => setFormData({ ...formData, niche: e.target.value })}
                 required
@@ -312,6 +320,12 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 Localização
               </Label>
+              
+              <QuickSelectLocations
+                selectedLocation={formData.location}
+                onSelect={(location) => setFormData({ ...formData, location })}
+              />
+              
               <LocationCascade
                 value={formData.location}
                 onChange={(location) => setFormData({ ...formData, location })}
