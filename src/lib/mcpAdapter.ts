@@ -1,10 +1,10 @@
 /**
- * MCP Adapter - Interface para comunicação com n8n MCP Server
- * Base URL configurável via localStorage (chave: leadfinder_mcp_base_url)
- * Default: https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa
+ * MCP Adapter - Interface para comunicação com n8n MCP Server via Supabase Edge Function Proxy
+ * Resolve problemas de CSP (Content Security Policy) ao usar proxy intermediário
  */
 
-const DEFAULT_MCP_BASE_URL = "https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa";
+const SUPABASE_URL = "https://kzvnwqlcrtxwagxkghxq.supabase.co";
+const MCP_PROXY_URL = `${SUPABASE_URL}/functions/v1/mcp-proxy`;
 const TIMEOUT_MS = 30000;
 
 // Contador de IDs para requisições JSON-RPC
@@ -44,9 +44,9 @@ const parseSSEResponse = async (response: Response): Promise<any> => {
   }
 };
 
-// Obter URL do MCP (configurável via localStorage)
-const getMcpBaseUrl = (): string => {
-  return localStorage.getItem("leadfinder_mcp_base_url") || DEFAULT_MCP_BASE_URL;
+// Sempre usar o proxy da Edge Function
+const getMcpProxyUrl = (): string => {
+  return MCP_PROXY_URL;
 };
 
 // Inicializar servidor MCP com retry logic
@@ -58,12 +58,12 @@ const initializeMCPServer = async (): Promise<void> => {
   
   // Criar nova Promise de inicialização
   initializationPromise = (async () => {
-    const MCP_BASE_URL = getMcpBaseUrl();
+    const PROXY_URL = getMcpProxyUrl();
     
     while (initRetryCount < MAX_INIT_RETRIES) {
       try {
         initRetryCount++;
-        console.log(`🔄 Tentativa ${initRetryCount}/${MAX_INIT_RETRIES}: Iniciando MCP Server...`);
+        console.log(`🔄 Tentativa ${initRetryCount}/${MAX_INIT_RETRIES}: Iniciando MCP Server via proxy...`);
         
         // Passo 1: Enviar mensagem de inicialização
         const initRequest = {
@@ -83,13 +83,16 @@ const initializeMCPServer = async (): Promise<void> => {
           }
         };
         
-        const initResponse = await fetch(MCP_BASE_URL, {
+        const initResponse = await fetch(PROXY_URL, {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream"
           },
-          body: JSON.stringify(initRequest)
+          body: JSON.stringify({
+            method: "POST",
+            body: initRequest
+          })
         });
         
         if (!initResponse.ok) {
@@ -117,13 +120,16 @@ const initializeMCPServer = async (): Promise<void> => {
       };
       
       console.log("📤 Enviando notifications/initialized...");
-      const notifyResponse = await fetch(MCP_BASE_URL, {
+      const notifyResponse = await fetch(PROXY_URL, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "Accept": "application/json, text/event-stream"
         },
-        body: JSON.stringify(initializedNotification)
+        body: JSON.stringify({
+          method: "POST",
+          body: initializedNotification
+        })
       });
       
       // Verificar se a notificação foi aceita (CRÍTICO)
@@ -192,7 +198,7 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
   
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  const MCP_BASE_URL = getMcpBaseUrl();
+  const PROXY_URL = getMcpProxyUrl();
   
   // Criar requisição no formato JSON-RPC 2.0
   const requestBody: MCPToolCall = {
@@ -206,13 +212,16 @@ const callMCPTool = async <T = any>(tool: string, params: any): Promise<T> => {
   };
   
   try {
-    const response = await fetch(MCP_BASE_URL, {
+    const response = await fetch(PROXY_URL, {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream"
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify({
+        method: "POST",
+        body: requestBody
+      }),
       signal: controller.signal
     });
     
@@ -259,16 +268,21 @@ const callMCPGet = async <T = any>(params: Record<string, string>): Promise<T> =
   
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  const MCP_BASE_URL = getMcpBaseUrl();
+  const PROXY_URL = getMcpProxyUrl();
   
   try {
-    const queryString = new URLSearchParams(params).toString();
-    const response = await fetch(`${MCP_BASE_URL}?${queryString}`, {
-      method: "GET",
+    const response = await fetch(PROXY_URL, {
+      method: "POST",
       headers: { 
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream"
       },
+      body: JSON.stringify({
+        method: "GET",
+        body: {
+          params: params
+        }
+      }),
       signal: controller.signal
     });
     
@@ -353,9 +367,9 @@ export const mcpTools = {
 };
 
 /**
- * URL base do MCP para uso externo (se necessário)
+ * URL do MCP Proxy para uso externo (se necessário)
  */
-export const getMCPBaseUrl = () => getMcpBaseUrl();
+export const getMCPBaseUrl = () => getMcpProxyUrl();
 
 /**
  * Força reinicialização do servidor MCP (útil para debug/reconfiguração)
