@@ -16,6 +16,11 @@ export const QuickSelectNiches = ({ selectedNiche, onSelect }: QuickSelectNiches
 
   const handleSelect = (niche: string) => {
     onSelect(niche);
+    
+    // Auto-recolher após 400ms para dar feedback visual
+    setTimeout(() => {
+      setIsExpanded(false);
+    }, 400);
   };
 
   const handleClear = () => {

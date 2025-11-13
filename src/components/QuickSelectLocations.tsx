@@ -11,6 +11,17 @@ import { QUICK_LOCATIONS } from "@/data/prospectionQuickSelects";
 import { LocationData } from "@/types/prospection";
 import { cn } from "@/lib/utils";
 
+// Mapeamento de siglas para nomes completos dos estados
+const STATE_NAMES: Record<string, string> = {
+  "AC": "Acre", "AL": "Alagoas", "AP": "Amapá", "AM": "Amazonas",
+  "BA": "Bahia", "CE": "Ceará", "DF": "Distrito Federal", "ES": "Espírito Santo",
+  "GO": "Goiás", "MA": "Maranhão", "MT": "Mato Grosso", "MS": "Mato Grosso do Sul",
+  "MG": "Minas Gerais", "PA": "Pará", "PB": "Paraíba", "PR": "Paraná",
+  "PE": "Pernambuco", "PI": "Piauí", "RJ": "Rio de Janeiro", "RN": "Rio Grande do Norte",
+  "RS": "Rio Grande do Sul", "RO": "Rondônia", "RR": "Roraima", "SC": "Santa Catarina",
+  "SP": "São Paulo", "SE": "Sergipe", "TO": "Tocantins"
+};
+
 interface QuickSelectLocationsProps {
   selectedLocation?: LocationData;
   onSelect: (location: LocationData) => void;
@@ -21,9 +32,12 @@ export const QuickSelectLocations = ({ selectedLocation, onSelect }: QuickSelect
   const [openRegions, setOpenRegions] = useState<string[]>([]);
 
   const handleSelect = (location: { city: string; state: string; country: string }) => {
+    // Converter sigla para nome completo do estado
+    const fullStateName = STATE_NAMES[location.state] || location.state;
+    
     onSelect({
       city: location.city,
-      state: location.state,
+      state: fullStateName,
       country: location.country,
       neighborhood: ""
     });
