@@ -4,6 +4,7 @@ import { SearchHistory } from "@/components/SearchHistory";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
 import { Rocket, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [searches, setSearches] = useState<ProspectionSearch[]>([]);
@@ -34,35 +35,25 @@ const Index = () => {
   };
 
   const handleReprocessSearch = async (search: ProspectionSearch) => {
-    const prospectionWebhook = localStorage.getItem("prospection_webhook_url");
-    if (!prospectionWebhook) {
-      toast.error("Configure o webhook de prospecção nas Configurações da sidebar");
-      throw new Error("Webhook não configurado");
-    }
-
     const loadingToast = toast.loading("Reprocessando prospecção...", {
       description: `Buscando até ${search.quantity} leads novamente...`,
       duration: Infinity,
     });
 
     try {
-      const response = await fetch(prospectionWebhook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('prospection', {
+        body: {
           niche: search.niche,
           location: search.location,
           quantity: search.quantity,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro no webhook: ${response.status}`);
-      }
+      if (error) throw error;
 
       toast.success("Prospecção reprocessada com sucesso!", {
         id: loadingToast,
-        description: "O n8n está processando sua busca. Os leads aparecerão na tabela em breve.",
+        description: `${data.count} leads encontrados e salvos no banco de dados.`,
         duration: 5000,
       });
 

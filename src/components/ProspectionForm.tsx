@@ -10,6 +10,7 @@ import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
 import { QuickSelectNiches } from "@/components/QuickSelectNiches";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProspectionFormProps {
   onSearch: (data: ProspectionFormData) => void;
@@ -65,13 +66,6 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       return;
     }
 
-    // Verificar se webhook está configurado
-    const prospectionWebhook = localStorage.getItem("prospection_webhook_url");
-    if (!prospectionWebhook) {
-      toast.error("Configure o webhook de prospecção nas Configurações da sidebar");
-      return;
-    }
-
     setIsLoading(true);
     
     const loadingToast = toast.loading("Iniciando prospecção no Google Places...", {
@@ -80,24 +74,20 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
     });
 
     try {
-      // Enviar para webhook n8n
-      const response = await fetch(prospectionWebhook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Chamar Edge Function de prospecção
+      const { data, error } = await supabase.functions.invoke('prospection', {
+        body: {
           niche: formData.niche,
           location: formData.location,
           quantity: formData.quantity,
-        }),
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`Erro no webhook: ${response.status}`);
-      }
+      if (error) throw error;
 
-      toast.success("Prospecção iniciada com sucesso!", {
+      toast.success("Prospecção concluída!", {
         id: loadingToast,
-        description: "O n8n está processando sua busca. Os leads aparecerão na tabela em breve.",
+        description: `${data.count} leads encontrados e salvos no banco de dados.`,
         duration: 5000,
       });
 

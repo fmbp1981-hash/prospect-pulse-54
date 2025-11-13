@@ -1,4 +1,4 @@
 project_id = "kzvnwqlcrtxwagxkghxq"
 
-[functions.mcp-proxy]
+[functions.prospection]
 verify_jwt = false
