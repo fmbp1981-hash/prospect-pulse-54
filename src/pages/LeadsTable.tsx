@@ -55,6 +55,7 @@ const LeadsTable = () => {
   const [priorityFilter, setPriorityFilter] = useState<LeadPriority | "all">("all");
   const [regionFilter, setRegionFilter] = useState("");
   const [segmentFilter, setSegmentFilter] = useState("");
+  const [hasWhatsAppFilter, setHasWhatsAppFilter] = useState(false);
   
   // Ordenação
   const [sortField, setSortField] = useState<SortField>("dataContato");
@@ -122,6 +123,9 @@ const LeadsTable = () => {
     }
     if (segmentFilter) {
       filtered = filtered.filter(lead => lead.segmento.toLowerCase().includes(segmentFilter.toLowerCase()));
+    }
+    if (hasWhatsAppFilter) {
+      filtered = filtered.filter(lead => lead.whatsapp && lead.whatsapp.trim() !== "");
     }
 
     // Ordenação
@@ -314,6 +318,8 @@ const LeadsTable = () => {
           setRegionFilter={setRegionFilter}
           segmentFilter={segmentFilter}
           setSegmentFilter={setSegmentFilter}
+          hasWhatsAppFilter={hasWhatsAppFilter}
+          setHasWhatsAppFilter={setHasWhatsAppFilter}
         />
       </div>
 
@@ -341,7 +347,7 @@ const LeadsTable = () => {
                 </div>
               </TableHead>
               <TableHead>Empresa</TableHead>
-              <TableHead>WhatsApp</TableHead>
+              <TableHead>WhatsApp Status</TableHead>
               <TableHead>Segmento</TableHead>
               <TableHead>Região</TableHead>
               <TableHead className="cursor-pointer" onClick={() => handleSort("ticketMedioEstimado")}>
@@ -385,7 +391,22 @@ const LeadsTable = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>{lead.empresa}</TableCell>
-                  <TableCell className="font-mono text-sm">{lead.whatsapp}</TableCell>
+                  <TableCell>
+                    {lead.whatsapp && lead.whatsapp.trim() !== "" ? (
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="success">
+                          ✓ WhatsApp OK
+                        </Badge>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {lead.whatsapp}
+                        </span>
+                      </div>
+                    ) : (
+                      <Badge variant="destructive">
+                        ✗ Sem WhatsApp
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell>{lead.segmento}</TableCell>
                   <TableCell>{lead.regiao}</TableCell>
                   <TableCell>

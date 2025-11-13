@@ -31,11 +31,20 @@ export const WhatsAppDispatchModal = ({
   const [statuses, setStatuses] = useState<DispatchStatus[]>([]);
   const [isDispatching, setIsDispatching] = useState(false);
 
-  // Filtrar leads válidos (com mensagem e não enviados)
+  // Filtrar leads válidos (com WhatsApp, mensagem e não enviados)
   const validLeads = selectedLeads.filter(lead => 
-    lead.mensagemWhatsApp && lead.statusMsgWA !== 'sent'
+    lead.whatsapp && 
+    lead.whatsapp.trim() !== "" &&
+    lead.mensagemWhatsApp && 
+    lead.mensagemWhatsApp.trim() !== "" &&
+    lead.statusMsgWA !== 'sent'
   );
-  const leadsWithoutMessage = selectedLeads.filter(lead => !lead.mensagemWhatsApp);
+  const leadsWithoutWhatsApp = selectedLeads.filter(lead => 
+    !lead.whatsapp || lead.whatsapp.trim() === ""
+  );
+  const leadsWithoutMessage = selectedLeads.filter(lead => 
+    lead.whatsapp && lead.whatsapp.trim() !== "" && !lead.mensagemWhatsApp
+  );
   const alreadySent = selectedLeads.filter(lead => lead.statusMsgWA === 'sent');
 
   useEffect(() => {
@@ -52,7 +61,12 @@ export const WhatsAppDispatchModal = ({
   }, [isOpen, validLeads]);
 
   const handleDispatch = async () => {
-    if (isDispatching || validLeads.length === 0) return;
+    if (isDispatching || validLeads.length === 0) {
+      toast.error("Nenhum lead válido para enviar", {
+        description: "Verifique se os leads possuem WhatsApp e mensagem configurados"
+      });
+      return;
+    }
     
     // Verificar se webhook está configurado
     const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
@@ -66,6 +80,16 @@ export const WhatsAppDispatchModal = ({
     // Processar leads sequencialmente
     for (let i = 0; i < validLeads.length; i++) {
       const lead = validLeads[i];
+      
+      // Validação extra antes de enviar
+      if (!lead.whatsapp || lead.whatsapp.trim() === "") {
+        setStatuses(prev => prev.map(s => 
+          s.leadId === lead.id 
+            ? { ...s, status: "failed", error: "WhatsApp não coletado" } 
+            : s
+        ));
+        continue;
+      }
       
       setStatuses(prev => prev.map(s => 
         s.leadId === lead.id ? { ...s, status: "sending" } : s
@@ -144,16 +168,61 @@ export const WhatsAppDispatchModal = ({
         </DialogHeader>
 
         {/* Avisos */}
-        {(leadsWithoutMessage.length > 0 || alreadySent.length > 0) && (
+        {(leadsWithoutWhatsApp.length > 0 || leadsWithoutMessage.length > 0 || alreadySent.length > 0) && (
           <div className="space-y-2">
+            {leadsWithoutWhatsApp.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-900">
+                      {leadsWithoutWhatsApp.length} lead(s) sem número de WhatsApp coletado
+                    </p>
+                    <p className="text-xs text-red-700 mt-1">
+                      Estes leads não receberão mensagens:
+                    </p>
+                    <ul className="text-xs text-red-600 mt-2 space-y-1 max-h-24 overflow-y-auto">
+                      {leadsWithoutWhatsApp.map(lead => (
+                        <li key={lead.id}>• {lead.lead} ({lead.empresa})</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
             {leadsWithoutMessage.length > 0 && (
-              <div className="p-3 bg-warning/10 border border-warning rounded-lg text-sm">
-                ⚠️ {leadsWithoutMessage.length} lead(s) sem mensagem configurada no CRM (serão ignorados)
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-900">
+                      {leadsWithoutMessage.length} lead(s) sem mensagem configurada
+                    </p>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      Configure a mensagem no CRM antes de enviar:
+                    </p>
+                    <ul className="text-xs text-yellow-600 mt-2 space-y-1 max-h-24 overflow-y-auto">
+                      {leadsWithoutMessage.map(lead => (
+                        <li key={lead.id}>• {lead.lead}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
               </div>
             )}
             {alreadySent.length > 0 && (
-              <div className="p-3 bg-muted border rounded-lg text-sm">
-                ℹ️ {alreadySent.length} lead(s) já receberam mensagem (serão ignorados)
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-900">
+                      {alreadySent.length} lead(s) já receberam mensagem anteriormente
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Estes leads serão ignorados para evitar envio duplicado
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
