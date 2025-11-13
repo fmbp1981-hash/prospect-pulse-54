@@ -27,6 +27,11 @@ export const QuickSelectLocations = ({ selectedLocation, onSelect }: QuickSelect
       country: location.country,
       neighborhood: ""
     });
+    
+    // Auto-recolher após 400ms para dar feedback visual
+    setTimeout(() => {
+      setIsExpanded(false);
+    }, 400);
   };
 
   const handleClear = () => {
