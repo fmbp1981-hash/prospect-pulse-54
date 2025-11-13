@@ -18,21 +18,36 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
 
     const leads: Lead[] = (data || []).map((row: any) => ({
       id: row.id,
-      lead: row.nome_lead || "",
+      lead: row.lead || "",
       status: (row.status || "Novo Lead") as LeadStatus,
       empresa: row.empresa || "",
-      whatsapp: row.telefone || "",
+      categoria: row.categoria || "",
+      contato: row.contato || "",
+      whatsapp: row.whatsapp || "",
+      email: row.email || "",
+      cidade: row.cidade || "",
+      endereco: row.endereco || "",
+      bairroRegiao: row.bairro_regiao || "",
+      website: row.website || "",
+      instagram: row.instagram || "",
+      linkGMN: row.link_gmn || "",
+      aceitaCartao: row.aceita_cartao || "",
+      mensagemWhatsApp: row.mensagem_whatsapp || "",
       statusMsgWA: row.status_msg_wa || "not_sent",
       dataEnvioWA: row.data_envio_wa || null,
-      origem: row.origem || "Google Places",
-      prioridade: row.prioridade || "Média",
-      regiao: row.regiao || "",
-      segmento: row.segmento || "",
-      ticketMedioEstimado: row.ticket_medio_estimado || 0,
-      contatoPrincipal: row.contato_principal || "",
-      dataContato: row.data_contato || new Date().toISOString(),
-      observacoes: row.observacoes || "",
-      mensagemWhatsApp: row.mensagem_whatsapp || "",
+      resumoAnalitico: row.resumo_analitico || "",
+      cnpj: row.cnpj || "",
+      data: row.data || "",
+      
+      // Campos virtuais (não existem no banco)
+      origem: "Google Places",
+      prioridade: "Média",
+      regiao: row.cidade || "",
+      segmento: row.categoria || "",
+      ticketMedioEstimado: 0,
+      contatoPrincipal: row.contato || "",
+      dataContato: row.created_at || new Date().toISOString(),
+      observacoes: "",
     }));
 
     return { success: true, leads };
@@ -54,20 +69,26 @@ export async function updateLead(
   try {
     const dbUpdates: any = {};
     
-    if (updates.lead) dbUpdates.nome_lead = updates.lead;
+    if (updates.lead) dbUpdates.lead = updates.lead;
     if (updates.status) dbUpdates.status = updates.status;
     if (updates.empresa) dbUpdates.empresa = updates.empresa;
-    if (updates.whatsapp) dbUpdates.telefone = updates.whatsapp;
+    if (updates.categoria) dbUpdates.categoria = updates.categoria;
+    if (updates.contato) dbUpdates.contato = updates.contato;
+    if (updates.whatsapp) dbUpdates.whatsapp = updates.whatsapp;
+    if (updates.email) dbUpdates.email = updates.email;
+    if (updates.cidade) dbUpdates.cidade = updates.cidade;
+    if (updates.endereco) dbUpdates.endereco = updates.endereco;
+    if (updates.bairroRegiao) dbUpdates.bairro_regiao = updates.bairroRegiao;
+    if (updates.website) dbUpdates.website = updates.website;
+    if (updates.instagram) dbUpdates.instagram = updates.instagram;
+    if (updates.linkGMN) dbUpdates.link_gmn = updates.linkGMN;
+    if (updates.aceitaCartao) dbUpdates.aceita_cartao = updates.aceitaCartao;
+    if (updates.mensagemWhatsApp) dbUpdates.mensagem_whatsapp = updates.mensagemWhatsApp;
     if (updates.statusMsgWA) dbUpdates.status_msg_wa = updates.statusMsgWA;
     if (updates.dataEnvioWA) dbUpdates.data_envio_wa = updates.dataEnvioWA;
-    if (updates.origem) dbUpdates.origem = updates.origem;
-    if (updates.prioridade) dbUpdates.prioridade = updates.prioridade;
-    if (updates.regiao) dbUpdates.regiao = updates.regiao;
-    if (updates.segmento) dbUpdates.segmento = updates.segmento;
-    if (updates.ticketMedioEstimado !== undefined) dbUpdates.ticket_medio_estimado = updates.ticketMedioEstimado;
-    if (updates.contatoPrincipal) dbUpdates.contato_principal = updates.contatoPrincipal;
-    if (updates.observacoes) dbUpdates.observacoes = updates.observacoes;
-    if (updates.mensagemWhatsApp) dbUpdates.mensagem_whatsapp = updates.mensagemWhatsApp;
+    if (updates.resumoAnalitico) dbUpdates.resumo_analitico = updates.resumoAnalitico;
+    if (updates.cnpj) dbUpdates.cnpj = updates.cnpj;
+    if (updates.data) dbUpdates.data = updates.data;
 
     const { error } = await (supabase as any)
       .from("leads_prospeccao")
@@ -99,20 +120,25 @@ export async function createLead(
     const { data, error } = await (supabase as any)
       .from("leads_prospeccao")
       .insert({
-        nome_lead: leadData.lead,
+        lead: leadData.lead,
         status: leadData.status || "Novo Lead",
         empresa: leadData.empresa,
-        telefone: leadData.whatsapp,
-        status_msg_wa: leadData.statusMsgWA || "not_sent",
-        origem: leadData.origem || "Google Places",
-        prioridade: leadData.prioridade || "Média",
-        regiao: leadData.regiao,
-        segmento: leadData.segmento,
-        ticket_medio_estimado: leadData.ticketMedioEstimado || 0,
-        contato_principal: leadData.contatoPrincipal,
-        data_contato: leadData.dataContato || new Date().toISOString(),
-        observacoes: leadData.observacoes,
+        categoria: leadData.categoria,
+        contato: leadData.contatoPrincipal,
+        whatsapp: leadData.whatsapp,
+        email: leadData.email,
+        cidade: leadData.cidade,
+        endereco: leadData.endereco,
+        bairro_regiao: leadData.bairroRegiao,
+        website: leadData.website,
+        instagram: leadData.instagram,
+        link_gmn: leadData.linkGMN,
+        aceita_cartao: leadData.aceitaCartao,
         mensagem_whatsapp: leadData.mensagemWhatsApp || "",
+        status_msg_wa: leadData.statusMsgWA || "not_sent",
+        resumo_analitico: leadData.resumoAnalitico,
+        cnpj: leadData.cnpj,
+        data: leadData.data,
       })
       .select()
       .single();
@@ -168,10 +194,10 @@ export async function getMetrics(): Promise<{
         statusCounts[status as LeadStatus]++;
       }
 
-      const origin = lead.origem || "Google Places";
+      const origin = lead.categoria || "Google Places";
       originCounts[origin] = (originCounts[origin] || 0) + 1;
 
-      totalValue += lead.ticket_medio_estimado || 0;
+      totalValue += 0; // ticket_medio_estimado não existe no banco
 
       if (lead.status_msg_wa === "sent") {
         whatsappSent++;
@@ -223,21 +249,36 @@ export async function getLeadsForWhatsApp(
 
     const leads: Lead[] = (data || []).map((row: any) => ({
       id: row.id,
-      lead: row.nome_lead || "",
+      lead: row.lead || "",
       status: (row.status || "Novo Lead") as LeadStatus,
       empresa: row.empresa || "",
-      whatsapp: row.telefone || "",
+      categoria: row.categoria || "",
+      contato: row.contato || "",
+      whatsapp: row.whatsapp || "",
+      email: row.email || "",
+      cidade: row.cidade || "",
+      endereco: row.endereco || "",
+      bairroRegiao: row.bairro_regiao || "",
+      website: row.website || "",
+      instagram: row.instagram || "",
+      linkGMN: row.link_gmn || "",
+      aceitaCartao: row.aceita_cartao || "",
+      mensagemWhatsApp: row.mensagem_whatsapp || "",
       statusMsgWA: row.status_msg_wa || "not_sent",
       dataEnvioWA: row.data_envio_wa || null,
-      origem: row.origem || "Google Places",
-      prioridade: row.prioridade || "Média",
-      regiao: row.regiao || "",
-      segmento: row.segmento || "",
-      ticketMedioEstimado: row.ticket_medio_estimado || 0,
-      contatoPrincipal: row.contato_principal || "",
-      dataContato: row.data_contato || new Date().toISOString(),
-      observacoes: row.observacoes || "",
-      mensagemWhatsApp: row.mensagem_whatsapp || "",
+      resumoAnalitico: row.resumo_analitico || "",
+      cnpj: row.cnpj || "",
+      data: row.data || "",
+      
+      // Campos virtuais
+      origem: "Google Places",
+      prioridade: "Média",
+      regiao: row.cidade || "",
+      segmento: row.categoria || "",
+      ticketMedioEstimado: 0,
+      contatoPrincipal: row.contato || "",
+      dataContato: row.created_at || new Date().toISOString(),
+      observacoes: "",
     }));
 
     return { success: true, leads };

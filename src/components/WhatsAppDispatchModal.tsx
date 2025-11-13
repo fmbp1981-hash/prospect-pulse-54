@@ -7,6 +7,7 @@ import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Lead } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
 import { auditWhatsAppDispatch } from "@/lib/audit";
+import { toast } from "sonner";
 
 interface DispatchStatus {
   leadId: string;
@@ -53,42 +54,63 @@ export const WhatsAppDispatchModal = ({
   const handleDispatch = async () => {
     if (isDispatching || validLeads.length === 0) return;
     
+    // Verificar se webhook está configurado
+    const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
+    if (!whatsappWebhook) {
+      toast.error("Configure o webhook WhatsApp nas Configurações da sidebar");
+      return;
+    }
+    
     setIsDispatching(true);
 
     // Processar leads sequencialmente
     for (let i = 0; i < validLeads.length; i++) {
       const lead = validLeads[i];
       
-      // Atualizar status para "sending"
       setStatuses(prev => prev.map(s => 
         s.leadId === lead.id ? { ...s, status: "sending" } : s
       ));
 
       try {
-        // TODO: Implementar envio de WhatsApp via Edge Function
-        // Por enquanto, apenas simula o envio e atualiza o banco
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Atualizar status no banco de dados
-        const updateResult = await supabaseCRM.updateLead(lead.id, {
-          statusMsgWA: "sent",
-          dataEnvioWA: new Date().toISOString(),
+        // Enviar para webhook n8n com Evolution API
+        const response = await fetch(whatsappWebhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            leadId: lead.id,
+            whatsapp: lead.whatsapp,
+            message: lead.mensagemWhatsApp,
+            leadName: lead.lead,
+            empresa: lead.empresa,
+          }),
         });
+
+        if (!response.ok) {
+          throw new Error(`Webhook retornou ${response.status}`);
+        }
+
+        const result = await response.json();
+        const isSuccess = result.success === true;
         
-        const isSuccess = updateResult.success;
+        // Atualizar status no Supabase
+        if (isSuccess) {
+          await supabaseCRM.updateLead(lead.id, {
+            statusMsgWA: "sent",
+            dataEnvioWA: new Date().toISOString(),
+          });
+        }
         
-        // Atualizar status baseado no resultado
         setStatuses(prev => prev.map(s => 
           s.leadId === lead.id 
             ? { 
                 ...s, 
                 status: isSuccess ? "sent" : "failed", 
-                error: isSuccess ? undefined : updateResult.message
+                error: isSuccess ? undefined : result.error || result.message
               } 
             : s
         ));
         
-        // Delay entre envios (já tem 1s no n8nMcp, mas garante)
+        // Delay entre envios
         await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
         setStatuses(prev => prev.map(s => 

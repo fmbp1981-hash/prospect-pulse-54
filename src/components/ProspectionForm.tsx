@@ -43,23 +43,42 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
       return;
     }
 
+    // Verificar se webhook está configurado
+    const prospectionWebhook = localStorage.getItem("prospection_webhook_url");
+    if (!prospectionWebhook) {
+      toast.error("Configure o webhook de prospecção nas Configurações da sidebar");
+      return;
+    }
+
     setIsLoading(true);
     
-    // Toast de loading
     const loadingToast = toast.loading("Iniciando prospecção no Google Places...", {
       description: `Buscando até ${formData.quantity} leads...`,
       duration: Infinity,
     });
 
     try {
-      // Implementar Edge Function de prospecção com Google Places API
-      toast.info("Prospecção será processada via Supabase", {
-        id: loadingToast,
-        description: "Esta funcionalidade será implementada em breve",
-        duration: 3000,
+      // Enviar para webhook n8n
+      const response = await fetch(prospectionWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          niche: formData.niche,
+          location: formData.location,
+          quantity: formData.quantity,
+        }),
       });
 
-      // Simular sucesso por enquanto
+      if (!response.ok) {
+        throw new Error(`Erro no webhook: ${response.status}`);
+      }
+
+      toast.success("Prospecção iniciada com sucesso!", {
+        id: loadingToast,
+        description: "O n8n está processando sua busca. Os leads aparecerão na tabela em breve.",
+        duration: 5000,
+      });
+
       onSearch(formData);
       
       // Reset form

@@ -50,39 +50,39 @@ export type LeadOrigin =
 export interface Lead {
   id: string;
   
-  // Campos básicos do Excel
-  lead: string; // Nome do lead (Coluna A)
-  data?: string; // Data (Coluna B) - ISO date
-  status: LeadStatus; // Status (Coluna C)
-  categoria?: string; // Categoria (Coluna D)
-  empresa: string; // Empresa (Coluna E)
-  cidade?: string; // Cidade (Coluna F)
-  endereco?: string; // Endereço (Coluna G)
+  // ✅ Campos que EXISTEM na tabela leads_prospeccao
+  lead: string; // Nome do lead
+  status: LeadStatus;
+  empresa?: string;
+  categoria?: string;
+  contato?: string;
+  whatsapp?: string;
+  email?: string;
+  cidade?: string;
+  endereco?: string;
+  bairroRegiao?: string;
+  website?: string;
+  instagram?: string;
+  linkGMN?: string;
+  aceitaCartao?: string;
+  mensagemWhatsApp?: string;
+  statusMsgWA?: WhatsAppStatus;
+  dataEnvioWA?: string | null;
+  resumoAnalitico?: string;
+  cnpj?: string;
+  data?: string;
   
-  // Contato
-  whatsapp: string; // WhatsApp (Coluna H)
-  email?: string; // Email (Coluna I)
-  website?: string; // Website (Coluna J)
-  instagram?: string; // Instagram (Coluna K)
-  linkGMN?: string; // Link GMN (Coluna L)
-  aceitaCartao?: boolean; // Aceita Cartão (Coluna M)
-  
-  // CRM fields (mapeados ou adicionais)
-  contatoPrincipal: string;
-  segmento: string;
-  regiao: string;
-  ticketMedioEstimado: number;
-  origem: LeadOrigin;
-  dataContato: string; // ISO date string
-  proximoFollowUp?: string; // ISO date string
-  prioridade: LeadPriority;
-  observacoes?: string;
-  
-  // WhatsApp tracking
-  mensagemWhatsApp?: string; // Mensagem WhatsApp (Coluna O)
-  statusMsgWA: WhatsAppStatus; // Status Msg. WA (Coluna P)
-  dataEnvioWA?: string; // Data Envio WA (Coluna Q) - ISO date
-  resultado?: string;
+  // ❌ Campos VIRTUAIS (calculados, não salvam no banco)
+  origem?: LeadOrigin; // Derivado de categoria
+  prioridade?: LeadPriority; // Calculado via lógica
+  regiao?: string; // Alias de cidade
+  segmento?: string; // Alias de categoria
+  ticketMedioEstimado?: number; // Calculado ou 0
+  contatoPrincipal?: string; // Alias de contato
+  dataContato?: string; // Alias de created_at
+  observacoes?: string; // Não usado
+  proximoFollowUp?: string; // Não usado
+  resultado?: string; // Não usado
 }
 
 export interface DashboardMetrics {
