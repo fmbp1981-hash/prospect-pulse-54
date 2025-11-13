@@ -41,17 +41,32 @@ export function AppSidebar() {
 
   const [prospectionWebhook, setProspectionWebhook] = useState("");
   const [whatsappWebhook, setWhatsappWebhook] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Carregar webhooks do localStorage
+  // Carregar webhooks do localStorage ao montar componente
   useEffect(() => {
     setProspectionWebhook(localStorage.getItem("prospection_webhook_url") || "");
     setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
   }, []);
 
+  // Recarregar valores ao abrir o modal
+  useEffect(() => {
+    if (isDialogOpen) {
+      setProspectionWebhook(localStorage.getItem("prospection_webhook_url") || "");
+      setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
+    }
+  }, [isDialogOpen]);
+
   const handleSaveConfiguration = () => {
     localStorage.setItem("prospection_webhook_url", prospectionWebhook);
     localStorage.setItem("whatsapp_webhook_url", whatsappWebhook);
     toast.success("Configurações salvas com sucesso!");
+  };
+
+  const handleCancelConfiguration = () => {
+    // Restaurar valores originais do localStorage
+    setProspectionWebhook(localStorage.getItem("prospection_webhook_url") || "");
+    setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
   };
 
   return (
@@ -102,7 +117,7 @@ export function AppSidebar() {
 
         {/* Configurações Section */}
         <SidebarGroup className="px-3 py-4 border-t border-border/40">
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <SidebarMenuButton
                 tooltip="Configurações"
@@ -208,7 +223,9 @@ export function AppSidebar() {
               
               <DialogFooter>
                 <DialogClose asChild>
-                  <Button variant="outline">Cancelar</Button>
+                  <Button variant="outline" onClick={handleCancelConfiguration}>
+                    Cancelar
+                  </Button>
                 </DialogClose>
                 <DialogClose asChild>
                   <Button onClick={handleSaveConfiguration}>
