@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { LayoutDashboard, Table, Search, Settings, Link2, MessageSquare, CheckCircle } from "lucide-react";
+import { toast } from "sonner";
 import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
 import { motion } from "framer-motion";
@@ -23,7 +24,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const items = [
   { title: "Prospecção", url: "/", icon: Search },
@@ -44,24 +48,11 @@ export function AppSidebar() {
     setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
   }, []);
 
-  // Salvar webhooks no localStorage com debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (prospectionWebhook) {
-        localStorage.setItem("prospection_webhook_url", prospectionWebhook);
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [prospectionWebhook]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (whatsappWebhook) {
-        localStorage.setItem("whatsapp_webhook_url", whatsappWebhook);
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [whatsappWebhook]);
+  const handleSaveConfiguration = () => {
+    localStorage.setItem("prospection_webhook_url", prospectionWebhook);
+    localStorage.setItem("whatsapp_webhook_url", whatsappWebhook);
+    toast.success("Configurações salvas com sucesso!");
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border/40 bg-gradient-to-b from-background to-muted/20">
@@ -211,10 +202,20 @@ export function AppSidebar() {
                 </div>
                 
                 <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <strong>💡 Dica:</strong> As URLs são salvas automaticamente no seu navegador. 
-                  Mantenha esses endereços em segredo para proteger sua integração.
+                  <strong>💡 Dica:</strong> Mantenha esses endereços em segredo para proteger sua integração.
                 </p>
               </div>
+              
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancelar</Button>
+                </DialogClose>
+                <DialogClose asChild>
+                  <Button onClick={handleSaveConfiguration}>
+                    Salvar Configurações
+                  </Button>
+                </DialogClose>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         </SidebarGroup>
