@@ -37,6 +37,72 @@ interface GooglePlacesResult {
   enrichedSummary?: string;
 }
 
+// Função para gerar mensagem WhatsApp personalizada via Lovable AI
+async function generateWhatsAppMessage(
+  nomeEmpresa: string,
+  categoria: string,
+  cidade: string,
+  lovableApiKey: string
+): Promise<string> {
+  // Selecionar aleatoriamente um dos 3 modelos
+  const modelos = [
+    `Olá, ${nomeEmpresa}! 👋
+Aqui é da XPAG, empresa especializada em soluções de pagamento para negócios como o seu.
+Vi que vocês atuam como ${categoria} em ${cidade} e achei que poderia ser interessante apresentar a XPAG.
+Caso faça sentido, posso te conectar com um consultor XPAG para explicar como podemos apoiar o crescimento do seu negócio. 😊`,
+    
+    `Oi, ${nomeEmpresa}! Tudo bem? 🙂
+Sou da XPAG, e percebi que vocês são ${categoria} aí em ${cidade}.
+Temos ajudado empresas desse segmento a tornar o processo de pagamento mais simples e prático.
+Se quiser conhecer um pouco mais, posso te colocar em contato com um consultor XPAG.`,
+    
+    `Olá, ${nomeEmpresa}! 👋
+Sou da XPAG, e vi que vocês atuam como ${categoria} em ${cidade}.
+Trabalhamos com empresas desse perfil oferecendo soluções que tornam o recebimento mais fácil e rápido.
+Posso pedir para um consultor XPAG te enviar mais informações?`
+  ];
+
+  const modeloSelecionado = modelos[Math.floor(Math.random() * modelos.length)];
+
+  try {
+    // Gerar variação natural da mensagem via Lovable AI
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${lovableApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          {
+            role: 'system',
+            content: 'Você é um assistente de prospecção comercial. Reescreva a mensagem mantendo o tom cordial, profissional e neutro. Mantenha os emojis. Mantenha o nome da empresa XPAG. A mensagem deve ter no máximo 300 caracteres e ser natural, como se fosse escrita por uma pessoa.'
+          },
+          {
+            role: 'user',
+            content: `Reescreva esta mensagem de forma natural:\n\n${modeloSelecionado}`
+          }
+        ],
+        max_tokens: 200,
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('⚠️ Lovable AI falhou, usando mensagem padrão');
+      return modeloSelecionado;
+    }
+
+    const data = await response.json();
+    const mensagemGerada = data.choices?.[0]?.message?.content?.trim();
+    
+    return mensagemGerada || modeloSelecionado;
+  } catch (error) {
+    console.error('❌ Erro ao gerar mensagem via Lovable AI:', error);
+    return modeloSelecionado;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -57,6 +123,7 @@ serve(async (req) => {
 
     const GOOGLE_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
     if (!GOOGLE_API_KEY) {
       console.error('❌ GOOGLE_PLACES_API_KEY não configurada');
@@ -94,7 +161,7 @@ serve(async (req) => {
     // Limitar pela quantidade solicitada
     const limitedResults = results.slice(0, Math.min(quantity, results.length));
 
-    // 2. Buscar detalhes de cada lugar e enriquecer com Firecrawl
+    // 2. Buscar detalhes de cada lugar, enriquecer com Firecrawl e gerar mensagens WhatsApp
     const detailedPlaces: GooglePlacesResult[] = [];
     
     for (const place of limitedResults) {
@@ -156,38 +223,62 @@ serve(async (req) => {
 
     console.log(`✅ Coletados detalhes de ${detailedPlaces.length} lugares`);
 
-    // 3. Salvar no Supabase
+    // 3. Gerar mensagens WhatsApp personalizadas
+    console.log('💬 Gerando mensagens WhatsApp personalizadas via Lovable AI...');
+    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const leadsToInsert = detailedPlaces.map((place) => {
-      // Extrair telefone (preferir internacional)
-      const phone = place.international_phone_number || place.formatted_phone_number || '';
-      
-      // Extrair endereço completo
-      const address = place.formatted_address || '';
-      
-      // Tentar extrair cidade do endereço
-      const addressParts = address.split(',');
-      const city = addressParts.length > 1 ? addressParts[addressParts.length - 2].trim() : locationQuery;
-      
-      return {
-        id: place.place_id,
-        lead: place.name,
-        empresa: place.name,
-        categoria: niche,
-        telefone_whatsapp: phone,
-        cidade: city,
-        endereco: address,
-        website: place.website || null,
-        link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
-        status: 'Novo',
-        data: new Date().toISOString().split('T')[0],
-        resumo_analitico: place.enrichedSummary || null,
-      };
-    });
+    const leadsToInsert = await Promise.all(
+      detailedPlaces.map(async (place) => {
+        // Extrair telefone (preferir internacional)
+        const phone = place.international_phone_number || place.formatted_phone_number || '';
+        
+        // Extrair endereço completo
+        const address = place.formatted_address || '';
+        
+        // Tentar extrair cidade do endereço
+        const addressParts = address.split(',');
+        const city = addressParts.length > 1 ? addressParts[addressParts.length - 2].trim() : locationQuery;
+        
+        // Gerar mensagem WhatsApp personalizada
+        let mensagemWhatsApp = null;
+        if (LOVABLE_API_KEY) {
+          try {
+            mensagemWhatsApp = await generateWhatsAppMessage(
+              place.name || 'Empresa',
+              niche || 'estabelecimento',
+              city,
+              LOVABLE_API_KEY
+            );
+            console.log(`✅ Mensagem gerada para ${place.name}`);
+          } catch (error) {
+            console.error(`❌ Erro ao gerar mensagem para ${place.name}:`, error);
+          }
+        }
+        
+        return {
+          id: place.place_id,
+          lead: place.name,
+          empresa: place.name,
+          categoria: niche,
+          telefone_whatsapp: phone,
+          cidade: city,
+          endereco: address,
+          website: place.website || null,
+          link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
+          status: 'Novo',
+          data: new Date().toISOString().split('T')[0],
+          resumo_analitico: place.enrichedSummary || null,
+          mensagem_whatsapp: mensagemWhatsApp,
+        };
+      })
+    );
 
+    // 4. Salvar no Supabase
+    console.log('💾 Salvando leads no Supabase...');
+    
     if (leadsToInsert.length > 0) {
       const { data: insertedLeads, error: insertError } = await supabase
         .from('leads_prospeccao')
@@ -202,7 +293,7 @@ serve(async (req) => {
         );
       }
 
-      console.log(`✅ ${insertedLeads?.length || 0} leads salvos no Supabase`);
+      console.log(`✅ ${insertedLeads?.length || 0} leads salvos no Supabase com mensagens WhatsApp`);
     }
 
     return new Response(
