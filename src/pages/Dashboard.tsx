@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { n8nMcp } from "@/lib/n8nMcp";
+import { supabaseCRM } from "@/lib/supabaseCRM";
 import { DashboardMetrics } from "@/types/prospection";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, LayoutDashboard } from "lucide-react";
@@ -19,7 +19,7 @@ const Dashboard = () => {
 
   const loadMetrics = async () => {
     setIsLoading(true);
-    const result = await n8nMcp.getMetrics();
+    const result = await supabaseCRM.getMetrics();
     
     if (result.success && result.metrics) {
       setMetrics(result.metrics);

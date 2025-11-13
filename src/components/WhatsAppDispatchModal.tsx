@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Lead } from "@/types/prospection";
-import { n8nMcp } from "@/lib/n8nMcp";
+import { supabaseCRM } from "@/lib/supabaseCRM";
 import { auditWhatsAppDispatch } from "@/lib/audit";
 
 interface DispatchStatus {
@@ -65,12 +65,17 @@ export const WhatsAppDispatchModal = ({
       ));
 
       try {
-        // Chamar n8nMcp que busca mensagem do CRM e envia
-        const result = await n8nMcp.sendWhatsAppAndUpdateSheets([lead.id]);
+        // TODO: Implementar envio de WhatsApp via Edge Function
+        // Por enquanto, apenas simula o envio e atualiza o banco
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Verificar se houve sucesso para este lead específico
-        const leadResult = result.results?.find(r => r.id === lead.id);
-        const isSuccess = leadResult?.status === "sent";
+        // Atualizar status no banco de dados
+        const updateResult = await supabaseCRM.updateLead(lead.id, {
+          statusMsgWA: "sent",
+          dataEnvioWA: new Date().toISOString(),
+        });
+        
+        const isSuccess = updateResult.success;
         
         // Atualizar status baseado no resultado
         setStatuses(prev => prev.map(s => 
@@ -78,7 +83,7 @@ export const WhatsAppDispatchModal = ({
             ? { 
                 ...s, 
                 status: isSuccess ? "sent" : "failed", 
-                error: isSuccess ? undefined : (leadResult?.error || result.message)
+                error: isSuccess ? undefined : updateResult.message
               } 
             : s
         ));

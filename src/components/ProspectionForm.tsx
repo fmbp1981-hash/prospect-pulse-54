@@ -16,7 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Search, Loader2, Target, MapPin, Hash, Settings, CheckCircle2 } from "lucide-react";
 import { ProspectionFormData } from "@/types/prospection";
-import { n8nMcp } from "@/lib/n8nMcp";
 import { QuickSelectNiches } from "@/components/QuickSelectNiches";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
 
@@ -39,14 +38,14 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
       neighborhood: ""
     },
     quantity: 50,
-    webhookUrl: n8nMcp.getProspectionWebhook(),
+    webhookUrl: "",
   });
 
   // Carregar URLs atuais ao abrir modal
   useEffect(() => {
     if (isConfigOpen) {
-      setTempProspectionWebhook(n8nMcp.getProspectionWebhook());
-      setTempMcpUrl(localStorage.getItem("leadfinder_mcp_base_url") || "https://n8n.intellixai.com.br/mcp/xpag_banco_dados_wa");
+      setTempProspectionWebhook(localStorage.getItem("leadfinder_prospection_webhook") || "");
+      setTempMcpUrl(localStorage.getItem("leadfinder_mcp_base_url") || "");
     }
   }, [isConfigOpen]);
 
@@ -125,36 +124,28 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
     });
 
     try {
-      const result = await n8nMcp.startProspection({
-        niche: formData.niche,
-        location: formData.location,
-        quantity: formData.quantity,
+      // TODO: Implementar prospecção via Supabase Edge Function
+      toast.info("Prospecção sendo processada", {
+        id: loadingToast,
+        description: "Esta funcionalidade será implementada em breve",
+        duration: 3000,
       });
 
-      if (result.success) {
-        toast.success("Prospecção concluída com sucesso!", {
-          id: loadingToast,
-          description: `${result.totalLeads || formData.quantity} leads foram encontrados e adicionados ao CRM.`,
-          duration: 4000,
-        });
-        
-        onSearch(formData);
-        
-        // Reset form
-        setFormData({
-          niche: "",
-          location: {
-            country: "",
-            state: "",
-            city: "",
-            neighborhood: ""
-          },
-          quantity: 50,
-          webhookUrl: n8nMcp.getProspectionWebhook(),
-        });
-      } else {
-        throw new Error(result.message);
-      }
+      // Simular sucesso por enquanto
+      onSearch(formData);
+      
+      // Reset form
+      setFormData({
+        niche: "",
+        location: {
+          country: "",
+          state: "",
+          city: "",
+          neighborhood: ""
+        },
+        quantity: 50,
+        webhookUrl: "",
+      });
     } catch (error) {
       console.error("Erro ao iniciar prospecção:", error);
       

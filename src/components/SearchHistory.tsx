@@ -8,7 +8,6 @@ import { ProspectionSearch } from "@/types/prospection";
 import { LocationData } from "@/components/LocationCascade";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { n8nMcp } from "@/lib/n8nMcp";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -48,19 +47,15 @@ export const SearchHistory = ({ searches, onClearHistory }: SearchHistoryProps) 
   const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
-  // Carregar status de WhatsApp ao montar o componente
+  // Status de WhatsApp desabilitado temporariamente
   useEffect(() => {
-    const loadWhatsAppStatuses = async () => {
-      if (searches.length === 0) return;
-      
-      setIsLoadingStatuses(true);
-      const ids = searches.map(s => s.id);
-      const statuses = await n8nMcp.checkWhatsAppStatus(ids);
-      setWhatsappStatuses(statuses);
-      setIsLoadingStatuses(false);
-    };
-
-    loadWhatsAppStatuses();
+    // TODO: Implementar verificação de status via Supabase
+    // Por enquanto, assume que nenhuma mensagem foi enviada
+    const statuses: Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }> = {};
+    searches.forEach(search => {
+      statuses[search.id] = { status: 'not_sent' };
+    });
+    setWhatsappStatuses(statuses);
   }, [searches]);
 
   const handleToggleSelect = (id: string) => {

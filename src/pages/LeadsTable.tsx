@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { n8nMcp } from "@/lib/n8nMcp";
+import { supabaseCRM } from "@/lib/supabaseCRM";
 import { Lead, LeadStatus, LeadOrigin, LeadPriority } from "@/types/prospection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,14 +66,14 @@ const LeadsTable = () => {
 
   const loadLeads = async () => {
     setIsLoading(true);
-    const result = await n8nMcp.syncAllLeads();
+    const result = await supabaseCRM.syncAllLeads();
     
     if (result.success) {
       setLeads(result.leads);
       toast.success("Leads carregados com sucesso!");
     } else {
       toast.error("Erro ao carregar leads", {
-        description: result.message || "Verifique a configuração do webhook",
+        description: result.message || "Erro ao acessar banco de dados",
       });
     }
     setIsLoading(false);
