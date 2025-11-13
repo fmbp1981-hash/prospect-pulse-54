@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2, Trash2 } from "lucide-react";
+import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2, Trash2, RefreshCw } from "lucide-react";
 import { ProspectionSearch } from "@/types/prospection";
 import { LocationData } from "@/components/LocationCascade";
 import { format } from "date-fns";
@@ -24,6 +24,7 @@ import {
 interface SearchHistoryProps {
   searches: ProspectionSearch[];
   onClearHistory: () => void;
+  onReprocess?: (search: ProspectionSearch) => Promise<void>;
 }
 
 // Helper para formatar LocationData
@@ -41,11 +42,12 @@ const formatLocation = (location: string | LocationData): string => {
   return parts.join(', ') || 'Não especificada';
 };
 
-export const SearchHistory = ({ searches, onClearHistory }: SearchHistoryProps) => {
+export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchHistoryProps) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [whatsappStatuses, setWhatsappStatuses] = useState<Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }>>({});
   const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(new Set());
 
   // Status de WhatsApp desabilitado temporariamente
   useEffect(() => {
@@ -88,6 +90,27 @@ export const SearchHistory = ({ searches, onClearHistory }: SearchHistoryProps) 
     // NOTA: Fluxo antigo de envio por prospecção foi substituído
     // Agora o envio é feito na LeadsTable usando leads individuais
     // com mensagens personalizadas do CRM
+  };
+
+  const handleReprocess = async (search: ProspectionSearch) => {
+    if (!onReprocess) return;
+    
+    setReprocessingIds(prev => new Set(prev).add(search.id));
+    
+    try {
+      await onReprocess(search);
+      toast.success("Prospecção reprocessada com sucesso!");
+    } catch (error) {
+      toast.error("Erro ao reprocessar prospecção", {
+        description: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    } finally {
+      setReprocessingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(search.id);
+        return newSet;
+      });
+    }
   };
 
   const getStatusColor = (status: ProspectionSearch['status']) => {
@@ -286,6 +309,30 @@ export const SearchHistory = ({ searches, onClearHistory }: SearchHistoryProps) 
                   <span className="text-muted-foreground">{search.quantity} leads</span>
                 </div>
               </div>
+
+              {onReprocess && (
+                <div className="mt-4 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleReprocess(search)}
+                    disabled={reprocessingIds.has(search.id)}
+                    className="w-full"
+                  >
+                    {reprocessingIds.has(search.id) ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Reprocessando...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Reprocessar Pesquisa
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           );
           })}
