@@ -3,6 +3,7 @@ import { ProspectionForm } from "@/components/ProspectionForm";
 import { SearchHistory } from "@/components/SearchHistory";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
 import { Rocket, TrendingUp } from "lucide-react";
+import { toast } from "sonner";
 
 const Index = () => {
   const [searches, setSearches] = useState<ProspectionSearch[]>([]);
@@ -32,6 +33,60 @@ const Index = () => {
     localStorage.removeItem("prospectionSearches");
   };
 
+  const handleReprocessSearch = async (search: ProspectionSearch) => {
+    const prospectionWebhook = localStorage.getItem("prospection_webhook_url");
+    if (!prospectionWebhook) {
+      toast.error("Configure o webhook de prospecção nas Configurações da sidebar");
+      throw new Error("Webhook não configurado");
+    }
+
+    const loadingToast = toast.loading("Reprocessando prospecção...", {
+      description: `Buscando até ${search.quantity} leads novamente...`,
+      duration: Infinity,
+    });
+
+    try {
+      const response = await fetch(prospectionWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          niche: search.niche,
+          location: search.location,
+          quantity: search.quantity,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Erro no webhook: ${response.status}`);
+      }
+
+      toast.success("Prospecção reprocessada com sucesso!", {
+        id: loadingToast,
+        description: "O n8n está processando sua busca. Os leads aparecerão na tabela em breve.",
+        duration: 5000,
+      });
+
+      // Atualizar timestamp da pesquisa
+      const updatedSearches = searches.map(s => 
+        s.id === search.id 
+          ? { ...s, timestamp: new Date(), status: 'processing' as const }
+          : s
+      );
+      setSearches(updatedSearches);
+      localStorage.setItem("prospectionSearches", JSON.stringify(updatedSearches));
+    } catch (error) {
+      console.error("Erro ao reprocessar prospecção:", error);
+      
+      toast.error("Erro ao reprocessar prospecção", {
+        id: loadingToast,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        duration: 6000,
+      });
+      
+      throw error;
+    }
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Hero Section */}
@@ -51,11 +106,15 @@ const Index = () => {
       {/* Form and History Grid */}
       <div className="grid lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
         <div>
-          <ProspectionForm onSearch={handleNewSearch} />
+          <ProspectionForm onSearch={handleNewSearch} lastSearch={searches[0]} />
         </div>
         
         <div>
-          <SearchHistory searches={searches} onClearHistory={handleClearHistory} />
+          <SearchHistory 
+            searches={searches} 
+            onClearHistory={handleClearHistory}
+            onReprocess={handleReprocessSearch}
+          />
         </div>
       </div>
 

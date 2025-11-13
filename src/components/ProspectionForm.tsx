@@ -5,16 +5,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LocationCascade, LocationData } from "@/components/LocationCascade";
 import { toast } from "sonner";
-import { Search, Loader2, Target, MapPin, Hash } from "lucide-react";
-import { ProspectionFormData } from "@/types/prospection";
+import { Search, Loader2, Target, MapPin, Hash, RotateCcw } from "lucide-react";
+import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
 import { QuickSelectNiches } from "@/components/QuickSelectNiches";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
+import { Badge } from "@/components/ui/badge";
 
 interface ProspectionFormProps {
   onSearch: (data: ProspectionFormData) => void;
+  lastSearch?: ProspectionSearch;
 }
 
-export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
+export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<ProspectionFormData>({
@@ -28,6 +30,26 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
     quantity: 50,
     webhookUrl: "",
   });
+
+  const handleUseLastSearch = () => {
+    if (!lastSearch) return;
+    
+    // Garantir que location seja do tipo LocationData
+    const locationData: LocationData = typeof lastSearch.location === 'string'
+      ? { country: "", state: "", city: lastSearch.location, neighborhood: "" }
+      : lastSearch.location;
+    
+    setFormData({
+      niche: lastSearch.niche,
+      location: locationData,
+      quantity: lastSearch.quantity,
+      webhookUrl: lastSearch.webhookUrl || "",
+    });
+    
+    toast.success("Dados da última pesquisa carregados!", {
+      description: "Você pode editar os campos antes de iniciar a prospecção."
+    });
+  };
 
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -118,6 +140,48 @@ export const ProspectionForm = ({ onSearch }: ProspectionFormProps) => {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {lastSearch && (
+          <div className="mb-6 p-4 rounded-lg bg-muted/50 border border-border">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  Última pesquisa
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {new Date(lastSearch.timestamp).toLocaleDateString('pt-BR')}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleUseLastSearch}
+                className="h-8"
+              >
+                <RotateCcw className="h-3 w-3 mr-1.5" />
+                Usar novamente
+              </Button>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-muted-foreground">Nicho:</span>
+                <p className="font-medium mt-0.5">{lastSearch.niche}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Local:</span>
+                <p className="font-medium mt-0.5">
+                  {typeof lastSearch.location === 'string' 
+                    ? lastSearch.location 
+                    : lastSearch.location.city}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Quantidade:</span>
+                <p className="font-medium mt-0.5">{lastSearch.quantity} leads</p>
+              </div>
+            </div>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
             <div className="space-y-2">
