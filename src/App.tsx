@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -28,12 +29,24 @@ function AnimatedRoutes() {
   );
 }
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner position="bottom-right" />
-      <HotToast
+const App = () => {
+  // Limpar configurações antigas do MCP/n8n (migration)
+  useEffect(() => {
+    const MIGRATION_KEY = "migration_removed_mcp_v1";
+    if (!localStorage.getItem(MIGRATION_KEY)) {
+      localStorage.removeItem("leadfinder_prospection_webhook");
+      localStorage.removeItem("leadfinder_mcp_base_url");
+      localStorage.setItem(MIGRATION_KEY, "true");
+      console.log("✅ Configurações MCP/n8n removidas do localStorage");
+    }
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner position="bottom-right" />
+        <HotToast
         position="bottom-right"
         toastOptions={{
           duration: 3000,
@@ -54,6 +67,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;
