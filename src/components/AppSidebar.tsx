@@ -18,10 +18,12 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const items = [
   { title: "Prospecção", url: "/", icon: Search },
@@ -33,7 +35,6 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [prospectionWebhook, setProspectionWebhook] = useState("");
   const [whatsappWebhook, setWhatsappWebhook] = useState("");
 
@@ -110,66 +111,112 @@ export function AppSidebar() {
 
         {/* Configurações Section */}
         <SidebarGroup className="px-3 py-4 border-t border-border/40">
-          <Collapsible open={isConfigOpen} onOpenChange={setIsConfigOpen}>
-            <CollapsibleTrigger asChild>
+          <Dialog>
+            <DialogTrigger asChild>
               <SidebarMenuButton
                 tooltip="Configurações"
                 className="group hover:bg-muted transition-all"
               >
                 <Settings className="h-5 w-5" />
-                {!isCollapsed && (
-                  <>
-                    <span className="font-medium">Configurações</span>
-                    <motion.div
-                      animate={{ rotate: isConfigOpen ? 180 : 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="ml-auto"
-                    >
-                      ▼
-                    </motion.div>
-                  </>
-                )}
+                {!isCollapsed && <span className="font-medium">Configurações</span>}
               </SidebarMenuButton>
-            </CollapsibleTrigger>
-
-            {!isCollapsed && (
-              <CollapsibleContent className="space-y-4 pt-4 px-2">
+            </DialogTrigger>
+            
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  Configurações de Webhooks
+                </DialogTitle>
+              </DialogHeader>
+              
+              <div className="space-y-6 py-4">
                 {/* Webhook Prospecção */}
                 <div className="space-y-2">
-                  <Label className="text-xs flex items-center gap-1.5">
-                    <Link2 className="h-3 w-3" />
-                    Webhook Prospecção
+                  <Label className="text-sm flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-primary" />
+                    Webhook de Prospecção
                     {prospectionWebhook && (
-                      <CheckCircle className="h-3 w-3 text-success ml-auto" />
+                      <CheckCircle className="h-4 w-4 text-success ml-auto" />
                     )}
                   </Label>
                   <Input
                     value={prospectionWebhook}
                     onChange={(e) => setProspectionWebhook(e.target.value)}
-                    placeholder="https://n8n.com/webhook/..."
-                    className="h-8 text-xs"
+                    placeholder="https://seu-n8n.com/webhook/prospeccao"
+                    className="font-mono text-xs"
+                    type="password"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    URL do webhook n8n para integração com Google Places API
+                  </p>
                 </div>
-
+                
+                <div className="border-t" />
+                
                 {/* Webhook WhatsApp */}
                 <div className="space-y-2">
-                  <Label className="text-xs flex items-center gap-1.5">
-                    <MessageSquare className="h-3 w-3" />
-                    Webhook WhatsApp
+                  <Label className="text-sm flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-primary" />
+                    Webhook de WhatsApp
                     {whatsappWebhook && (
-                      <CheckCircle className="h-3 w-3 text-success ml-auto" />
+                      <CheckCircle className="h-4 w-4 text-success ml-auto" />
                     )}
                   </Label>
                   <Input
                     value={whatsappWebhook}
                     onChange={(e) => setWhatsappWebhook(e.target.value)}
-                    placeholder="https://n8n.com/webhook/..."
-                    className="h-8 text-xs"
+                    placeholder="https://seu-n8n.com/webhook/whatsapp"
+                    className="font-mono text-xs"
+                    type="password"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    URL do webhook n8n para envio via Evolution API
+                  </p>
                 </div>
-              </CollapsibleContent>
-            )}
-          </Collapsible>
+                
+                <div className="border-t" />
+                
+                {/* Status da Conexão */}
+                <div className="rounded-lg bg-muted/50 p-4">
+                  <h4 className="text-sm font-medium mb-2">Status da Configuração</h4>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex items-center gap-2">
+                      {prospectionWebhook ? (
+                        <>
+                          <CheckCircle className="h-3 w-3 text-success" />
+                          <span className="text-success">Prospecção configurada</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                          <span className="text-muted-foreground">Prospecção não configurada</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {whatsappWebhook ? (
+                        <>
+                          <CheckCircle className="h-3 w-3 text-success" />
+                          <span className="text-success">WhatsApp configurado</span>
+                        </>
+                      ) : (
+                        <>
+                          <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                          <span className="text-muted-foreground">WhatsApp não configurado</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <strong>💡 Dica:</strong> As URLs são salvas automaticamente no seu navegador. 
+                  Mantenha esses endereços em segredo para proteger sua integração.
+                </p>
+              </div>
+            </DialogContent>
+          </Dialog>
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>
