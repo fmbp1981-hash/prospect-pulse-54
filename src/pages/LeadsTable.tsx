@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download } from "lucide-react";
+import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { LeadsFilters } from "@/components/leads/LeadsFilters";
+import { toTitleCase } from "@/lib/utils";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
 import { WhatsAppDispatchModal } from "@/components/WhatsAppDispatchModal";
 import { ExportModal } from "@/components/ExportModal";
@@ -51,10 +52,6 @@ const LeadsTable = () => {
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
-  const [originFilter, setOriginFilter] = useState<LeadOrigin | "all">("all");
-  const [priorityFilter, setPriorityFilter] = useState<LeadPriority | "all">("all");
-  const [regionFilter, setRegionFilter] = useState("");
-  const [segmentFilter, setSegmentFilter] = useState("");
   const [hasWhatsAppFilter, setHasWhatsAppFilter] = useState(false);
   
   // Ordenação
@@ -101,10 +98,9 @@ const LeadsTable = () => {
         lead.lead.toLowerCase().includes(term) ||
         lead.empresa.toLowerCase().includes(term) ||
         lead.whatsapp.includes(term) ||
-        lead.contatoPrincipal.toLowerCase().includes(term) ||
-        lead.segmento.toLowerCase().includes(term) ||
-        lead.regiao.toLowerCase().includes(term) ||
-        (lead.observacoes?.toLowerCase().includes(term) || false)
+        lead.cidade?.toLowerCase().includes(term) ||
+        lead.categoria?.toLowerCase().includes(term) ||
+        lead.endereco?.toLowerCase().includes(term)
       );
     }
 
@@ -112,18 +108,7 @@ const LeadsTable = () => {
     if (statusFilter !== "all") {
       filtered = filtered.filter(lead => lead.status === statusFilter);
     }
-    if (originFilter !== "all") {
-      filtered = filtered.filter(lead => lead.origem === originFilter);
-    }
-    if (priorityFilter !== "all") {
-      filtered = filtered.filter(lead => lead.prioridade === priorityFilter);
-    }
-    if (regionFilter) {
-      filtered = filtered.filter(lead => lead.regiao.toLowerCase().includes(regionFilter.toLowerCase()));
-    }
-    if (segmentFilter) {
-      filtered = filtered.filter(lead => lead.segmento.toLowerCase().includes(segmentFilter.toLowerCase()));
-    }
+    
     if (hasWhatsAppFilter) {
       filtered = filtered.filter(lead => lead.whatsapp && lead.whatsapp.trim() !== "");
     }
@@ -142,7 +127,7 @@ const LeadsTable = () => {
     });
 
     return filtered;
-  }, [leads, searchTerm, statusFilter, originFilter, priorityFilter, regionFilter, segmentFilter, sortField, sortOrder]);
+  }, [leads, searchTerm, statusFilter, hasWhatsAppFilter, sortField, sortOrder]);
 
   // Paginação
   const totalPages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage);
@@ -222,6 +207,24 @@ const LeadsTable = () => {
     toast.success(`${selectedIds.length} lead(s) removido(s)`);
   };
 
+  // WhatsApp individual
+  const handleIndividualWhatsApp = (lead: Lead) => {
+    if (!lead.whatsapp || !lead.mensagemWhatsApp) {
+      toast.error("Lead não possui WhatsApp ou mensagem configurados");
+      return;
+    }
+    
+    // Selecionar apenas este lead e abrir modal
+    setSelectedLeads(new Set([lead.id]));
+    setIsWhatsAppModalOpen(true);
+  };
+
+  // Editar lead
+  const handleEditLead = (lead: Lead) => {
+    // TODO: Implementar modal de edição
+    toast.info("Funcionalidade de edição em desenvolvimento");
+  };
+
   const exportColumns = [
     "Lead", "Status", "Empresa", "WhatsApp", 
     "Contato Principal", "Segmento", "Região", 
@@ -264,7 +267,7 @@ const LeadsTable = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-2 py-6 max-w-full">
       {/* Header Actions */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -310,21 +313,13 @@ const LeadsTable = () => {
         <LeadsFilters
           statusFilter={statusFilter}
           setStatusFilter={setStatusFilter}
-          originFilter={originFilter}
-          setOriginFilter={setOriginFilter}
-          priorityFilter={priorityFilter}
-          setPriorityFilter={setPriorityFilter}
-          regionFilter={regionFilter}
-          setRegionFilter={setRegionFilter}
-          segmentFilter={segmentFilter}
-          setSegmentFilter={setSegmentFilter}
           hasWhatsAppFilter={hasWhatsAppFilter}
           setHasWhatsAppFilter={setHasWhatsAppFilter}
         />
       </div>
 
       {/* Tabela */}
-      <div className="rounded-lg border bg-card shadow-card overflow-hidden">
+      <div className="rounded-lg border bg-card shadow-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -347,28 +342,22 @@ const LeadsTable = () => {
                 </div>
               </TableHead>
               <TableHead>Empresa</TableHead>
-              <TableHead>WhatsApp Status</TableHead>
-              <TableHead>Segmento</TableHead>
-              <TableHead>Região</TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort("ticketMedioEstimado")}>
-                <div className="flex items-center gap-2">
-                  Ticket Médio
-                  <ArrowUpDown className="h-4 w-4" />
-                </div>
-              </TableHead>
-              <TableHead className="cursor-pointer" onClick={() => handleSort("prioridade")}>
-                <div className="flex items-center gap-2">
-                  Prioridade
-                  <ArrowUpDown className="h-4 w-4" />
-                </div>
-              </TableHead>
-              <TableHead>Ações</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Telefone/WhatsApp</TableHead>
+              <TableHead>Categoria</TableHead>
+              <TableHead>CNPJ</TableHead>
+              <TableHead>Cidade</TableHead>
+              <TableHead>Endereço</TableHead>
+              <TableHead>Website</TableHead>
+              <TableHead>GMN</TableHead>
+              <TableHead>Resumo Analítico</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedLeads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
                   Nenhum lead encontrado com os filtros selecionados
                 </TableCell>
               </TableRow>
@@ -384,13 +373,16 @@ const LeadsTable = () => {
                       onCheckedChange={() => handleSelectLead(lead.id)}
                     />
                   </TableCell>
-                  <TableCell className="font-medium">{lead.lead}</TableCell>
+                  <TableCell className="font-medium">{toTitleCase(lead.lead)}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusBadgeVariant(lead.status)}>
                       {lead.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{lead.empresa}</TableCell>
+                  <TableCell>{toTitleCase(lead.empresa || "-")}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {lead.data || "-"}
+                  </TableCell>
                   <TableCell>
                     {lead.whatsapp && lead.whatsapp.trim() !== "" ? (
                       <div className="flex flex-col gap-1">
@@ -407,22 +399,77 @@ const LeadsTable = () => {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>{lead.segmento}</TableCell>
-                  <TableCell>{lead.regiao}</TableCell>
-                  <TableCell>
-                    R$ {lead.ticketMedioEstimado.toLocaleString('pt-BR')}
+                  <TableCell className="text-sm">
+                    {toTitleCase(lead.categoria || "-")}
+                  </TableCell>
+                  <TableCell className="text-sm font-mono">
+                    {lead.cnpj || "-"}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {toTitleCase(lead.cidade || "-")}
+                  </TableCell>
+                  <TableCell className="text-sm max-w-[200px] truncate" title={lead.endereco}>
+                    {toTitleCase(lead.endereco || "-")}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {lead.website ? (
+                      <a 
+                        href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Link
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {lead.linkGMN ? (
+                      <a 
+                        href={lead.linkGMN} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Ver
+                      </a>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm max-w-[250px] truncate" title={lead.resumoAnalitico}>
+                    {lead.resumoAnalitico || "-"}
                   </TableCell>
                   <TableCell>
-                    <span className={getPriorityColor(lead.prioridade)}>
-                      {lead.prioridade}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm">
+                    <div className="flex gap-2 justify-end">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditLead(lead)}
+                        title="Editar lead"
+                      >
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleIndividualWhatsApp(lead)}
+                        disabled={!lead.whatsapp || lead.whatsapp.trim() === "" || !lead.mensagemWhatsApp}
+                        title={
+                          !lead.whatsapp ? "Lead sem WhatsApp" : 
+                          !lead.mensagemWhatsApp ? "Lead sem mensagem configurada" : 
+                          "Enviar WhatsApp"
+                        }
+                        className={
+                          lead.whatsapp && lead.mensagemWhatsApp 
+                            ? "hover:text-green-600" 
+                            : "opacity-50 cursor-not-allowed"
+                        }
+                      >
                         <MessageCircle className="h-4 w-4" />
                       </Button>
                     </div>
