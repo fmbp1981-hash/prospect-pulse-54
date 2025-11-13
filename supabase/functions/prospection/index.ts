@@ -34,6 +34,7 @@ interface GooglePlacesResult {
       lng: number;
     };
   };
+  enrichedSummary?: string;
 }
 
 serve(async (req) => {
@@ -55,6 +56,8 @@ serve(async (req) => {
     }
 
     const GOOGLE_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+    
     if (!GOOGLE_API_KEY) {
       console.error('❌ GOOGLE_PLACES_API_KEY não configurada');
       return new Response(
@@ -91,7 +94,7 @@ serve(async (req) => {
     // Limitar pela quantidade solicitada
     const limitedResults = results.slice(0, Math.min(quantity, results.length));
 
-    // 2. Buscar detalhes de cada lugar
+    // 2. Buscar detalhes de cada lugar e enriquecer com Firecrawl
     const detailedPlaces: GooglePlacesResult[] = [];
     
     for (const place of limitedResults) {
@@ -102,11 +105,50 @@ serve(async (req) => {
         const detailsData = await detailsResponse.json();
         
         if (detailsData.status === 'OK' && detailsData.result) {
-          detailedPlaces.push(detailsData.result);
+          const placeData = detailsData.result;
+          
+          // Enriquecer com Firecrawl se houver website e API key configurada
+          if (placeData.website && FIRECRAWL_API_KEY) {
+            try {
+              console.log(`🔥 Enriquecendo dados de ${placeData.name} com Firecrawl`);
+              
+              const firecrawlResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  url: placeData.website,
+                  formats: ['markdown'],
+                  onlyMainContent: true,
+                  timeout: 10000,
+                }),
+              });
+
+              if (firecrawlResponse.ok) {
+                const firecrawlData = await firecrawlResponse.json();
+                const content = firecrawlData.data?.markdown || '';
+                
+                // Extrair resumo (primeiros 500 caracteres do conteúdo)
+                const summary = content.substring(0, 500).trim();
+                if (summary) {
+                  placeData.enrichedSummary = summary;
+                  console.log(`✅ Dados enriquecidos para ${placeData.name}`);
+                }
+              } else {
+                console.log(`⚠️ Firecrawl falhou para ${placeData.website}: ${firecrawlResponse.status}`);
+              }
+            } catch (firecrawlError) {
+              console.error(`❌ Erro ao enriquecer com Firecrawl:`, firecrawlError);
+            }
+          }
+          
+          detailedPlaces.push(placeData);
         }
         
         // Delay para evitar rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 150));
       } catch (error) {
         console.error('❌ Erro ao buscar detalhes do lugar:', error);
       }
@@ -142,6 +184,7 @@ serve(async (req) => {
         link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
         status: 'Novo',
         data: new Date().toISOString().split('T')[0],
+        resumo_analitico: place.enrichedSummary || null,
       };
     });
 
