@@ -37,6 +37,36 @@ interface GooglePlacesResult {
   enrichedSummary?: string;
 }
 
+// Função para obter o próximo número de Lead
+async function getNextLeadNumber(supabase: any): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('leads_prospeccao')
+      .select('lead')
+      .order('lead', { ascending: false })
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      return 1; // Primeiro lead
+    }
+
+    // Extrair número do último lead (ex: "Lead-042" → 42)
+    const lastLead = data[0].lead;
+    const match = lastLead.match(/Lead-(\d+)/);
+    const lastNumber = match ? parseInt(match[1], 10) : 0;
+    
+    return lastNumber + 1;
+  } catch (error) {
+    console.error('Erro ao obter próximo número de lead:', error);
+    return 1;
+  }
+}
+
+// Formatar número como "Lead-XXX"
+function formatLeadNumber(num: number): string {
+  return `Lead-${String(num).padStart(3, '0')}`;
+}
+
 // Função para gerar mensagem WhatsApp personalizada via Lovable AI
 async function generateWhatsAppMessage(
   nomeEmpresa: string,
@@ -258,54 +288,107 @@ serve(async (req) => {
           }
         }
         
+        // Gerar data formatada
+        const dataFormatada = new Date().toLocaleDateString('pt-BR', { 
+          day: '2-digit', 
+          month: '2-digit', 
+          year: 'numeric' 
+        }) + ', ' + new Date().toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
         return {
           id: place.place_id,
-          nome_empresa: place.name,
+          lead: '', // Será gerado sequencialmente na inserção
+          empresa: place.name,
           categoria: niche,
-          telefone: phone,
+          telefone_whatsapp: phone,
           endereco: address,
           cidade: city,
-          estado: addressParts.length > 0 ? addressParts[addressParts.length - 1].trim() : null,
-          pais: 'Brasil',
+          bairro_regiao: null,
           website: place.website || null,
-          latitude: place.geometry?.location.lat || null,
-          longitude: place.geometry?.location.lng || null,
-          avaliacao: place.rating || null,
-          total_avaliacoes: place.user_ratings_total || null,
-          resumo_site: place.enrichedSummary || null,
+          instagram: null,
+          link_gmn: `https://maps.google.com/?cid=${place.place_id}`,
+          aceita_cartao: null,
           mensagem_whatsapp: mensagemWhatsApp,
-          status: 'novo',
-          origem: 'google_places',
+          status_msg_wa: 'not_sent',
+          data_envio_wa: null,
+          resumo_analitico: place.enrichedSummary || null,
+          cnpj: null,
+          status: 'Novo',
+          data: dataFormatada,
+          email: null,
+          contato: null,
         };
       })
     );
 
-    // 4. Salvar no Supabase
+    // 4. Salvar no Supabase com verificação de duplicatas
     console.log('💾 Salvando leads no Supabase...');
     
+    let insertedCount = 0;
+    let recurrentCount = 0;
+    
     if (leadsToInsert.length > 0) {
-      const { data: insertedLeads, error: insertError } = await supabase
-        .from('leads_prospeccao')
-        .upsert(leadsToInsert, { onConflict: 'id' })
-        .select();
+      // Obter próximo número de lead
+      let nextLeadNumber = await getNextLeadNumber(supabase);
+      
+      for (const lead of leadsToInsert) {
+        // Verificar se o lead já existe
+        const { data: existingLead } = await supabase
+          .from('leads_prospeccao')
+          .select('id, status, lead')
+          .eq('id', lead.id)
+          .maybeSingle();
 
-      if (insertError) {
-        console.error('❌ Erro ao inserir leads no Supabase:', insertError);
+        if (existingLead) {
+          // Lead já existe - marcar como Recorrente
+          await supabase
+            .from('leads_prospeccao')
+            .update({ 
+              status: 'Recorrente',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', lead.id);
+          
+          recurrentCount++;
+          console.log(`🔄 Lead ${existingLead.lead} já existe - marcado como Recorrente`);
+        } else {
+          // Lead novo - atribuir número sequencial
+          lead.lead = formatLeadNumber(nextLeadNumber);
+          nextLeadNumber++;
+          
+          const { error: insertError } = await supabase
+            .from('leads_prospeccao')
+            .insert(lead);
+
+          if (insertError) {
+            console.error('❌ Erro ao inserir lead:', insertError);
+          } else {
+            insertedCount++;
+            console.log(`✅ Novo lead inserido: ${lead.lead}`);
+          }
+        }
+      }
+
+      if (insertedCount === 0 && recurrentCount === 0) {
         return new Response(
           JSON.stringify({ error: 'Erro ao salvar leads no banco de dados' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      console.log(`✅ ${insertedLeads?.length || 0} leads salvos no Supabase com mensagens WhatsApp`);
+      console.log(`✅ ${insertedCount} novos leads, ${recurrentCount} recorrentes salvos no Supabase`);
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Prospecção concluída! ${detailedPlaces.length} leads encontrados e salvos.`,
-        count: detailedPlaces.length,
-        leads: leadsToInsert,
+        message: `Prospecção concluída! ${insertedCount} novos leads, ${recurrentCount} recorrentes.`,
+        insertedCount,
+        recurrentCount,
+        total: leadsToInsert.length,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

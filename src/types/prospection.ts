@@ -50,27 +50,29 @@ export type LeadOrigin =
 export interface Lead {
   id: string;
   
-  // ✅ Campos que EXISTEM na tabela leads_prospeccao
-  lead: string; // Nome do lead
+  // ✅ Campos que EXISTEM na tabela leads_prospeccao (nova estrutura)
+  lead: string; // Lead-001, Lead-002, etc. (identificação sequencial)
   status: LeadStatus;
+  data?: string; // Data formatada
   empresa?: string;
   categoria?: string;
   contato?: string;
-  whatsapp?: string;
+  whatsapp?: string; // Mapeado de telefone_whatsapp
   email?: string;
-  cidade?: string;
-  endereco?: string;
-  bairroRegiao?: string;
   website?: string;
   instagram?: string;
-  linkGMN?: string;
-  aceitaCartao?: string;
-  mensagemWhatsApp?: string;
-  statusMsgWA?: WhatsAppStatus;
-  dataEnvioWA?: string | null;
-  resumoAnalitico?: string;
+  cidade?: string;
+  endereco?: string;
+  bairroRegiao?: string; // Mapeado de bairro_regiao
+  linkGMN?: string; // Mapeado de link_gmn
+  aceitaCartao?: string; // Mapeado de aceita_cartao
   cnpj?: string;
-  data?: string;
+  mensagemWhatsApp?: string; // Mapeado de mensagem_whatsapp
+  statusMsgWA?: WhatsAppStatus; // Mapeado de status_msg_wa
+  dataEnvioWA?: string | null; // Mapeado de data_envio_wa
+  resumoAnalitico?: string; // Mapeado de resumo_analitico
+  createdAt?: string; // created_at
+  updatedAt?: string; // updated_at
   
   // ❌ Campos VIRTUAIS (calculados, não salvam no banco)
   origem?: LeadOrigin; // Derivado de categoria
