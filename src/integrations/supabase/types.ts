@@ -14,7 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      leads_prospeccao: {
+        Row: {
+          avaliacao: number | null
+          bairro: string | null
+          categoria: string
+          cidade: string | null
+          created_at: string | null
+          email: string | null
+          endereco: string | null
+          estado: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          mensagem_whatsapp: string | null
+          nome_empresa: string
+          origem: string | null
+          pais: string | null
+          resumo_site: string | null
+          status: string | null
+          telefone: string | null
+          total_avaliacoes: number | null
+          updated_at: string | null
+          website: string | null
+        }
+        Insert: {
+          avaliacao?: number | null
+          bairro?: string | null
+          categoria: string
+          cidade?: string | null
+          created_at?: string | null
+          email?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          mensagem_whatsapp?: string | null
+          nome_empresa: string
+          origem?: string | null
+          pais?: string | null
+          resumo_site?: string | null
+          status?: string | null
+          telefone?: string | null
+          total_avaliacoes?: number | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Update: {
+          avaliacao?: number | null
+          bairro?: string | null
+          categoria?: string
+          cidade?: string | null
+          created_at?: string | null
+          email?: string | null
+          endereco?: string | null
+          estado?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          mensagem_whatsapp?: string | null
+          nome_empresa?: string
+          origem?: string | null
+          pais?: string | null
+          resumo_site?: string | null
+          status?: string | null
+          telefone?: string | null
+          total_avaliacoes?: number | null
+          updated_at?: string | null
+          website?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
