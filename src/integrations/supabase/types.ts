@@ -16,71 +16,77 @@ export type Database = {
     Tables: {
       leads_prospeccao: {
         Row: {
-          avaliacao: number | null
-          bairro: string | null
-          categoria: string
+          aceita_cartao: string | null
+          bairro_regiao: string | null
+          categoria: string | null
           cidade: string | null
+          cnpj: string | null
+          contato: string | null
           created_at: string | null
+          data: string | null
+          data_envio_wa: string | null
           email: string | null
+          empresa: string
           endereco: string | null
-          estado: string | null
           id: string
-          latitude: number | null
-          longitude: number | null
+          instagram: string | null
+          lead: string
+          link_gmn: string | null
           mensagem_whatsapp: string | null
-          nome_empresa: string
-          origem: string | null
-          pais: string | null
-          resumo_site: string | null
+          resumo_analitico: string | null
           status: string | null
-          telefone: string | null
-          total_avaliacoes: number | null
+          status_msg_wa: string | null
+          telefone_whatsapp: string | null
           updated_at: string | null
           website: string | null
         }
         Insert: {
-          avaliacao?: number | null
-          bairro?: string | null
-          categoria: string
+          aceita_cartao?: string | null
+          bairro_regiao?: string | null
+          categoria?: string | null
           cidade?: string | null
+          cnpj?: string | null
+          contato?: string | null
           created_at?: string | null
+          data?: string | null
+          data_envio_wa?: string | null
           email?: string | null
+          empresa: string
           endereco?: string | null
-          estado?: string | null
-          id?: string
-          latitude?: number | null
-          longitude?: number | null
+          id: string
+          instagram?: string | null
+          lead: string
+          link_gmn?: string | null
           mensagem_whatsapp?: string | null
-          nome_empresa: string
-          origem?: string | null
-          pais?: string | null
-          resumo_site?: string | null
+          resumo_analitico?: string | null
           status?: string | null
-          telefone?: string | null
-          total_avaliacoes?: number | null
+          status_msg_wa?: string | null
+          telefone_whatsapp?: string | null
           updated_at?: string | null
           website?: string | null
         }
         Update: {
-          avaliacao?: number | null
-          bairro?: string | null
-          categoria?: string
+          aceita_cartao?: string | null
+          bairro_regiao?: string | null
+          categoria?: string | null
           cidade?: string | null
+          cnpj?: string | null
+          contato?: string | null
           created_at?: string | null
+          data?: string | null
+          data_envio_wa?: string | null
           email?: string | null
+          empresa?: string
           endereco?: string | null
-          estado?: string | null
           id?: string
-          latitude?: number | null
-          longitude?: number | null
+          instagram?: string | null
+          lead?: string
+          link_gmn?: string | null
           mensagem_whatsapp?: string | null
-          nome_empresa?: string
-          origem?: string | null
-          pais?: string | null
-          resumo_site?: string | null
+          resumo_analitico?: string | null
           status?: string | null
-          telefone?: string | null
-          total_avaliacoes?: number | null
+          status_msg_wa?: string | null
+          telefone_whatsapp?: string | null
           updated_at?: string | null
           website?: string | null
         }
