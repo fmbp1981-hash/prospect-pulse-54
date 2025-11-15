@@ -260,18 +260,22 @@ serve(async (req) => {
         
         return {
           id: place.place_id,
-          lead: place.name,
-          empresa: place.name,
+          nome_empresa: place.name,
           categoria: niche,
-          telefone_whatsapp: phone,
-          cidade: city,
+          telefone: phone,
           endereco: address,
+          cidade: city,
+          estado: addressParts.length > 0 ? addressParts[addressParts.length - 1].trim() : null,
+          pais: 'Brasil',
           website: place.website || null,
-          link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
-          status: 'Novo',
-          data: new Date().toISOString().split('T')[0],
-          resumo_analitico: place.enrichedSummary || null,
+          latitude: place.geometry?.location.lat || null,
+          longitude: place.geometry?.location.lng || null,
+          avaliacao: place.rating || null,
+          total_avaliacoes: place.user_ratings_total || null,
+          resumo_site: place.enrichedSummary || null,
           mensagem_whatsapp: mensagemWhatsApp,
+          status: 'novo',
+          origem: 'google_places',
         };
       })
     );
