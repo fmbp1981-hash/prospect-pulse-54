@@ -13,6 +13,7 @@ import { toTitleCase } from "@/lib/utils";
 import { BulkActionsBar } from "@/components/BulkActionsBar";
 import { WhatsAppDispatchModal } from "@/components/WhatsAppDispatchModal";
 import { ExportModal } from "@/components/ExportModal";
+import { LeadEditModal } from "@/components/LeadEditModal";
 import { exportToCSV, exportToExcel } from "@/lib/export";
 import { auditExport, auditBulkDelete } from "@/lib/audit";
 import {
@@ -48,6 +49,8 @@ const LeadsTable = () => {
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -221,8 +224,15 @@ const LeadsTable = () => {
 
   // Editar lead
   const handleEditLead = (lead: Lead) => {
-    // TODO: Implementar modal de edição
-    toast.info("Funcionalidade de edição em desenvolvimento");
+    setLeadToEdit(lead);
+    setIsEditModalOpen(true);
+  };
+
+  // Callback quando edição for bem-sucedida
+  const handleEditSuccess = async () => {
+    setIsEditModalOpen(false);
+    setLeadToEdit(null);
+    await loadLeads(); // Recarregar leads após edição
   };
 
   const exportColumns = [
@@ -569,7 +579,7 @@ const LeadsTable = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir {selectedLeads.size} lead(s)? 
+              Tem certeza que deseja excluir {selectedLeads.size} lead(s)?
               Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -581,6 +591,17 @@ const LeadsTable = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Lead Modal */}
+      <LeadEditModal
+        lead={leadToEdit}
+        open={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setLeadToEdit(null);
+        }}
+        onSuccess={handleEditSuccess}
+      />
     </div>
   );
 };

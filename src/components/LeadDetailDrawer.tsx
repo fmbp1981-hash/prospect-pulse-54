@@ -1,18 +1,30 @@
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Phone, Mail, MapPin, Building2, Tag, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { LeadEditModal } from "@/components/LeadEditModal";
 import type { Lead } from "@/types/prospection";
 
 interface LeadDetailDrawerProps {
   lead: Lead | null;
   open: boolean;
   onClose: () => void;
+  onUpdate?: () => void;
 }
 
-export function LeadDetailDrawer({ lead, open, onClose }: LeadDetailDrawerProps) {
+export function LeadDetailDrawer({ lead, open, onClose, onUpdate }: LeadDetailDrawerProps) {
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   if (!lead) return null;
+
+  const handleEditSuccess = () => {
+    setIsEditModalOpen(false);
+    if (onUpdate) {
+      onUpdate();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -235,11 +247,22 @@ export function LeadDetailDrawer({ lead, open, onClose }: LeadDetailDrawerProps)
               <Button className="flex-1" variant="outline" onClick={onClose}>
                 Fechar
               </Button>
-              <Button className="flex-1 gradient-primary text-white">
+              <Button
+                className="flex-1 gradient-primary text-white"
+                onClick={() => setIsEditModalOpen(true)}
+              >
                 Editar Lead
               </Button>
             </div>
           </motion.div>
+
+          {/* Edit Modal */}
+          <LeadEditModal
+            lead={lead}
+            open={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            onSuccess={handleEditSuccess}
+          />
         </>
       )}
     </AnimatePresence>

@@ -113,15 +113,18 @@ const Index = () => {
 
       {/* Features Section */}
       <section className="mt-16 max-w-7xl mx-auto">
-        <h3 className="text-2xl font-bold text-center mb-8">Melhorias Futuras</h3>
+        <h3 className="text-2xl font-bold text-center mb-8">Funcionalidades</h3>
         <div className="grid md:grid-cols-3 gap-6">
           <div className="p-6 rounded-lg border bg-card shadow-card hover:shadow-elevated transition-all">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-              <TrendingUp className="h-6 w-6 text-primary" />
+            <div className="h-12 w-12 rounded-lg bg-success/10 flex items-center justify-center mb-4">
+              <TrendingUp className="h-6 w-6 text-success" />
             </div>
-            <h4 className="font-semibold mb-2">Dashboard Analítico</h4>
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              Dashboard Analítico
+              <span className="text-xs px-2 py-1 rounded-full bg-success/20 text-success">Implementado</span>
+            </h4>
             <p className="text-sm text-muted-foreground">
-              Visualize métricas de conversão, ROI e performance de campanhas em tempo real
+              Visualize métricas de conversão, gráficos interativos e performance dos seus leads em tempo real
             </p>
           </div>
 
@@ -129,9 +132,12 @@ const Index = () => {
             <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4">
               <Rocket className="h-6 w-6 text-accent" />
             </div>
-            <h4 className="font-semibold mb-2">Gestão de Campanhas</h4>
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              Gestão de Campanhas
+              <span className="text-xs px-2 py-1 rounded-full bg-warning/20 text-warning">Em breve</span>
+            </h4>
             <p className="text-sm text-muted-foreground">
-              Crie, organize e agende múltiplas campanhas de outbound com templates personalizados
+              Crie, organize e agende múltiplas campanhas de outbound com templates personalizados e automações
             </p>
           </div>
 
@@ -139,9 +145,12 @@ const Index = () => {
             <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
               <TrendingUp className="h-6 w-6 text-primary" />
             </div>
-            <h4 className="font-semibold mb-2">Integração CRM</h4>
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              Integração CRM
+              <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">Planejado</span>
+            </h4>
             <p className="text-sm text-muted-foreground">
-              Conecte com Pipedrive, HubSpot e outros CRMs para sincronização automática de leads
+              Conecte com Pipedrive, HubSpot, RD Station e outros CRMs para sincronização automática de leads
             </p>
           </div>
         </div>
