@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Table, Search, Settings, Link2, MessageSquare, CheckCircle, LogOut, User } from "lucide-react";
+import { LayoutDashboard, Table, Search, Settings, Link2, MessageSquare, CheckCircle, LogOut, User, FileText, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { TemplateManager } from "@/components/TemplateManager";
 
 import {
   Sidebar,
@@ -34,6 +35,7 @@ const items = [
   { title: "Prospecção", url: "/", icon: Search },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Tabela de Leads", url: "/leads", icon: Table },
+  { title: "Kanban Board", url: "/kanban", icon: LayoutGrid },
 ];
 
 export function AppSidebar() {
@@ -43,6 +45,7 @@ export function AppSidebar() {
 
   const [whatsappWebhook, setWhatsappWebhook] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
 
   // Carregar webhook do localStorage ao montar componente
   useEffect(() => {
@@ -157,6 +160,27 @@ export function AppSidebar() {
 
                 <div className="border-t" />
 
+                {/* Gerenciador de Templates */}
+                <div className="space-y-2">
+                  <Label className="text-sm flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Templates de Mensagens
+                  </Label>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => setIsTemplateManagerOpen(true)}
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Gerenciar Templates
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Crie e personalize templates para mensagens WhatsApp
+                  </p>
+                </div>
+
+                <div className="border-t" />
+
                 {/* Status da Conexão */}
                 <div className="rounded-lg bg-muted/50 p-4">
                   <h4 className="text-sm font-medium mb-2">Status da Configuração</h4>
@@ -227,6 +251,12 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {/* Template Manager Modal */}
+      <TemplateManager
+        isOpen={isTemplateManagerOpen}
+        onClose={() => setIsTemplateManagerOpen(false)}
+      />
     </Sidebar>
   );
 }

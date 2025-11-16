@@ -23,13 +23,15 @@ interface WhatsAppDispatchModalProps {
   selectedLeads: Lead[];
 }
 
-export const WhatsAppDispatchModal = ({ 
-  isOpen, 
-  onClose, 
-  selectedLeads 
+export const WhatsAppDispatchModal = ({
+  isOpen,
+  onClose,
+  selectedLeads
 }: WhatsAppDispatchModalProps) => {
   const [statuses, setStatuses] = useState<DispatchStatus[]>([]);
   const [isDispatching, setIsDispatching] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [showTestConfirm, setShowTestConfirm] = useState(false);
 
   // Filtrar leads válidos (com WhatsApp, mensagem e não enviados)
   const validLeads = selectedLeads.filter(lead => 
@@ -60,6 +62,87 @@ export const WhatsAppDispatchModal = ({
     }
   }, [isOpen, validLeads]);
 
+  const handleTestSend = async () => {
+    if (validLeads.length === 0) {
+      toast.error("Nenhum lead válido para teste");
+      return;
+    }
+
+    const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
+    if (!whatsappWebhook) {
+      toast.error("Configure o webhook WhatsApp nas Configurações da sidebar");
+      return;
+    }
+
+    setTestMode(true);
+    setIsDispatching(true);
+    setShowTestConfirm(false);
+
+    const testLead = validLeads[0]; // Apenas o primeiro lead
+
+    setStatuses([{
+      leadId: testLead.id,
+      leadName: testLead.lead,
+      message: testLead.mensagemWhatsApp,
+      status: "sending"
+    }]);
+
+    try {
+      const response = await fetch(whatsappWebhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          leadId: testLead.id,
+          whatsapp: testLead.whatsapp,
+          message: testLead.mensagemWhatsApp,
+          leadName: testLead.lead,
+          empresa: testLead.empresa,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Webhook retornou ${response.status}`);
+      }
+
+      const result = await response.json();
+      const isSuccess = result.success === true;
+
+      if (isSuccess) {
+        await supabaseCRM.updateLead(testLead.id, {
+          statusMsgWA: "sent",
+          dataEnvioWA: new Date().toISOString(),
+        });
+
+        setStatuses([{
+          leadId: testLead.id,
+          leadName: testLead.lead,
+          message: testLead.mensagemWhatsApp,
+          status: "sent"
+        }]);
+
+        toast.success("Mensagem de teste enviada com sucesso!", {
+          description: `Enviado para ${testLead.lead}`,
+        });
+      } else {
+        throw new Error(result.error || result.message || "Falha no envio");
+      }
+    } catch (error) {
+      setStatuses([{
+        leadId: testLead.id,
+        leadName: testLead.lead,
+        message: testLead.mensagemWhatsApp,
+        status: "failed",
+        error: String(error)
+      }]);
+
+      toast.error("Falha no envio de teste", {
+        description: String(error)
+      });
+    }
+
+    setIsDispatching(false);
+  };
+
   const handleDispatch = async () => {
     if (isDispatching || validLeads.length === 0) {
       toast.error("Nenhum lead válido para enviar", {
@@ -67,14 +150,15 @@ export const WhatsAppDispatchModal = ({
       });
       return;
     }
-    
+
     // Verificar se webhook está configurado
     const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
     if (!whatsappWebhook) {
       toast.error("Configure o webhook WhatsApp nas Configurações da sidebar");
       return;
     }
-    
+
+    setTestMode(false);
     setIsDispatching(true);
 
     // Processar leads sequencialmente
@@ -296,39 +380,105 @@ export const WhatsAppDispatchModal = ({
           </>
         )}
 
-        {/* Botão de ação */}
-        <div className="flex gap-2 pt-4 border-t">
+        {/* Botões de ação */}
+        <div className="flex flex-col gap-2 pt-4 border-t">
           {isComplete ? (
             <Button onClick={onClose} className="w-full">
               Fechar
             </Button>
           ) : (
             <>
-              <Button 
-                variant="outline"
-                onClick={onClose} 
-                disabled={isDispatching}
-                className="flex-1"
-              >
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handleDispatch}
-                disabled={isDispatching || validLeads.length === 0}
-                className="flex-1"
-              >
-                {isDispatching ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Enviando...
-                  </>
-                ) : (
-                  `Enviar para ${validLeads.length} lead(s)`
-                )}
-              </Button>
+              {/* Botão de Teste (apenas se não estiver enviando) */}
+              {!isDispatching && validLeads.length > 0 && !testMode && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowTestConfirm(true)}
+                  className="w-full"
+                >
+                  📤 Enviar Teste (1 mensagem)
+                </Button>
+              )}
+
+              {/* Botões principais */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={isDispatching}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleDispatch}
+                  disabled={isDispatching || validLeads.length === 0}
+                  className="flex-1"
+                >
+                  {isDispatching && !testMode ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    `Enviar para ${validLeads.length} lead(s)`
+                  )}
+                </Button>
+              </div>
             </>
           )}
         </div>
+
+        {/* Modal de Confirmação de Teste */}
+        {showTestConfirm && validLeads.length > 0 && (
+          <div className="absolute inset-0 bg-background/95 backdrop-blur-sm flex items-center justify-center p-6 rounded-lg">
+            <div className="bg-card border rounded-lg p-6 max-w-md w-full space-y-4 shadow-lg">
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Confirmar Envio de Teste</h3>
+                <p className="text-sm text-muted-foreground">
+                  Você está prestes a enviar uma mensagem de teste para:
+                </p>
+              </div>
+
+              <div className="bg-muted p-4 rounded-lg space-y-2">
+                <div className="flex justify-between items-start">
+                  <span className="text-sm font-medium">Lead:</span>
+                  <span className="text-sm text-right">{validLeads[0].lead}</span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-sm font-medium">Empresa:</span>
+                  <span className="text-sm text-right">{validLeads[0].empresa}</span>
+                </div>
+                <div className="flex justify-between items-start">
+                  <span className="text-sm font-medium">WhatsApp:</span>
+                  <span className="text-sm text-right">{validLeads[0].whatsapp}</span>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-xs font-medium text-blue-900 mb-2">Preview da Mensagem:</p>
+                <p className="text-xs text-blue-800 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                  {validLeads[0].mensagemWhatsApp}
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTestConfirm(false)}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleTestSend}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700"
+                >
+                  Enviar Teste
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

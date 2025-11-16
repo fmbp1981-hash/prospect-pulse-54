@@ -3,12 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2, Trash2, RefreshCw } from "lucide-react";
+import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2, Trash2, RefreshCw, Database, ExternalLink } from "lucide-react";
 import { ProspectionSearch } from "@/types/prospection";
 import { LocationData } from "@/components/LocationCascade";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,16 +45,64 @@ const formatLocation = (location: string | LocationData): string => {
 };
 
 export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchHistoryProps) => {
+  const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [whatsappStatuses, setWhatsappStatuses] = useState<Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }>>({});
   const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [reprocessingIds, setReprocessingIds] = useState<Set<string>>(new Set());
+  const [leadCounts, setLeadCounts] = useState<Record<string, { count: number; loading: boolean; error: boolean }>>({});
 
-  // Status de WhatsApp desabilitado temporariamente
+  // Carregar contagem de leads do Supabase
   useEffect(() => {
-    // TODO: Implementar verificação de status via Supabase
-    // Por enquanto, assume que nenhuma mensagem foi enviada
+    const loadLeadCounts = async () => {
+      const counts: Record<string, { count: number; loading: boolean; error: boolean }> = {};
+
+      for (const search of searches) {
+        counts[search.id] = { count: 0, loading: true, error: false };
+      }
+      setLeadCounts(counts);
+
+      // Buscar contagem para cada busca
+      for (const search of searches) {
+        try {
+          const location = formatLocation(search.location);
+          const searchTimestamp = new Date(search.timestamp);
+
+          // Buscar leads que correspondem aos critérios da busca
+          // Considerando leads criados próximos ao timestamp da busca (dentro de 1 hora)
+          const startTime = new Date(searchTimestamp.getTime() - 60 * 60 * 1000);
+          const endTime = new Date(searchTimestamp.getTime() + 60 * 60 * 1000);
+
+          const { count, error } = await supabase
+            .from('leads_prospeccao')
+            .select('*', { count: 'exact', head: true })
+            .eq('categoria', search.niche)
+            .ilike('cidade', `%${location.split(',')[0].trim()}%`)
+            .gte('created_at', startTime.toISOString())
+            .lte('created_at', endTime.toISOString());
+
+          if (error) throw error;
+
+          setLeadCounts(prev => ({
+            ...prev,
+            [search.id]: { count: count || 0, loading: false, error: false }
+          }));
+        } catch (error) {
+          console.error(`Error loading count for search ${search.id}:`, error);
+          setLeadCounts(prev => ({
+            ...prev,
+            [search.id]: { count: 0, loading: false, error: true }
+          }));
+        }
+      }
+    };
+
+    if (searches.length > 0) {
+      loadLeadCounts();
+    }
+
+    // Status de WhatsApp (mantido como não enviado para histórico)
     const statuses: Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }> = {};
     searches.forEach(search => {
       statuses[search.id] = { status: 'not_sent' };
@@ -308,16 +358,57 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
                   <span className="font-medium">Quantidade:</span>
                   <span className="text-muted-foreground">{search.quantity} leads</span>
                 </div>
+
+                {/* Status de salvamento no Supabase */}
+                <div className="flex items-center gap-2 text-sm">
+                  <Database className="h-4 w-4 text-primary" />
+                  <span className="font-medium">Salvos no CRM:</span>
+                  {leadCounts[search.id]?.loading ? (
+                    <Badge variant="secondary" className="gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Carregando...
+                    </Badge>
+                  ) : leadCounts[search.id]?.error ? (
+                    <Badge variant="destructive" className="gap-1">
+                      Erro ao carregar
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant={leadCounts[search.id]?.count > 0 ? "default" : "secondary"}
+                      className={leadCounts[search.id]?.count > 0 ? "bg-success hover:bg-success/90" : ""}
+                    >
+                      {leadCounts[search.id]?.count || 0} lead(s)
+                    </Badge>
+                  )}
+                </div>
               </div>
 
-              {onReprocess && (
-                <div className="mt-4 pt-4 border-t">
+              {/* Botões de ação */}
+              <div className="mt-4 pt-4 border-t flex gap-2">
+                {leadCounts[search.id]?.count > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => {
+                      // Redirecionar para tabela com filtros aplicados
+                      const location = formatLocation(search.location);
+                      navigate(`/leads?categoria=${encodeURIComponent(search.niche)}&cidade=${encodeURIComponent(location.split(',')[0].trim())}`);
+                      toast.success("Redirecionando para tabela de leads...");
+                    }}
+                    className="flex-1"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Ver Leads ({leadCounts[search.id]?.count})
+                  </Button>
+                )}
+
+                {onReprocess && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleReprocess(search)}
                     disabled={reprocessingIds.has(search.id)}
-                    className="w-full"
+                    className="flex-1"
                   >
                     {reprocessingIds.has(search.id) ? (
                       <>
@@ -327,12 +418,12 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
                     ) : (
                       <>
                         <RefreshCw className="h-4 w-4 mr-2" />
-                        Reprocessar Pesquisa
+                        Reprocessar
                       </>
                     )}
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
           })}

@@ -108,3 +108,23 @@ export interface DashboardMetrics {
     data: string;
   }>;
 }
+
+// Templates de Mensagens WhatsApp
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  category: string; // "Primeiro Contato", "Follow-up", "Proposta", etc.
+  message: string; // Template com variáveis {{empresa}}, {{cidade}}, {{categoria}}
+  isDefault?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// Variáveis disponíveis para templates
+export const TEMPLATE_VARIABLES = [
+  { key: '{{empresa}}', description: 'Nome da empresa' },
+  { key: '{{categoria}}', description: 'Categoria/nicho do negócio' },
+  { key: '{{cidade}}', description: 'Cidade do lead' },
+  { key: '{{contato}}', description: 'Nome do contato' },
+  { key: '{{lead}}', description: 'ID do lead (Lead-001, etc.)' },
+] as const;

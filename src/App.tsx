@@ -12,6 +12,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import LeadsTable from "./pages/LeadsTable";
+import Kanban from "./pages/Kanban";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -57,6 +58,16 @@ function AnimatedRoutes() {
             <ProtectedRoute>
               <Layout>
                 <LeadsTable />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/kanban"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Kanban />
               </Layout>
             </ProtectedRoute>
           }
