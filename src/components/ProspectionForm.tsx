@@ -74,23 +74,58 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
     });
 
     try {
-      // Chamar Edge Function de prospecção
+      console.log("📡 Chamando edge function de prospecção...", formData);
+      
       const { data, error } = await supabase.functions.invoke('prospection', {
-        body: {
-          niche: formData.niche,
-          location: formData.location,
-          quantity: formData.quantity,
-        },
+        body: formData
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ Erro retornado pela edge function:", error);
+        throw error;
+      }
 
-      toast.success("Prospecção concluída!", {
-        id: loadingToast,
-        description: `${data.count} leads encontrados e salvos no banco de dados.`,
-        duration: 5000,
+      console.log("✅ Resposta completa da prospecção:", data);
+
+      // Verificar se houve sucesso
+      if (!data?.success) {
+        throw new Error(data?.error || 'Erro desconhecido na prospecção');
+      }
+
+      // Exibir resultados detalhados
+      const { insertedCount, recurrentCount, total, failedProcessing, failedInsertion } = data;
+      
+      let message = `Prospecção concluída! ${total} leads processados`;
+      if (insertedCount > 0) message += ` (${insertedCount} novos`;
+      if (recurrentCount > 0) message += `, ${recurrentCount} recorrentes`;
+      if (insertedCount > 0 || recurrentCount > 0) message += `)`;
+      
+      // Se houver falhas, mostrar warning ao invés de success
+      if (failedProcessing > 0 || failedInsertion > 0) {
+        message += `. Avisos: ${failedProcessing || 0} falhas no processamento, ${failedInsertion || 0} falhas na inserção`;
+        console.warn("⚠️ Prospecção com avisos:", data.details);
+        toast.warning(message, { 
+          id: loadingToast,
+          description: "Alguns leads podem não ter sido processados. Verifique os logs.",
+          duration: 6000 
+        });
+      } else {
+        toast.success(message, { 
+          id: loadingToast,
+          description: "Todos os leads foram processados com sucesso!",
+          duration: 5000 
+        });
+      }
+
+      console.log("📊 Detalhes da prospecção:", {
+        insertedCount,
+        recurrentCount,
+        total,
+        failedProcessing,
+        failedInsertion,
+        details: data.details
       });
-
+      
       onSearch(formData);
       
       // Reset form
@@ -106,11 +141,12 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
         webhookUrl: "",
       });
     } catch (error) {
-      console.error("Erro ao iniciar prospecção:", error);
+      console.error("❌ Erro na prospecção:", error);
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
       
-      toast.error("Erro ao iniciar prospecção", {
+      toast.error("Erro ao realizar prospecção", {
         id: loadingToast,
-        description: error instanceof Error ? error.message : "Erro desconhecido",
+        description: errorMessage,
         duration: 6000,
       });
     } finally {
