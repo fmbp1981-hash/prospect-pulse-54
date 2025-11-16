@@ -81,6 +81,14 @@ function formatLeadNumber(num: number): string {
   return `Lead-${String(num).padStart(3, '0')}`;
 }
 
+// Gerar ID único quando place_id não estiver disponível
+function generateUniqueId(placeName: string, address: string): string {
+  const timestamp = Date.now();
+  const randomStr = Math.random().toString(36).substring(2, 8);
+  const cleanName = placeName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+  return `${cleanName}-${timestamp}-${randomStr}`;
+}
+
 // Função para gerar mensagem WhatsApp personalizada via Lovable AI
 async function generateWhatsAppMessage(
   nomeEmpresa: string,
@@ -243,9 +251,19 @@ serve(async (req) => {
         
         const detailsResponse = await fetch(detailsUrl);
         const detailsData = await detailsResponse.json();
-        
+
         if (detailsData.status === 'OK' && detailsData.result) {
           const placeData = detailsData.result;
+
+          // Garantir que place_id existe, senão gerar um ID único
+          if (!placeData.place_id) {
+            console.warn(`⚠️ place_id ausente nos detalhes de ${placeData.name}, gerando ID único`);
+            placeData.place_id = generateUniqueId(
+              placeData.name || 'unknown',
+              placeData.formatted_address || ''
+            );
+          }
+
           console.log('✅ Detalhes obtidos com sucesso');
           
           // Enriquecer com Firecrawl se houver website e API key configurada
@@ -351,7 +369,7 @@ serve(async (req) => {
         });
 
         return {
-          id: place.place_id,
+          id: place.place_id || generateUniqueId(place.name || 'unknown', address),
           lead: '', // Será gerado sequencialmente na inserção
           empresa: place.name,
           categoria: niche,
