@@ -15,6 +15,7 @@ interface ProspectionRequest {
     neighborhood?: string;
   };
   quantity: number;
+  user_id?: string; // ID do usuário autenticado (multi-tenant)
 }
 
 interface GooglePlacesResult {
@@ -161,9 +162,9 @@ serve(async (req) => {
   }
 
   try {
-    const { niche, location, quantity } = await req.json() as ProspectionRequest;
-    
-    console.log('📍 Prospecção iniciada:', { niche, location, quantity });
+    const { niche, location, quantity, user_id } = await req.json() as ProspectionRequest;
+
+    console.log('📍 Prospecção iniciada:', { niche, location, quantity, user_id });
 
     // Validações
     if (!niche || !location || !quantity) {
@@ -390,6 +391,7 @@ serve(async (req) => {
           data: dataFormatada,
           email: null,
           contato: null,
+          user_id: user_id || null, // Multi-tenant: associar ao usuário
         };
       })
     );

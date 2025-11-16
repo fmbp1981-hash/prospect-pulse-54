@@ -11,6 +11,7 @@ import { QuickSelectNiches } from "@/components/QuickSelectNiches";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ProspectionFormProps {
   onSearch: (data: ProspectionFormData) => void;
@@ -19,7 +20,8 @@ interface ProspectionFormProps {
 
 export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  
+  const { user } = useAuth();
+
   const [formData, setFormData] = useState<ProspectionFormData>({
     niche: "",
     location: {
@@ -75,9 +77,13 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
 
     try {
       console.log("📡 Chamando edge function de prospecção...", formData);
-      
+
+      // Incluir user_id para multi-tenant
       const { data, error } = await supabase.functions.invoke('prospection', {
-        body: formData
+        body: {
+          ...formData,
+          user_id: user?.id, // Passar ID do usuário autenticado
+        }
       });
 
       if (error) {
