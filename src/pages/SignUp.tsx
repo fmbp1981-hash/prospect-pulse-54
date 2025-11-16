@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Rocket } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 const SignUp = () => {
   const navigate = useNavigate();
