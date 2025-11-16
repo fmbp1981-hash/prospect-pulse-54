@@ -31,24 +31,22 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       neighborhood: ""
     },
     quantity: 50,
-    webhookUrl: "",
   });
 
   const handleUseLastSearch = () => {
     if (!lastSearch) return;
-    
+
     // Garantir que location seja do tipo LocationData
     const locationData: LocationData = typeof lastSearch.location === 'string'
       ? { country: "", state: "", city: lastSearch.location, neighborhood: "" }
       : lastSearch.location;
-    
+
     setFormData({
       niche: lastSearch.niche,
       location: locationData,
       quantity: lastSearch.quantity,
-      webhookUrl: lastSearch.webhookUrl || "",
     });
-    
+
     toast.success("Dados da última pesquisa carregados!", {
       description: "Você pode editar os campos antes de iniciar a prospecção."
     });
@@ -133,7 +131,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       });
       
       onSearch(formData);
-      
+
       // Reset form
       setFormData({
         niche: "",
@@ -144,7 +142,6 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
           neighborhood: ""
         },
         quantity: 50,
-        webhookUrl: "",
       });
     } catch (error) {
       console.error("❌ Erro na prospecção:", error);

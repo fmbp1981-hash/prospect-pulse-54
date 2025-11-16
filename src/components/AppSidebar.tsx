@@ -41,33 +41,28 @@ export function AppSidebar() {
   const isCollapsed = state === "collapsed";
   const { user, signOut } = useAuth();
 
-  const [prospectionWebhook, setProspectionWebhook] = useState("");
   const [whatsappWebhook, setWhatsappWebhook] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  // Carregar webhooks do localStorage ao montar componente
+  // Carregar webhook do localStorage ao montar componente
   useEffect(() => {
-    setProspectionWebhook(localStorage.getItem("prospection_webhook_url") || "");
     setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
   }, []);
 
   // Recarregar valores ao abrir o modal
   useEffect(() => {
     if (isDialogOpen) {
-      setProspectionWebhook(localStorage.getItem("prospection_webhook_url") || "");
       setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
     }
   }, [isDialogOpen]);
 
   const handleSaveConfiguration = () => {
-    localStorage.setItem("prospection_webhook_url", prospectionWebhook);
     localStorage.setItem("whatsapp_webhook_url", whatsappWebhook);
     toast.success("Configurações salvas com sucesso!");
   };
 
   const handleCancelConfiguration = () => {
     // Restaurar valores originais do localStorage
-    setProspectionWebhook(localStorage.getItem("prospection_webhook_url") || "");
     setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
   };
 
@@ -134,34 +129,11 @@ export function AppSidebar() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Settings className="h-5 w-5" />
-                  Configurações de Webhooks
+                  Configurações de Webhook
                 </DialogTitle>
               </DialogHeader>
-              
+
               <div className="space-y-6 py-4">
-                {/* Webhook Prospecção */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2">
-                    <Link2 className="h-4 w-4 text-primary" />
-                    Webhook de Prospecção
-                    {prospectionWebhook && (
-                      <CheckCircle className="h-4 w-4 text-success ml-auto" />
-                    )}
-                  </Label>
-                  <Input
-                    value={prospectionWebhook}
-                    onChange={(e) => setProspectionWebhook(e.target.value)}
-                    placeholder="https://seu-n8n.com/webhook/prospeccao"
-                    className="font-mono text-xs"
-                    type="password"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    URL do webhook n8n para integração com Google Places API
-                  </p>
-                </div>
-                
-                <div className="border-t" />
-                
                 {/* Webhook WhatsApp */}
                 <div className="space-y-2">
                   <Label className="text-sm flex items-center gap-2">
@@ -182,26 +154,13 @@ export function AppSidebar() {
                     URL do webhook n8n para envio via Evolution API
                   </p>
                 </div>
-                
+
                 <div className="border-t" />
-                
+
                 {/* Status da Conexão */}
                 <div className="rounded-lg bg-muted/50 p-4">
                   <h4 className="text-sm font-medium mb-2">Status da Configuração</h4>
                   <div className="space-y-1 text-xs">
-                    <div className="flex items-center gap-2">
-                      {prospectionWebhook ? (
-                        <>
-                          <CheckCircle className="h-3 w-3 text-success" />
-                          <span className="text-success">Prospecção configurada</span>
-                        </>
-                      ) : (
-                        <>
-                          <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                          <span className="text-muted-foreground">Prospecção não configurada</span>
-                        </>
-                      )}
-                    </div>
                     <div className="flex items-center gap-2">
                       {whatsappWebhook ? (
                         <>
@@ -217,9 +176,9 @@ export function AppSidebar() {
                     </div>
                   </div>
                 </div>
-                
+
                 <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <strong>💡 Dica:</strong> Mantenha esses endereços em segredo para proteger sua integração.
+                  <strong>💡 Dica:</strong> Mantenha esse endereço em segredo para proteger sua integração.
                 </p>
               </div>
               

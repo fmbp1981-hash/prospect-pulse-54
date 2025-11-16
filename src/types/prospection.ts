@@ -10,7 +10,7 @@ export interface ProspectionSearch {
   niche: string;
   location: string | LocationData;
   quantity: number;
-  webhookUrl: string;
+  webhookUrl?: string;
   timestamp: Date;
   status: 'pending' | 'processing' | 'completed' | 'error';
   whatsappStatus?: 'not_sent' | 'sent' | 'failed';
@@ -21,7 +21,7 @@ export interface ProspectionFormData {
   niche: string;
   location: LocationData;
   quantity: number;
-  webhookUrl: string;
+  webhookUrl?: string;
 }
 
 // Tipos completos do CRM (Google Sheets)
