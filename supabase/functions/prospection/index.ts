@@ -39,25 +39,39 @@ interface GooglePlacesResult {
 
 // Função para obter o próximo número de Lead
 async function getNextLeadNumber(supabase: any): Promise<number> {
+  console.log('🔢 Iniciando getNextLeadNumber...');
+  
   try {
     const { data, error } = await supabase
       .from('leads_prospeccao')
       .select('lead')
-      .order('lead', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1);
 
-    if (error || !data || data.length === 0) {
-      return 1; // Primeiro lead
+    if (error) {
+      console.error('❌ Erro ao buscar último lead:', error);
+      return 1;
     }
 
-    // Extrair número do último lead (ex: "Lead-042" → 42)
+    if (!data || data.length === 0) {
+      console.log('📊 Tabela vazia, iniciando com Lead-001');
+      return 1;
+    }
+
     const lastLead = data[0].lead;
-    const match = lastLead.match(/Lead-(\d+)/);
-    const lastNumber = match ? parseInt(match[1], 10) : 0;
+    console.log('📋 Último lead encontrado:', lastLead);
     
-    return lastNumber + 1;
+    const match = lastLead.match(/Lead-(\d+)/);
+    if (match) {
+      const nextNumber = parseInt(match[1], 10) + 1;
+      console.log('✅ Próximo número será:', nextNumber);
+      return nextNumber;
+    }
+
+    console.log('⚠️ Formato de lead não reconhecido, usando 1');
+    return 1;
   } catch (error) {
-    console.error('Erro ao obter próximo número de lead:', error);
+    console.error('❌ Erro crítico ao obter próximo número de lead:', error);
     return 1;
   }
 }
@@ -169,9 +183,10 @@ serve(async (req) => {
       : `${location.city}, ${location.state}, ${location.country}`;
 
     // 1. Buscar lugares no Google Places
-    console.log('🔍 Buscando no Google Places:', { niche, location: locationQuery });
-    
     const searchQuery = `${niche} em ${locationQuery}`;
+    console.log('🔍 Buscando no Google Places:', { niche, location: locationQuery });
+    console.log('📍 Query de busca completa:', searchQuery);
+    
     const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${GOOGLE_API_KEY}`;
     
     const searchResponse = await fetch(textSearchUrl);
@@ -180,22 +195,50 @@ serve(async (req) => {
     if (searchData.status !== 'OK' && searchData.status !== 'ZERO_RESULTS') {
       console.error('❌ Erro na API do Google Places:', searchData);
       return new Response(
-        JSON.stringify({ error: `Erro na API do Google: ${searchData.status}` }),
+        JSON.stringify({ 
+          success: false,
+          error: `Erro na API do Google: ${searchData.status}`,
+          details: searchData.error_message
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const results = searchData.results || [];
     console.log(`✅ Encontrados ${results.length} resultados no Google Places`);
+    
+    if (results.length === 0) {
+      console.log('⚠️ Nenhum resultado encontrado para a busca');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          message: 'Nenhum estabelecimento encontrado para os critérios de busca',
+          insertedCount: 0,
+          recurrentCount: 0,
+          total: 0,
+          count: 0
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Limitar pela quantidade solicitada
     const limitedResults = results.slice(0, Math.min(quantity, results.length));
 
     // 2. Buscar detalhes de cada lugar, enriquecer com Firecrawl e gerar mensagens WhatsApp
+    console.log('\n🔄 Iniciando processamento detalhado dos leads...');
     const detailedPlaces: GooglePlacesResult[] = [];
+    const failedPlaces = [];
     
     for (const place of limitedResults) {
       try {
+        if (!place.place_id) {
+          console.error('❌ place_id não encontrado para:', place.name);
+          failedPlaces.push({ name: place.name, error: 'place_id missing' });
+          continue;
+        }
+
+        console.log(`\n🏢 Processando: ${place.name} (ID: ${place.place_id})`);
         const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status,types,geometry&key=${GOOGLE_API_KEY}`;
         
         const detailsResponse = await fetch(detailsUrl);
@@ -203,6 +246,7 @@ serve(async (req) => {
         
         if (detailsData.status === 'OK' && detailsData.result) {
           const placeData = detailsData.result;
+          console.log('✅ Detalhes obtidos com sucesso');
           
           // Enriquecer com Firecrawl se houver website e API key configurada
           if (placeData.website && FIRECRAWL_API_KEY) {
@@ -237,21 +281,29 @@ serve(async (req) => {
                 console.log(`⚠️ Firecrawl falhou para ${placeData.website}: ${firecrawlResponse.status}`);
               }
             } catch (firecrawlError) {
-              console.error(`❌ Erro ao enriquecer com Firecrawl:`, firecrawlError);
+              const errorMsg = firecrawlError instanceof Error ? firecrawlError.message : 'Unknown error';
+              console.error(`❌ Erro ao enriquecer com Firecrawl:`, errorMsg);
             }
           }
           
           detailedPlaces.push(placeData);
+          console.log(`✅ Lead processado: ${placeData.name}`);
+        } else {
+          console.error(`❌ Erro ao buscar detalhes:`, detailsData.status);
+          failedPlaces.push({ name: place.name, error: detailsData.status });
         }
         
         // Delay para evitar rate limiting
         await new Promise(resolve => setTimeout(resolve, 150));
       } catch (error) {
-        console.error('❌ Erro ao buscar detalhes do lugar:', error);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error('❌ Erro ao buscar detalhes do lugar:', errorMsg);
+        failedPlaces.push({ name: place.name, error: errorMsg });
       }
     }
 
     console.log(`✅ Coletados detalhes de ${detailedPlaces.length} lugares`);
+    console.log(`❌ Falhas no processamento: ${failedPlaces.length}`);
 
     // 3. Gerar mensagens WhatsApp personalizadas
     console.log('💬 Gerando mensagens WhatsApp personalizadas via Lovable AI...');
@@ -309,7 +361,7 @@ serve(async (req) => {
           bairro_regiao: null,
           website: place.website || null,
           instagram: null,
-          link_gmn: `https://maps.google.com/?cid=${place.place_id}`,
+          link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
           aceita_cartao: null,
           mensagem_whatsapp: mensagemWhatsApp,
           status_msg_wa: 'not_sent',
@@ -325,82 +377,142 @@ serve(async (req) => {
     );
 
     // 4. Salvar no Supabase com verificação de duplicatas
-    console.log('💾 Salvando leads no Supabase...');
+    console.log('\n💾 Salvando leads no Supabase...');
+    console.log(`📊 Total de leads para inserir: ${leadsToInsert.length}`);
     
     let insertedCount = 0;
     let recurrentCount = 0;
+    const insertErrors = [];
     
     if (leadsToInsert.length > 0) {
       // Obter próximo número de lead
       let nextLeadNumber = await getNextLeadNumber(supabase);
+      console.log(`🔢 Iniciando numeração a partir de: Lead-${String(nextLeadNumber).padStart(3, '0')}`);
       
       for (const lead of leadsToInsert) {
-        // Verificar se o lead já existe
-        const { data: existingLead } = await supabase
-          .from('leads_prospeccao')
-          .select('id, status, lead')
-          .eq('id', lead.id)
-          .maybeSingle();
-
-        if (existingLead) {
-          // Lead já existe - marcar como Recorrente
-          await supabase
-            .from('leads_prospeccao')
-            .update({ 
-              status: 'Recorrente',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', lead.id);
-          
-          recurrentCount++;
-          console.log(`🔄 Lead ${existingLead.lead} já existe - marcado como Recorrente`);
-        } else {
-          // Lead novo - atribuir número sequencial
-          lead.lead = formatLeadNumber(nextLeadNumber);
-          nextLeadNumber++;
-          
-          const { error: insertError } = await supabase
-            .from('leads_prospeccao')
-            .insert(lead);
-
-          if (insertError) {
-            console.error('❌ Erro ao inserir lead:', insertError);
-          } else {
-            insertedCount++;
-            console.log(`✅ Novo lead inserido: ${lead.lead}`);
+        try {
+          // Validar dados obrigatórios
+          if (!lead.id || !lead.empresa) {
+            console.error('❌ Dados obrigatórios faltando:', { id: lead.id, empresa: lead.empresa });
+            insertErrors.push({ empresa: lead.empresa || 'Unknown', error: 'Missing required fields' });
+            continue;
           }
+
+          console.log(`\n🔍 Verificando duplicata para: ${lead.empresa}`);
+          
+          // Verificar se o lead já existe
+          const { data: existingLead, error: checkError } = await supabase
+            .from('leads_prospeccao')
+            .select('id, status, lead')
+            .eq('id', lead.id)
+            .maybeSingle();
+
+          if (checkError) {
+            console.error('❌ Erro ao verificar lead existente:', checkError);
+            insertErrors.push({ empresa: lead.empresa, error: checkError.message });
+            continue;
+          }
+
+          if (existingLead) {
+            // Lead já existe - marcar como Recorrente
+            console.log(`♻️ Lead já existe (${existingLead.lead}), marcando como Recorrente`);
+            
+            const { error: updateError } = await supabase
+              .from('leads_prospeccao')
+              .update({ 
+                status: 'Recorrente',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', lead.id);
+            
+            if (updateError) {
+              console.error('❌ Erro ao atualizar status:', updateError);
+              insertErrors.push({ empresa: lead.empresa, error: updateError.message });
+            } else {
+              recurrentCount++;
+              console.log(`✅ Lead marcado como Recorrente: ${lead.empresa}`);
+            }
+          } else {
+            // Novo lead - inserir com número sequencial
+            lead.lead = formatLeadNumber(nextLeadNumber);
+            console.log(`🆕 Novo lead: ${lead.lead} - ${lead.empresa}`);
+            console.log('📦 Dados:', {
+              id: lead.id,
+              empresa: lead.empresa,
+              cidade: lead.cidade,
+              telefone: lead.telefone_whatsapp,
+              link: lead.link_gmn
+            });
+            
+            const { error: insertError } = await supabase
+              .from('leads_prospeccao')
+              .insert(lead);
+            
+            if (insertError) {
+              console.error('❌ Erro ao inserir lead:', insertError);
+              insertErrors.push({ empresa: lead.empresa, error: insertError.message });
+            } else {
+              insertedCount++;
+              nextLeadNumber++; // Incrementar para o próximo
+              console.log(`✅ Novo lead inserido: ${lead.lead} - ${lead.empresa}`);
+            }
+          }
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`❌ Erro ao processar lead ${lead.empresa}:`, errorMsg);
+          insertErrors.push({ empresa: lead.empresa, error: errorMsg });
         }
       }
-
-      if (insertedCount === 0 && recurrentCount === 0) {
-        return new Response(
-          JSON.stringify({ error: 'Erro ao salvar leads no banco de dados' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log(`✅ ${insertedCount} novos leads, ${recurrentCount} recorrentes salvos no Supabase`);
     }
 
+    console.log('\n✅ ========== PROSPECÇÃO FINALIZADA ==========');
+    console.log(`📊 Leads novos inseridos: ${insertedCount}`);
+    console.log(`♻️ Leads recorrentes atualizados: ${recurrentCount}`);
+    console.log(`❌ Erros durante inserção: ${insertErrors.length}`);
+    console.log(`⚠️ Falhas no processamento: ${failedPlaces.length}`);
+    console.log('===============================================\n');
+
+    const responseData = {
+      success: true,
+      message: 'Prospecção realizada com sucesso!',
+      insertedCount,
+      recurrentCount,
+      total: insertedCount + recurrentCount,
+      count: insertedCount + recurrentCount, // Para compatibilidade com frontend antigo
+      processedTotal: leadsToInsert.length,
+      failedProcessing: failedPlaces.length,
+      failedInsertion: insertErrors.length,
+      details: {
+        failedPlaces: failedPlaces.length > 0 ? failedPlaces : undefined,
+        insertErrors: insertErrors.length > 0 ? insertErrors : undefined
+      }
+    };
+
     return new Response(
-      JSON.stringify({
-        success: true,
-        message: `Prospecção concluída! ${insertedCount} novos leads, ${recurrentCount} recorrentes.`,
-        insertedCount,
-        recurrentCount,
-        total: leadsToInsert.length,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify(responseData),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      }
     );
 
   } catch (error) {
-    console.error('❌ Erro na Edge Function de prospecção:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    console.error('\n❌ ========== ERRO FATAL NA PROSPECÇÃO ==========');
+    console.error('Mensagem:', errorMessage);
+    console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('===============================================\n');
+    
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Erro desconhecido',
-        success: false 
+      JSON.stringify({
+        success: false,
+        error: errorMessage,
+        details: error instanceof Error ? error.stack : undefined
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      }
     );
   }
 });
