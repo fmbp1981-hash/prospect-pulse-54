@@ -9,7 +9,7 @@ import { Lead, DashboardMetrics, LeadStatus } from "@/types/prospection";
 // ============= SYNC LEADS =============
 export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[]; message?: string }> {
   try {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("leads_prospeccao")
       .select("*")
       .order("created_at", { ascending: false });
@@ -69,8 +69,8 @@ export async function updateLead(
   updates: Partial<Lead>
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const dbUpdates: any = {};
-    
+    const dbUpdates: Record<string, unknown> = {};
+
     if (updates.lead) dbUpdates.lead = updates.lead;
     if (updates.status) dbUpdates.status = updates.status;
     if (updates.empresa) dbUpdates.empresa = updates.empresa;
@@ -92,7 +92,7 @@ export async function updateLead(
     if (updates.cnpj) dbUpdates.cnpj = updates.cnpj;
     if (updates.data) dbUpdates.data = updates.data;
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("leads_prospeccao")
       .update(dbUpdates)
       .eq("id", leadId);
@@ -119,7 +119,7 @@ export async function createLead(
   leadData: Omit<Lead, "id">
 ): Promise<{ success: boolean; leadId?: string; message: string }> {
   try {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("leads_prospeccao")
       .insert({
         lead: leadData.lead,
@@ -168,7 +168,7 @@ export async function getMetrics(): Promise<{
   message?: string 
 }> {
   try {
-    const { data: leads, error } = await (supabase as any)
+    const { data: leads, error } = await supabase
       .from("leads_prospeccao")
       .select("*");
 
@@ -242,7 +242,7 @@ export async function getLeadsForWhatsApp(
   leadIds: string[]
 ): Promise<{ success: boolean; leads: Lead[]; message?: string }> {
   try {
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("leads_prospeccao")
       .select("*")
       .in("id", leadIds);
