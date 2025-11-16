@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, DashboardMetrics, LeadStatus } from "@/types/prospection";
+import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS } from "@/lib/constants";
 
 /**
  * Integração direta com Supabase para operações de CRM
@@ -19,7 +20,7 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
     const leads: Lead[] = (data || []).map((row: any) => ({
       id: row.id,
       lead: row.lead || "",
-      status: (row.status || "Novo") as LeadStatus,
+      status: (row.status || LEAD_STATUS.NOVO) as LeadStatus,
       data: row.data || "",
       empresa: row.empresa || "",
       categoria: row.categoria || "",
@@ -35,15 +36,15 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
       aceitaCartao: row.aceita_cartao || "",
       cnpj: row.cnpj || "",
       mensagemWhatsApp: row.mensagem_whatsapp || "",
-      statusMsgWA: row.status_msg_wa || "not_sent",
+      statusMsgWA: row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT,
       dataEnvioWA: row.data_envio_wa || null,
       resumoAnalitico: row.resumo_analitico || "",
       createdAt: row.created_at || new Date().toISOString(),
       updatedAt: row.updated_at || new Date().toISOString(),
-      
+
       // Campos virtuais (não existem no banco)
-      origem: "Prospecção Ativa",
-      prioridade: "Média",
+      origem: LEAD_ORIGIN.PROSPECCAO_ATIVA,
+      prioridade: LEAD_PRIORITY.MEDIA,
       regiao: row.cidade || "",
       segmento: row.categoria || "",
       ticketMedioEstimado: 0,
@@ -123,7 +124,7 @@ export async function createLead(
       .from("leads_prospeccao")
       .insert({
         lead: leadData.lead,
-        status: leadData.status || "Novo Lead",
+        status: leadData.status || LEAD_STATUS.NOVO_LEAD,
         empresa: leadData.empresa,
         categoria: leadData.categoria,
         contato: leadData.contatoPrincipal,
@@ -137,7 +138,7 @@ export async function createLead(
         link_gmn: leadData.linkGMN,
         aceita_cartao: leadData.aceitaCartao,
         mensagem_whatsapp: leadData.mensagemWhatsApp || "",
-        status_msg_wa: leadData.statusMsgWA || "not_sent",
+        status_msg_wa: leadData.statusMsgWA || WHATSAPP_STATUS.NOT_SENT,
         resumo_analitico: leadData.resumoAnalitico,
         cnpj: leadData.cnpj,
         data: leadData.data,
@@ -175,15 +176,15 @@ export async function getMetrics(): Promise<{
     if (error) throw error;
 
     const totalLeads = leads?.length || 0;
-    const statusCounts = {
-      "Novo Lead": 0,
-      "Contato Inicial": 0,
-      "Qualificação": 0,
-      "Proposta Enviada": 0,
-      "Negociação": 0,
-      "Fechado Ganho": 0,
-      "Fechado Perdido": 0,
-      "Em Follow-up": 0,
+    const statusCounts: Record<LeadStatus, number> = {
+      [LEAD_STATUS.NOVO_LEAD]: 0,
+      [LEAD_STATUS.CONTATO_INICIAL]: 0,
+      [LEAD_STATUS.QUALIFICACAO]: 0,
+      [LEAD_STATUS.PROPOSTA_ENVIADA]: 0,
+      [LEAD_STATUS.NEGOCIACAO]: 0,
+      [LEAD_STATUS.FECHADO_GANHO]: 0,
+      [LEAD_STATUS.FECHADO_PERDIDO]: 0,
+      [LEAD_STATUS.EM_FOLLOWUP]: 0,
     };
 
     const originCounts: Record<string, number> = {};
@@ -191,31 +192,31 @@ export async function getMetrics(): Promise<{
     let whatsappSent = 0;
 
     leads?.forEach((lead: any) => {
-      const status = lead.status || "Novo Lead";
+      const status = lead.status || LEAD_STATUS.NOVO_LEAD;
       if (status in statusCounts) {
         statusCounts[status as LeadStatus]++;
       }
 
-      const origin = lead.categoria || "Google Places";
+      const origin = lead.categoria || LEAD_ORIGIN.GOOGLE_PLACES;
       originCounts[origin] = (originCounts[origin] || 0) + 1;
 
       totalValue += 0; // ticket_medio_estimado não existe no banco
 
-      if (lead.status_msg_wa === "sent") {
+      if (lead.status_msg_wa === WHATSAPP_STATUS.SENT) {
         whatsappSent++;
       }
     });
 
-    const conversionRate = totalLeads > 0 
-      ? ((statusCounts["Fechado Ganho"] / totalLeads) * 100)
+    const conversionRate = totalLeads > 0
+      ? ((statusCounts[LEAD_STATUS.FECHADO_GANHO] / totalLeads) * 100)
       : 0;
 
     const metrics: DashboardMetrics = {
       totalLeads,
-      novoLeads: statusCounts["Novo Lead"],
-      emNegociacao: statusCounts["Negociação"],
-      fechadoGanho: statusCounts["Fechado Ganho"],
-      fechadoPerdido: statusCounts["Fechado Perdido"],
+      novoLeads: statusCounts[LEAD_STATUS.NOVO_LEAD],
+      emNegociacao: statusCounts[LEAD_STATUS.NEGOCIACAO],
+      fechadoGanho: statusCounts[LEAD_STATUS.FECHADO_GANHO],
+      fechadoPerdido: statusCounts[LEAD_STATUS.FECHADO_PERDIDO],
       taxaConversao: conversionRate,
       ticketMedioTotal: totalValue,
       leadsPorStatus: statusCounts,
@@ -252,7 +253,7 @@ export async function getLeadsForWhatsApp(
     const leads: Lead[] = (data || []).map((row: any) => ({
       id: row.id,
       lead: row.lead || "",
-      status: (row.status || "Novo Lead") as LeadStatus,
+      status: (row.status || LEAD_STATUS.NOVO_LEAD) as LeadStatus,
       empresa: row.empresa || "",
       categoria: row.categoria || "",
       contato: row.contato || "",
@@ -266,15 +267,15 @@ export async function getLeadsForWhatsApp(
       linkGMN: row.link_gmn || "",
       aceitaCartao: row.aceita_cartao || "",
       mensagemWhatsApp: row.mensagem_whatsapp || "",
-      statusMsgWA: row.status_msg_wa || "not_sent",
+      statusMsgWA: row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT,
       dataEnvioWA: row.data_envio_wa || null,
       resumoAnalitico: row.resumo_analitico || "",
       cnpj: row.cnpj || "",
       data: row.data || "",
-      
+
       // Campos virtuais
-      origem: "Google Places",
-      prioridade: "Média",
+      origem: LEAD_ORIGIN.GOOGLE_PLACES,
+      prioridade: LEAD_PRIORITY.MEDIA,
       regiao: row.cidade || "",
       segmento: row.categoria || "",
       ticketMedioEstimado: 0,
