@@ -48,9 +48,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (error) {
-        toast.error("Erro ao fazer login", {
-          description: error.message,
-        });
+        // Mensagem amigável para email não confirmado
+        if (error.message.includes("Email not confirmed")) {
+          toast.error("Email não confirmado", {
+            description: "Verifique seu email e clique no link de confirmação antes de fazer login.",
+            duration: 8000,
+          });
+        } else {
+          toast.error("Erro ao fazer login", {
+            description: error.message,
+          });
+        }
       } else {
         toast.success("Login realizado com sucesso!");
       }

@@ -18,6 +18,8 @@ const SignUp = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [signupSuccess, setSignupSuccess] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +44,8 @@ const SignUp = () => {
     const { error: signUpError } = await signUp(email, password, fullName);
 
     if (!signUpError) {
-      navigate("/auth/login");
+      setSignupSuccess(true);
+      setRegisteredEmail(email);
     }
 
     setIsLoading(false);
@@ -84,7 +87,47 @@ const SignUp = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {signupSuccess ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
+                  <h3 className="font-semibold text-green-800 dark:text-green-200 mb-2">
+                    ✅ Conta criada com sucesso!
+                  </h3>
+                  <p className="text-sm text-green-700 dark:text-green-300 mb-4">
+                    Enviamos um email de confirmação para:
+                    <br />
+                    <strong>{registeredEmail}</strong>
+                  </p>
+                  <div className="space-y-2 text-sm text-green-700 dark:text-green-300">
+                    <p><strong>📧 Próximos passos:</strong></p>
+                    <ol className="list-decimal list-inside space-y-1 ml-2">
+                      <li>Abra seu email</li>
+                      <li>Procure por "Confirm your email" (verifique spam também)</li>
+                      <li>Clique no link de confirmação</li>
+                      <li>Volte aqui e faça login</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md text-sm">
+                  <p className="text-blue-800 dark:text-blue-200">
+                    <strong>💡 Dica:</strong> Se não recebeu o email em 5 minutos:
+                  </p>
+                  <ul className="list-disc list-inside ml-2 mt-2 text-blue-700 dark:text-blue-300">
+                    <li>Verifique a pasta de spam/lixo eletrônico</li>
+                    <li>Verifique se digitou o email corretamente</li>
+                    <li>Aguarde alguns minutos e tente novamente</li>
+                  </ul>
+                </div>
+
+                <Link to="/auth/login">
+                  <Button className="w-full">
+                    Ir para Login
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
                 <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
                   {error}
@@ -172,6 +215,7 @@ const SignUp = () => {
                 </Link>
               </div>
             </form>
+            )}
           </CardContent>
         </Card>
       </motion.div>
