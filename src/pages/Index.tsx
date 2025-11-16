@@ -94,15 +94,17 @@ const Index = () => {
         </p>
       </section>
 
-      {/* Form and History Grid */}
-      <div className="grid lg:grid-cols-2 gap-8 max-w-7xl mx-auto">
+      {/* Form and History - Vertical Layout */}
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Formulário de Prospecção - Largura Completa */}
         <div>
           <ProspectionForm onSearch={handleNewSearch} lastSearch={searches[0]} />
         </div>
-        
+
+        {/* Histórico de Buscas - Abaixo do Formulário */}
         <div>
-          <SearchHistory 
-            searches={searches} 
+          <SearchHistory
+            searches={searches}
             onClearHistory={handleClearHistory}
             onReprocess={handleReprocessSearch}
           />

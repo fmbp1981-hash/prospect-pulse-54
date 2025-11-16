@@ -44,8 +44,9 @@ const SignUp = () => {
     const { error: signUpError } = await signUp(email, password, fullName);
 
     if (!signUpError) {
-      setSignupSuccess(true);
-      setRegisteredEmail(email);
+      // Redirecionar direto para login ao invés de mostrar mensagem de confirmação
+      toast.success("Conta criada com sucesso! Você pode fazer login agora.");
+      navigate("/auth/login");
     }
 
     setIsLoading(false);

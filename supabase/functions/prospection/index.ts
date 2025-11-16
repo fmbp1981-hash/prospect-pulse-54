@@ -162,6 +162,15 @@ serve(async (req) => {
   }
 
   try {
+    // Pegar token de autenticação do header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Autenticação necessária' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { niche, location, quantity, user_id } = await req.json() as ProspectionRequest;
 
     console.log('📍 Prospecção iniciada:', { niche, location, quantity, user_id });
@@ -328,8 +337,15 @@ serve(async (req) => {
     console.log('💬 Gerando mensagens WhatsApp personalizadas via Lovable AI...');
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    // Usar token do usuário autenticado para que auth.uid() funcione
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: authHeader
+        }
+      }
+    });
 
     const leadsToInsert = await Promise.all(
       detailedPlaces.map(async (place) => {
