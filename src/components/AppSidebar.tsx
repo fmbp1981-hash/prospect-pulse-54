@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Table, Search, Settings, Link2, MessageSquare, CheckCircle } from "lucide-react";
+import { LayoutDashboard, Table, Search, Settings, Link2, MessageSquare, CheckCircle, LogOut, User } from "lucide-react";
 import { toast } from "sonner";
 import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
 import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -38,6 +39,7 @@ const items = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const { user, signOut } = useAuth();
 
   const [prospectionWebhook, setProspectionWebhook] = useState("");
   const [whatsappWebhook, setWhatsappWebhook] = useState("");
@@ -235,6 +237,35 @@ export function AppSidebar() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+        </SidebarGroup>
+
+        {/* User Section */}
+        <SidebarGroup className="mt-auto border-t border-border/40 pt-4">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <div className="px-3 py-2 space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    {!isCollapsed && (
+                      <span className="text-muted-foreground truncate">
+                        {user?.email || "Usuário"}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={signOut}
+                    className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    {!isCollapsed && "Sair"}
+                  </Button>
+                </div>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
     </Sidebar>
