@@ -427,10 +427,21 @@ serve(async (req) => {
       
       for (const lead of leadsToInsert) {
         try {
+          // Log detalhado do lead antes de processar
+          console.log(`\n📋 Processando lead: ${lead.empresa}`);
+          console.log(`🆔 ID do lead: ${lead.id}`);
+
+          // GARANTIR que o ID existe - gerar se necessário
+          if (!lead.id) {
+            const newId = generateUniqueId(lead.empresa || 'empresa', lead.cidade || 'cidade');
+            console.warn(`⚠️ Lead sem ID, gerando: ${newId}`);
+            lead.id = newId;
+          }
+
           // Validar dados obrigatórios
-          if (!lead.id || !lead.empresa) {
-            console.error('❌ Dados obrigatórios faltando:', { id: lead.id, empresa: lead.empresa });
-            insertErrors.push({ empresa: lead.empresa || 'Unknown', error: 'Missing required fields' });
+          if (!lead.empresa) {
+            console.error('❌ Lead sem nome da empresa');
+            insertErrors.push({ empresa: 'Unknown', error: 'Missing empresa name' });
             continue;
           }
 
