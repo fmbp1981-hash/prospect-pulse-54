@@ -20,20 +20,21 @@ interface KanbanBoardProps {
 const LEAD_STATUSES: LeadStatus[] = [
   "Novo Lead",
   "Contato Inicial",
-  "Qualificação",
   "Proposta Enviada",
   "Negociação",
-  "Fechado Ganho",
-  "Fechado Perdido",
-  "Em Follow-up",
+  "Fechado",
+  "Follow-up",
 ];
 
 const STATUS_COLORS: Record<LeadStatus, string> = {
   "Novo Lead": "bg-blue-500",
   "Contato Inicial": "bg-purple-500",
-  "Qualificação": "bg-yellow-500",
   "Proposta Enviada": "bg-orange-500",
   "Negociação": "bg-indigo-500",
+  "Fechado": "bg-green-500",
+  "Follow-up": "bg-pink-500",
+  // Deprecated statuses (para migração)
+  "Qualificação": "bg-yellow-500",
   "Fechado Ganho": "bg-green-500",
   "Fechado Perdido": "bg-red-500",
   "Em Follow-up": "bg-pink-500",

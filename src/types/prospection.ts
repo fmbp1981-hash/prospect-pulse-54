@@ -25,12 +25,15 @@ export interface ProspectionFormData {
 }
 
 // Tipos completos do CRM (Google Sheets)
-export type LeadStatus = 
-  | 'Novo Lead'
-  | 'Contato Inicial'
+export type LeadStatus =
+  | 'Novo Lead'          // Assim que o lead for prospectado
+  | 'Contato Inicial'    // Assim que a mensagem de prospecção for enviada via WhatsApp
+  | 'Proposta Enviada'   // Quando proposta comercial for enviada
+  | 'Negociação'         // Após proposta ser enviada e lead responder
+  | 'Fechado'            // Quando negociação for fechada (ganho)
+  | 'Follow-up'          // Quando lead ficar estagnado ou não responder
+  // Deprecated (para retrocompatibilidade)
   | 'Qualificação'
-  | 'Proposta Enviada'
-  | 'Negociação'
   | 'Fechado Ganho'
   | 'Fechado Perdido'
   | 'Em Follow-up';
