@@ -9,7 +9,7 @@
 
 O sistema permite gerar templates de WhatsApp automaticamente usando Inteligência Artificial. Suporta duas APIs:
 
-1. **Groq** (Llama 3) - **GRATUITA** e super rápida ⚡ **[RECOMENDADA]**
+1. **Groq** (Llama 3.3 70B) - **GRATUITA** e super rápida ⚡ **[RECOMENDADA]**
 2. **Google Gemini Flash** - Gratuita até 15 req/min
 
 ---

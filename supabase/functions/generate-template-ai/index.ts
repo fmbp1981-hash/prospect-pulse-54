@@ -92,7 +92,7 @@ NOME_TEMPLATE:
           'Authorization': `Bearer ${groqApiKey}`,
         },
         body: JSON.stringify({
-          model: 'llama-3.1-70b-versatile', // Modelo gratuito e rápido
+          model: 'llama-3.3-70b-versatile', // Modelo gratuito e rápido (atualizado)
           messages: [
             { role: 'system', content: 'Você é um assistente de marketing especializado em mensagens WhatsApp B2B.' },
             { role: 'user', content: systemPrompt }
