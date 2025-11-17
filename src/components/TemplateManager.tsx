@@ -8,9 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { MessageSquare, Plus, Edit2, Trash2, Star, Copy } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MessageSquare, Plus, Edit2, Trash2, Star, Copy, Shuffle } from "lucide-react";
 import { toast } from "sonner";
-import { MessageTemplate, TEMPLATE_VARIABLES } from "@/types/prospection";
+import { MessageTemplate, MessageVariation, MessageStyle, MESSAGE_STYLES, TEMPLATE_VARIABLES } from "@/types/prospection";
 
 interface TemplateManagerProps {
   isOpen: boolean;
@@ -20,27 +21,43 @@ interface TemplateManagerProps {
 const DEFAULT_TEMPLATES: MessageTemplate[] = [
   {
     id: "default-1",
-    name: "Primeiro Contato - Formal",
+    name: "Primeiro Contato - Profissional",
     category: "Primeiro Contato",
-    message: `Olá! 👋
-
-Estou entrando em contato com a {{empresa}} em {{cidade}} porque identificamos oportunidades interessantes para o seu negócio de {{categoria}}.
-
-Podemos agendar uma conversa rápida para apresentar nossa solução?
-
-Aguardo seu retorno!`,
+    variations: [
+      {
+        style: 'formal',
+        message: `Olá! 👋\n\nEstou entrando em contato com a {{empresa}} em {{cidade}} porque identificamos oportunidades interessantes para o seu negócio de {{categoria}}.\n\nPodemos agendar uma conversa rápida para apresentar nossa solução?\n\nAguardo seu retorno!`
+      },
+      {
+        style: 'consultivo',
+        message: `Bom dia!\n\nNotei que a {{empresa}} atua com {{categoria}} em {{cidade}}. Acredito que posso agregar valor ao seu negócio.\n\nQue tal conversarmos sobre oportunidades de crescimento?\n\nFico à disposição!`
+      },
+      {
+        style: 'executivo',
+        message: `{{empresa}},\n\nIdentificamos potencial de parceria com seu negócio de {{categoria}} em {{cidade}}.\n\nDisponível para apresentação executiva?\n\nAtenciosamente`
+      }
+    ],
     isDefault: true,
     createdAt: new Date().toISOString(),
   },
   {
     id: "default-2",
-    name: "Primeiro Contato - Casual",
+    name: "Primeiro Contato - Descontraído",
     category: "Primeiro Contato",
-    message: `E aí! 😊
-
-Vi a {{empresa}} em {{cidade}} e achei super interessante o trabalho de vocês com {{categoria}}.
-
-Tenho algo que pode ajudar muito vocês - bora conversar?`,
+    variations: [
+      {
+        style: 'casual',
+        message: `E aí! 😊\n\nVi a {{empresa}} em {{cidade}} e achei super interessante o trabalho de vocês com {{categoria}}.\n\nTenho algo que pode ajudar muito vocês - bora conversar?`
+      },
+      {
+        style: 'amigavel',
+        message: `Oi! Tudo bem?\n\nConheci a {{empresa}} e fiquei impressionado com o trabalho de vocês!\n\nTenho uma proposta que pode fazer sentido pra vocês. Vamos trocar uma ideia?`
+      },
+      {
+        style: 'direto',
+        message: `Olá {{empresa}}!\n\nDireto ao ponto: tenho uma solução que pode otimizar seu negócio de {{categoria}}.\n\nPosso te mostrar em 10 minutos?`
+      }
+    ],
     isDefault: true,
     createdAt: new Date().toISOString(),
   },
@@ -48,11 +65,20 @@ Tenho algo que pode ajudar muito vocês - bora conversar?`,
     id: "default-3",
     name: "Follow-up",
     category: "Follow-up",
-    message: `Olá novamente!
-
-Enviei uma mensagem semana passada sobre a {{empresa}}.
-
-Conseguiu dar uma olhada? Seria ótimo conversar sobre como podemos ajudar vocês!`,
+    variations: [
+      {
+        style: 'formal',
+        message: `Olá novamente!\n\nEnviei uma mensagem semana passada sobre a {{empresa}}.\n\nConseguiu dar uma olhada? Seria ótimo conversar sobre como podemos ajudar vocês!`
+      },
+      {
+        style: 'casual',
+        message: `Oi! Só passando pra dar um toque aqui 😊\n\nTe mandei uma msg sobre uma parceria pra {{empresa}}. Viu lá?\n\nQualquer coisa é só chamar!`
+      },
+      {
+        style: 'consultivo',
+        message: `Olá! Retomando nosso contato...\n\nGostaria de saber se há interesse em conhecer nossa proposta para {{empresa}}.\n\nPosso esclarecer qualquer dúvida!`
+      }
+    ],
     isDefault: true,
     createdAt: new Date().toISOString(),
   },
@@ -71,10 +97,15 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState<MessageTemplate | null>(null);
+  const [activeVariationTab, setActiveVariationTab] = useState("0");
   const [formData, setFormData] = useState({
     name: "",
     category: "Primeiro Contato",
-    message: "",
+    variations: [
+      { style: 'formal' as MessageStyle, message: "" },
+      { style: 'casual' as MessageStyle, message: "" },
+      { style: 'direto' as MessageStyle, message: "" },
+    ] as MessageVariation[],
   });
 
   useEffect(() => {
@@ -102,10 +133,15 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
   const handleCreate = () => {
     setIsEditing(true);
     setCurrentTemplate(null);
+    setActiveVariationTab("0");
     setFormData({
       name: "",
       category: "Primeiro Contato",
-      message: "",
+      variations: [
+        { style: 'formal', message: "" },
+        { style: 'casual', message: "" },
+        { style: 'direto', message: "" },
+      ],
     });
   };
 
@@ -118,20 +154,38 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
     }
     setIsEditing(true);
     setCurrentTemplate(template);
+    setActiveVariationTab("0");
+
+    // Migrar template legado (com message) para novo formato (com variations)
+    const variations = template.variations || [
+      { style: 'formal' as MessageStyle, message: template.message || "" },
+      { style: 'casual' as MessageStyle, message: "" },
+      { style: 'direto' as MessageStyle, message: "" },
+    ];
+
     setFormData({
       name: template.name,
       category: template.category,
-      message: template.message,
+      variations,
     });
   };
 
   const handleDuplicate = (template: MessageTemplate) => {
     setIsEditing(true);
     setCurrentTemplate(null);
+    setActiveVariationTab("0");
+
+    // Migrar template legado se necessário
+    const variations = template.variations || [
+      { style: 'formal' as MessageStyle, message: template.message || "" },
+      { style: 'casual' as MessageStyle, message: "" },
+      { style: 'direto' as MessageStyle, message: "" },
+    ];
+
     setFormData({
       name: `${template.name} (Cópia)`,
       category: template.category,
-      message: template.message,
+      variations,
     });
   };
 
@@ -152,8 +206,11 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
       toast.error("Digite um nome para o template");
       return;
     }
-    if (!formData.message.trim()) {
-      toast.error("Digite a mensagem do template");
+
+    // Validar que pelo menos uma variação tem mensagem
+    const hasAtLeastOneMessage = formData.variations.some(v => v.message.trim() !== "");
+    if (!hasAtLeastOneMessage) {
+      toast.error("Preencha pelo menos uma variação de mensagem");
       return;
     }
 
@@ -165,7 +222,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
               ...t,
               name: formData.name,
               category: formData.category,
-              message: formData.message,
+              variations: formData.variations,
               updatedAt: new Date().toISOString(),
             }
           : t
@@ -178,7 +235,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
         id: `custom-${Date.now()}`,
         name: formData.name,
         category: formData.category,
-        message: formData.message,
+        variations: formData.variations,
         isDefault: false,
         createdAt: new Date().toISOString(),
       };
@@ -188,6 +245,16 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
 
     setIsEditing(false);
     setCurrentTemplate(null);
+  };
+
+  const updateVariation = (index: number, field: 'style' | 'message', value: string) => {
+    const newVariations = [...formData.variations];
+    if (field === 'style') {
+      newVariations[index].style = value as MessageStyle;
+    } else {
+      newVariations[index].message = value;
+    }
+    setFormData({ ...formData, variations: newVariations });
   };
 
   const renderPreview = (message: string) => {
@@ -223,70 +290,85 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                 </Button>
               </div>
 
-              {templates.map((template) => (
-                <Card key={template.id} className="p-4 space-y-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-semibold">{template.name}</h4>
-                        {template.isDefault && (
-                          <Badge variant="secondary" className="gap-1">
-                            <Star className="h-3 w-3" />
-                            Padrão
-                          </Badge>
-                        )}
-                        <Badge variant="outline">{template.category}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Criado em {new Date(template.createdAt).toLocaleDateString("pt-BR")}
-                      </p>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDuplicate(template)}
-                        title="Duplicar"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(template)}
-                        disabled={template.isDefault}
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(template.id)}
-                        disabled={template.isDefault}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+              {templates.map((template) => {
+                const variations = template.variations || (template.message ? [{ style: 'formal' as MessageStyle, message: template.message }] : []);
+                const validVariations = variations.filter(v => v.message && v.message.trim() !== "");
 
-                  <Separator />
+                return (
+                  <Card key={template.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold">{template.name}</h4>
+                          {template.isDefault && (
+                            <Badge variant="secondary" className="gap-1">
+                              <Star className="h-3 w-3" />
+                              Padrão
+                            </Badge>
+                          )}
+                          <Badge variant="outline">{template.category}</Badge>
+                          {validVariations.length > 1 && (
+                            <Badge variant="default" className="gap-1">
+                              <Shuffle className="h-3 w-3" />
+                              {validVariations.length} variações
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Criado em {new Date(template.createdAt).toLocaleDateString("pt-BR")}
+                        </p>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDuplicate(template)}
+                          title="Duplicar"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(template)}
+                          disabled={template.isDefault}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(template.id)}
+                          disabled={template.isDefault}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
 
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-medium mb-2">Template:</p>
-                      <div className="bg-muted p-3 rounded text-xs whitespace-pre-wrap max-h-32 overflow-y-auto">
-                        {template.message}
-                      </div>
+                    <Separator />
+
+                    {/* Mostrar variações */}
+                    <div className="space-y-2">
+                      {validVariations.map((variation, index) => (
+                        <div key={index} className="border rounded-lg p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {MESSAGE_STYLES[variation.style].emoji} {MESSAGE_STYLES[variation.style].label}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {MESSAGE_STYLES[variation.style].description}
+                            </span>
+                          </div>
+                          <div className="bg-muted p-2 rounded text-xs whitespace-pre-wrap max-h-20 overflow-y-auto">
+                            {variation.message}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <p className="text-xs font-medium mb-2">Preview:</p>
-                      <div className="bg-blue-50 border border-blue-200 p-3 rounded text-xs whitespace-pre-wrap max-h-32 overflow-y-auto">
-                        {renderPreview(template.message)}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
 
             <DialogFooter>
@@ -306,7 +388,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ex: Primeiro Contato - Formal"
+                    placeholder="Ex: Primeiro Contato - Profissional"
                   />
                 </div>
 
@@ -329,43 +411,104 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                   </Select>
                 </div>
 
+                <Separator />
+
+                {/* Tabs para as 3 variações */}
                 <div className="space-y-2">
-                  <Label htmlFor="message">Mensagem</Label>
-                  <Textarea
-                    id="message"
-                    value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    placeholder="Digite a mensagem do template..."
-                    rows={8}
-                    className="font-mono text-sm"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use variáveis para personalizar: {TEMPLATE_VARIABLES.map((v) => v.key).join(", ")}
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shuffle className="h-4 w-4" />
+                    <Label>Variações de Mensagem (Envio Aleatório)</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Configure até 3 variações com estilos diferentes. No disparo em massa, uma será escolhida aleatoriamente para cada lead.
+                  </p>
+
+                  <Tabs value={activeVariationTab} onValueChange={setActiveVariationTab}>
+                    <TabsList className="grid w-full grid-cols-3">
+                      <TabsTrigger value="0">
+                        Variação 1 {formData.variations[0]?.message && "✓"}
+                      </TabsTrigger>
+                      <TabsTrigger value="1">
+                        Variação 2 {formData.variations[1]?.message && "✓"}
+                      </TabsTrigger>
+                      <TabsTrigger value="2">
+                        Variação 3 {formData.variations[2]?.message && "✓"}
+                      </TabsTrigger>
+                    </TabsList>
+
+                    {[0, 1, 2].map((index) => (
+                      <TabsContent key={index} value={String(index)} className="space-y-3 mt-3">
+                        <div className="space-y-2">
+                          <Label>Estilo da Mensagem</Label>
+                          <Select
+                            value={formData.variations[index]?.style || 'formal'}
+                            onValueChange={(value) => updateVariation(index, 'style', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(MESSAGE_STYLES).map(([key, style]) => (
+                                <SelectItem key={key} value={key}>
+                                  <span className="flex items-center gap-2">
+                                    {style.emoji} {style.label} - {style.description}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Mensagem</Label>
+                          <Textarea
+                            value={formData.variations[index]?.message || ""}
+                            onChange={(e) => updateVariation(index, 'message', e.target.value)}
+                            placeholder={`Digite a variação ${index + 1} da mensagem... (opcional)`}
+                            rows={8}
+                            className="font-mono text-sm"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Use: {TEMPLATE_VARIABLES.map((v) => v.key).join(", ")}
+                          </p>
+                        </div>
+
+                        {formData.variations[index]?.message && (
+                          <div className="space-y-2">
+                            <Label>Preview:</Label>
+                            <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
+                              <p className="text-sm whitespace-pre-wrap">
+                                {renderPreview(formData.variations[index].message)}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </TabsContent>
+                    ))}
+                  </Tabs>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                  <p className="text-xs font-medium text-blue-900">💡 Dica: Variações Aleatórias</p>
+                  <p className="text-xs text-blue-800">
+                    Ao enviar para múltiplos leads, o sistema escolherá automaticamente uma das variações
+                    preenchidas de forma aleatória. Isso torna as mensagens mais naturais e evita bloqueios.
                   </p>
                 </div>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-                  <p className="text-xs font-medium text-blue-900">Variáveis Disponíveis:</p>
-                  <div className="space-y-1">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-yellow-900">⚙️ Variáveis Disponíveis:</p>
+                  <div className="grid grid-cols-2 gap-1 mt-2">
                     {TEMPLATE_VARIABLES.map((variable) => (
-                      <div key={variable.key} className="flex items-start gap-2">
-                        <code className="text-xs bg-blue-100 px-2 py-1 rounded">
+                      <div key={variable.key} className="flex items-start gap-1">
+                        <code className="text-xs bg-yellow-100 px-1.5 py-0.5 rounded">
                           {variable.key}
                         </code>
-                        <span className="text-xs text-blue-800">{variable.description}</span>
+                        <span className="text-xs text-yellow-800">{variable.description}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-
-                {formData.message && (
-                  <div className="space-y-2">
-                    <Label>Preview da Mensagem:</Label>
-                    <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
-                      <p className="text-sm whitespace-pre-wrap">{renderPreview(formData.message)}</p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 

@@ -1,21 +1,23 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Download, Trash2, X } from "lucide-react";
+import { MessageCircle, Download, Trash2, X, FileText } from "lucide-react";
 
 interface BulkActionsBarProps {
   selectedCount: number;
   onClearSelection: () => void;
   onExport: () => void;
   onWhatsApp: () => void;
+  onApplyTemplate?: () => void;
   onDelete: () => void;
 }
 
-export const BulkActionsBar = ({ 
-  selectedCount, 
-  onClearSelection, 
-  onExport, 
+export const BulkActionsBar = ({
+  selectedCount,
+  onClearSelection,
+  onExport,
   onWhatsApp,
-  onDelete 
+  onApplyTemplate,
+  onDelete
 }: BulkActionsBarProps) => {
   return (
     <AnimatePresence>
@@ -31,8 +33,8 @@ export const BulkActionsBar = ({
             <span className="font-semibold">{selectedCount} lead(s) selecionado(s)</span>
             
             <div className="flex gap-2">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="sm"
                 className="text-primary-foreground hover:bg-primary-foreground/20"
                 onClick={onExport}
@@ -40,9 +42,21 @@ export const BulkActionsBar = ({
                 <Download className="h-4 w-4 mr-2" />
                 Exportar
               </Button>
-              
-              <Button 
-                variant="ghost" 
+
+              {onApplyTemplate && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-primary-foreground hover:bg-primary-foreground/20"
+                  onClick={onApplyTemplate}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Aplicar Template
+                </Button>
+              )}
+
+              <Button
+                variant="ghost"
                 size="sm"
                 className="text-primary-foreground hover:bg-primary-foreground/20"
                 onClick={onWhatsApp}
@@ -50,9 +64,9 @@ export const BulkActionsBar = ({
                 <MessageCircle className="h-4 w-4 mr-2" />
                 WhatsApp
               </Button>
-              
-              <Button 
-                variant="ghost" 
+
+              <Button
+                variant="ghost"
                 size="sm"
                 className="text-primary-foreground hover:bg-destructive/20"
                 onClick={onDelete}

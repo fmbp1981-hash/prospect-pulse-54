@@ -110,12 +110,66 @@ export interface DashboardMetrics {
   }>;
 }
 
+// Estilos de mensagem disponíveis
+export type MessageStyle =
+  | 'formal'
+  | 'casual'
+  | 'direto'
+  | 'consultivo'
+  | 'amigavel'
+  | 'executivo';
+
+export const MESSAGE_STYLES: Record<MessageStyle, { label: string; emoji: string; description: string }> = {
+  formal: {
+    label: 'Formal',
+    emoji: '👔',
+    description: 'Tom profissional e cordial'
+  },
+  casual: {
+    label: 'Casual',
+    emoji: '😊',
+    description: 'Tom descontraído e amigável'
+  },
+  direto: {
+    label: 'Direto',
+    emoji: '🎯',
+    description: 'Objetivo e sem rodeios'
+  },
+  consultivo: {
+    label: 'Consultivo',
+    emoji: '💡',
+    description: 'Tom educativo e orientador'
+  },
+  amigavel: {
+    label: 'Amigável',
+    emoji: '🤝',
+    description: 'Próximo e acolhedor'
+  },
+  executivo: {
+    label: 'Executivo',
+    emoji: '💼',
+    description: 'Conciso e corporativo'
+  },
+};
+
+// Variação de mensagem (cada template tem 3 variações)
+export interface MessageVariation {
+  style: MessageStyle;
+  message: string;
+}
+
 // Templates de Mensagens WhatsApp
 export interface MessageTemplate {
   id: string;
   name: string;
   category: string; // "Primeiro Contato", "Follow-up", "Proposta", etc.
-  message: string; // Template com variáveis {{empresa}}, {{cidade}}, {{categoria}}
+
+  // Suporte a formato legado (templates antigos)
+  message?: string; // Template com variáveis {{empresa}}, {{cidade}}, {{categoria}}
+
+  // Novo formato com 3 variações
+  variations?: MessageVariation[]; // Array de 3 variações com estilos diferentes
+
   isDefault?: boolean;
   createdAt: string;
   updatedAt?: string;

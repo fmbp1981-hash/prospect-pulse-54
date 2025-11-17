@@ -14,6 +14,7 @@ import { BulkActionsBar } from "@/components/BulkActionsBar";
 import { WhatsAppDispatchModal } from "@/components/WhatsAppDispatchModal";
 import { ExportModal } from "@/components/ExportModal";
 import { LeadEditModal } from "@/components/LeadEditModal";
+import { ApplyTemplateModal } from "@/components/ApplyTemplateModal";
 import { exportToCSV, exportToExcel } from "@/lib/export";
 import { auditExport, auditBulkDelete } from "@/lib/audit";
 import {
@@ -48,6 +49,7 @@ const LeadsTable = () => {
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isApplyTemplateModalOpen, setIsApplyTemplateModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
@@ -550,8 +552,22 @@ const LeadsTable = () => {
         selectedCount={selectedLeads.size}
         onClearSelection={() => setSelectedLeads(new Set())}
         onExport={() => setIsExportModalOpen(true)}
+        onApplyTemplate={() => setIsApplyTemplateModalOpen(true)}
         onWhatsApp={handleBulkWhatsApp}
         onDelete={() => setIsDeleteDialogOpen(true)}
+      />
+
+      {/* Apply Template Modal */}
+      <ApplyTemplateModal
+        isOpen={isApplyTemplateModalOpen}
+        onClose={() => {
+          setIsApplyTemplateModalOpen(false);
+          setSelectedLeads(new Set());
+        }}
+        selectedLeads={getSelectedLeadsData()}
+        onTemplateApplied={() => {
+          loadLeads(); // Recarregar após aplicar template
+        }}
       />
 
       {/* WhatsApp Dispatch Modal */}
