@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Plus, Edit2, Trash2, Star, Copy, Shuffle } from "lucide-react";
+import { MessageSquare, Plus, Edit2, Trash2, Star, Copy, Shuffle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { MessageTemplate, MessageVariation, MessageStyle, MESSAGE_STYLES, TEMPLATE_VARIABLES } from "@/types/prospection";
+import { AITemplateGenerator } from "./AITemplateGenerator";
 
 interface TemplateManagerProps {
   isOpen: boolean;
@@ -98,6 +99,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [currentTemplate, setCurrentTemplate] = useState<MessageTemplate | null>(null);
   const [activeVariationTab, setActiveVariationTab] = useState("0");
+  const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     category: "Primeiro Contato",
@@ -257,6 +259,20 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
     setFormData({ ...formData, variations: newVariations });
   };
 
+  const handleAIGenerated = (name: string, category: string, variations: MessageVariation[]) => {
+    // Preencher formulário com dados gerados pela IA
+    setFormData({
+      name,
+      category,
+      variations,
+    });
+    setIsEditing(true);
+    setActiveVariationTab("0");
+    toast.success("Template carregado!", {
+      description: "Revise e ajuste antes de salvar",
+    });
+  };
+
   const renderPreview = (message: string) => {
     return message
       .replace(/\{\{empresa\}\}/g, "Exemplo Empresa Ltda")
@@ -284,10 +300,21 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                 <p className="text-sm text-muted-foreground">
                   {templates.length} template(s) disponíveis
                 </p>
-                <Button onClick={handleCreate} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Template
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => setIsAIGeneratorOpen(true)}
+                    size="sm"
+                    variant="outline"
+                    className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Gerar com IA
+                  </Button>
+                  <Button onClick={handleCreate} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Novo Template
+                  </Button>
+                </div>
               </div>
 
               {templates.map((template) => {
@@ -529,6 +556,13 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
           </>
         )}
       </DialogContent>
+
+      {/* AI Template Generator Modal */}
+      <AITemplateGenerator
+        isOpen={isAIGeneratorOpen}
+        onClose={() => setIsAIGeneratorOpen(false)}
+        onGenerated={handleAIGenerated}
+      />
     </Dialog>
   );
 }
