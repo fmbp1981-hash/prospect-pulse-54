@@ -53,10 +53,11 @@ Categoria: ${category}
 Tom: ${tone}
 
 Variáveis que DEVEM ser usadas:
-- {{empresa}} - Nome da empresa
-- {{categoria}} - Categoria do negócio
-- {{cidade}} - Cidade
-- {{contato}} - Nome do contato
+- {{minha_empresa}} - Nome da empresa que está ENVIANDO a mensagem
+- {{empresa}} - Nome da empresa PROSPECTADA
+- {{categoria}} - Categoria do negócio prospectado
+- {{cidade}} - Cidade do lead prospectado
+- {{contato}} - Nome do contato (use {{empresa}} se não houver nome)
 
 Regras:
 1. Crie EXATAMENTE 3 variações
@@ -66,7 +67,8 @@ Regras:
 5. 30-80 palavras cada
 6. Use emojis com moderação
 7. Foque em gerar interesse
-8. Use as variáveis nas mensagens
+8. SEMPRE use {{minha_empresa}} para se apresentar
+9. Use as outras variáveis para personalizar para o lead
 
 Formato (SIGA EXATAMENTE):
 VARIACAO_1:

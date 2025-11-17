@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Lead } from "@/types/prospection";
 import { MessageTemplate, MessageVariation, MESSAGE_STYLES } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
+import { userSettingsService } from "@/lib/userSettings";
 
 interface ApplyTemplateModalProps {
   isOpen: boolean;
@@ -26,10 +27,12 @@ export function ApplyTemplateModal({
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
   const [isApplying, setIsApplying] = useState(false);
+  const [companyName, setCompanyName] = useState("");
 
   useEffect(() => {
     if (isOpen) {
       loadTemplates();
+      loadUserSettings();
     }
   }, [isOpen]);
 
@@ -37,6 +40,17 @@ export function ApplyTemplateModal({
     const saved = localStorage.getItem("whatsapp_templates");
     if (saved) {
       setTemplates(JSON.parse(saved));
+    }
+  };
+
+  const loadUserSettings = async () => {
+    try {
+      const settings = await userSettingsService.getUserSettings();
+      if (settings) {
+        setCompanyName(settings.company_name || "");
+      }
+    } catch (error) {
+      console.error("Erro ao carregar configurações:", error);
     }
   };
 
@@ -56,10 +70,11 @@ export function ApplyTemplateModal({
 
   const replaceVariables = (message: string, lead: Lead): string => {
     return message
+      .replace(/\{\{minha_empresa\}\}/g, companyName || "Sua Empresa")
       .replace(/\{\{empresa\}\}/g, lead.empresa || "Empresa")
       .replace(/\{\{categoria\}\}/g, lead.categoria || "")
       .replace(/\{\{cidade\}\}/g, lead.cidade || "")
-      .replace(/\{\{contato\}\}/g, lead.contato || "")
+      .replace(/\{\{contato\}\}/g, lead.contato || lead.empresa || "")
       .replace(/\{\{lead\}\}/g, lead.lead || "");
   };
 

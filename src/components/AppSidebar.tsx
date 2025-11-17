@@ -36,6 +36,7 @@ const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Tabela de Leads", url: "/leads", icon: Table },
   { title: "Kanban Board", url: "/kanban", icon: LayoutGrid },
+  { title: "Configurações", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {

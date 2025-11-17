@@ -154,6 +154,7 @@ export function AITemplateGenerator({
 
   const renderPreview = (message: string) => {
     return message
+      .replace(/\{\{minha_empresa\}\}/g, "Sua Empresa")
       .replace(/\{\{empresa\}\}/g, "Exemplo Empresa Ltda")
       .replace(/\{\{categoria\}\}/g, "Restaurantes")
       .replace(/\{\{cidade\}\}/g, "São Paulo")
@@ -246,6 +247,9 @@ export function AITemplateGenerator({
                     ⚡ Variáveis que serão usadas automaticamente:
                   </p>
                   <div className="flex flex-wrap gap-2">
+                    <code className="text-xs bg-yellow-100 px-2 py-0.5 rounded">
+                      {"{{minha_empresa}}"}
+                    </code>
                     <code className="text-xs bg-yellow-100 px-2 py-0.5 rounded">
                       {"{{empresa}}"}
                     </code>
