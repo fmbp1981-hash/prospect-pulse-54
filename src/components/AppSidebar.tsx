@@ -36,7 +36,7 @@ const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Tabela de Leads", url: "/leads", icon: Table },
   { title: "Kanban Board", url: "/kanban", icon: LayoutGrid },
-  { title: "Configurações", url: "/settings", icon: Settings },
+  { title: "Minha Empresa", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -121,19 +121,19 @@ export function AppSidebar() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <SidebarMenuButton
-                tooltip="Configurações"
+                tooltip="Configurações de Integração"
                 className="group hover:bg-muted transition-all"
               >
-                <Settings className="h-5 w-5" />
-                {!isCollapsed && <span className="font-medium">Configurações</span>}
+                <Link2 className="h-5 w-5" />
+                {!isCollapsed && <span className="font-medium">Integrações</span>}
               </SidebarMenuButton>
             </DialogTrigger>
-            
+
             <DialogContent className="sm:max-w-[500px]">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Configurações de Webhook
+                  <Link2 className="h-5 w-5" />
+                  Configurações de Integrações
                 </DialogTitle>
               </DialogHeader>
 
