@@ -7,10 +7,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Building2, Phone, MapPin, GripVertical, ExternalLink } from "lucide-react";
-import { Lead, LeadStatus } from "@/types/prospection";
+import { Lead, LeadStatus, WhatsAppStatus } from "@/types/prospection";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
+import { WHATSAPP_STATUS } from "@/lib/constants";
 
 interface KanbanBoardProps {
   onUpdate?: () => void;
@@ -180,7 +181,7 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
           aceitaCartao: row.aceita_cartao || undefined,
           cnpj: row.cnpj || undefined,
           mensagemWhatsApp: row.mensagem_whatsapp || undefined,
-          statusMsgWA: row.status_msg_wa || undefined,
+          statusMsgWA: (row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT) as WhatsAppStatus,
           dataEnvioWA: row.data_envio_wa || undefined,
           resumoAnalitico: row.resumo_analitico || undefined,
           createdAt: row.created_at || undefined,

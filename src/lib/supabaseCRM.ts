@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Lead, DashboardMetrics, LeadStatus } from "@/types/prospection";
+import { Lead, DashboardMetrics, LeadStatus, WhatsAppStatus } from "@/types/prospection";
 import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS } from "@/lib/constants";
 
 /**
@@ -123,12 +123,13 @@ export async function createLead(
     const { data, error } = await supabase
       .from("leads_prospeccao")
       .insert({
-        lead: leadData.lead,
+        id: crypto.randomUUID(),
+        lead: leadData.lead || "Lead-000",
         status: leadData.status || LEAD_STATUS.NOVO_LEAD,
-        empresa: leadData.empresa,
+        empresa: leadData.empresa || "",
         categoria: leadData.categoria,
         contato: leadData.contatoPrincipal,
-        whatsapp: leadData.whatsapp,
+        telefone_whatsapp: leadData.whatsapp,
         email: leadData.email,
         cidade: leadData.cidade,
         endereco: leadData.endereco,
@@ -267,7 +268,7 @@ export async function getLeadsForWhatsApp(
       linkGMN: row.link_gmn || "",
       aceitaCartao: row.aceita_cartao || "",
       mensagemWhatsApp: row.mensagem_whatsapp || "",
-      statusMsgWA: row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT,
+      statusMsgWA: (row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT) as WhatsAppStatus,
       dataEnvioWA: row.data_envio_wa || null,
       resumoAnalitico: row.resumo_analitico || "",
       cnpj: row.cnpj || "",
