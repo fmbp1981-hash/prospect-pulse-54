@@ -299,19 +299,12 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
         <div className="overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {LEAD_STATUSES.map((status) => (
-              <div key={status} data-status={status}>
-                <SortableContext
-                  id={status}
-                  items={leadsByStatus[status].map((l) => l.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <KanbanColumn
-                    status={status}
-                    leads={leadsByStatus[status]}
-                    onCardClick={handleCardClick}
-                  />
-                </SortableContext>
-              </div>
+              <KanbanColumn
+                key={status}
+                status={status}
+                leads={leadsByStatus[status]}
+                onCardClick={handleCardClick}
+              />
             ))}
           </div>
         </div>
