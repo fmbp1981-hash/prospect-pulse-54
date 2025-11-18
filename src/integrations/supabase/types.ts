@@ -24,10 +24,13 @@ export type Database = {
           contato: string | null
           created_at: string | null
           data: string | null
+          data_envio_proposta: string | null
           data_envio_wa: string | null
+          data_ultima_interacao: string | null
           email: string | null
           empresa: string
           endereco: string | null
+          estagio_pipeline: string | null
           id: string
           instagram: string | null
           lead: string
@@ -36,9 +39,11 @@ export type Database = {
           resumo_analitico: string | null
           status: string | null
           status_msg_wa: string | null
-          telefone_whatsapp: string | null
+          telefone: string | null
           updated_at: string | null
+          user_id: string | null
           website: string | null
+          whatsapp: string | null
         }
         Insert: {
           aceita_cartao?: string | null
@@ -49,10 +54,13 @@ export type Database = {
           contato?: string | null
           created_at?: string | null
           data?: string | null
+          data_envio_proposta?: string | null
           data_envio_wa?: string | null
+          data_ultima_interacao?: string | null
           email?: string | null
           empresa: string
           endereco?: string | null
+          estagio_pipeline?: string | null
           id: string
           instagram?: string | null
           lead: string
@@ -61,9 +69,11 @@ export type Database = {
           resumo_analitico?: string | null
           status?: string | null
           status_msg_wa?: string | null
-          telefone_whatsapp?: string | null
+          telefone?: string | null
           updated_at?: string | null
+          user_id?: string | null
           website?: string | null
+          whatsapp?: string | null
         }
         Update: {
           aceita_cartao?: string | null
@@ -74,10 +84,13 @@ export type Database = {
           contato?: string | null
           created_at?: string | null
           data?: string | null
+          data_envio_proposta?: string | null
           data_envio_wa?: string | null
+          data_ultima_interacao?: string | null
           email?: string | null
           empresa?: string
           endereco?: string | null
+          estagio_pipeline?: string | null
           id?: string
           instagram?: string | null
           lead?: string
@@ -86,9 +99,77 @@ export type Database = {
           resumo_analitico?: string | null
           status?: string | null
           status_msg_wa?: string | null
-          telefone_whatsapp?: string | null
+          telefone?: string | null
           updated_at?: string | null
+          user_id?: string | null
           website?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          company_name: string | null
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_conversations: {
+        Row: {
+          ai_generated: boolean | null
+          created_at: string | null
+          from_lead: boolean
+          id: string
+          intent: string | null
+          lead_id: string | null
+          message: string
+          message_id: string | null
+          sentiment: string | null
+          timestamp: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ai_generated?: boolean | null
+          created_at?: string | null
+          from_lead?: boolean
+          id?: string
+          intent?: string | null
+          lead_id?: string | null
+          message: string
+          message_id?: string | null
+          sentiment?: string | null
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ai_generated?: boolean | null
+          created_at?: string | null
+          from_lead?: boolean
+          id?: string
+          intent?: string | null
+          lead_id?: string | null
+          message?: string
+          message_id?: string | null
+          sentiment?: string | null
+          timestamp?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }

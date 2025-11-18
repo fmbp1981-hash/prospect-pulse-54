@@ -56,11 +56,11 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     // Leads com informações de contato
     const { data: contactData, error: contactError } = await supabase
       .from('leads_prospeccao')
-      .select('telefone_whatsapp, email, website');
+      .select('whatsapp, telefone, email, website');
 
     if (contactError) throw contactError;
 
-    const leadsWithPhone = contactData?.filter(l => l.telefone_whatsapp).length || 0;
+    const leadsWithPhone = contactData?.filter(l => l.whatsapp || l.telefone).length || 0;
     const leadsWithEmail = contactData?.filter(l => l.email).length || 0;
     const leadsWithWebsite = contactData?.filter(l => l.website).length || 0;
 

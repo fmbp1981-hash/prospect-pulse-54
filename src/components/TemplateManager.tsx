@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Plus, Edit2, Trash2, Star, Copy, Shuffle, Sparkles } from "lucide-react";
+import { MessageSquare, Plus, Edit2, Trash2, Star, Copy, Shuffle, Sparkles, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { MessageTemplate, MessageVariation, MessageStyle, MESSAGE_STYLES, TEMPLATE_VARIABLES } from "@/types/prospection";
 import { AITemplateGenerator } from "./AITemplateGenerator";
@@ -203,6 +203,17 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
     toast.success("Template deletado com sucesso");
   };
 
+  const handleResetTemplates = () => {
+    if (confirm("Tem certeza que deseja limpar todos os templates e restaurar os padrões? Esta ação não pode ser desfeita.")) {
+      localStorage.removeItem("whatsapp_templates");
+      setTemplates(DEFAULT_TEMPLATES);
+      localStorage.setItem("whatsapp_templates", JSON.stringify(DEFAULT_TEMPLATES));
+      toast.success("Templates resetados com sucesso!", {
+        description: "Templates padrão restaurados",
+      });
+    }
+  };
+
   const handleSave = () => {
     if (!formData.name.trim()) {
       toast.error("Digite um nome para o template");
@@ -275,6 +286,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
 
   const renderPreview = (message: string) => {
     return message
+      .replace(/\{\{minha_empresa\}\}/g, "Sua Empresa")
       .replace(/\{\{empresa\}\}/g, "Exemplo Empresa Ltda")
       .replace(/\{\{categoria\}\}/g, "Restaurantes")
       .replace(/\{\{cidade\}\}/g, "São Paulo")
@@ -296,23 +308,43 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
           <>
             {/* Lista de Templates */}
             <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-              <div className="flex justify-between items-center">
-                <p className="text-sm text-muted-foreground">
-                  {templates.length} template(s) disponíveis
-                </p>
-                <div className="flex gap-2">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <p className="text-sm text-muted-foreground">
+                    {templates.length} template(s) disponíveis
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => setIsAIGeneratorOpen(true)}
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Gerar com IA
+                    </Button>
+                    <Button onClick={handleCreate} size="sm">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Template
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-yellow-900">💡 Templates Antigos?</p>
+                    <p className="text-xs text-yellow-800">
+                      Se seus templates estão desatualizados ou com erros, clique em "Resetar"
+                    </p>
+                  </div>
                   <Button
-                    onClick={() => setIsAIGeneratorOpen(true)}
+                    onClick={handleResetTemplates}
                     size="sm"
                     variant="outline"
-                    className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
                   >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Gerar com IA
-                  </Button>
-                  <Button onClick={handleCreate} size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Novo Template
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Resetar
                   </Button>
                 </div>
               </div>

@@ -61,7 +61,8 @@ export interface Lead {
   empresa?: string;
   categoria?: string;
   contato?: string;
-  whatsapp?: string; // Mapeado de telefone_whatsapp
+  whatsapp?: string; // Campo whatsapp (separado)
+  telefone?: string; // Campo telefone (separado)
   email?: string;
   website?: string;
   instagram?: string;
@@ -180,7 +181,8 @@ export interface MessageTemplate {
 
 // Variáveis disponíveis para templates
 export const TEMPLATE_VARIABLES = [
-  { key: '{{empresa}}', description: 'Nome da empresa' },
+  { key: '{{minha_empresa}}', description: 'Sua empresa (quem envia)' },
+  { key: '{{empresa}}', description: 'Nome da empresa prospectada' },
   { key: '{{categoria}}', description: 'Categoria/nicho do negócio' },
   { key: '{{cidade}}', description: 'Cidade do lead' },
   { key: '{{contato}}', description: 'Nome do contato' },

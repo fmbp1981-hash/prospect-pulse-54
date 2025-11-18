@@ -355,7 +355,8 @@ const LeadsTable = () => {
               </TableHead>
               <TableHead>Empresa</TableHead>
               <TableHead>Data</TableHead>
-              <TableHead>Telefone/WhatsApp</TableHead>
+              <TableHead>WhatsApp</TableHead>
+              <TableHead>Telefone</TableHead>
               <TableHead>Categoria</TableHead>
               <TableHead>CNPJ</TableHead>
               <TableHead>Cidade</TableHead>
@@ -369,7 +370,7 @@ const LeadsTable = () => {
           <TableBody>
             {paginatedLeads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={15} className="text-center py-8 text-muted-foreground">
                   Nenhum lead encontrado com os filtros selecionados
                 </TableCell>
               </TableRow>
@@ -398,17 +399,29 @@ const LeadsTable = () => {
                   <TableCell>
                     {lead.whatsapp && lead.whatsapp.trim() !== "" ? (
                       <div className="flex flex-col gap-1">
-                        <Badge variant="success">
-                          ✓ WhatsApp OK
+                        <Badge variant="success" className="w-fit">
+                          ✓ WhatsApp
                         </Badge>
                         <span className="text-xs text-muted-foreground font-mono">
                           {lead.whatsapp}
                         </span>
                       </div>
                     ) : (
-                      <Badge variant="destructive">
-                        ✗ Sem WhatsApp
-                      </Badge>
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {lead.telefone && lead.telefone.trim() !== "" ? (
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="secondary" className="w-fit">
+                          📞 Telefone
+                        </Badge>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {lead.telefone}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </TableCell>
                   <TableCell className="text-sm">

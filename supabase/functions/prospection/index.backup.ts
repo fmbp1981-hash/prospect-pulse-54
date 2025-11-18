@@ -90,69 +90,6 @@ function generateUniqueId(placeName: string, address: string): string {
   return `${cleanName}-${timestamp}-${randomStr}`;
 }
 
-// Função para verificar se número tem WhatsApp via Evolution API
-async function checkWhatsAppNumber(
-  phone: string,
-  evolutionApiUrl?: string,
-  evolutionApiKey?: string
-): Promise<boolean> {
-  // Se não houver configuração da Evolution API, assumir que é WhatsApp
-  if (!evolutionApiUrl || !evolutionApiKey) {
-    console.log('⚠️ Evolution API não configurada, assumindo que número tem WhatsApp');
-    return true;
-  }
-
-  try {
-    // Limpar número (remover caracteres não numéricos)
-    const cleanPhone = phone.replace(/\D/g, '');
-
-    // Verificar se número tem pelo menos 10 dígitos
-    if (cleanPhone.length < 10) {
-      console.log(`⚠️ Número muito curto: ${phone}`);
-      return false;
-    }
-
-    console.log(`🔍 Verificando WhatsApp: ${phone}`);
-
-    // Chamar Evolution API para verificar número
-    // Endpoint correto: POST /chat/whatsappNumbers/{instance}
-    const response = await fetch(evolutionApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': evolutionApiKey,
-      },
-      body: JSON.stringify({
-        numbers: [cleanPhone], // Evolution API espera array de números
-      }),
-    });
-
-    if (!response.ok) {
-      console.warn(`⚠️ Evolution API retornou erro ${response.status} para ${phone}`);
-      return true; // Assumir que é WhatsApp em caso de erro
-    }
-
-    const data = await response.json();
-
-    // Evolution API retorna array: [{ exists: true/false, jid: "...", number: "..." }]
-    if (Array.isArray(data) && data.length > 0) {
-      const result = data[0];
-      const hasWhatsApp = result.exists === true;
-
-      console.log(`${hasWhatsApp ? '✅' : '❌'} ${phone} ${hasWhatsApp ? 'TEM' : 'NÃO TEM'} WhatsApp`);
-
-      return hasWhatsApp;
-    }
-
-    // Se resposta não é array, assumir que não tem WhatsApp
-    console.warn(`⚠️ Resposta inesperada da Evolution API para ${phone}`);
-    return false;
-  } catch (error) {
-    console.error(`❌ Erro ao verificar WhatsApp para ${phone}:`, error);
-    return true; // Assumir que é WhatsApp em caso de erro
-  }
-}
-
 // Função para gerar mensagem WhatsApp personalizada via Lovable AI
 async function generateWhatsAppMessage(
   nomeEmpresa: string,
@@ -249,11 +186,7 @@ serve(async (req) => {
     const GOOGLE_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
-    // Configurações Evolution API: buscar do banco de dados primeiro, fallback para env vars
-    let EVOLUTION_API_URL = Deno.env.get('EVOLUTION_API_URL');
-    let EVOLUTION_API_KEY = Deno.env.get('EVOLUTION_API_KEY');
-
+    
     if (!GOOGLE_API_KEY) {
       console.error('❌ GOOGLE_PLACES_API_KEY não configurada');
       return new Response(
@@ -310,65 +243,102 @@ serve(async (req) => {
     // Limitar pela quantidade solicitada
     const limitedResults = results.slice(0, Math.min(quantity, results.length));
 
-    // 2. ⚡ OTIMIZADO: Buscar detalhes em PARALELO (muito mais rápido!)
-    console.log('\n🔄 Iniciando processamento PARALELO dos leads...');
+    // 2. Buscar detalhes de cada lugar, enriquecer com Firecrawl e gerar mensagens WhatsApp
+    console.log('\n🔄 Iniciando processamento detalhado dos leads...');
+    const detailedPlaces: GooglePlacesResult[] = [];
     const failedPlaces = [];
-
-    const detailsPromises = limitedResults.map(async (place) => {
+    
+    for (const place of limitedResults) {
       try {
         if (!place.place_id) {
           console.error('❌ place_id não encontrado para:', place.name);
           failedPlaces.push({ name: place.name, error: 'place_id missing' });
-          return null;
+          continue;
         }
 
-        console.log(`🏢 Buscando: ${place.name}`);
+        console.log(`\n🏢 Processando: ${place.name} (ID: ${place.place_id})`);
         const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status,types,geometry&key=${GOOGLE_API_KEY}`;
-
+        
         const detailsResponse = await fetch(detailsUrl);
         const detailsData = await detailsResponse.json();
 
         if (detailsData.status === 'OK' && detailsData.result) {
           const placeData = detailsData.result;
 
-          // Garantir que place_id existe
+          // Garantir que place_id existe, senão gerar um ID único
           if (!placeData.place_id) {
+            console.warn(`⚠️ place_id ausente nos detalhes de ${placeData.name}, gerando ID único`);
             placeData.place_id = generateUniqueId(
               placeData.name || 'unknown',
               placeData.formatted_address || ''
             );
           }
 
-          // ⚠️ FIRECRAWL DESABILITADO - Era o maior gargalo (10s+ por lead)
-          // Se precisar, ative manualmente editando este comentário
+          console.log('✅ Detalhes obtidos com sucesso');
+          
+          // Enriquecer com Firecrawl se houver website e API key configurada
+          if (placeData.website && FIRECRAWL_API_KEY) {
+            try {
+              console.log(`🔥 Enriquecendo dados de ${placeData.name} com Firecrawl`);
+              
+              const firecrawlResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  url: placeData.website,
+                  formats: ['markdown'],
+                  onlyMainContent: true,
+                  timeout: 10000,
+                }),
+              });
 
-          console.log(`✅ ${place.name}`);
-          return placeData;
+              if (firecrawlResponse.ok) {
+                const firecrawlData = await firecrawlResponse.json();
+                const content = firecrawlData.data?.markdown || '';
+                
+                // Extrair resumo (primeiros 500 caracteres do conteúdo)
+                const summary = content.substring(0, 500).trim();
+                if (summary) {
+                  placeData.enrichedSummary = summary;
+                  console.log(`✅ Dados enriquecidos para ${placeData.name}`);
+                }
+              } else {
+                console.log(`⚠️ Firecrawl falhou para ${placeData.website}: ${firecrawlResponse.status}`);
+              }
+            } catch (firecrawlError) {
+              const errorMsg = firecrawlError instanceof Error ? firecrawlError.message : 'Unknown error';
+              console.error(`❌ Erro ao enriquecer com Firecrawl:`, errorMsg);
+            }
+          }
+          
+          detailedPlaces.push(placeData);
+          console.log(`✅ Lead processado: ${placeData.name}`);
         } else {
-          console.error(`❌ Erro: ${detailsData.status}`);
+          console.error(`❌ Erro ao buscar detalhes:`, detailsData.status);
           failedPlaces.push({ name: place.name, error: detailsData.status });
-          return null;
         }
+        
+        // Delay para evitar rate limiting
+        await new Promise(resolve => setTimeout(resolve, 150));
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        console.error('❌ Erro:', errorMsg);
+        console.error('❌ Erro ao buscar detalhes do lugar:', errorMsg);
         failedPlaces.push({ name: place.name, error: errorMsg });
-        return null;
       }
-    });
+    }
 
-    // Aguardar TODAS as requisições em paralelo
-    const detailedPlacesResults = await Promise.all(detailsPromises);
-    const detailedPlaces = detailedPlacesResults.filter((place): place is GooglePlacesResult => place !== null);
+    console.log(`✅ Coletados detalhes de ${detailedPlaces.length} lugares`);
+    console.log(`❌ Falhas no processamento: ${failedPlaces.length}`);
 
-    console.log(`✅ ${detailedPlaces.length} leads processados`);
-    console.log(`❌ ${failedPlaces.length} falhas`);
-
-    // 3. ⚡ OTIMIZADO: Verificar TODOS os números de WhatsApp de uma vez (batch)
-    console.log('🔍 Verificando números WhatsApp em batch...');
-
+    // 3. Gerar mensagens WhatsApp personalizadas
+    console.log('💬 Gerando mensagens WhatsApp personalizadas via Lovable AI...');
+    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    // Usar token do usuário autenticado para que auth.uid() funcione
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
@@ -377,139 +347,70 @@ serve(async (req) => {
       }
     });
 
-    // Buscar configurações do usuário (Evolution API personalizada)
-    try {
-      const { data: userSettings, error: settingsError } = await supabase
-        .from('user_settings')
-        .select('evolution_api_url, evolution_api_key')
-        .single();
-
-      if (!settingsError && userSettings) {
-        // Se usuário tem configurações personalizadas, usar elas
-        if (userSettings.evolution_api_url) {
-          EVOLUTION_API_URL = userSettings.evolution_api_url;
-          console.log('✅ Usando Evolution API URL personalizada do usuário');
-        }
-        if (userSettings.evolution_api_key) {
-          EVOLUTION_API_KEY = userSettings.evolution_api_key;
-          console.log('✅ Usando Evolution API Key personalizada do usuário');
-        }
-      } else {
-        console.log('ℹ️ Usando Evolution API padrão (env vars)');
-      }
-    } catch (error) {
-      console.warn('⚠️ Erro ao buscar configurações do usuário, usando env vars:', error);
-    }
-
-    // Coletar todos os telefones para verificar em batch
-    const phonesMap = new Map<string, string>(); // placeId -> phone
-    detailedPlaces.forEach(place => {
-      const phone = place.international_phone_number || place.formatted_phone_number || '';
-      if (phone && place.place_id) {
-        phonesMap.set(place.place_id, phone);
-      }
-    });
-
-    // Verificar TODOS os números de uma vez via Evolution API
-    const whatsappResults = new Map<string, boolean>(); // phone -> hasWhatsApp
-
-    if (phonesMap.size > 0 && EVOLUTION_API_URL && EVOLUTION_API_KEY) {
-      try {
-        const phones = Array.from(phonesMap.values()).map(p => p.replace(/\D/g, ''));
-        const response = await fetch(EVOLUTION_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': EVOLUTION_API_KEY,
-          },
-          body: JSON.stringify({ numbers: phones }),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data)) {
-            data.forEach((result: any) => {
-              const originalPhone = Array.from(phonesMap.values()).find(p =>
-                p.replace(/\D/g, '') === result.number
-              );
-              if (originalPhone) {
-                whatsappResults.set(originalPhone, result.exists === true);
-              }
-            });
-            console.log(`✅ Verificados ${whatsappResults.size} números`);
+    const leadsToInsert = await Promise.all(
+      detailedPlaces.map(async (place) => {
+        // Extrair telefone (preferir internacional)
+        const phone = place.international_phone_number || place.formatted_phone_number || '';
+        
+        // Extrair endereço completo
+        const address = place.formatted_address || '';
+        
+        // Tentar extrair cidade do endereço
+        const addressParts = address.split(',');
+        const city = addressParts.length > 1 ? addressParts[addressParts.length - 2].trim() : locationQuery;
+        
+        // Gerar mensagem WhatsApp personalizada
+        let mensagemWhatsApp = null;
+        if (LOVABLE_API_KEY) {
+          try {
+            mensagemWhatsApp = await generateWhatsAppMessage(
+              place.name || 'Empresa',
+              niche || 'estabelecimento',
+              city,
+              LOVABLE_API_KEY
+            );
+            console.log(`✅ Mensagem gerada para ${place.name}`);
+          } catch (error) {
+            console.error(`❌ Erro ao gerar mensagem para ${place.name}:`, error);
           }
         }
-      } catch (error) {
-        console.warn('⚠️ Erro na verificação batch, assumindo todos como WhatsApp:', error);
-      }
-    }
+        
+        // Gerar data formatada
+        const dataFormatada = new Date().toLocaleDateString('pt-BR', { 
+          day: '2-digit', 
+          month: '2-digit', 
+          year: 'numeric' 
+        }) + ', ' + new Date().toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
 
-    const leadsToInsert = detailedPlaces.map((place) => {
-      const phone = place.international_phone_number || place.formatted_phone_number || '';
-      const address = place.formatted_address || '';
-      const addressParts = address.split(',');
-
-      // Extrair cidade: normalmente é o terceiro elemento do final (antes do CEP e do país)
-      // Ex: "Rua, 123 - Bairro, São Paulo - SP, 01234-567, Brasil"
-      // addressParts = ["Rua", " 123 - Bairro", " São Paulo - SP", " 01234-567", " Brasil"]
-      // Cidade está no índice length - 3 (São Paulo - SP)
-      let city = locationQuery;
-      if (addressParts.length >= 3) {
-        // Pegar terceiro do final e remover código de estado (ex: " - SP")
-        const cityPart = addressParts[addressParts.length - 3].trim();
-        city = cityPart.split('-')[0].trim(); // Remove " - SP" e pega só "São Paulo"
-      } else if (addressParts.length === 2) {
-        city = addressParts[0].trim();
-      }
-
-      // Verificar WhatsApp usando resultado do batch
-      let whatsappNumber = null;
-      let telefoneNumber = null;
-
-      if (phone) {
-        const hasWhatsApp = whatsappResults.get(phone) !== false; // Default true se não verificado
-        if (hasWhatsApp) {
-          whatsappNumber = phone;
-        } else {
-          telefoneNumber = phone;
-        }
-      }
-
-      // Gerar data formatada
-      const dataFormatada = new Date().toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }) + ', ' + new Date().toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-
-      return {
-        id: place.place_id || generateUniqueId(place.name || 'unknown', address),
-        lead: '',
-        empresa: place.name,
-        categoria: niche,
-        whatsapp: whatsappNumber,
-        telefone: telefoneNumber,
-        endereco: address,
-        cidade: city,
-        bairro_regiao: null,
-        website: place.website || null,
-        instagram: null,
-        link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
-        aceita_cartao: null,
-        mensagem_whatsapp: null,
-        status_msg_wa: 'not_sent',
-        data_envio_wa: null,
-        resumo_analitico: place.enrichedSummary || null,
-        cnpj: null,
-        status: 'Novo',
-        data: dataFormatada,
-        email: null,
-        contato: null,
-      };
-    });
+        return {
+          id: place.place_id || generateUniqueId(place.name || 'unknown', address),
+          lead: '', // Será gerado sequencialmente na inserção
+          empresa: place.name,
+          categoria: niche,
+          telefone_whatsapp: phone,
+          endereco: address,
+          cidade: city,
+          bairro_regiao: null,
+          website: place.website || null,
+          instagram: null,
+          link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
+          aceita_cartao: null,
+          mensagem_whatsapp: mensagemWhatsApp,
+          status_msg_wa: 'not_sent',
+          data_envio_wa: null,
+          resumo_analitico: place.enrichedSummary || null,
+          cnpj: null,
+          status: 'Novo',
+          data: dataFormatada,
+          email: null,
+          contato: null,
+          user_id: user_id || null, // Multi-tenant: associar ao usuário
+        };
+      })
+    );
 
     // 4. Salvar no Supabase com verificação de duplicatas
     console.log('\n💾 Salvando leads no Supabase...');
@@ -560,9 +461,24 @@ serve(async (req) => {
           }
 
           if (existingLead) {
-            // Lead já existe - pular sem inserir (evitar duplicatas)
-            console.log(`⏭️ Lead já existe (${existingLead.lead}), pulando para evitar duplicata: ${lead.empresa}`);
-            recurrentCount++;
+            // Lead já existe - marcar como Recorrente
+            console.log(`♻️ Lead já existe (${existingLead.lead}), marcando como Recorrente`);
+            
+            const { error: updateError } = await supabase
+              .from('leads_prospeccao')
+              .update({ 
+                status: 'Recorrente',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', lead.id);
+            
+            if (updateError) {
+              console.error('❌ Erro ao atualizar status:', updateError);
+              insertErrors.push({ empresa: lead.empresa, error: updateError.message });
+            } else {
+              recurrentCount++;
+              console.log(`✅ Lead marcado como Recorrente: ${lead.empresa}`);
+            }
           } else {
             // Novo lead - inserir com número sequencial
             lead.lead = formatLeadNumber(nextLeadNumber);
@@ -598,7 +514,7 @@ serve(async (req) => {
 
     console.log('\n✅ ========== PROSPECÇÃO FINALIZADA ==========');
     console.log(`📊 Leads novos inseridos: ${insertedCount}`);
-    console.log(`⏭️ Leads duplicados pulados: ${recurrentCount}`);
+    console.log(`♻️ Leads recorrentes atualizados: ${recurrentCount}`);
     console.log(`❌ Erros durante inserção: ${insertErrors.length}`);
     console.log(`⚠️ Falhas no processamento: ${failedPlaces.length}`);
     console.log('===============================================\n');

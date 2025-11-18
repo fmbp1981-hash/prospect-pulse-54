@@ -25,7 +25,8 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
       empresa: row.empresa || "",
       categoria: row.categoria || "",
       contato: row.contato || "",
-      whatsapp: row.telefone_whatsapp || "",
+      whatsapp: row.whatsapp || "",
+      telefone: row.telefone || "",
       email: row.email || "",
       website: row.website || "",
       instagram: row.instagram || "",
@@ -77,7 +78,8 @@ export async function updateLead(
     if (updates.empresa) dbUpdates.empresa = updates.empresa;
     if (updates.categoria) dbUpdates.categoria = updates.categoria;
     if (updates.contato) dbUpdates.contato = updates.contato;
-    if (updates.whatsapp) dbUpdates.telefone_whatsapp = updates.whatsapp;
+    if (updates.whatsapp) dbUpdates.whatsapp = updates.whatsapp;
+    if (updates.telefone) dbUpdates.telefone = updates.telefone;
     if (updates.email) dbUpdates.email = updates.email;
     if (updates.cidade) dbUpdates.cidade = updates.cidade;
     if (updates.endereco) dbUpdates.endereco = updates.endereco;
@@ -129,7 +131,8 @@ export async function createLead(
         empresa: leadData.empresa || "",
         categoria: leadData.categoria,
         contato: leadData.contatoPrincipal,
-        telefone_whatsapp: leadData.whatsapp,
+        whatsapp: leadData.whatsapp,
+        telefone: leadData.telefone,
         email: leadData.email,
         cidade: leadData.cidade,
         endereco: leadData.endereco,
@@ -258,7 +261,8 @@ export async function getLeadsForWhatsApp(
       empresa: row.empresa || "",
       categoria: row.categoria || "",
       contato: row.contato || "",
-      whatsapp: row.telefone_whatsapp || "",
+      whatsapp: row.whatsapp || "",
+      telefone: row.telefone || "",
       email: row.email || "",
       cidade: row.cidade || "",
       endereco: row.endereco || "",

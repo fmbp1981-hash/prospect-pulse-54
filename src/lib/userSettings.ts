@@ -4,6 +4,9 @@ export interface UserSettings {
   id?: string;
   user_id?: string;
   company_name: string;
+  evolution_api_url?: string;
+  evolution_api_key?: string;
+  evolution_instance_name?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -31,6 +34,9 @@ export const userSettingsService = {
         if (error.code === "PGRST116") {
           return {
             company_name: "",
+            evolution_api_url: "",
+            evolution_api_key: "",
+            evolution_instance_name: "",
           };
         }
         throw error;
@@ -41,6 +47,9 @@ export const userSettingsService = {
       console.error("Erro ao buscar configurações:", error);
       return {
         company_name: "",
+        evolution_api_url: "",
+        evolution_api_key: "",
+        evolution_instance_name: "",
       };
     }
   },
@@ -69,6 +78,9 @@ export const userSettingsService = {
           .from("user_settings")
           .update({
             company_name: settings.company_name,
+            evolution_api_url: settings.evolution_api_url,
+            evolution_api_key: settings.evolution_api_key,
+            evolution_instance_name: settings.evolution_instance_name,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", user.id)
@@ -84,6 +96,9 @@ export const userSettingsService = {
           .insert({
             user_id: user.id,
             company_name: settings.company_name,
+            evolution_api_url: settings.evolution_api_url,
+            evolution_api_key: settings.evolution_api_key,
+            evolution_instance_name: settings.evolution_instance_name,
           })
           .select()
           .single();

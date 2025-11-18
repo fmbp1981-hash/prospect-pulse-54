@@ -45,12 +45,17 @@ export function ApplyTemplateModal({
 
   const loadUserSettings = async () => {
     try {
+      console.log("🔍 ApplyTemplateModal: Carregando configurações do usuário...");
       const settings = await userSettingsService.getUserSettings();
+      console.log("🔍 ApplyTemplateModal: Configurações carregadas:", settings);
       if (settings) {
         setCompanyName(settings.company_name || "");
+        console.log("✅ ApplyTemplateModal: Nome da empresa definido:", settings.company_name);
+      } else {
+        console.log("⚠️ ApplyTemplateModal: Nenhuma configuração encontrada");
       }
     } catch (error) {
-      console.error("Erro ao carregar configurações:", error);
+      console.error("❌ ApplyTemplateModal: Erro ao carregar configurações:", error);
     }
   };
 
@@ -69,13 +74,21 @@ export function ApplyTemplateModal({
   };
 
   const replaceVariables = (message: string, lead: Lead): string => {
-    return message
+    console.log("🔄 ApplyTemplateModal: Substituindo variáveis...");
+    console.log("  - companyName atual:", companyName);
+    console.log("  - Mensagem original:", message);
+    console.log("  - Contém {{minha_empresa}}?", message.includes("{{minha_empresa}}"));
+
+    const result = message
       .replace(/\{\{minha_empresa\}\}/g, companyName || "Sua Empresa")
       .replace(/\{\{empresa\}\}/g, lead.empresa || "Empresa")
       .replace(/\{\{categoria\}\}/g, lead.categoria || "")
       .replace(/\{\{cidade\}\}/g, lead.cidade || "")
       .replace(/\{\{contato\}\}/g, lead.contato || lead.empresa || "")
       .replace(/\{\{lead\}\}/g, lead.lead || "");
+
+    console.log("  - Mensagem após substituição:", result);
+    return result;
   };
 
   const handleApplyTemplate = async () => {
