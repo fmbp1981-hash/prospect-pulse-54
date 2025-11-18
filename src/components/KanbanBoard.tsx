@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -59,34 +59,36 @@ function KanbanCard({ lead, onClick }: KanbanCardProps) {
   return (
     <div ref={setNodeRef} style={style}>
       <Card
-        className="p-3 mb-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow"
+        className="p-3 mb-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow overflow-hidden"
         onClick={onClick}
       >
         <div className="flex items-start gap-2">
-          <div {...attributes} {...listeners} className="cursor-grab pt-1">
+          <div {...attributes} {...listeners} className="cursor-grab pt-1 flex-shrink-0">
             <GripVertical className="h-4 w-4 text-muted-foreground" />
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex-1">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="flex items-start gap-2 mb-2">
+              <div className="flex-1 min-w-0">
                 <p className="font-semibold text-sm truncate">{lead.lead}</p>
                 <p className="text-xs text-muted-foreground truncate">{lead.empresa}</p>
               </div>
-              <Badge variant="outline" className="text-xs whitespace-nowrap">
-                {lead.categoria}
-              </Badge>
+              {lead.categoria && (
+                <Badge variant="outline" className="text-xs shrink-0 max-w-[100px]">
+                  <span className="truncate">{lead.categoria}</span>
+                </Badge>
+              )}
             </div>
 
             <div className="space-y-1 text-xs text-muted-foreground">
               {lead.whatsapp && (
-                <div className="flex items-center gap-1">
-                  <Phone className="h-3 w-3" />
+                <div className="flex items-center gap-1 min-w-0">
+                  <Phone className="h-3 w-3 shrink-0" />
                   <span className="truncate">{lead.whatsapp}</span>
                 </div>
               )}
               {lead.cidade && (
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
+                <div className="flex items-center gap-1 min-w-0">
+                  <MapPin className="h-3 w-3 shrink-0" />
                   <span className="truncate">{lead.cidade}</span>
                 </div>
               )}
@@ -105,8 +107,12 @@ interface KanbanColumnProps {
 }
 
 function KanbanColumn({ status, leads, onCardClick }: KanbanColumnProps) {
+  const { setNodeRef } = useDroppable({
+    id: status,
+  });
+
   return (
-    <div className="flex-shrink-0 w-80 bg-muted/30 rounded-lg p-4">
+    <div ref={setNodeRef} className="flex-shrink-0 w-80 bg-muted/30 rounded-lg p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className={`h-3 w-3 rounded-full ${STATUS_COLORS[status]}`} />
