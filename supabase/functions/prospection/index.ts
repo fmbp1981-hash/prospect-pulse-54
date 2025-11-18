@@ -312,9 +312,9 @@ serve(async (req) => {
 
     // 2. ⚡ OTIMIZADO: Buscar detalhes em PARALELO (muito mais rápido!)
     console.log('\n🔄 Iniciando processamento PARALELO dos leads...');
-    const failedPlaces = [];
+    const failedPlaces: Array<{ name: string; error: string }> = [];
 
-    const detailsPromises = limitedResults.map(async (place) => {
+    const detailsPromises = limitedResults.map(async (place: any) => {
       try {
         if (!place.place_id) {
           console.error('❌ place_id não encontrado para:', place.name);
@@ -517,7 +517,7 @@ serve(async (req) => {
     
     let insertedCount = 0;
     let recurrentCount = 0;
-    const insertErrors = [];
+    const insertErrors: Array<{ empresa: string; error: string }> = [];
     
     if (leadsToInsert.length > 0) {
       // Obter próximo número de lead
@@ -571,7 +571,7 @@ serve(async (req) => {
               id: lead.id,
               empresa: lead.empresa,
               cidade: lead.cidade,
-              telefone: lead.telefone_whatsapp,
+              whatsapp: lead.whatsapp || lead.telefone_whatsapp || null,
               link: lead.link_gmn
             });
             

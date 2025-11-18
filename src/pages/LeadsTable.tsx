@@ -254,6 +254,8 @@ const LeadsTable = () => {
       "Fechado Ganho": "default",
       "Fechado Perdido": "destructive",
       "Em Follow-up": "secondary",
+      "Fechado": "default",
+      "Follow-up": "secondary",
     };
     return variants[status];
   };

@@ -189,6 +189,8 @@ export async function getMetrics(): Promise<{
       [LEAD_STATUS.FECHADO_GANHO]: 0,
       [LEAD_STATUS.FECHADO_PERDIDO]: 0,
       [LEAD_STATUS.EM_FOLLOWUP]: 0,
+      'Fechado': 0,
+      'Follow-up': 0,
     };
 
     const originCounts: Record<string, number> = {};
