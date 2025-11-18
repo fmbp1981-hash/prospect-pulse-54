@@ -43,6 +43,8 @@ const leadEditSchema = z.object({
     "Fechado Ganho",
     "Fechado Perdido",
     "Em Follow-up",
+    "Fechado",
+    "Follow-up",
   ] as const),
   contato: z.string().optional(),
   whatsapp: z.string().optional(),
