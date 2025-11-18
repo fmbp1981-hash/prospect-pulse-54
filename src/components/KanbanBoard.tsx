@@ -167,12 +167,12 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
         data?.map((row) => ({
           id: row.id,
           lead: row.lead,
-          status: row.status as LeadStatus,
+          status: (row.estagio_pipeline || row.status || 'Novo Lead') as LeadStatus,
           empresa: row.empresa || undefined,
           categoria: row.categoria || undefined,
           contato: row.contato || undefined,
-          whatsapp: row.telefone_whatsapp || '',
-          telefone: row.telefone_whatsapp || '',
+          whatsapp: row.whatsapp || '',
+          telefone: row.telefone || '',
           email: row.email || undefined,
           website: row.website || undefined,
           instagram: row.instagram || undefined,
@@ -235,7 +235,10 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
         try {
           const { error } = await supabase
             .from("leads_prospeccao")
-            .update({ status: newStatus, updated_at: new Date().toISOString() })
+            .update({
+              estagio_pipeline: newStatus,
+              updated_at: new Date().toISOString()
+            })
             .eq("id", activeId);
 
           if (error) throw error;

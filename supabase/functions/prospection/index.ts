@@ -505,6 +505,7 @@ serve(async (req) => {
         resumo_analitico: place.enrichedSummary || null,
         cnpj: null,
         status: 'Novo',
+        estagio_pipeline: 'Novo Lead',
         data: dataFormatada,
         email: null,
         contato: null,
