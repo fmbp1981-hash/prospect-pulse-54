@@ -111,6 +111,9 @@ export type Database = {
         Row: {
           company_name: string | null
           created_at: string | null
+          evolution_api_key: string | null
+          evolution_api_url: string | null
+          evolution_instance_name: string | null
           id: string
           updated_at: string | null
           user_id: string
@@ -118,6 +121,9 @@ export type Database = {
         Insert: {
           company_name?: string | null
           created_at?: string | null
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          evolution_instance_name?: string | null
           id?: string
           updated_at?: string | null
           user_id: string
@@ -125,6 +131,9 @@ export type Database = {
         Update: {
           company_name?: string | null
           created_at?: string | null
+          evolution_api_key?: string | null
+          evolution_api_url?: string | null
+          evolution_instance_name?: string | null
           id?: string
           updated_at?: string | null
           user_id?: string
