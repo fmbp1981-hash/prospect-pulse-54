@@ -571,7 +571,8 @@ serve(async (req) => {
               id: lead.id,
               empresa: lead.empresa,
               cidade: lead.cidade,
-              whatsapp: lead.whatsapp || lead.telefone_whatsapp || null,
+              whatsapp: lead.whatsapp,
+              telefone: lead.telefone,
               link: lead.link_gmn
             });
             
