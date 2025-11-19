@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+
+# Environment files (will be set in Vercel dashboard)
+.env
+.env.local
+.env.production
+
+# Build output
+dist
+build
+
+# Development
+.vite
+*.log
+
+# IDE
+.vscode
+.idea
+
+# Supabase CLI (not needed for deployment)
+supabase/.temp
+supabase/.branches
+
+# Documentation
+*.md
+!README.md
+
+# Tests
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+test_*.ps1
+test_*.sh
