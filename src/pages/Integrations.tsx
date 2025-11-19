@@ -16,11 +16,15 @@ import {
   RefreshCw,
   Webhook,
   Activity,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAuditLogs } from "@/lib/audit";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function Integrations() {
+  const { isAdmin, isLoading: isLoadingRole } = useUserRole();
   const [webhookUrl, setWebhookUrl] = useState("");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
@@ -91,6 +95,32 @@ export default function Integrations() {
       minute: "2-digit",
     }).format(date);
   };
+
+  // Verificar permissão de admin
+  if (isLoadingRole) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-5 w-5" />
+          <AlertTitle>Acesso Negado</AlertTitle>
+          <AlertDescription>
+            Apenas administradores podem acessar a página de Integrações.
+            Entre em contato com um administrador se precisar configurar webhooks ou visualizar logs de auditoria.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">

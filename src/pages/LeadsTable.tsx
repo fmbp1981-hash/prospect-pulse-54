@@ -63,6 +63,11 @@ const LeadsTable = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<LeadStatus | "all">("all");
   const [hasWhatsAppFilter, setHasWhatsAppFilter] = useState(false);
+
+  // Filtros avançados
+  const [whatsappStatusFilter, setWhatsappStatusFilter] = useState<"all" | "not_sent" | "sent" | "failed">("all");
+  const [cidadeFilter, setCidadeFilter] = useState("");
+  const [dateRangeFilter, setDateRangeFilter] = useState<{ start: string; end: string } | undefined>(undefined);
   
   // Ordenação
   const [sortField, setSortField] = useState<SortField>("dataContato");
@@ -118,9 +123,42 @@ const LeadsTable = () => {
     if (statusFilter !== "all") {
       filtered = filtered.filter(lead => lead.status === statusFilter);
     }
-    
+
     if (hasWhatsAppFilter) {
       filtered = filtered.filter(lead => lead.whatsapp && lead.whatsapp.trim() !== "");
+    }
+
+    // Filtros avançados
+    if (whatsappStatusFilter !== "all") {
+      filtered = filtered.filter(lead => lead.statusMsgWA === whatsappStatusFilter);
+    }
+
+    if (cidadeFilter && cidadeFilter.trim() !== "") {
+      const cidade = cidadeFilter.toLowerCase();
+      filtered = filtered.filter(lead =>
+        lead.cidade?.toLowerCase().includes(cidade)
+      );
+    }
+
+    if (dateRangeFilter?.start || dateRangeFilter?.end) {
+      filtered = filtered.filter(lead => {
+        if (!lead.data) return false;
+
+        // Converter data do lead para comparação
+        const leadDate = new Date(lead.data);
+
+        if (dateRangeFilter.start) {
+          const startDate = new Date(dateRangeFilter.start);
+          if (leadDate < startDate) return false;
+        }
+
+        if (dateRangeFilter.end) {
+          const endDate = new Date(dateRangeFilter.end);
+          if (leadDate > endDate) return false;
+        }
+
+        return true;
+      });
     }
 
     // Ordenação
@@ -137,7 +175,7 @@ const LeadsTable = () => {
     });
 
     return filtered;
-  }, [leads, searchTerm, statusFilter, hasWhatsAppFilter, sortField, sortOrder]);
+  }, [leads, searchTerm, statusFilter, hasWhatsAppFilter, whatsappStatusFilter, cidadeFilter, dateRangeFilter, sortField, sortOrder]);
 
   // Paginação
   const totalPages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage);
@@ -334,6 +372,12 @@ const LeadsTable = () => {
           setStatusFilter={setStatusFilter}
           hasWhatsAppFilter={hasWhatsAppFilter}
           setHasWhatsAppFilter={setHasWhatsAppFilter}
+          whatsappStatusFilter={whatsappStatusFilter}
+          setWhatsappStatusFilter={setWhatsappStatusFilter}
+          cidadeFilter={cidadeFilter}
+          setCidadeFilter={setCidadeFilter}
+          dateRangeFilter={dateRangeFilter}
+          setDateRangeFilter={setDateRangeFilter}
         />
       </div>
 
