@@ -10,7 +10,7 @@ import { Layout } from "@/components/Layout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/DashboardV2";
 import LeadsTable from "./pages/LeadsTable";
 import Kanban from "./pages/Kanban";
 import Settings from "./pages/Settings";
