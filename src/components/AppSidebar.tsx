@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TemplateManager } from "@/components/TemplateManager";
+import { RoleBadge } from "@/components/RoleBadge";
 
 import {
   Sidebar,
@@ -230,12 +231,17 @@ export function AppSidebar() {
             <SidebarMenu>
               <SidebarMenuItem>
                 <div className="px-3 py-2 space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <User className="h-4 w-4 text-muted-foreground" />
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      {!isCollapsed && (
+                        <span className="text-muted-foreground truncate">
+                          {user?.email || "Usuário"}
+                        </span>
+                      )}
+                    </div>
                     {!isCollapsed && (
-                      <span className="text-muted-foreground truncate">
-                        {user?.email || "Usuário"}
-                      </span>
+                      <RoleBadge showIcon className="text-xs" />
                     )}
                   </div>
                   <Button

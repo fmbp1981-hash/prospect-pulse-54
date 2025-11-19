@@ -17,6 +17,8 @@ import { LeadEditModal } from "@/components/LeadEditModal";
 import { ApplyTemplateModal } from "@/components/ApplyTemplateModal";
 import { exportToCSV, exportToExcel } from "@/lib/export";
 import { auditExport, auditBulkDelete } from "@/lib/audit";
+import { useUserRole } from "@/hooks/useUserRole";
+import { RoleGuard } from "@/components/RoleGuard";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,7 +46,10 @@ const LeadsTable = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  
+
+  // Permissões e roles
+  const { permissions, hasPermission } = useUserRole();
+
   // Seleção em massa
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
@@ -337,12 +342,14 @@ const LeadsTable = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">
-                <Checkbox 
-                  checked={selectedLeads.size === paginatedLeads.length && paginatedLeads.length > 0}
-                  onCheckedChange={handleSelectAll}
-                />
-              </TableHead>
+              {(hasPermission('canUpdate') || hasPermission('canDelete') || hasPermission('canSendWhatsApp')) && (
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedLeads.size === paginatedLeads.length && paginatedLeads.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
+              )}
               <TableHead className="cursor-pointer" onClick={() => handleSort("lead")}>
                 <div className="flex items-center gap-2">
                   Lead
@@ -378,16 +385,18 @@ const LeadsTable = () => {
               </TableRow>
             ) : (
               paginatedLeads.map((lead) => (
-                <TableRow 
+                <TableRow
                   key={lead.id}
                   className={selectedLeads.has(lead.id) ? "bg-primary/5" : ""}
                 >
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedLeads.has(lead.id)}
-                      onCheckedChange={() => handleSelectLead(lead.id)}
-                    />
-                  </TableCell>
+                  {(hasPermission('canUpdate') || hasPermission('canDelete') || hasPermission('canSendWhatsApp')) && (
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedLeads.has(lead.id)}
+                        onCheckedChange={() => handleSelectLead(lead.id)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium">{toTitleCase(lead.lead)}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusBadgeVariant(lead.status)}>
@@ -473,32 +482,36 @@ const LeadsTable = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-2 justify-end">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleEditLead(lead)}
-                        title="Editar lead"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleIndividualWhatsApp(lead)}
-                        disabled={!lead.whatsapp || lead.whatsapp.trim() === "" || !lead.mensagemWhatsApp}
-                        title={
-                          !lead.whatsapp ? "Lead sem WhatsApp" : 
-                          !lead.mensagemWhatsApp ? "Lead sem mensagem configurada" : 
-                          "Enviar WhatsApp"
-                        }
-                        className={
-                          lead.whatsapp && lead.mensagemWhatsApp 
-                            ? "hover:text-green-600" 
-                            : "opacity-50 cursor-not-allowed"
-                        }
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                      </Button>
+                      <RoleGuard requiredPermission="canUpdate">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditLead(lead)}
+                          title="Editar lead"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </RoleGuard>
+                      <RoleGuard requiredPermission="canSendWhatsApp">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleIndividualWhatsApp(lead)}
+                          disabled={!lead.whatsapp || lead.whatsapp.trim() === "" || !lead.mensagemWhatsApp}
+                          title={
+                            !lead.whatsapp ? "Lead sem WhatsApp" :
+                            !lead.mensagemWhatsApp ? "Lead sem mensagem configurada" :
+                            "Enviar WhatsApp"
+                          }
+                          className={
+                            lead.whatsapp && lead.mensagemWhatsApp
+                              ? "hover:text-green-600"
+                              : "opacity-50 cursor-not-allowed"
+                          }
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
+                      </RoleGuard>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -570,6 +583,10 @@ const LeadsTable = () => {
         onApplyTemplate={() => setIsApplyTemplateModalOpen(true)}
         onWhatsApp={handleBulkWhatsApp}
         onDelete={() => setIsDeleteDialogOpen(true)}
+        canExport={permissions.canExport}
+        canSendWhatsApp={permissions.canSendWhatsApp}
+        canUpdate={permissions.canUpdate}
+        canDelete={permissions.canBulkDelete}
       />
 
       {/* Apply Template Modal */}

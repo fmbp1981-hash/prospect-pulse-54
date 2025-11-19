@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff } from "lucide-react";
 import { userSettingsService, UserSettings } from "@/lib/userSettings";
+import { RoleGuard } from "@/components/RoleGuard";
+import { RoleManagement } from "@/components/RoleManagement";
 
 export default function Settings() {
   const [isLoading, setIsLoading] = useState(true);
@@ -252,6 +254,11 @@ export default function Settings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Role Management - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
+        <RoleManagement />
+      </RoleGuard>
     </div>
   );
 }

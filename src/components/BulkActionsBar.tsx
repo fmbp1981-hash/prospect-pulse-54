@@ -9,6 +9,11 @@ interface BulkActionsBarProps {
   onWhatsApp: () => void;
   onApplyTemplate?: () => void;
   onDelete: () => void;
+  // Permissões opcionais (padrão: todas habilitadas)
+  canExport?: boolean;
+  canSendWhatsApp?: boolean;
+  canUpdate?: boolean;
+  canDelete?: boolean;
 }
 
 export const BulkActionsBar = ({
@@ -17,7 +22,11 @@ export const BulkActionsBar = ({
   onExport,
   onWhatsApp,
   onApplyTemplate,
-  onDelete
+  onDelete,
+  canExport = true,
+  canSendWhatsApp = true,
+  canUpdate = true,
+  canDelete: canDeletePerm = true,
 }: BulkActionsBarProps) => {
   return (
     <AnimatePresence>
@@ -33,17 +42,19 @@ export const BulkActionsBar = ({
             <span className="font-semibold">{selectedCount} lead(s) selecionado(s)</span>
             
             <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-primary-foreground hover:bg-primary-foreground/20"
-                onClick={onExport}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar
-              </Button>
+              {canExport && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-primary-foreground hover:bg-primary-foreground/20"
+                  onClick={onExport}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar
+                </Button>
+              )}
 
-              {onApplyTemplate && (
+              {canUpdate && onApplyTemplate && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -55,24 +66,28 @@ export const BulkActionsBar = ({
                 </Button>
               )}
 
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-primary-foreground hover:bg-primary-foreground/20"
-                onClick={onWhatsApp}
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                WhatsApp
-              </Button>
+              {canSendWhatsApp && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-primary-foreground hover:bg-primary-foreground/20"
+                  onClick={onWhatsApp}
+                >
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                  WhatsApp
+                </Button>
+              )}
 
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-primary-foreground hover:bg-destructive/20"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {canDeletePerm && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-primary-foreground hover:bg-destructive/20"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
             
             <Button
