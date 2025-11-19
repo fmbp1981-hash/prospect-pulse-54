@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { useSortable } from "@dnd-kit/sortable";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,24 +44,27 @@ interface KanbanCardProps {
 }
 
 function KanbanCard({ lead, onClick }: KanbanCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: lead.id,
+    data: {
+      lead,
+    },
   });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0 : 1,
+    visibility: isDragging ? 'hidden' : 'visible',
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <Card
         className="p-3 mb-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow overflow-hidden"
         onClick={onClick}
       >
         <div className="flex items-start gap-2">
-          <div {...attributes} {...listeners} className="cursor-grab pt-1 flex-shrink-0">
+          <div className="cursor-grab pt-1 flex-shrink-0">
             <GripVertical className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0 overflow-hidden">
@@ -107,12 +108,17 @@ interface KanbanColumnProps {
 }
 
 function KanbanColumn({ status, leads, onCardClick }: KanbanColumnProps) {
-  const { setNodeRef } = useDroppable({
+  const { setNodeRef, isOver } = useDroppable({
     id: status,
   });
 
   return (
-    <div ref={setNodeRef} className="flex-shrink-0 w-80 bg-muted/30 rounded-lg p-4">
+    <div
+      ref={setNodeRef}
+      className={`flex-shrink-0 w-80 bg-muted/30 rounded-lg p-4 transition-colors ${
+        isOver ? 'bg-muted/50 ring-2 ring-primary/50' : ''
+      }`}
+    >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className={`h-3 w-3 rounded-full ${STATUS_COLORS[status]}`} />
@@ -123,18 +129,16 @@ function KanbanColumn({ status, leads, onCardClick }: KanbanColumnProps) {
         </Badge>
       </div>
 
-      <SortableContext items={leads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2 min-h-[200px]">
-          {leads.map((lead) => (
-            <KanbanCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
-          ))}
-          {leads.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              Arraste leads para cá
-            </div>
-          )}
-        </div>
-      </SortableContext>
+      <div className="space-y-2 min-h-[200px]">
+        {leads.map((lead) => (
+          <KanbanCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
+        ))}
+        {leads.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            Arraste leads para cá
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -218,49 +222,48 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    setActiveId(null);
 
     if (!over) {
-      setActiveId(null);
       return;
     }
 
     const activeId = active.id as string;
-    const overId = over.id as string;
+    const newStatus = over.id as LeadStatus;
 
-    // Se dropou em outra coluna (overId é um status)
-    if (LEAD_STATUSES.includes(overId as LeadStatus)) {
-      const newStatus = overId as LeadStatus;
-      const lead = leads.find((l) => l.id === activeId);
-
-      if (lead && lead.status !== newStatus) {
-        // Atualizar otimisticamente
-        setLeads((prev) =>
-          prev.map((l) => (l.id === activeId ? { ...l, status: newStatus } : l))
-        );
-
-        try {
-          const { error } = await supabase
-            .from("leads_prospeccao")
-            .update({
-              estagio_pipeline: newStatus,
-              updated_at: new Date().toISOString()
-            })
-            .eq("id", activeId);
-
-          if (error) throw error;
-
-          toast.success(`Lead movido para ${newStatus}`);
-          if (onUpdate) onUpdate();
-        } catch (error) {
-          console.error("Error updating lead:", error);
-          toast.error("Erro ao atualizar lead");
-          // Reverter mudança
-          loadLeads();
-        }
-      }
+    // Verificar se é um status válido
+    if (!LEAD_STATUSES.includes(newStatus)) {
+      return;
     }
 
-    setActiveId(null);
+    const lead = leads.find((l) => l.id === activeId);
+
+    if (lead && lead.status !== newStatus) {
+      // Atualizar otimisticamente
+      setLeads((prev) =>
+        prev.map((l) => (l.id === activeId ? { ...l, status: newStatus } : l))
+      );
+
+      try {
+        const { error } = await supabase
+          .from("leads_prospeccao")
+          .update({
+            estagio_pipeline: newStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", activeId);
+
+        if (error) throw error;
+
+        toast.success(`Lead movido para ${newStatus}`);
+        if (onUpdate) onUpdate();
+      } catch (error) {
+        console.error("Error updating lead:", error);
+        toast.error("Erro ao atualizar lead");
+        // Reverter mudança
+        loadLeads();
+      }
+    }
   };
 
   const handleCardClick = (lead: Lead) => {

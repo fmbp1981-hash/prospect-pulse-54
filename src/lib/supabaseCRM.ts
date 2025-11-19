@@ -67,33 +67,36 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
 
 // ============= UPDATE LEAD =============
 export async function updateLead(
-  leadId: string, 
+  leadId: string,
   updates: Partial<Lead>
 ): Promise<{ success: boolean; message: string }> {
   try {
     const dbUpdates: Record<string, unknown> = {};
 
-    if (updates.lead) dbUpdates.lead = updates.lead;
-    if (updates.status) dbUpdates.status = updates.status;
-    if (updates.empresa) dbUpdates.empresa = updates.empresa;
-    if (updates.categoria) dbUpdates.categoria = updates.categoria;
-    if (updates.contato) dbUpdates.contato = updates.contato;
-    if (updates.whatsapp) dbUpdates.whatsapp = updates.whatsapp;
-    if (updates.telefone) dbUpdates.telefone = updates.telefone;
-    if (updates.email) dbUpdates.email = updates.email;
-    if (updates.cidade) dbUpdates.cidade = updates.cidade;
-    if (updates.endereco) dbUpdates.endereco = updates.endereco;
-    if (updates.bairroRegiao) dbUpdates.bairro_regiao = updates.bairroRegiao;
-    if (updates.website) dbUpdates.website = updates.website;
-    if (updates.instagram) dbUpdates.instagram = updates.instagram;
-    if (updates.linkGMN) dbUpdates.link_gmn = updates.linkGMN;
-    if (updates.aceitaCartao) dbUpdates.aceita_cartao = updates.aceitaCartao;
-    if (updates.mensagemWhatsApp) dbUpdates.mensagem_whatsapp = updates.mensagemWhatsApp;
-    if (updates.statusMsgWA) dbUpdates.status_msg_wa = updates.statusMsgWA;
-    if (updates.dataEnvioWA) dbUpdates.data_envio_wa = updates.dataEnvioWA;
-    if (updates.resumoAnalitico) dbUpdates.resumo_analitico = updates.resumoAnalitico;
-    if (updates.cnpj) dbUpdates.cnpj = updates.cnpj;
-    if (updates.data) dbUpdates.data = updates.data;
+    if (updates.lead !== undefined) dbUpdates.lead = updates.lead;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.empresa !== undefined) dbUpdates.empresa = updates.empresa;
+    if (updates.categoria !== undefined) dbUpdates.categoria = updates.categoria;
+    if (updates.contato !== undefined) dbUpdates.contato = updates.contato;
+    if (updates.whatsapp !== undefined) dbUpdates.whatsapp = updates.whatsapp;
+    if (updates.telefone !== undefined) dbUpdates.telefone = updates.telefone;
+    if (updates.email !== undefined) dbUpdates.email = updates.email;
+    if (updates.cidade !== undefined) dbUpdates.cidade = updates.cidade;
+    if (updates.endereco !== undefined) dbUpdates.endereco = updates.endereco;
+    if (updates.bairroRegiao !== undefined) dbUpdates.bairro_regiao = updates.bairroRegiao;
+    if (updates.website !== undefined) dbUpdates.website = updates.website;
+    if (updates.instagram !== undefined) dbUpdates.instagram = updates.instagram;
+    if (updates.linkGMN !== undefined) dbUpdates.link_gmn = updates.linkGMN;
+    if (updates.aceitaCartao !== undefined) dbUpdates.aceita_cartao = updates.aceitaCartao;
+    if (updates.mensagemWhatsApp !== undefined) dbUpdates.mensagem_whatsapp = updates.mensagemWhatsApp;
+    if (updates.statusMsgWA !== undefined) dbUpdates.status_msg_wa = updates.statusMsgWA;
+    if (updates.dataEnvioWA !== undefined) dbUpdates.data_envio_wa = updates.dataEnvioWA;
+    if (updates.resumoAnalitico !== undefined) dbUpdates.resumo_analitico = updates.resumoAnalitico;
+    if (updates.cnpj !== undefined) dbUpdates.cnpj = updates.cnpj;
+    if (updates.data !== undefined) dbUpdates.data = updates.data;
+
+    // Sempre atualizar updated_at
+    dbUpdates.updated_at = new Date().toISOString();
 
     const { error } = await supabase
       .from("leads_prospeccao")
