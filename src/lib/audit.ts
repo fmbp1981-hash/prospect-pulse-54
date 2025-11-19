@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 export interface AuditLog {
   action: string;
   entity_type: string;
@@ -7,28 +9,64 @@ export interface AuditLog {
 
 export const logAudit = async (log: AuditLog) => {
   try {
-    // Por enquanto, apenas log no console
-    // Em produção, isso seria enviado para um endpoint de auditoria
+    // Log no console (desenvolvimento)
     console.log('[AUDIT]', {
       timestamp: new Date().toISOString(),
       ...log
     });
-    
-    // Armazenar no localStorage para histórico local
-    const logs = JSON.parse(localStorage.getItem('audit_logs') || '[]');
-    logs.push({
-      timestamp: new Date().toISOString(),
-      ...log
-    });
-    
-    // Manter apenas os últimos 100 logs
-    if (logs.length > 100) {
-      logs.shift();
+
+    // Obter user_id atual
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      console.warn('[AUDIT] Usuário não autenticado, log não salvo');
+      return;
     }
-    
-    localStorage.setItem('audit_logs', JSON.stringify(logs));
+
+    // Salvar no Supabase
+    const { error } = await supabase
+      .from('audit_logs')
+      .insert({
+        user_id: user.id,
+        action: log.action,
+        entity_type: log.entity_type,
+        entity_id: log.entity_id,
+        details: log.details,
+        ip_address: null, // Pode ser obtido via API externa se necessário
+        user_agent: navigator.userAgent,
+      });
+
+    if (error) {
+      console.error('[AUDIT] Erro ao salvar log:', error);
+      // Fallback: salvar no localStorage se Supabase falhar
+      const localLogs = JSON.parse(localStorage.getItem('audit_logs_fallback') || '[]');
+      localLogs.push({
+        timestamp: new Date().toISOString(),
+        user_id: user.id,
+        ...log
+      });
+      if (localLogs.length > 100) localLogs.shift();
+      localStorage.setItem('audit_logs_fallback', JSON.stringify(localLogs));
+    }
   } catch (error) {
-    console.error("Erro ao registrar log de auditoria:", error);
+    console.error("[AUDIT] Erro ao registrar log de auditoria:", error);
+  }
+};
+
+// Função para buscar logs de auditoria do usuário atual
+export const getAuditLogs = async (limit: number = 100) => {
+  try {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('[AUDIT] Erro ao buscar logs:', error);
+    return [];
   }
 };
 

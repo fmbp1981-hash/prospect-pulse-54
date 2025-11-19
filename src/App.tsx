@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import LeadsTable from "./pages/LeadsTable";
 import Kanban from "./pages/Kanban";
 import Settings from "./pages/Settings";
+import Integrations from "./pages/Integrations";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -79,6 +80,16 @@ function AnimatedRoutes() {
             <ProtectedRoute>
               <Layout>
                 <Settings />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Integrations />
               </Layout>
             </ProtectedRoute>
           }
