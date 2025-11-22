@@ -15,6 +15,7 @@ export interface ProspectionSearch {
   status: 'pending' | 'processing' | 'completed' | 'error';
   whatsappStatus?: 'not_sent' | 'sent' | 'failed';
   whatsappSentAt?: Date;
+  savedCount?: number; // Number of leads saved in this search
 }
 
 export interface ProspectionFormData {
@@ -42,7 +43,7 @@ export type LeadPriority = 'Alta' | 'Média' | 'Baixa';
 
 export type WhatsAppStatus = 'not_sent' | 'sent' | 'failed';
 
-export type LeadOrigin = 
+export type LeadOrigin =
   | 'Prospecção Ativa'
   | 'Indicação'
   | 'Site'
@@ -53,7 +54,7 @@ export type LeadOrigin =
 
 export interface Lead {
   id: string;
-  
+
   // ✅ Campos que EXISTEM na tabela leads_prospeccao (nova estrutura)
   lead: string; // Lead-001, Lead-002, etc. (identificação sequencial)
   status: LeadStatus;
@@ -68,7 +69,8 @@ export interface Lead {
   instagram?: string;
   cidade?: string;
   endereco?: string;
-  bairroRegiao?: string; // Mapeado de bairro_regiao
+  bairro?: string; // Novo campo mapeado diretamente
+  bairroRegiao?: string; // Mapeado de bairro_regiao (deprecated)
   linkGMN?: string; // Mapeado de link_gmn
   aceitaCartao?: string; // Mapeado de aceita_cartao
   cnpj?: string;
@@ -78,7 +80,7 @@ export interface Lead {
   resumoAnalitico?: string; // Mapeado de resumo_analitico
   createdAt?: string; // created_at
   updatedAt?: string; // updated_at
-  
+
   // ❌ Campos VIRTUAIS (calculados, não salvam no banco)
   origem?: LeadOrigin; // Derivado de categoria
   prioridade?: LeadPriority; // Calculado via lógica

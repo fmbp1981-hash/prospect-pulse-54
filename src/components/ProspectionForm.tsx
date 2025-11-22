@@ -67,7 +67,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
     }
 
     setIsLoading(true);
-    
+
     const loadingToast = toast.loading("Iniciando prospecção no Google Places...", {
       description: `Buscando até ${formData.quantity} leads...`,
       duration: Infinity,
@@ -98,26 +98,31 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
 
       // Exibir resultados detalhados
       const { insertedCount, recurrentCount, total, failedProcessing, failedInsertion } = data;
-      
-      let message = `Prospecção concluída! ${total} leads processados`;
-      if (insertedCount > 0) message += ` (${insertedCount} novos`;
-      if (recurrentCount > 0) message += `, ${recurrentCount} recorrentes`;
-      if (insertedCount > 0 || recurrentCount > 0) message += `)`;
-      
+
+      let message = `Prospecção concluída! ${total} leads processados.`;
+
+      const details = [];
+      if (insertedCount > 0) details.push(`${insertedCount} novos`);
+      if (recurrentCount > 0) details.push(`${recurrentCount} recorrentes`);
+
+      if (details.length > 0) {
+        message += ` (${details.join(", ")})`;
+      }
+
       // Se houver falhas, mostrar warning ao invés de success
       if (failedProcessing > 0 || failedInsertion > 0) {
         message += `. Avisos: ${failedProcessing || 0} falhas no processamento, ${failedInsertion || 0} falhas na inserção`;
         console.warn("⚠️ Prospecção com avisos:", data.details);
-        toast.warning(message, { 
+        toast.warning(message, {
           id: loadingToast,
           description: "Alguns leads podem não ter sido processados. Verifique os logs.",
-          duration: 6000 
+          duration: 6000
         });
       } else {
-        toast.success(message, { 
+        toast.success(message, {
           id: loadingToast,
           description: "Todos os leads foram processados com sucesso!",
-          duration: 5000 
+          duration: 5000
         });
       }
 
@@ -129,8 +134,11 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
         failedInsertion,
         details: data.details
       });
-      
-      onSearch(formData);
+
+      onSearch({
+        ...formData,
+        savedCount: insertedCount
+      } as any); // Cast as any because ProspectionFormData doesn't have savedCount, but we pass it to handleNewSearch which uses it for ProspectionSearch
 
       // Reset form
       setFormData({
@@ -146,7 +154,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
     } catch (error) {
       console.error("❌ Erro na prospecção:", error);
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-      
+
       toast.error("Erro ao realizar prospecção", {
         id: loadingToast,
         description: errorMessage,
@@ -199,8 +207,8 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
               <div>
                 <span className="text-muted-foreground">Local:</span>
                 <p className="font-medium mt-0.5">
-                  {typeof lastSearch.location === 'string' 
-                    ? lastSearch.location 
+                  {typeof lastSearch.location === 'string'
+                    ? lastSearch.location
                     : lastSearch.location.city}
                 </p>
               </div>
@@ -218,12 +226,12 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 <Target className="h-4 w-4 text-muted-foreground" />
                 Nicho de Negócios
               </Label>
-              
+
               <QuickSelectNiches
                 selectedNiche={formData.niche}
                 onSelect={(niche) => setFormData({ ...formData, niche })}
               />
-              
+
               <Input
                 id="niche"
                 placeholder="Ou digite manualmente..."
@@ -239,12 +247,12 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 <MapPin className="h-4 w-4 text-muted-foreground" />
                 Localização
               </Label>
-              
+
               <QuickSelectLocations
                 selectedLocation={formData.location}
                 onSelect={(location) => setFormData({ ...formData, location })}
               />
-              
+
               <LocationCascade
                 value={formData.location}
                 onChange={(location) => setFormData({ ...formData, location })}

@@ -27,6 +27,7 @@ interface SearchHistoryProps {
   searches: ProspectionSearch[];
   onClearHistory: () => void;
   onReprocess?: (search: ProspectionSearch) => Promise<void>;
+  isLoading?: boolean;
 }
 
 // Helper para formatar LocationData
@@ -34,17 +35,17 @@ const formatLocation = (location: string | LocationData): string => {
   if (typeof location === 'string') {
     return location;
   }
-  
+
   const parts = [];
   if (location.neighborhood) parts.push(location.neighborhood);
   if (location.city) parts.push(location.city);
   if (location.state) parts.push(location.state);
   if (location.country) parts.push(location.country);
-  
+
   return parts.join(', ') || 'Não especificada';
 };
 
-export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchHistoryProps) => {
+export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading = false }: SearchHistoryProps) => {
   const navigate = useNavigate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [whatsappStatuses, setWhatsappStatuses] = useState<Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }>>({});
@@ -65,6 +66,15 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
 
       // Buscar contagem para cada busca
       for (const search of searches) {
+        // Se já temos a contagem salva no histórico, usar ela
+        if (search.savedCount !== undefined) {
+          setLeadCounts(prev => ({
+            ...prev,
+            [search.id]: { count: search.savedCount!, loading: false, error: false }
+          }));
+          continue;
+        }
+
         try {
           const location = formatLocation(search.location);
           const searchTimestamp = new Date(search.timestamp);
@@ -124,7 +134,7 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
     const notSentIds = searches
       .filter(s => whatsappStatuses[s.id]?.status !== 'sent')
       .map(s => s.id);
-    
+
     if (selectedIds.size === notSentIds.length) {
       setSelectedIds(new Set());
     } else {
@@ -136,7 +146,7 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
     toast.error("Funcionalidade descontinuada", {
       description: "Use o envio de WhatsApp na tabela de leads",
     });
-    
+
     // NOTA: Fluxo antigo de envio por prospecção foi substituído
     // Agora o envio é feito na LeadsTable usando leads individuais
     // com mensagens personalizadas do CRM
@@ -144,9 +154,9 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
 
   const handleReprocess = async (search: ProspectionSearch) => {
     if (!onReprocess) return;
-    
+
     setReprocessingIds(prev => new Set(prev).add(search.id));
-    
+
     try {
       await onReprocess(search);
       toast.success("Prospecção reprocessada com sucesso!");
@@ -188,6 +198,38 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
         return 'Pendente';
     }
   };
+
+  if (isLoading) {
+    return (
+      <Card className="shadow-card animate-fade-in">
+        <CardHeader>
+          <CardTitle className="text-2xl flex items-center gap-2">
+            <History className="h-6 w-6 text-primary" />
+            Histórico de Buscas
+          </CardTitle>
+          <CardDescription>
+            Carregando seu histórico...
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="border rounded-lg p-4 space-y-3">
+                <div className="flex justify-between">
+                  <div className="h-5 w-24 bg-muted animate-pulse rounded" />
+                  <div className="h-5 w-32 bg-muted animate-pulse rounded" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-full bg-muted animate-pulse rounded" />
+                  <div className="h-4 w-3/4 bg-muted animate-pulse rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (searches.length === 0) {
     return (
@@ -280,7 +322,7 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
                 {selectedIds.size} selecionada(s)
               </Badge>
             </div>
-            
+
             {selectedIds.size > 0 && (
               <Button
                 onClick={handleSendWhatsApp}
@@ -309,123 +351,123 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess }: SearchH
             const whatsappStatus = whatsappStatuses[search.id];
             const isSent = whatsappStatus?.status === 'sent';
             const isSelectable = hasWhatsAppConfig && !isSent;
-            
+
             return (
-            <div
-              key={search.id}
-              className="border rounded-lg p-4 hover:border-primary/50 transition-all hover:shadow-card"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  {isSelectable && (
-                    <Checkbox
-                      id={`select-${search.id}`}
-                      checked={selectedIds.has(search.id)}
-                      onCheckedChange={() => handleToggleSelect(search.id)}
-                    />
-                  )}
-                  <Badge className={getStatusColor(search.status)}>
-                    {getStatusLabel(search.status)}
-                  </Badge>
-                  {isSent && (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      WhatsApp Enviado
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  {format(new Date(search.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <Target className="h-4 w-4 text-primary" />
-                  <span className="font-medium">Nicho:</span>
-                  <span className="text-muted-foreground">{search.niche}</span>
-                </div>
-                
-                <div className="flex items-center gap-2 text-sm">
-                  <MapPin className="h-4 w-4 text-primary" />
-                  <span className="font-medium">Localização:</span>
-                  <span className="text-muted-foreground">{formatLocation(search.location)}</span>
-                </div>
-                
-                <div className="flex items-center gap-2 text-sm">
-                  <Hash className="h-4 w-4 text-primary" />
-                  <span className="font-medium">Quantidade:</span>
-                  <span className="text-muted-foreground">{search.quantity} leads</span>
-                </div>
-
-                {/* Status de salvamento no Supabase */}
-                <div className="flex items-center gap-2 text-sm">
-                  <Database className="h-4 w-4 text-primary" />
-                  <span className="font-medium">Salvos no CRM:</span>
-                  {leadCounts[search.id]?.loading ? (
-                    <Badge variant="secondary" className="gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      Carregando...
-                    </Badge>
-                  ) : leadCounts[search.id]?.error ? (
-                    <Badge variant="destructive" className="gap-1">
-                      Erro ao carregar
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant={leadCounts[search.id]?.count > 0 ? "default" : "secondary"}
-                      className={leadCounts[search.id]?.count > 0 ? "bg-success hover:bg-success/90" : ""}
-                    >
-                      {leadCounts[search.id]?.count || 0} lead(s)
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {/* Botões de ação */}
-              <div className="mt-4 pt-4 border-t flex gap-2">
-                {leadCounts[search.id]?.count > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => {
-                      // Redirecionar para tabela com filtros aplicados
-                      const location = formatLocation(search.location);
-                      navigate(`/leads?categoria=${encodeURIComponent(search.niche)}&cidade=${encodeURIComponent(location.split(',')[0].trim())}`);
-                      toast.success("Redirecionando para tabela de leads...");
-                    }}
-                    className="flex-1"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Ver Leads ({leadCounts[search.id]?.count})
-                  </Button>
-                )}
-
-                {onReprocess && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleReprocess(search)}
-                    disabled={reprocessingIds.has(search.id)}
-                    className="flex-1"
-                  >
-                    {reprocessingIds.has(search.id) ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Reprocessando...
-                      </>
-                    ) : (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Reprocessar
-                      </>
+              <div
+                key={search.id}
+                className="border rounded-lg p-4 hover:border-primary/50 transition-all hover:shadow-card"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    {isSelectable && (
+                      <Checkbox
+                        id={`select-${search.id}`}
+                        checked={selectedIds.has(search.id)}
+                        onCheckedChange={() => handleToggleSelect(search.id)}
+                      />
                     )}
-                  </Button>
-                )}
+                    <Badge className={getStatusColor(search.status)}>
+                      {getStatusLabel(search.status)}
+                    </Badge>
+                    {isSent && (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        WhatsApp Enviado
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    {format(new Date(search.timestamp), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <Target className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Nicho:</span>
+                    <span className="text-muted-foreground">{search.niche}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Localização:</span>
+                    <span className="text-muted-foreground">{formatLocation(search.location)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm">
+                    <Hash className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Quantidade:</span>
+                    <span className="text-muted-foreground">{search.quantity} leads</span>
+                  </div>
+
+                  {/* Status de salvamento no Supabase */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <Database className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Salvos no CRM:</span>
+                    {leadCounts[search.id]?.loading ? (
+                      <Badge variant="secondary" className="gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Carregando...
+                      </Badge>
+                    ) : leadCounts[search.id]?.error ? (
+                      <Badge variant="destructive" className="gap-1">
+                        Erro ao carregar
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant={leadCounts[search.id]?.count > 0 ? "default" : "secondary"}
+                        className={leadCounts[search.id]?.count > 0 ? "bg-success hover:bg-success/90" : ""}
+                      >
+                        {leadCounts[search.id]?.count || 0} lead(s)
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Botões de ação */}
+                <div className="mt-4 pt-4 border-t flex gap-2">
+                  {leadCounts[search.id]?.count > 0 && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => {
+                        // Redirecionar para tabela com filtros aplicados
+                        const location = formatLocation(search.location);
+                        navigate(`/leads?categoria=${encodeURIComponent(search.niche)}&cidade=${encodeURIComponent(location.split(',')[0].trim())}`);
+                        toast.success("Redirecionando para tabela de leads...");
+                      }}
+                      className="flex-1"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Ver Leads ({leadCounts[search.id]?.count})
+                    </Button>
+                  )}
+
+                  {onReprocess && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleReprocess(search)}
+                      disabled={reprocessingIds.has(search.id)}
+                      className="flex-1"
+                    >
+                      {reprocessingIds.has(search.id) ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Reprocessando...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Reprocessar
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
+            );
           })}
         </div>
       </CardContent>

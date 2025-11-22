@@ -7,6 +7,35 @@ import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS } from "@/lib/
  * Substitui completamente a integração MCP/n8n
  */
 
+// ============= TYPES =============
+interface SupabaseLeadRow {
+  id: string;
+  lead?: string;
+  status?: string;
+  data?: string;
+  empresa?: string;
+  categoria?: string;
+  contato?: string;
+  whatsapp?: string;
+  telefone?: string;
+  email?: string;
+  website?: string;
+  instagram?: string;
+  cidade?: string;
+  endereco?: string;
+  bairro?: string;
+  bairro_regiao?: string;
+  link_gmn?: string;
+  aceita_cartao?: string;
+  cnpj?: string;
+  mensagem_whatsapp?: string;
+  status_msg_wa?: string;
+  data_envio_wa?: string;
+  resumo_analitico?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // ============= SYNC LEADS =============
 export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[]; message?: string }> {
   try {
@@ -17,7 +46,7 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
 
     if (error) throw error;
 
-    const leads: Lead[] = (data || []).map((row: any) => ({
+    const leads: Lead[] = (data || []).map((row: SupabaseLeadRow) => ({
       id: row.id,
       lead: row.lead || "",
       status: (row.status || LEAD_STATUS.NOVO) as LeadStatus,
@@ -32,12 +61,13 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
       instagram: row.instagram || "",
       cidade: row.cidade || "",
       endereco: row.endereco || "",
+      bairro: row.bairro || "",
       bairroRegiao: row.bairro_regiao || "",
       linkGMN: row.link_gmn || "",
       aceitaCartao: row.aceita_cartao || "",
       cnpj: row.cnpj || "",
       mensagemWhatsApp: row.mensagem_whatsapp || "",
-      statusMsgWA: row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT,
+      statusMsgWA: (row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT) as WhatsAppStatus,
       dataEnvioWA: row.data_envio_wa || null,
       resumoAnalitico: row.resumo_analitico || "",
       createdAt: row.created_at || new Date().toISOString(),
@@ -55,12 +85,12 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
     }));
 
     return { success: true, leads };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao sincronizar leads:", error);
-    return { 
-      success: false, 
-      leads: [], 
-      message: error.message || "Erro ao carregar leads do banco de dados" 
+    return {
+      success: false,
+      leads: [],
+      message: (error as Error).message || "Erro ao carregar leads do banco de dados"
     };
   }
 }
@@ -83,6 +113,7 @@ export async function updateLead(
     if (updates.email !== undefined) dbUpdates.email = updates.email;
     if (updates.cidade !== undefined) dbUpdates.cidade = updates.cidade;
     if (updates.endereco !== undefined) dbUpdates.endereco = updates.endereco;
+    if (updates.bairro !== undefined) dbUpdates.bairro = updates.bairro;
     if (updates.bairroRegiao !== undefined) dbUpdates.bairro_regiao = updates.bairroRegiao;
     if (updates.website !== undefined) dbUpdates.website = updates.website;
     if (updates.instagram !== undefined) dbUpdates.instagram = updates.instagram;
@@ -106,15 +137,15 @@ export async function updateLead(
     if (error) throw error;
 
     return { success: true, message: "Lead atualizado com sucesso" };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao atualizar lead:", error);
-    return { success: false, message: error.message || "Erro ao atualizar lead" };
+    return { success: false, message: (error as Error).message || "Erro ao atualizar lead" };
   }
 }
 
 // ============= UPDATE LEAD STATUS =============
 export async function updateLeadStatus(
-  leadId: string, 
+  leadId: string,
   status: LeadStatus
 ): Promise<{ success: boolean; message: string }> {
   return updateLead(leadId, { status });
@@ -139,6 +170,7 @@ export async function createLead(
         email: leadData.email,
         cidade: leadData.cidade,
         endereco: leadData.endereco,
+        bairro: leadData.bairro,
         bairro_regiao: leadData.bairroRegiao,
         website: leadData.website,
         instagram: leadData.instagram,
@@ -155,25 +187,25 @@ export async function createLead(
 
     if (error) throw error;
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       leadId: data.id,
-      message: "Lead criado com sucesso" 
+      message: "Lead criado com sucesso"
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao criar lead:", error);
-    return { 
-      success: false, 
-      message: error.message || "Erro ao criar lead" 
+    return {
+      success: false,
+      message: (error as Error).message || "Erro ao criar lead"
     };
   }
 }
 
 // ============= GET METRICS =============
-export async function getMetrics(): Promise<{ 
-  success: boolean; 
-  metrics?: DashboardMetrics; 
-  message?: string 
+export async function getMetrics(): Promise<{
+  success: boolean;
+  metrics?: DashboardMetrics;
+  message?: string
 }> {
   try {
     const { data: leads, error } = await supabase
@@ -200,7 +232,7 @@ export async function getMetrics(): Promise<{
     let totalValue = 0;
     let whatsappSent = 0;
 
-    leads?.forEach((lead: any) => {
+    leads?.forEach((lead: SupabaseLeadRow) => {
       const status = lead.status || LEAD_STATUS.NOVO_LEAD;
       if (status in statusCounts) {
         statusCounts[status as LeadStatus]++;
@@ -238,11 +270,11 @@ export async function getMetrics(): Promise<{
     };
 
     return { success: true, metrics };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao calcular métricas:", error);
-    return { 
-      success: false, 
-      message: error.message || "Erro ao calcular métricas" 
+    return {
+      success: false,
+      message: (error as Error).message || "Erro ao calcular métricas"
     };
   }
 }
@@ -259,7 +291,7 @@ export async function getLeadsForWhatsApp(
 
     if (error) throw error;
 
-    const leads: Lead[] = (data || []).map((row: any) => ({
+    const leads: Lead[] = (data || []).map((row: SupabaseLeadRow) => ({
       id: row.id,
       lead: row.lead || "",
       status: (row.status || LEAD_STATUS.NOVO_LEAD) as LeadStatus,
@@ -271,6 +303,7 @@ export async function getLeadsForWhatsApp(
       email: row.email || "",
       cidade: row.cidade || "",
       endereco: row.endereco || "",
+      bairro: row.bairro || "",
       bairroRegiao: row.bairro_regiao || "",
       website: row.website || "",
       instagram: row.instagram || "",
@@ -295,12 +328,12 @@ export async function getLeadsForWhatsApp(
     }));
 
     return { success: true, leads };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Erro ao buscar leads para WhatsApp:", error);
-    return { 
-      success: false, 
+    return {
+      success: false,
       leads: [],
-      message: error.message || "Erro ao buscar leads" 
+      message: (error as Error).message || "Erro ao buscar leads"
     };
   }
 }

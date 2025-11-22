@@ -1,18 +1,17 @@
-import { useState, useEffect } from "react";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, DragOverEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable } from "@dnd-kit/core";
+import { useState } from "react";
+import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Building2, Phone, MapPin, GripVertical, ExternalLink } from "lucide-react";
-import { Lead, LeadStatus, WhatsAppStatus } from "@/types/prospection";
+import { Building2, Phone, MapPin, GripVertical } from "lucide-react";
+import { Lead, LeadStatus } from "@/types/prospection";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
-import { WHATSAPP_STATUS } from "@/lib/constants";
 
 interface KanbanBoardProps {
-  onUpdate?: () => void;
+  leads: Lead[];
+  onLeadUpdate: () => void;
 }
 
 const LEAD_STATUSES: LeadStatus[] = [
@@ -54,13 +53,13 @@ function KanbanCard({ lead, onClick }: KanbanCardProps) {
   const style = {
     transform: CSS.Translate.toString(transform),
     opacity: isDragging ? 0 : 1,
-    visibility: isDragging ? 'hidden' : 'visible',
+    visibility: isDragging ? 'hidden' as const : 'visible' as const,
   };
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <Card
-        className="p-3 mb-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow overflow-hidden"
+        className="p-3 mb-2 cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow overflow-hidden bg-card"
         onClick={onClick}
       >
         <div className="flex items-start gap-2">
@@ -74,7 +73,7 @@ function KanbanCard({ lead, onClick }: KanbanCardProps) {
                 <p className="text-xs text-muted-foreground truncate">{lead.empresa}</p>
               </div>
               {lead.categoria && (
-                <Badge variant="outline" className="text-xs shrink-0 max-w-[100px]">
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0 max-w-[100px]">
                   <span className="truncate">{lead.categoria}</span>
                 </Badge>
               )}
@@ -115,11 +114,10 @@ function KanbanColumn({ status, leads, onCardClick }: KanbanColumnProps) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-80 bg-muted/30 rounded-lg p-4 transition-colors ${
-        isOver ? 'bg-muted/50 ring-2 ring-primary/50' : ''
-      }`}
+      className={`flex-shrink-0 w-80 bg-muted/30 rounded-lg p-4 transition-colors h-full flex flex-col ${isOver ? 'bg-muted/50 ring-2 ring-primary/50' : ''
+        }`}
     >
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className={`h-3 w-3 rounded-full ${STATUS_COLORS[status]}`} />
           <h3 className="font-semibold text-sm">{status}</h3>
@@ -129,12 +127,12 @@ function KanbanColumn({ status, leads, onCardClick }: KanbanColumnProps) {
         </Badge>
       </div>
 
-      <div className="space-y-2 min-h-[200px]">
+      <div className="flex-1 overflow-y-auto min-h-[100px] pr-1 custom-scrollbar">
         {leads.map((lead) => (
           <KanbanCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
         ))}
         {leads.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground text-sm">
+          <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed border-muted rounded-lg">
             Arraste leads para cá
           </div>
         )}
@@ -143,9 +141,7 @@ function KanbanColumn({ status, leads, onCardClick }: KanbanColumnProps) {
   );
 }
 
-export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -157,64 +153,6 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
       },
     })
   );
-
-  useEffect(() => {
-    loadLeads();
-  }, []);
-
-  const loadLeads = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("leads_prospeccao")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Mapear para tipo Lead
-      const mappedLeads: Lead[] =
-        data?.map((row) => ({
-          id: row.id,
-          lead: row.lead,
-          status: (row.estagio_pipeline || row.status || 'Novo Lead') as LeadStatus,
-          empresa: row.empresa || undefined,
-          categoria: row.categoria || undefined,
-          contato: row.contato || undefined,
-          whatsapp: row.whatsapp || '',
-          telefone: row.telefone || '',
-          email: row.email || undefined,
-          website: row.website || undefined,
-          instagram: row.instagram || undefined,
-          cidade: row.cidade || undefined,
-          endereco: row.endereco || undefined,
-          bairroRegiao: row.bairro_regiao || undefined,
-          linkGMN: row.link_gmn || undefined,
-          aceitaCartao: row.aceita_cartao || undefined,
-          cnpj: row.cnpj || undefined,
-          mensagemWhatsApp: row.mensagem_whatsapp || undefined,
-          statusMsgWA: (row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT) as WhatsAppStatus,
-          dataEnvioWA: row.data_envio_wa || undefined,
-          resumoAnalitico: row.resumo_analitico || undefined,
-          createdAt: row.created_at || undefined,
-          updatedAt: row.updated_at || undefined,
-          data: row.data || undefined,
-          origem: "Prospecção Ativa",
-          prioridade: "Média",
-          regiao: row.cidade || undefined,
-          segmento: row.categoria || undefined,
-          contatoPrincipal: row.contato || undefined,
-          dataContato: row.created_at || undefined,
-        })) || [];
-
-      setLeads(mappedLeads);
-    } catch (error) {
-      console.error("Error loading leads:", error);
-      toast.error("Erro ao carregar leads");
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -239,11 +177,7 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
     const lead = leads.find((l) => l.id === activeId);
 
     if (lead && lead.status !== newStatus) {
-      // Atualizar otimisticamente
-      setLeads((prev) =>
-        prev.map((l) => (l.id === activeId ? { ...l, status: newStatus } : l))
-      );
-
+      // Atualizar no banco
       try {
         const { error } = await supabase
           .from("leads_prospeccao")
@@ -256,12 +190,10 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
         if (error) throw error;
 
         toast.success(`Lead movido para ${newStatus}`);
-        if (onUpdate) onUpdate();
+        onLeadUpdate(); // Notificar pai para atualizar lista
       } catch (error) {
         console.error("Error updating lead:", error);
         toast.error("Erro ao atualizar lead");
-        // Reverter mudança
-        loadLeads();
       }
     }
   };
@@ -272,8 +204,7 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
   };
 
   const handleDrawerUpdate = () => {
-    loadLeads();
-    if (onUpdate) onUpdate();
+    onLeadUpdate();
   };
 
   const leadsByStatus = LEAD_STATUSES.reduce((acc, status) => {
@@ -283,14 +214,6 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
 
   const activeLead = activeId ? leads.find((l) => l.id === activeId) : null;
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Carregando...</div>
-      </div>
-    );
-  }
-
   return (
     <>
       <DndContext
@@ -299,8 +222,8 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="overflow-x-auto pb-4">
-          <div className="flex gap-4 min-w-max">
+        <div className="overflow-x-auto pb-4 h-[calc(100vh-250px)]">
+          <div className="flex gap-4 min-w-max h-full">
             {LEAD_STATUSES.map((status) => (
               <KanbanColumn
                 key={status}
@@ -314,7 +237,7 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
 
         <DragOverlay>
           {activeLead ? (
-            <Card className="p-3 shadow-lg rotate-3 opacity-90">
+            <Card className="p-3 shadow-lg rotate-3 opacity-90 w-72 cursor-grabbing">
               <div className="flex items-start gap-2">
                 <GripVertical className="h-4 w-4 text-muted-foreground" />
                 <div className="flex-1">
@@ -339,3 +262,4 @@ export function KanbanBoard({ onUpdate }: KanbanBoardProps) {
     </>
   );
 }
+

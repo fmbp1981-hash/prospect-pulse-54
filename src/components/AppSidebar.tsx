@@ -37,60 +37,42 @@ const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Tabela de Leads", url: "/leads", icon: Table },
   { title: "Kanban Board", url: "/kanban", icon: LayoutGrid },
+  { title: "Templates", url: "#", icon: FileText },
   { title: "Integrações", url: "/integrations", icon: Link2 },
-  { title: "Minha Empresa", url: "/settings", icon: Settings },
+  { title: "Configurações", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
+  const { user, signOut, isAdmin } = useAuth();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const { user, signOut } = useAuth();
 
-  const [whatsappWebhook, setWhatsappWebhook] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [whatsappWebhook, setWhatsappWebhook] = useState("");
 
-  // Carregar webhook do localStorage ao montar componente
   useEffect(() => {
-    setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
+    const savedWebhook = localStorage.getItem("whatsapp_webhook_url");
+    if (savedWebhook) setWhatsappWebhook(savedWebhook);
   }, []);
-
-  // Recarregar valores ao abrir o modal
-  useEffect(() => {
-    if (isDialogOpen) {
-      setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
-    }
-  }, [isDialogOpen]);
 
   const handleSaveConfiguration = () => {
     localStorage.setItem("whatsapp_webhook_url", whatsappWebhook);
     toast.success("Configurações salvas com sucesso!");
+    setIsDialogOpen(false);
   };
 
   const handleCancelConfiguration = () => {
-    // Restaurar valores originais do localStorage
-    setWhatsappWebhook(localStorage.getItem("whatsapp_webhook_url") || "");
+    const savedWebhook = localStorage.getItem("whatsapp_webhook_url");
+    setWhatsappWebhook(savedWebhook || "");
+    setIsDialogOpen(false);
   };
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border/40 bg-gradient-to-b from-background to-muted/20">
+    <Sidebar collapsible="icon">
       <SidebarContent>
-        {/* Logo Section */}
-        <div className="p-6 border-b border-border/40">
-          <motion.div 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Logo showText={!isCollapsed} animated={true} />
-          </motion.div>
-        </div>
-
-        {/* Navigation Items */}
-        <SidebarGroup className="px-3 py-6">
-          <SidebarGroupLabel>
-            {!isCollapsed && "Menu Principal"}
-          </SidebarGroupLabel>
+        <SidebarGroup>
+          <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item, index) => (
@@ -102,14 +84,24 @@ export function AppSidebar() {
                 >
                   <SidebarMenuItem>
                     <SidebarMenuButton asChild tooltip={item.title}>
-                      <NavLink 
-                        to={item.url}
-                        className="group relative overflow-hidden rounded-lg transition-all duration-200 hover:scale-[1.02] hover:bg-primary hover:text-primary-foreground hover:shadow-lg my-1"
-                        activeClassName="bg-primary text-primary-foreground shadow-md before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-success before:rounded-l-lg"
-                      >
-                        <item.icon className="h-5 w-5 transition-transform group-hover:scale-110" />
-                        {!isCollapsed && <span className="font-medium">{item.title}</span>}
-                      </NavLink>
+                      {item.title === "Templates" ? (
+                        <button
+                          onClick={() => setIsTemplateManagerOpen(true)}
+                          className="group relative overflow-hidden rounded-lg transition-all duration-200 hover:scale-[1.02] hover:bg-primary hover:text-primary-foreground hover:shadow-lg my-1 flex w-full items-center gap-2 p-2"
+                        >
+                          <item.icon className="h-5 w-5 transition-transform group-hover:scale-110" />
+                          {!isCollapsed && <span className="font-medium">{item.title}</span>}
+                        </button>
+                      ) : (
+                        <NavLink
+                          to={item.url}
+                          className="group relative overflow-hidden rounded-lg transition-all duration-200 hover:scale-[1.02] hover:bg-primary hover:text-primary-foreground hover:shadow-lg my-1"
+                          activeClassName="bg-primary text-primary-foreground shadow-md before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-success before:rounded-l-lg"
+                        >
+                          <item.icon className="h-5 w-5 transition-transform group-hover:scale-110" />
+                          {!isCollapsed && <span className="font-medium">{item.title}</span>}
+                        </NavLink>
+                      )}
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </motion.div>
@@ -118,112 +110,114 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Configurações Section */}
-        <SidebarGroup className="px-3 py-4 border-t border-border/40">
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <SidebarMenuButton
-                tooltip="Configurações de Integração"
-                className="group hover:bg-muted transition-all"
-              >
-                <Link2 className="h-5 w-5" />
-                {!isCollapsed && <span className="font-medium">Integrações</span>}
-              </SidebarMenuButton>
-            </DialogTrigger>
-
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
+        {/* Configurações Section - ADMIN ONLY */}
+        {isAdmin && (
+          <SidebarGroup className="px-3 py-4 border-t border-border/40">
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <SidebarMenuButton
+                  tooltip="Configurações de Integração"
+                  className="group hover:bg-muted transition-all"
+                >
                   <Link2 className="h-5 w-5" />
-                  Configurações de Integrações
-                </DialogTitle>
-              </DialogHeader>
+                  {!isCollapsed && <span className="font-medium">Integrações (Admin)</span>}
+                </SidebarMenuButton>
+              </DialogTrigger>
 
-              <div className="space-y-6 py-4">
-                {/* Webhook WhatsApp */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4 text-primary" />
-                    Webhook de WhatsApp
-                    {whatsappWebhook && (
-                      <CheckCircle className="h-4 w-4 text-success ml-auto" />
-                    )}
-                  </Label>
-                  <Input
-                    value={whatsappWebhook}
-                    onChange={(e) => setWhatsappWebhook(e.target.value)}
-                    placeholder="https://seu-n8n.com/webhook/whatsapp"
-                    className="font-mono text-xs"
-                    type="password"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    URL do webhook n8n para envio via Evolution API
-                  </p>
-                </div>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Link2 className="h-5 w-5" />
+                    Configurações de Integrações
+                  </DialogTitle>
+                </DialogHeader>
 
-                <div className="border-t" />
-
-                {/* Gerenciador de Templates */}
-                <div className="space-y-2">
-                  <Label className="text-sm flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primary" />
-                    Templates de Mensagens
-                  </Label>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => setIsTemplateManagerOpen(true)}
-                  >
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    Gerenciar Templates
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Crie e personalize templates para mensagens WhatsApp
-                  </p>
-                </div>
-
-                <div className="border-t" />
-
-                {/* Status da Conexão */}
-                <div className="rounded-lg bg-muted/50 p-4">
-                  <h4 className="text-sm font-medium mb-2">Status da Configuração</h4>
-                  <div className="space-y-1 text-xs">
-                    <div className="flex items-center gap-2">
-                      {whatsappWebhook ? (
-                        <>
-                          <CheckCircle className="h-3 w-3 text-success" />
-                          <span className="text-success">WhatsApp configurado</span>
-                        </>
-                      ) : (
-                        <>
-                          <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                          <span className="text-muted-foreground">WhatsApp não configurado</span>
-                        </>
+                <div className="space-y-6 py-4">
+                  {/* Webhook WhatsApp */}
+                  <div className="space-y-2">
+                    <Label className="text-sm flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                      Webhook de WhatsApp
+                      {whatsappWebhook && (
+                        <CheckCircle className="h-4 w-4 text-success ml-auto" />
                       )}
+                    </Label>
+                    <Input
+                      value={whatsappWebhook}
+                      onChange={(e) => setWhatsappWebhook(e.target.value)}
+                      placeholder="https://seu-n8n.com/webhook/whatsapp"
+                      className="font-mono text-xs"
+                      type="password"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      URL do webhook n8n para envio via Evolution API
+                    </p>
+                  </div>
+
+                  <div className="border-t" />
+
+                  {/* Gerenciador de Templates */}
+                  <div className="space-y-2">
+                    <Label className="text-sm flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      Templates de Mensagens
+                    </Label>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setIsTemplateManagerOpen(true)}
+                    >
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Gerenciar Templates
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      Crie e personalize templates para mensagens WhatsApp
+                    </p>
+                  </div>
+
+                  <div className="border-t" />
+
+                  {/* Status da Conexão */}
+                  <div className="rounded-lg bg-muted/50 p-4">
+                    <h4 className="text-sm font-medium mb-2">Status da Configuração</h4>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex items-center gap-2">
+                        {whatsappWebhook ? (
+                          <>
+                            <CheckCircle className="h-3 w-3 text-success" />
+                            <span className="text-success">WhatsApp configurado</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                            <span className="text-muted-foreground">WhatsApp não configurado</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <strong>💡 Dica:</strong> Mantenha esse endereço em segredo para proteger sua integração.
+                  </p>
                 </div>
 
-                <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <strong>💡 Dica:</strong> Mantenha esse endereço em segredo para proteger sua integração.
-                </p>
-              </div>
-              
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline" onClick={handleCancelConfiguration}>
-                    Cancelar
-                  </Button>
-                </DialogClose>
-                <DialogClose asChild>
-                  <Button onClick={handleSaveConfiguration}>
-                    Salvar Configurações
-                  </Button>
-                </DialogClose>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </SidebarGroup>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline" onClick={handleCancelConfiguration}>
+                      Cancelar
+                    </Button>
+                  </DialogClose>
+                  <DialogClose asChild>
+                    <Button onClick={handleSaveConfiguration}>
+                      Salvar Configurações
+                    </Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </SidebarGroup>
+        )}
 
         {/* User Section */}
         <SidebarGroup className="mt-auto border-t border-border/40 pt-4">

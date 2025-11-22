@@ -27,7 +27,13 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Padarias",
       "Açougues",
       "Confeitarias",
-      "Food Trucks"
+      "Food Trucks",
+      "Hamburguerias",
+      "Sushi Bar",
+      "Churrascarias",
+      "Sorveterias",
+      "Distribuidora de Bebidas",
+      "Hortifruti"
     ]
   },
   {
@@ -40,7 +46,13 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Farmácias",
       "Psicólogos",
       "Nutricionistas",
-      "Laboratórios"
+      "Laboratórios",
+      "Fonoaudiologia",
+      "Quiropraxia",
+      "Terapia Ocupacional",
+      "Pilates",
+      "Yoga",
+      "Crossfit"
     ]
   },
   {
@@ -52,7 +64,10 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Manicures",
       "Estúdios de Tatuagem",
       "Spa",
-      "Depilação"
+      "Depilação",
+      "Design de Sobrancelhas",
+      "Maquiadores",
+      "Podologia"
     ]
   },
   {
@@ -65,7 +80,13 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Lojas de Eletrônicos",
       "Mercados",
       "Farmácias",
-      "Papelarias"
+      "Papelarias",
+      "Óticas",
+      "Lojas de Brinquedos",
+      "Lojas de Cosméticos",
+      "Lojas de Presentes",
+      "Tabacarias",
+      "Floriculturas"
     ]
   },
   {
@@ -78,11 +99,17 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Consultoria",
       "Marketing Digital",
       "Assistência Técnica",
-      "Chaveiros"
+      "Chaveiros",
+      "Dedetizadora",
+      "Desentupidora",
+      "Limpeza Pós-Obra",
+      "Lavanderias",
+      "Costureiras",
+      "Gráficas Rápidas"
     ]
   },
   {
-    category: "Construção",
+    category: "Construção e Reforma",
     niches: [
       "Construtoras",
       "Arquitetura",
@@ -91,7 +118,12 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Material de Construção",
       "Pintores",
       "Vidraçarias",
-      "Marmorarias"
+      "Marmorarias",
+      "Eletricistas",
+      "Encanadores",
+      "Gesseiros",
+      "Lojas de Tintas",
+      "Locação de Equipamentos"
     ]
   },
   {
@@ -103,7 +135,11 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Concessionárias",
       "Autopeças",
       "Funilaria",
-      "Borracharias"
+      "Borracharias",
+      "Estética Automotiva",
+      "Blindadoras",
+      "Lojas de Pneus",
+      "Insulfilm"
     ]
   },
   {
@@ -117,7 +153,50 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Universidades",
       "Reforço Escolar",
       "Cursos Profissionalizantes",
-      "Escolas de Informática"
+      "Escolas de Informática",
+      "Escolas de Natação",
+      "Escolas de Artes Marciais",
+      "Berçários"
+    ]
+  },
+  {
+    category: "Eventos e Festas",
+    niches: [
+      "Buffets",
+      "Casas de Eventos",
+      "Cerimonialistas",
+      "Decoração de Festas",
+      "Aluguel de Trajes",
+      "Fotógrafos",
+      "DJs e Sonorização",
+      "Bolos e Doces para Festas"
+    ]
+  },
+  {
+    category: "Tecnologia e Marketing",
+    niches: [
+      "Assistência Técnica Informática",
+      "Lojas de Informática",
+      "Desenvolvimento de Software",
+      "Coworking",
+      "Agências de Marketing",
+      "Gestão de Tráfego",
+      "Web Design",
+      "Agências de SEO",
+      "Provedores de Internet"
+    ]
+  },
+  {
+    category: "Indústria",
+    niches: [
+      "Metalúrgica",
+      "Têxtil",
+      "Gráfica",
+      "Confecção",
+      "Indústria de Alimentos",
+      "Indústria Química",
+      "Usinagem",
+      "Embalagens"
     ]
   },
   {
@@ -128,12 +207,10 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Casas de Shows",
       "Boates",
       "Bares",
-      "Buffets",
       "Parques de Diversão",
       "Escape Rooms",
       "Boliches",
-      "Fliperamas",
-      "Casas de Eventos"
+      "Fliperamas"
     ]
   },
   {
@@ -146,20 +223,8 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Guias Turísticos",
       "Aluguel de Carros",
       "Traslados",
-      "Parques Aquáticos"
-    ]
-  },
-  {
-    category: "Tecnologia",
-    niches: [
-      "Assistência Técnica Informática",
-      "Lojas de Informática",
-      "Desenvolvimento de Software",
-      "Coworking",
-      "Impressoras 3D",
-      "Drones",
-      "Robótica",
-      "Assistência Celulares"
+      "Parques Aquáticos",
+      "Camping"
     ]
   },
   {
@@ -171,7 +236,8 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Insumos Agrícolas",
       "Tratores",
       "Irrigação",
-      "Fazendas"
+      "Fazendas",
+      "Viveiros de Plantas"
     ]
   },
   {
@@ -183,7 +249,8 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Mudanças",
       "Estacionamentos",
       "Auto Escolas",
-      "Despachantes"
+      "Despachantes",
+      "Entregas Rápidas"
     ]
   },
   {
@@ -195,7 +262,8 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Tapetes",
       "Quadros e Molduras",
       "Iluminação",
-      "Jardins"
+      "Paisagismo",
+      "Colchões"
     ]
   },
   {
@@ -207,7 +275,8 @@ export const QUICK_NICHES: NicheCategory[] = [
       "Clubes Esportivos",
       "Piscinas",
       "Surf Shops",
-      "Bike Shops"
+      "Bike Shops",
+      "Artigos de Pesca"
     ]
   }
 ];
@@ -237,7 +306,15 @@ export const QUICK_LOCATIONS: LocationRegion[] = [
       { city: "Nova Iguaçu", state: "RJ", country: "Brasil" },
       { city: "Duque de Caxias", state: "RJ", country: "Brasil" },
       { city: "Vila Velha", state: "ES", country: "Brasil" },
-      { city: "Serra", state: "ES", country: "Brasil" }
+      { city: "Serra", state: "ES", country: "Brasil" },
+      { city: "Bauru", state: "SP", country: "Brasil" },
+      { city: "Piracicaba", state: "SP", country: "Brasil" },
+      { city: "Jundiaí", state: "SP", country: "Brasil" },
+      { city: "Franca", state: "SP", country: "Brasil" },
+      { city: "Petrópolis", state: "RJ", country: "Brasil" },
+      { city: "Volta Redonda", state: "RJ", country: "Brasil" },
+      { city: "Betim", state: "MG", country: "Brasil" },
+      { city: "Montes Claros", state: "MG", country: "Brasil" }
     ]
   },
   {
@@ -259,7 +336,11 @@ export const QUICK_LOCATIONS: LocationRegion[] = [
       { city: "Blumenau", state: "SC", country: "Brasil" },
       { city: "Chapecó", state: "SC", country: "Brasil" },
       { city: "Criciúma", state: "SC", country: "Brasil" },
-      { city: "Itajaí", state: "SC", country: "Brasil" }
+      { city: "Itajaí", state: "SC", country: "Brasil" },
+      { city: "São José dos Pinhais", state: "PR", country: "Brasil" },
+      { city: "Passo Fundo", state: "RS", country: "Brasil" },
+      { city: "Rio Grande", state: "RS", country: "Brasil" },
+      { city: "Balneário Camboriú", state: "SC", country: "Brasil" }
     ]
   },
   {
@@ -273,7 +354,10 @@ export const QUICK_LOCATIONS: LocationRegion[] = [
       { city: "Anápolis", state: "GO", country: "Brasil" },
       { city: "Dourados", state: "MS", country: "Brasil" },
       { city: "Rondonópolis", state: "MT", country: "Brasil" },
-      { city: "Várzea Grande", state: "MT", country: "Brasil" }
+      { city: "Várzea Grande", state: "MT", country: "Brasil" },
+      { city: "Sinop", state: "MT", country: "Brasil" },
+      { city: "Rio Verde", state: "GO", country: "Brasil" },
+      { city: "Três Lagoas", state: "MS", country: "Brasil" }
     ]
   },
   {
@@ -298,7 +382,11 @@ export const QUICK_LOCATIONS: LocationRegion[] = [
       { city: "Juazeiro do Norte", state: "CE", country: "Brasil" },
       { city: "Campina Grande", state: "PB", country: "Brasil" },
       { city: "Mossoró", state: "RN", country: "Brasil" },
-      { city: "Imperatriz", state: "MA", country: "Brasil" }
+      { city: "Imperatriz", state: "MA", country: "Brasil" },
+      { city: "Caruaru", state: "PE", country: "Brasil" },
+      { city: "Ilhéus", state: "BA", country: "Brasil" },
+      { city: "Itabuna", state: "BA", country: "Brasil" },
+      { city: "Sobral", state: "CE", country: "Brasil" }
     ]
   },
   {
@@ -314,7 +402,9 @@ export const QUICK_LOCATIONS: LocationRegion[] = [
       { city: "Santarém", state: "PA", country: "Brasil" },
       { city: "Ananindeua", state: "PA", country: "Brasil" },
       { city: "Marabá", state: "PA", country: "Brasil" },
-      { city: "Araguaína", state: "TO", country: "Brasil" }
+      { city: "Araguaína", state: "TO", country: "Brasil" },
+      { city: "Parauapebas", state: "PA", country: "Brasil" },
+      { city: "Ji-Paraná", state: "RO", country: "Brasil" }
     ]
   }
 ];

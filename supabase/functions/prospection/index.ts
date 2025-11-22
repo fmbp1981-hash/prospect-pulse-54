@@ -41,7 +41,7 @@ interface GooglePlacesResult {
 // Função para obter o próximo número de Lead
 async function getNextLeadNumber(supabase: any): Promise<number> {
   console.log('🔢 Iniciando getNextLeadNumber...');
-  
+
   try {
     const { data, error } = await supabase
       .from('leads_prospeccao')
@@ -61,7 +61,7 @@ async function getNextLeadNumber(supabase: any): Promise<number> {
 
     const lastLead = data[0].lead;
     console.log('📋 Último lead encontrado:', lastLead);
-    
+
     const match = lastLead.match(/Lead-(\d+)/);
     if (match) {
       const nextNumber = parseInt(match[1], 10) + 1;
@@ -166,12 +166,12 @@ async function generateWhatsAppMessage(
 Aqui é da XPAG, empresa especializada em soluções de pagamento para negócios como o seu.
 Vi que vocês atuam como ${categoria} em ${cidade} e achei que poderia ser interessante apresentar a XPAG.
 Caso faça sentido, posso te conectar com um consultor XPAG para explicar como podemos apoiar o crescimento do seu negócio. 😊`,
-    
+
     `Oi, ${nomeEmpresa}! Tudo bem? 🙂
 Sou da XPAG, e percebi que vocês são ${categoria} aí em ${cidade}.
 Temos ajudado empresas desse segmento a tornar o processo de pagamento mais simples e prático.
 Se quiser conhecer um pouco mais, posso te colocar em contato com um consultor XPAG.`,
-    
+
     `Olá, ${nomeEmpresa}! 👋
 Sou da XPAG, e vi que vocês atuam como ${categoria} em ${cidade}.
 Trabalhamos com empresas desse perfil oferecendo soluções que tornam o recebimento mais fácil e rápido.
@@ -211,7 +211,7 @@ Posso pedir para um consultor XPAG te enviar mais informações?`
 
     const data = await response.json();
     const mensagemGerada = data.choices?.[0]?.message?.content?.trim();
-    
+
     return mensagemGerada || modeloSelecionado;
   } catch (error) {
     console.error('❌ Erro ao gerar mensagem via Lovable AI:', error);
@@ -263,24 +263,31 @@ serve(async (req) => {
     }
 
     // Formatar localização para busca
-    const locationQuery = typeof location === 'string' 
-      ? location 
+    const locationQuery = typeof location === 'string'
+      ? location
       : `${location.city}, ${location.state}, ${location.country}`;
 
+    // Adicionar bairro à query se disponível
+    if (typeof location !== 'string' && location.neighborhood) {
+      console.log(`🏘️ Bairro especificado: ${location.neighborhood}`);
+    }
+
     // 1. Buscar lugares no Google Places
-    const searchQuery = `${niche} em ${locationQuery}`;
-    console.log('🔍 Buscando no Google Places:', { niche, location: locationQuery });
+    // Se bairro for especificado, incluir na busca para maior precisão
+    const neighborhoodPart = (typeof location !== 'string' && location.neighborhood) ? ` ${location.neighborhood}` : '';
+    const searchQuery = `${niche} em ${locationQuery}${neighborhoodPart}`;
+    console.log('🔍 Buscando no Google Places:', { niche, location: locationQuery, neighborhood: neighborhoodPart });
     console.log('📍 Query de busca completa:', searchQuery);
-    
+
     const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${GOOGLE_API_KEY}`;
-    
+
     const searchResponse = await fetch(textSearchUrl);
     const searchData = await searchResponse.json();
 
     if (searchData.status !== 'OK' && searchData.status !== 'ZERO_RESULTS') {
       console.error('❌ Erro na API do Google Places:', searchData);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: false,
           error: `Erro na API do Google: ${searchData.status}`,
           details: searchData.error_message
@@ -291,11 +298,11 @@ serve(async (req) => {
 
     const results = searchData.results || [];
     console.log(`✅ Encontrados ${results.length} resultados no Google Places`);
-    
+
     if (results.length === 0) {
       console.log('⚠️ Nenhum resultado encontrado para a busca');
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           success: true,
           message: 'Nenhum estabelecimento encontrado para os critérios de busca',
           insertedCount: 0,
@@ -462,6 +469,19 @@ serve(async (req) => {
         city = addressParts[0].trim();
       }
 
+      // Extrair bairro se possível (geralmente o segundo elemento)
+      // Ex: "Rua, 123 - Bairro, Cidade - UF"
+      let bairro = null;
+      if (typeof location !== 'string' && location.neighborhood) {
+        // Se o usuário especificou bairro, usar ele
+        bairro = location.neighborhood;
+      } else if (addressParts.length >= 4) {
+        // Tentar extrair do endereço: "Rua X, 123 - Bairro Y, Cidade Z - UF"
+        // Bairro costuma estar no índice 1 ou 2 dependendo do formato
+        // Simplificação: se não foi passado, deixamos null ou tentamos parsing complexo depois
+        // Por enquanto, vamos confiar no input do usuário ou deixar null
+      }
+
       // Verificar WhatsApp usando resultado do batch
       let whatsappNumber = null;
       let telefoneNumber = null;
@@ -494,7 +514,8 @@ serve(async (req) => {
         telefone: telefoneNumber,
         endereco: address,
         cidade: city,
-        bairro_regiao: null,
+        bairro: bairro, // Novo campo
+        bairro_regiao: null, // Deprecated, manter null por enquanto ou migrar
         website: place.website || null,
         instagram: null,
         link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
@@ -515,16 +536,16 @@ serve(async (req) => {
     // 4. Salvar no Supabase com verificação de duplicatas
     console.log('\n💾 Salvando leads no Supabase...');
     console.log(`📊 Total de leads para inserir: ${leadsToInsert.length}`);
-    
+
     let insertedCount = 0;
     let recurrentCount = 0;
     const insertErrors: Array<{ empresa: string; error: string }> = [];
-    
+
     if (leadsToInsert.length > 0) {
       // Obter próximo número de lead
       let nextLeadNumber = await getNextLeadNumber(supabase);
       console.log(`🔢 Iniciando numeração a partir de: Lead-${String(nextLeadNumber).padStart(3, '0')}`);
-      
+
       for (const lead of leadsToInsert) {
         try {
           // Log detalhado do lead antes de processar
@@ -546,7 +567,7 @@ serve(async (req) => {
           }
 
           console.log(`\n🔍 Verificando duplicata para: ${lead.empresa}`);
-          
+
           // Verificar se o lead já existe
           const { data: existingLead, error: checkError } = await supabase
             .from('leads_prospeccao')
@@ -576,11 +597,11 @@ serve(async (req) => {
               telefone: lead.telefone,
               link: lead.link_gmn
             });
-            
+
             const { error: insertError } = await supabase
               .from('leads_prospeccao')
               .insert(lead);
-            
+
             if (insertError) {
               console.error('❌ Erro ao inserir lead:', insertError);
               insertErrors.push({ empresa: lead.empresa, error: insertError.message });
@@ -635,7 +656,7 @@ serve(async (req) => {
     console.error('Mensagem:', errorMessage);
     console.error('Stack:', error instanceof Error ? error.stack : 'No stack trace');
     console.error('===============================================\n');
-    
+
     return new Response(
       JSON.stringify({
         success: false,

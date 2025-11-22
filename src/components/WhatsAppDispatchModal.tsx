@@ -28,26 +28,35 @@ export const WhatsAppDispatchModal = ({
   onClose,
   selectedLeads
 }: WhatsAppDispatchModalProps) => {
-  const [statuses, setStatuses] = useState<DispatchStatus[]>([]);
-  const [isDispatching, setIsDispatching] = useState(false);
-  const [testMode, setTestMode] = useState(false);
-  const [showTestConfirm, setShowTestConfirm] = useState(false);
+  const [testPhoneNumber, setTestPhoneNumber] = useState("");
+  const [editedMessage, setEditedMessage] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
 
   // Filtrar leads válidos (com WhatsApp, mensagem e não enviados)
-  const validLeads = selectedLeads.filter(lead => 
-    lead.whatsapp && 
+  const validLeads = selectedLeads.filter(lead =>
+    lead.whatsapp &&
     lead.whatsapp.trim() !== "" &&
-    lead.mensagemWhatsApp && 
+    lead.mensagemWhatsApp &&
     lead.mensagemWhatsApp.trim() !== "" &&
     lead.statusMsgWA !== 'sent'
   );
-  const leadsWithoutWhatsApp = selectedLeads.filter(lead => 
+  const leadsWithoutWhatsApp = selectedLeads.filter(lead =>
     !lead.whatsapp || lead.whatsapp.trim() === ""
   );
-  const leadsWithoutMessage = selectedLeads.filter(lead => 
+  const leadsWithoutMessage = selectedLeads.filter(lead =>
     lead.whatsapp && lead.whatsapp.trim() !== "" && !lead.mensagemWhatsApp
   );
   const alreadySent = selectedLeads.filter(lead => lead.statusMsgWA === 'sent');
+
+  // Initialize edited message when opening for a single lead
+  useEffect(() => {
+    if (isOpen && validLeads.length === 1) {
+      setEditedMessage(validLeads[0].mensagemWhatsApp || "");
+      setIsEditing(true);
+    } else {
+      setIsEditing(false);
+    }
+  }, [isOpen, validLeads.length]);
 
   useEffect(() => {
     if (isOpen && validLeads.length > 0) {
@@ -68,6 +77,11 @@ export const WhatsAppDispatchModal = ({
       return;
     }
 
+    if (!testPhoneNumber.trim()) {
+      toast.error("Digite um número de WhatsApp para teste");
+      return;
+    }
+
     const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
     if (!whatsappWebhook) {
       toast.error("Configure o webhook WhatsApp nas Configurações da sidebar");
@@ -79,11 +93,13 @@ export const WhatsAppDispatchModal = ({
     setShowTestConfirm(false);
 
     const testLead = validLeads[0]; // Apenas o primeiro lead
+    // Use edited message if available and we are in single mode, otherwise use lead's message
+    const messageToSend = (isEditing && editedMessage) ? editedMessage : testLead.mensagemWhatsApp;
 
     setStatuses([{
       leadId: testLead.id,
       leadName: testLead.lead,
-      message: testLead.mensagemWhatsApp,
+      message: messageToSend,
       status: "sending"
     }]);
 
@@ -93,8 +109,8 @@ export const WhatsAppDispatchModal = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           leadId: testLead.id,
-          whatsapp: testLead.whatsapp,
-          message: testLead.mensagemWhatsApp,
+          whatsapp: testPhoneNumber, // Send to TEST number
+          message: messageToSend,
           leadName: testLead.lead,
           empresa: testLead.empresa,
         }),
@@ -108,20 +124,16 @@ export const WhatsAppDispatchModal = ({
       const isSuccess = result.success === true;
 
       if (isSuccess) {
-        await supabaseCRM.updateLead(testLead.id, {
-          statusMsgWA: "sent",
-          dataEnvioWA: new Date().toISOString(),
-        });
-
+        // Don't update lead status for test send
         setStatuses([{
           leadId: testLead.id,
           leadName: testLead.lead,
-          message: testLead.mensagemWhatsApp,
+          message: messageToSend,
           status: "sent"
         }]);
 
         toast.success("Mensagem de teste enviada com sucesso!", {
-          description: `Enviado para ${testLead.lead}`,
+          description: `Enviado para ${testPhoneNumber}`,
         });
       } else {
         throw new Error(result.error || result.message || "Falha no envio");
@@ -130,7 +142,7 @@ export const WhatsAppDispatchModal = ({
       setStatuses([{
         leadId: testLead.id,
         leadName: testLead.lead,
-        message: testLead.mensagemWhatsApp,
+        message: messageToSend,
         status: "failed",
         error: String(error)
       }]);
@@ -164,20 +176,23 @@ export const WhatsAppDispatchModal = ({
     // Processar leads sequencialmente
     for (let i = 0; i < validLeads.length; i++) {
       const lead = validLeads[i];
-      
+
       // Validação extra antes de enviar
       if (!lead.whatsapp || lead.whatsapp.trim() === "") {
-        setStatuses(prev => prev.map(s => 
-          s.leadId === lead.id 
-            ? { ...s, status: "failed", error: "WhatsApp não coletado" } 
+        setStatuses(prev => prev.map(s =>
+          s.leadId === lead.id
+            ? { ...s, status: "failed", error: "WhatsApp não coletado" }
             : s
         ));
         continue;
       }
-      
-      setStatuses(prev => prev.map(s => 
+
+      setStatuses(prev => prev.map(s =>
         s.leadId === lead.id ? { ...s, status: "sending" } : s
       ));
+
+      // Use edited message if available and we are in single mode
+      const messageToSend = (isEditing && editedMessage && validLeads.length === 1) ? editedMessage : lead.mensagemWhatsApp;
 
       try {
         // Enviar para webhook n8n com Evolution API
@@ -187,7 +202,7 @@ export const WhatsAppDispatchModal = ({
           body: JSON.stringify({
             leadId: lead.id,
             whatsapp: lead.whatsapp,
-            message: lead.mensagemWhatsApp,
+            message: messageToSend,
             leadName: lead.lead,
             empresa: lead.empresa,
           }),
@@ -199,31 +214,35 @@ export const WhatsAppDispatchModal = ({
 
         const result = await response.json();
         const isSuccess = result.success === true;
-        
+
         // Atualizar status no Supabase
         if (isSuccess) {
           await supabaseCRM.updateLead(lead.id, {
             statusMsgWA: "sent",
             dataEnvioWA: new Date().toISOString(),
+            // If we edited the message, maybe we should update it in DB too? 
+            // Let's update it to reflect what was actually sent.
+            ...(isEditing && validLeads.length === 1 ? { mensagemWhatsApp: messageToSend } : {})
           });
         }
-        
-        setStatuses(prev => prev.map(s => 
-          s.leadId === lead.id 
-            ? { 
-                ...s, 
-                status: isSuccess ? "sent" : "failed", 
-                error: isSuccess ? undefined : result.error || result.message
-              } 
+
+        setStatuses(prev => prev.map(s =>
+          s.leadId === lead.id
+            ? {
+              ...s,
+              status: isSuccess ? "sent" : "failed",
+              error: isSuccess ? undefined : result.error || result.message,
+              message: messageToSend // Update displayed message
+            }
             : s
         ));
-        
+
         // Delay entre envios
         await new Promise(resolve => setTimeout(resolve, 500));
       } catch (error) {
-        setStatuses(prev => prev.map(s => 
-          s.leadId === lead.id 
-            ? { ...s, status: "failed", error: String(error) } 
+        setStatuses(prev => prev.map(s =>
+          s.leadId === lead.id
+            ? { ...s, status: "failed", error: String(error) }
             : s
         ));
       }
@@ -237,8 +256,8 @@ export const WhatsAppDispatchModal = ({
     setIsDispatching(false);
   };
 
-  const progress = statuses.length > 0 
-    ? (statuses.filter(s => s.status === "sent" || s.status === "failed").length / statuses.length) * 100 
+  const progress = statuses.length > 0
+    ? (statuses.filter(s => s.status === "sent" || s.status === "failed").length / statuses.length) * 100
     : 0;
   const sentCount = statuses.filter(s => s.status === "sent").length;
   const failedCount = statuses.filter(s => s.status === "failed").length;
@@ -328,54 +347,68 @@ export const WhatsAppDispatchModal = ({
               </div>
             </div>
 
-            {/* Lista de status */}
+            {/* Lista de status ou Editor Único */}
             <div className="space-y-2 overflow-y-auto flex-1 pr-2">
-              {statuses.map(status => (
-                <div 
-                  key={status.leadId}
-                  className="flex flex-col gap-1 p-3 bg-muted rounded-lg"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium truncate flex-1">{status.leadName}</span>
-                    
-                    {status.status === "pending" && (
-                      <Badge variant="outline">Aguardando</Badge>
+              {isEditing && validLeads.length === 1 && !isDispatching && !isComplete ? (
+                <div className="space-y-2 p-1">
+                  <label className="text-sm font-medium">Editar Mensagem para {validLeads[0].lead}:</label>
+                  <textarea
+                    className="flex min-h-[150px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={editedMessage}
+                    onChange={(e) => setEditedMessage(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Você pode personalizar a mensagem final antes de enviar.
+                  </p>
+                </div>
+              ) : (
+                statuses.map(status => (
+                  <div
+                    key={status.leadId}
+                    className="flex flex-col gap-1 p-3 bg-muted rounded-lg"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium truncate flex-1">{status.leadName}</span>
+
+                      {status.status === "pending" && (
+                        <Badge variant="outline">Aguardando</Badge>
+                      )}
+                      {status.status === "sending" && (
+                        <Badge variant="secondary" className="gap-2">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Enviando...
+                        </Badge>
+                      )}
+                      {status.status === "sent" && (
+                        <Badge className="gap-2 bg-success hover:bg-success/90">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Enviado
+                        </Badge>
+                      )}
+                      {status.status === "failed" && (
+                        <Badge variant="destructive" className="gap-2">
+                          <XCircle className="h-3 w-3" />
+                          Falha
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Preview da mensagem */}
+                    {status.message && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        📱 {status.message.substring(0, 60)}...
+                      </p>
                     )}
-                    {status.status === "sending" && (
-                      <Badge variant="secondary" className="gap-2">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        Enviando...
-                      </Badge>
-                    )}
-                    {status.status === "sent" && (
-                      <Badge className="gap-2 bg-success hover:bg-success/90">
-                        <CheckCircle2 className="h-3 w-3" />
-                        Enviado
-                      </Badge>
-                    )}
-                    {status.status === "failed" && (
-                      <Badge variant="destructive" className="gap-2">
-                        <XCircle className="h-3 w-3" />
-                        Falha
-                      </Badge>
+
+                    {/* Erro se houver */}
+                    {status.error && status.status === "failed" && (
+                      <p className="text-xs text-destructive">
+                        ⚠️ {status.error}
+                      </p>
                     )}
                   </div>
-                  
-                  {/* Preview da mensagem */}
-                  {status.message && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      📱 {status.message.substring(0, 60)}...
-                    </p>
-                  )}
-                  
-                  {/* Erro se houver */}
-                  {status.error && status.status === "failed" && (
-                    <p className="text-xs text-destructive">
-                      ⚠️ {status.error}
-                    </p>
-                  )}
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </>
         )}
@@ -430,34 +463,44 @@ export const WhatsAppDispatchModal = ({
 
         {/* Modal de Confirmação de Teste */}
         {showTestConfirm && validLeads.length > 0 && (
-          <div className="absolute inset-0 bg-background/95 backdrop-blur-sm flex items-center justify-center p-6 rounded-lg">
+          <div className="absolute inset-0 bg-background/95 backdrop-blur-sm flex items-center justify-center p-6 rounded-lg z-50">
             <div className="bg-card border rounded-lg p-6 max-w-md w-full space-y-4 shadow-lg">
               <div>
                 <h3 className="text-lg font-semibold mb-2">Confirmar Envio de Teste</h3>
                 <p className="text-sm text-muted-foreground">
-                  Você está prestes a enviar uma mensagem de teste para:
+                  Configure o número de destino para o teste.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Número de WhatsApp para Teste</label>
+                <input
+                  type="text"
+                  placeholder="Ex: 5511999999999"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={testPhoneNumber}
+                  onChange={(e) => setTestPhoneNumber(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Digite o número completo com DDI e DDD (apenas números).
                 </p>
               </div>
 
               <div className="bg-muted p-4 rounded-lg space-y-2">
                 <div className="flex justify-between items-start">
-                  <span className="text-sm font-medium">Lead:</span>
+                  <span className="text-sm font-medium">Lead Simulado:</span>
                   <span className="text-sm text-right">{validLeads[0].lead}</span>
                 </div>
                 <div className="flex justify-between items-start">
                   <span className="text-sm font-medium">Empresa:</span>
                   <span className="text-sm text-right">{validLeads[0].empresa}</span>
                 </div>
-                <div className="flex justify-between items-start">
-                  <span className="text-sm font-medium">WhatsApp:</span>
-                  <span className="text-sm text-right">{validLeads[0].whatsapp}</span>
-                </div>
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-xs font-medium text-blue-900 mb-2">Preview da Mensagem:</p>
                 <p className="text-xs text-blue-800 whitespace-pre-wrap max-h-32 overflow-y-auto">
-                  {validLeads[0].mensagemWhatsApp}
+                  {(isEditing && editedMessage) ? editedMessage : validLeads[0].mensagemWhatsApp}
                 </p>
               </div>
 

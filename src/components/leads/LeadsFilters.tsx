@@ -17,6 +17,8 @@ interface LeadsFiltersProps {
   setWhatsappStatusFilter?: (value: WhatsAppStatus | "all") => void;
   cidadeFilter?: string;
   setCidadeFilter?: (value: string) => void;
+  bairroFilter?: string;
+  setBairroFilter?: (value: string) => void;
   dateRangeFilter?: { start: string; end: string };
   setDateRangeFilter?: (value: { start: string; end: string } | undefined) => void;
 }
@@ -30,6 +32,8 @@ export const LeadsFilters = ({
   setWhatsappStatusFilter,
   cidadeFilter,
   setCidadeFilter,
+  bairroFilter,
+  setBairroFilter,
   dateRangeFilter,
   setDateRangeFilter,
 }: LeadsFiltersProps) => {
@@ -68,6 +72,7 @@ export const LeadsFilters = ({
     setHasWhatsAppFilter(false);
     if (setWhatsappStatusFilter) setWhatsappStatusFilter("all");
     if (setCidadeFilter) setCidadeFilter("");
+    if (setBairroFilter) setBairroFilter("");
     if (setDateRangeFilter) setDateRangeFilter(undefined);
   };
 
@@ -155,6 +160,19 @@ export const LeadsFilters = ({
                 placeholder="Ex: São Paulo"
                 value={cidadeFilter || ""}
                 onChange={(e) => setCidadeFilter(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* Filtro por Bairro */}
+          {setBairroFilter && (
+            <div className="space-y-2">
+              <Label htmlFor="bairro-filter">Bairro</Label>
+              <Input
+                id="bairro-filter"
+                placeholder="Ex: Centro"
+                value={bairroFilter || ""}
+                onChange={(e) => setBairroFilter(e.target.value)}
               />
             </div>
           )}
