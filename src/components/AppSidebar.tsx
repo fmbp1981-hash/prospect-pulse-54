@@ -116,11 +116,11 @@ export function AppSidebar() {
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <SidebarMenuButton
-                  tooltip="Configurações de Integração"
+                  tooltip="Configurações de Webhook WhatsApp"
                   className="group hover:bg-muted transition-all"
                 >
                   <Link2 className="h-5 w-5" />
-                  {!isCollapsed && <span className="font-medium">Integrações (Admin)</span>}
+                  {!isCollapsed && <span className="font-medium">Config. Webhook</span>}
                 </SidebarMenuButton>
               </DialogTrigger>
 
@@ -250,6 +250,22 @@ export function AppSidebar() {
                 </div>
               </SidebarMenuItem>
             </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* IntelliX.AI Footer */}
+        <SidebarGroup className="border-t border-border/40 pt-3 pb-3">
+          <SidebarGroupContent>
+            <div className="px-3 py-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <img
+                src="/intellix-logo.png"
+                alt="IntelliX.AI"
+                className="h-6 w-6 object-contain"
+              />
+              {!isCollapsed && (
+                <span>Desenvolvido por <strong className="text-primary">IntelliX.AI</strong></span>
+              )}
+            </div>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
