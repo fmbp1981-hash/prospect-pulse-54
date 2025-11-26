@@ -182,7 +182,7 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
         const { error } = await supabase
           .from("leads_prospeccao")
           .update({
-            estagio_pipeline: newStatus,
+            status: newStatus,
             updated_at: new Date().toISOString()
           })
           .eq("id", activeId);
