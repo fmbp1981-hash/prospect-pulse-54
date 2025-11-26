@@ -27,7 +27,7 @@ interface RoleBadgeProps {
  * ```
  */
 export function RoleBadge({ showIcon = true, variant = "default", className }: RoleBadgeProps) {
-  const { role, isLoading } = useUserRole();
+  const { role, isLoading, isAdmin } = useUserRole();
 
   if (isLoading) {
     return (
@@ -37,8 +37,10 @@ export function RoleBadge({ showIcon = true, variant = "default", className }: R
     );
   }
 
-  const Icon = ROLE_ICONS[role];
-  const colorClass = ROLE_COLORS[role];
+  // Se for admin (seja por email ou por role), exibir como admin
+  const displayRole = isAdmin ? 'admin' : role;
+  const Icon = ROLE_ICONS[displayRole];
+  const colorClass = ROLE_COLORS[displayRole];
 
   return (
     <Badge
@@ -46,7 +48,7 @@ export function RoleBadge({ showIcon = true, variant = "default", className }: R
       className={`${colorClass} text-white gap-1 ${className || ""}`}
     >
       {showIcon && <Icon className="h-3 w-3" />}
-      {ROLE_LABELS[role]}
+      {ROLE_LABELS[displayRole]}
     </Badge>
   );
 }

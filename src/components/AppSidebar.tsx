@@ -113,8 +113,8 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarContent>
+    <Sidebar collapsible="icon" className="bg-background border-r border-border">
+      <SidebarContent className="bg-background">
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -301,25 +301,22 @@ export function AppSidebar() {
         <SidebarGroup className="border-t border-border/40 pt-4 pb-4 bg-background">
           <SidebarGroupContent>
             {!isCollapsed ? (
-              <div className="px-3 py-2 flex flex-col items-center gap-3">
-                <span className="text-[11px] text-muted-foreground/70 font-medium">Desenvolvido por</span>
-                <div className="flex flex-col items-center gap-2">
-                  <img
-                    src="/intellix-logo.png"
-                    alt="IntelliX.AI"
-                    className="h-16 w-auto object-contain brightness-90 contrast-110"
-                  />
-                  <span className="text-lg font-bold bg-gradient-to-r from-yellow-500 via-amber-500 to-blue-500 bg-clip-text text-transparent tracking-wide">
-                    IntelliX.AI
-                  </span>
-                </div>
+              <div className="px-4 py-2 flex items-center justify-between gap-3">
+                <img
+                  src="/intellix-logo.png"
+                  alt="IntelliX.AI"
+                  className="h-20 w-auto object-contain brightness-90 contrast-110 flex-shrink-0"
+                />
+                <span className="text-[10px] text-muted-foreground/70 font-medium whitespace-nowrap">
+                  Desenvolvido por
+                </span>
               </div>
             ) : (
               <div className="px-3 py-2 flex items-center justify-center">
                 <img
                   src="/intellix-logo.png"
                   alt="IntelliX.AI"
-                  className="h-12 w-12 object-contain brightness-90 contrast-110"
+                  className="h-14 w-14 object-contain brightness-90 contrast-110"
                 />
               </div>
             )}
