@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TemplateManager } from "@/components/TemplateManager";
 import { RoleBadge } from "@/components/RoleBadge";
+import { supabase } from "@/integrations/supabase/client";
 
 import {
   Sidebar,
@@ -51,20 +52,63 @@ export function AppSidebar() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [whatsappWebhook, setWhatsappWebhook] = useState("");
 
+  // Carregar webhook do Supabase quando componente montar
   useEffect(() => {
-    const savedWebhook = localStorage.getItem("whatsapp_webhook_url");
-    if (savedWebhook) setWhatsappWebhook(savedWebhook);
-  }, []);
+    const loadWebhook = async () => {
+      if (!user?.id) return;
 
-  const handleSaveConfiguration = () => {
-    localStorage.setItem("whatsapp_webhook_url", whatsappWebhook);
-    toast.success("Configurações salvas com sucesso!");
-    setIsDialogOpen(false);
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('whatsapp_webhook_url')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao carregar webhook:', error);
+        return;
+      }
+
+      if (data?.whatsapp_webhook_url) {
+        setWhatsappWebhook(data.whatsapp_webhook_url);
+      }
+    };
+
+    loadWebhook();
+  }, [user?.id]);
+
+  const handleSaveConfiguration = async () => {
+    if (!user?.id) {
+      toast.error("Usuário não autenticado");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_settings')
+        .update({ whatsapp_webhook_url: whatsappWebhook })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast.success("Configurações salvas com sucesso!");
+      setIsDialogOpen(false);
+    } catch (error) {
+      console.error('Erro ao salvar webhook:', error);
+      toast.error("Erro ao salvar configurações");
+    }
   };
 
-  const handleCancelConfiguration = () => {
-    const savedWebhook = localStorage.getItem("whatsapp_webhook_url");
-    setWhatsappWebhook(savedWebhook || "");
+  const handleCancelConfiguration = async () => {
+    if (!user?.id) return;
+
+    // Recarregar do banco
+    const { data } = await supabase
+      .from('user_settings')
+      .select('whatsapp_webhook_url')
+      .eq('user_id', user.id)
+      .single();
+
+    setWhatsappWebhook(data?.whatsapp_webhook_url || "");
     setIsDialogOpen(false);
   };
 
@@ -258,11 +302,11 @@ export function AppSidebar() {
           <SidebarGroupContent>
             {!isCollapsed ? (
               <div className="px-3 py-2 flex flex-col items-center gap-3">
-                <span className="text-xs text-muted-foreground">Desenvolvido por</span>
+                <span className="text-xs text-muted-foreground font-medium">Desenvolvido por</span>
                 <img
                   src="/intellix-logo.png"
                   alt="IntelliX.AI"
-                  className="h-16 w-auto object-contain"
+                  className="h-24 w-auto object-contain brightness-75 contrast-125"
                 />
               </div>
             ) : (
@@ -270,7 +314,7 @@ export function AppSidebar() {
                 <img
                   src="/intellix-logo.png"
                   alt="IntelliX.AI"
-                  className="h-8 w-8 object-contain"
+                  className="h-10 w-10 object-contain brightness-75 contrast-125"
                 />
               </div>
             )}

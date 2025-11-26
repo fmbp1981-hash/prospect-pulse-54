@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Lead } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { auditWhatsAppDispatch } from "@/lib/audit";
 import { toast } from "sonner";
 
@@ -28,9 +30,11 @@ export const WhatsAppDispatchModal = ({
   onClose,
   selectedLeads
 }: WhatsAppDispatchModalProps) => {
+  const { user } = useAuth();
   const [testPhoneNumber, setTestPhoneNumber] = useState("");
   const [editedMessage, setEditedMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+  const [whatsappWebhook, setWhatsappWebhook] = useState<string | null>(null);
 
   // Filtrar leads válidos (com WhatsApp, mensagem e não enviados)
   const validLeads = selectedLeads.filter(lead =>
@@ -71,6 +75,28 @@ export const WhatsAppDispatchModal = ({
     }
   }, [isOpen, validLeads]);
 
+  // Carregar webhook do Supabase quando modal abrir
+  useEffect(() => {
+    const loadWebhook = async () => {
+      if (!isOpen || !user?.id) return;
+
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('whatsapp_webhook_url')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) {
+        console.error('Erro ao carregar webhook:', error);
+        return;
+      }
+
+      setWhatsappWebhook(data?.whatsapp_webhook_url || null);
+    };
+
+    loadWebhook();
+  }, [isOpen, user?.id]);
+
   const handleTestSend = async () => {
     if (validLeads.length === 0) {
       toast.error("Nenhum lead válido para teste");
@@ -82,7 +108,6 @@ export const WhatsAppDispatchModal = ({
       return;
     }
 
-    const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
     if (!whatsappWebhook) {
       toast.error("Configure o webhook WhatsApp nas Configurações da sidebar");
       return;
@@ -164,7 +189,6 @@ export const WhatsAppDispatchModal = ({
     }
 
     // Verificar se webhook está configurado
-    const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
     if (!whatsappWebhook) {
       toast.error("Configure o webhook WhatsApp nas Configurações da sidebar");
       return;
