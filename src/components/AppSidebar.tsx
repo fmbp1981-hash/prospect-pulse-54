@@ -298,23 +298,23 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* IntelliX.AI Footer */}
-        <SidebarGroup className="border-t border-border/40 pt-4 pb-4">
+        <SidebarGroup className="border-t border-border/40 pt-2 pb-2 bg-background">
           <SidebarGroupContent>
             {!isCollapsed ? (
-              <div className="px-3 py-2 flex flex-col items-center gap-3">
-                <span className="text-xs text-muted-foreground font-medium">Desenvolvido por</span>
+              <div className="px-3 py-1 flex flex-col items-center gap-1">
+                <span className="text-[10px] text-muted-foreground/60 font-normal tracking-wide">Desenvolvido por</span>
                 <img
                   src="/intellix-logo.png"
                   alt="IntelliX.AI"
-                  className="h-24 w-auto object-contain brightness-75 contrast-125"
+                  className="h-16 w-auto object-contain brightness-75 contrast-125"
                 />
               </div>
             ) : (
-              <div className="px-3 py-2 flex items-center justify-center">
+              <div className="px-3 py-1 flex items-center justify-center">
                 <img
                   src="/intellix-logo.png"
                   alt="IntelliX.AI"
-                  className="h-10 w-10 object-contain brightness-75 contrast-125"
+                  className="h-8 w-8 object-contain brightness-75 contrast-125"
                 />
               </div>
             )}
