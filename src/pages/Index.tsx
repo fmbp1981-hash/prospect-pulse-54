@@ -3,7 +3,7 @@ import { ProspectionForm } from "@/components/ProspectionForm";
 import { SearchHistory } from "@/components/SearchHistory";
 import { QuickStats } from "@/components/QuickStats";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
-import { Rocket, TrendingUp, Database, Sparkles, Zap } from "lucide-react";
+import { Rocket, TrendingUp, Database, Sparkles, Zap, LayoutGrid, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { historyService } from "@/lib/history";
@@ -99,15 +99,24 @@ const Index = () => {
         duration: 5000,
       });
 
-      // Atualizar timestamp da pesquisa
+      // Atualizar timestamp e status da pesquisa no UI
       const updatedSearches = searches.map(s =>
         s.id === search.id
-          ? { ...s, timestamp: new Date(), status: 'processing' as const }
+          ? { ...s, timestamp: new Date(), status: 'completed' as const, savedCount: data.count }
           : s
       );
       setSearches(updatedSearches);
 
-      // TODO: Update status in DB if needed, for now just UI update
+      // Atualizar status no banco de dados
+      try {
+        await historyService.updateSearch(search.id, {
+          status: 'completed',
+          saved_count: data.count
+        });
+      } catch (updateError) {
+        console.error('Failed to update search in DB:', updateError);
+        // Não bloquear o fluxo se falhar a atualização
+      }
     } catch (error) {
       console.error("Erro ao reprocessar prospecção:", error);
 
@@ -175,17 +184,43 @@ const Index = () => {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-4 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="p-6 rounded-xl border bg-card shadow-sm hover:shadow-md transition-all group">
             <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
               <TrendingUp className="h-6 w-6 text-primary" />
             </div>
             <h4 className="font-semibold mb-2 flex items-center gap-2">
-              Dashboard
+              Dashboard Analítico
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">Ativo</span>
             </h4>
             <p className="text-sm text-muted-foreground">
               Visualize métricas de conversão, gráficos interativos e performance em tempo real
+            </p>
+          </div>
+
+          <div className="p-6 rounded-xl border bg-card shadow-sm hover:shadow-md transition-all group">
+            <div className="h-12 w-12 rounded-lg bg-purple-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <LayoutGrid className="h-6 w-6 text-purple-500" />
+            </div>
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              Kanban Board
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">Ativo</span>
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              Gerencie seus leads com drag & drop entre os estágios do pipeline de vendas
+            </p>
+          </div>
+
+          <div className="p-6 rounded-xl border bg-card shadow-sm hover:shadow-md transition-all group">
+            <div className="h-12 w-12 rounded-lg bg-green-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <MessageSquare className="h-6 w-6 text-green-500" />
+            </div>
+            <h4 className="font-semibold mb-2 flex items-center gap-2">
+              WhatsApp em Massa
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">Ativo</span>
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              Envie mensagens personalizadas em massa com integração Evolution API e templates IA
             </p>
           </div>
 
@@ -195,10 +230,10 @@ const Index = () => {
             </div>
             <h4 className="font-semibold mb-2 flex items-center gap-2">
               Enriquecimento IA
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">Novo</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">Ativo</span>
             </h4>
             <p className="text-sm text-muted-foreground">
-              Geração automática de mensagens personalizadas e análise de dados com IA
+              Geração automática de mensagens personalizadas com IA e scraping de websites
             </p>
           </div>
 
@@ -207,11 +242,11 @@ const Index = () => {
               <Rocket className="h-6 w-6 text-warning" />
             </div>
             <h4 className="font-semibold mb-2 flex items-center gap-2">
-              Campanhas
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20">Próxima Fase</span>
+              Automações
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20">Em Breve</span>
             </h4>
             <p className="text-sm text-muted-foreground">
-              Crie sequências de mensagens e automações de follow-up para seus leads
+              Sequências de mensagens automáticas e follow-ups inteligentes para seus leads
             </p>
           </div>
 
@@ -221,7 +256,7 @@ const Index = () => {
             </div>
             <h4 className="font-semibold mb-2 flex items-center gap-2">
               Integração CRM
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">Futuro</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">Planejado</span>
             </h4>
             <p className="text-sm text-muted-foreground">
               Conecte com Pipedrive, HubSpot e RD Station para sincronização automática

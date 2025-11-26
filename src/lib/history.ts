@@ -94,5 +94,18 @@ export const historyService = {
             console.error('Error deleting search:', error);
             throw error;
         }
+    },
+
+    // Update search status and saved count
+    async updateSearch(id: string, updates: { status?: string; saved_count?: number }): Promise<void> {
+        const { error } = await (supabase
+            .from('search_history' as any)
+            .update(updates)
+            .eq('id', id));
+
+        if (error) {
+            console.error('Error updating search:', error);
+            throw error;
+        }
     }
 };
