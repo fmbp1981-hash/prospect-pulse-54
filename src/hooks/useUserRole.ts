@@ -89,8 +89,8 @@ export function useUserRole(): UseUserRoleReturn {
   const permissions = ROLE_PERMISSIONS[role];
 
   // Helpers para verificação de role
-  // Admin deve ser role='admin' E email específico
-  const isAdmin = role === 'admin' && user?.email === 'fmbp1981@gmail.com';
+  // Email fmbp1981@gmail.com SEMPRE tem acesso admin irrestrito
+  const isAdmin = user?.email === 'fmbp1981@gmail.com' || role === 'admin';
   const isOperador = role === 'operador';
   const isVisualizador = role === 'visualizador';
 
