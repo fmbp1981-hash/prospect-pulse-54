@@ -35,6 +35,10 @@ export const WhatsAppDispatchModal = ({
   const [editedMessage, setEditedMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [whatsappWebhook, setWhatsappWebhook] = useState<string | null>(null);
+  const [statuses, setStatuses] = useState<DispatchStatus[]>([]);
+  const [isDispatching, setIsDispatching] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [showTestConfirm, setShowTestConfirm] = useState(false);
 
   // Filtrar leads válidos (com WhatsApp, mensagem e não enviados)
   const validLeads = selectedLeads.filter(lead =>
