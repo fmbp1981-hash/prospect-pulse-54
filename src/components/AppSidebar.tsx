@@ -256,16 +256,24 @@ export function AppSidebar() {
         {/* IntelliX.AI Footer */}
         <SidebarGroup className="border-t border-border/40 pt-4 pb-4">
           <SidebarGroupContent>
-            <div className="px-3 py-2 flex items-center gap-3 text-sm text-muted-foreground">
-              <img
-                src="/intellix-logo.png"
-                alt="IntelliX.AI"
-                className="h-12 w-12 object-contain flex-shrink-0"
-              />
-              {!isCollapsed && (
-                <span className="leading-tight">Desenvolvido por <strong className="text-primary">IntelliX.AI</strong></span>
-              )}
-            </div>
+            {!isCollapsed ? (
+              <div className="px-3 py-2 flex flex-col items-center gap-3">
+                <span className="text-xs text-muted-foreground">Desenvolvido por</span>
+                <img
+                  src="/intellix-logo.png"
+                  alt="IntelliX.AI"
+                  className="h-16 w-auto object-contain"
+                />
+              </div>
+            ) : (
+              <div className="px-3 py-2 flex items-center justify-center">
+                <img
+                  src="/intellix-logo.png"
+                  alt="IntelliX.AI"
+                  className="h-8 w-8 object-contain"
+                />
+              </div>
+            )}
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
