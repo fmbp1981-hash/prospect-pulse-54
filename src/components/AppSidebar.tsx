@@ -302,14 +302,14 @@ export function AppSidebar() {
           <SidebarGroupContent>
             {!isCollapsed ? (
               <div className="px-4 py-2 flex items-center justify-between gap-3">
+                <span className="text-[10px] text-muted-foreground/70 font-medium whitespace-nowrap">
+                  Desenvolvido por
+                </span>
                 <img
                   src="/intellix-logo.png"
                   alt="IntelliX.AI"
                   className="h-20 w-auto object-contain brightness-90 contrast-110 flex-shrink-0"
                 />
-                <span className="text-[10px] text-muted-foreground/70 font-medium whitespace-nowrap">
-                  Desenvolvido por
-                </span>
               </div>
             ) : (
               <div className="px-3 py-2 flex items-center justify-center">
