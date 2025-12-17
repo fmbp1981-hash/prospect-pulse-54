@@ -4,7 +4,7 @@ export interface AuditLog {
   action: string;
   entity_type: string;
   entity_id?: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export const logAudit = async (log: AuditLog) => {
@@ -87,7 +87,7 @@ export const auditWhatsAppDispatch = (leadIds: string[], successCount: number, f
   });
 };
 
-export const auditProspection = (niche: string, location: any, quantity: number) => {
+export const auditProspection = (niche: string, location: unknown, quantity: number) => {
   logAudit({
     action: "START_PROSPECTION",
     entity_type: "prospection",

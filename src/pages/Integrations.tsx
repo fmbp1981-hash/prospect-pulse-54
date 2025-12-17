@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
   Activity,
   ShieldAlert,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { getAuditLogs } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -26,8 +27,31 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 export default function Integrations() {
   const { isAdmin, isLoading: isLoadingRole } = useUserRole();
   const [webhookUrl, setWebhookUrl] = useState("");
-  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
+  type AuditLogRow = {
+    id: string;
+    action: string;
+    entity_type: string;
+    entity_id?: string | null;
+    details?: Record<string, unknown> | null;
+    created_at: string;
+    user_id?: string | null;
+  };
+
+  const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  const loadAuditLogs = useCallback(async () => {
+    setIsLoadingLogs(true);
+    try {
+      const logs = await getAuditLogs(50);
+      setAuditLogs(logs as AuditLogRow[]);
+    } catch (error) {
+      console.error("Erro ao carregar logs:", error);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  }, []);
 
   useEffect(() => {
     // Carregar webhook URL do localStorage
@@ -38,19 +62,7 @@ export default function Integrations() {
 
     // Carregar logs de auditoria
     loadAuditLogs();
-  }, []);
-
-  const loadAuditLogs = async () => {
-    setIsLoadingLogs(true);
-    try {
-      const logs = await getAuditLogs(50);
-      setAuditLogs(logs);
-    } catch (error) {
-      console.error("Erro ao carregar logs:", error);
-    } finally {
-      setIsLoadingLogs(false);
-    }
-  };
+  }, [loadAuditLogs]);
 
   const handleSaveWebhook = () => {
     try {
@@ -67,7 +79,7 @@ export default function Integrations() {
   };
 
   const getStatusBadge = (action: string) => {
-    const statusMap: Record<string, { color: string; icon: any }> = {
+    const statusMap: Record<string, { color: string; icon: LucideIcon }> = {
       EXPORT_LEADS: { color: "bg-blue-500", icon: CheckCircle2 },
       WHATSAPP_DISPATCH: { color: "bg-green-500", icon: CheckCircle2 },
       START_PROSPECTION: { color: "bg-purple-500", icon: CheckCircle2 },

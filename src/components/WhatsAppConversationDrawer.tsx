@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,13 +37,7 @@ export function WhatsAppConversationDrawer({
   const [isSending, setIsSending] = useState(false);
   const [newMessage, setNewMessage] = useState("");
 
-  useEffect(() => {
-    if (isOpen && leadId) {
-      loadConversations();
-    }
-  }, [isOpen, leadId]);
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     if (!leadId) return;
 
     setIsLoading(true);
@@ -63,7 +57,13 @@ export function WhatsAppConversationDrawer({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [leadId]);
+
+  useEffect(() => {
+    if (isOpen && leadId) {
+      loadConversations();
+    }
+  }, [isOpen, leadId, loadConversations]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !leadId) return;

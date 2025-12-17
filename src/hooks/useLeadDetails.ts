@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -13,7 +13,7 @@ export interface Interaction {
     id: string;
     type: 'status_change' | 'whatsapp_sent' | 'note_added' | 'manual_log';
     description: string;
-    metadata: any;
+    metadata: Record<string, unknown> | null;
     created_at: string;
     user_id: string;
 }
@@ -24,13 +24,7 @@ export function useLeadDetails(leadId: string | undefined) {
     const [tags, setTags] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
-    useEffect(() => {
-        if (leadId) {
-            loadDetails();
-        }
-    }, [leadId]);
-
-    const loadDetails = async () => {
+    const loadDetails = useCallback(async () => {
         if (!leadId) return;
         setIsLoading(true);
         try {
@@ -67,7 +61,13 @@ export function useLeadDetails(leadId: string | undefined) {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [leadId]);
+
+    useEffect(() => {
+        if (leadId) {
+            loadDetails();
+        }
+    }, [leadId, loadDetails]);
 
     const addNote = async (content: string) => {
         if (!leadId) return;

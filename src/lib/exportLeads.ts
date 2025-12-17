@@ -23,7 +23,7 @@ export interface LeadForExport {
 }
 
 // Sanitizar dados para prevenir CSV injection
-const sanitizeForCSV = (value: any): string => {
+const sanitizeForCSV = (value: unknown): string => {
   if (value === undefined || value === null) return '';
 
   const stringValue = String(value);

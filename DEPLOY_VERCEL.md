@@ -10,6 +10,10 @@
 
 ## 📋 Passo a Passo
 
+> Nota importante: este repositório contém uma pasta `prospect-pulse-54/` com um projeto duplicado (legado).
+> O deploy e os comandos (`npm run dev/build`) devem ser executados a partir da **raiz do repositório**.
+> Se no Vercel o **Root Directory** estiver apontando para `prospect-pulse-54/`, ajuste para **(vazio / root)**.
+
 ### 1. Acessar Vercel Dashboard
 
 1. Acesse https://vercel.com/dashboard

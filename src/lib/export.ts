@@ -115,11 +115,11 @@ export const exportToExcel = (leads: Lead[], filename: string, selectedColumns?:
   };
 
   const data = leads.map(lead => {
-    const row: Record<string, any> = {};
+    const row: Record<string, unknown> = {};
     
     Object.entries(columnMapping).forEach(([displayName, key]) => {
       if (!selectedColumns || selectedColumns.includes(displayName)) {
-        row[displayName] = lead[key] || '';
+        row[displayName] = lead[key] ?? '';
       }
     });
     

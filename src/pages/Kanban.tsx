@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { LayoutGrid, Loader2 } from "lucide-react";
 import { Lead } from "@/types/prospection";
@@ -11,8 +11,12 @@ export default function Kanban() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadLeads = async () => {
-    if (!user?.id) return;
+  const loadLeads = useCallback(async () => {
+    if (!user?.id) {
+      setLeads([]);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -24,18 +28,18 @@ export default function Kanban() {
 
       if (error) throw error;
 
-      setLeads(data || []);
+      setLeads((data || []) as Lead[]);
     } catch (error) {
       console.error('Erro ao carregar leads:', error);
       toast.error('Erro ao carregar leads');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     loadLeads();
-  }, [user?.id]);
+  }, [loadLeads]);
 
   if (isLoading) {
     return (

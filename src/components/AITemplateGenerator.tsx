@@ -16,6 +16,8 @@ interface AITemplateGeneratorProps {
   onGenerated: (name: string, category: string, variations: MessageVariation[]) => void;
 }
 
+type AITemplateTone = "profissional" | "casual" | "misto";
+
 const TEMPLATE_CATEGORIES = [
   "Primeiro Contato",
   "Follow-up",
@@ -32,7 +34,7 @@ export function AITemplateGenerator({
 }: AITemplateGeneratorProps) {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Primeiro Contato");
-  const [tone, setTone] = useState<"profissional" | "casual" | "misto">("misto");
+  const [tone, setTone] = useState<AITemplateTone>("misto");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVariations, setGeneratedVariations] = useState<MessageVariation[]>([]);
   const [generatedName, setGeneratedName] = useState("");
@@ -209,7 +211,7 @@ export function AITemplateGenerator({
 
                 <div className="space-y-2">
                   <Label htmlFor="tone">Tom Geral</Label>
-                  <Select value={tone} onValueChange={(v) => setTone(v as any)}>
+                  <Select value={tone} onValueChange={(v) => setTone(v as AITemplateTone)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>

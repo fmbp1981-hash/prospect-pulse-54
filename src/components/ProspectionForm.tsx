@@ -18,6 +18,8 @@ interface ProspectionFormProps {
   lastSearch?: ProspectionSearch;
 }
 
+type ProspectionFormDataWithSavedCount = ProspectionFormData & { savedCount?: number };
+
 export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
@@ -138,7 +140,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       onSearch({
         ...formData,
         savedCount: insertedCount
-      } as any); // Cast as any because ProspectionFormData doesn't have savedCount, but we pass it to handleNewSearch which uses it for ProspectionSearch
+      } as ProspectionFormDataWithSavedCount);
 
       // Reset form
       setFormData({

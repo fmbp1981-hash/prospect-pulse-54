@@ -1,6 +1,16 @@
 import { supabase } from "@/integrations/supabase/client";
 import { ProspectionSearch, LocationData } from "@/types/prospection";
 
+type SearchHistoryRow = {
+    id: string;
+    niche: string;
+    location: LocationData;
+    quantity: number;
+    status: ProspectionSearch['status'];
+    saved_count: number;
+    created_at: string;
+};
+
 export interface SearchHistoryItem {
     id: string;
     user_id: string;
@@ -15,32 +25,34 @@ export interface SearchHistoryItem {
 export const historyService = {
     // Fetch history from Supabase
     async getHistory(): Promise<ProspectionSearch[]> {
-        // Cast to any to bypass type check for new table
-        const { data, error } = await (supabase
-            .from('search_history' as any)
+        // A tabela `search_history` pode não existir no types gerado; forçamos apenas o tipo (sem alterar o valor runtime).
+        const { data, error } = await supabase
+            .from('search_history' as unknown as 'leads_prospeccao')
             .select('*')
-            .order('created_at', { ascending: false }));
+            .order('created_at', { ascending: false });
 
         if (error) {
             console.error('Error fetching history:', error);
             throw error;
         }
 
-        return (data || []).map((item: any) => ({
+        const rows = (data || []) as unknown as SearchHistoryRow[];
+
+        return rows.map((item) => ({
             id: item.id,
             niche: item.niche,
-            location: item.location as LocationData,
+            location: item.location,
             quantity: item.quantity,
             timestamp: new Date(item.created_at),
-            status: item.status as any,
-            savedCount: item.saved_count
+            status: item.status,
+            savedCount: item.saved_count,
         }));
     },
 
     // Save new search to Supabase
     async saveSearch(search: Omit<ProspectionSearch, 'id' | 'timestamp'> & { user_id?: string }): Promise<ProspectionSearch> {
-        const { data, error } = await (supabase
-            .from('search_history' as any)
+        const { data, error } = await supabase
+            .from('search_history' as unknown as 'leads_prospeccao')
             .insert({
                 niche: search.niche,
                 location: search.location, // Supabase handles JSONB automatically
@@ -50,32 +62,32 @@ export const historyService = {
                 user_id: search.user_id || (await supabase.auth.getUser()).data.user?.id
             })
             .select()
-            .single());
+            .single();
 
         if (error) {
             console.error('Error saving search:', error);
             throw error;
         }
 
-        const row = data as any;
+        const row = data as unknown as SearchHistoryRow;
 
         return {
             id: row.id,
             niche: row.niche,
-            location: row.location as LocationData,
+            location: row.location,
             quantity: row.quantity,
             timestamp: new Date(row.created_at),
-            status: row.status as any,
+            status: row.status,
             savedCount: row.saved_count
         };
     },
 
     // Clear all history for user
     async clearHistory(): Promise<void> {
-        const { error } = await (supabase
-            .from('search_history' as any)
+        const { error } = await supabase
+            .from('search_history' as unknown as 'leads_prospeccao')
             .delete()
-            .neq('id', '00000000-0000-0000-0000-000000000000')); // Delete all rows where ID is not empty UUID (effectively all)
+            .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows where ID is not empty UUID (effectively all)
 
         if (error) {
             console.error('Error clearing history:', error);
@@ -85,10 +97,10 @@ export const historyService = {
 
     // Delete single item
     async deleteSearch(id: string): Promise<void> {
-        const { error } = await (supabase
-            .from('search_history' as any)
+        const { error } = await supabase
+            .from('search_history' as unknown as 'leads_prospeccao')
             .delete()
-            .eq('id', id));
+            .eq('id', id);
 
         if (error) {
             console.error('Error deleting search:', error);
@@ -97,11 +109,11 @@ export const historyService = {
     },
 
     // Update search status and saved count
-    async updateSearch(id: string, updates: { status?: string; saved_count?: number }): Promise<void> {
-        const { error } = await (supabase
-            .from('search_history' as any)
+    async updateSearch(id: string, updates: { status?: ProspectionSearch['status']; saved_count?: number }): Promise<void> {
+        const { error } = await supabase
+            .from('search_history' as unknown as 'leads_prospeccao')
             .update(updates)
-            .eq('id', id));
+            .eq('id', id);
 
         if (error) {
             console.error('Error updating search:', error);

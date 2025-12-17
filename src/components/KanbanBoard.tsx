@@ -10,8 +10,13 @@ import { toast } from "sonner";
 import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
 
 interface KanbanBoardProps {
-  leads: Lead[];
-  onLeadUpdate: () => void;
+  /**
+   * Lista de leads para renderização.
+   * Mantido como opcional para evitar quebra em rotas antigas/duplicadas.
+   */
+  leads?: Lead[];
+  /** Callback opcional para recarregar lista após updates */
+  onLeadUpdate?: () => void;
 }
 
 const LEAD_STATUSES: LeadStatus[] = [
@@ -142,6 +147,8 @@ function KanbanColumn({ status, leads, onCardClick }: KanbanColumnProps) {
 }
 
 export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
+  const safeLeads = Array.isArray(leads) ? leads : [];
+  const notifyLeadUpdate = onLeadUpdate ?? (() => {});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -174,7 +181,7 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
       return;
     }
 
-    const lead = leads.find((l) => l.id === activeId);
+    const lead = safeLeads.find((l) => l.id === activeId);
 
     if (lead && lead.status !== newStatus) {
       // Atualizar no banco
@@ -190,7 +197,7 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
         if (error) throw error;
 
         toast.success(`Lead movido para ${newStatus}`);
-        onLeadUpdate(); // Notificar pai para atualizar lista
+        notifyLeadUpdate(); // Notificar pai para atualizar lista
       } catch (error) {
         console.error("Error updating lead:", error);
         toast.error("Erro ao atualizar lead");
@@ -204,15 +211,15 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
   };
 
   const handleDrawerUpdate = () => {
-    onLeadUpdate();
+    notifyLeadUpdate();
   };
 
   const leadsByStatus = LEAD_STATUSES.reduce((acc, status) => {
-    acc[status] = leads.filter((l) => l.status === status);
+    acc[status] = safeLeads.filter((l) => l.status === status);
     return acc;
   }, {} as Record<LeadStatus, Lead[]>);
 
-  const activeLead = activeId ? leads.find((l) => l.id === activeId) : null;
+  const activeLead = activeId ? safeLeads.find((l) => l.id === activeId) : null;
 
   return (
     <>

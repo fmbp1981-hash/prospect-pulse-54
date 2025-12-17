@@ -27,3 +27,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Temporary debug captures (Copilot/CLI)
+eslint-out.txt
+eslint-output.txt
+build-out.txt
+build-cmd-out.txt
+submodule-status.txt
+
+# Projeto duplicado (legado) dentro do repo
+# Mantido localmente, mas não deve ser versionado nem afetar deploy/lint.
+prospect-pulse-54/

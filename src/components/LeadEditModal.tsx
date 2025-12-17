@@ -109,7 +109,7 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
 
     try {
       // Mapear campos do formulário para os campos do banco de dados
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         empresa: data.empresa,
         status: data.status,
         contato: data.contato || null,

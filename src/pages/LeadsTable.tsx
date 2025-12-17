@@ -114,12 +114,12 @@ const LeadsTable = () => {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(lead =>
-        lead.lead.toLowerCase().includes(term) ||
-        lead.empresa.toLowerCase().includes(term) ||
-        lead.whatsapp.includes(term) ||
-        lead.cidade?.toLowerCase().includes(term) ||
-        lead.categoria?.toLowerCase().includes(term) ||
-        lead.endereco?.toLowerCase().includes(term)
+        (lead.lead || "").toLowerCase().includes(term) ||
+        (lead.empresa || "").toLowerCase().includes(term) ||
+        (lead.whatsapp || "").toLowerCase().includes(term) ||
+        (lead.cidade || "").toLowerCase().includes(term) ||
+        (lead.categoria || "").toLowerCase().includes(term) ||
+        (lead.endereco || "").toLowerCase().includes(term)
       );
     }
 

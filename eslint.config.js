@@ -5,7 +5,17 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  {
+    ignores: [
+      "dist",
+      // Projeto duplicado dentro do repo (não deve ser lintado)
+      "prospect-pulse-54/**",
+      // Backend/edge functions (Deno) e arquivos de suporte
+      "supabase/**",
+      "**/*.backup.ts",
+      "vite.config.ts.timestamp-*",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -19,7 +29,9 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      // Este repo exporta HOCs/helpers junto com componentes (padrão shadcn).
+      // A regra gera muitos falsos positivos e não afeta o build/runtime.
+      "react-refresh/only-export-components": "off",
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
