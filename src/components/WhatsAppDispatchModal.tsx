@@ -28,6 +28,10 @@ export const WhatsAppDispatchModal = ({
   onClose,
   selectedLeads
 }: WhatsAppDispatchModalProps) => {
+  const [statuses, setStatuses] = useState<DispatchStatus[]>([]);
+  const [isDispatching, setIsDispatching] = useState(false);
+  const [testMode, setTestMode] = useState(false);
+  const [showTestConfirm, setShowTestConfirm] = useState(false);
   const [testPhoneNumber, setTestPhoneNumber] = useState("");
   const [editedMessage, setEditedMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
