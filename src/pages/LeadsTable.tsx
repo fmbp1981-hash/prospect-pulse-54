@@ -87,7 +87,7 @@ const LeadsTable = () => {
       const result = await supabaseCRM.syncAllLeads();
 
       if (result.success) {
-        setLeads(result.leads);
+        setLeads(Array.isArray(result.leads) ? result.leads : []);
       } else {
         toast.error("Erro ao carregar leads", {
           description: result.message || "Erro ao acessar banco de dados",
@@ -116,7 +116,7 @@ const LeadsTable = () => {
 
   // Filtrar e ordenar leads
   const filteredAndSortedLeads = useMemo(() => {
-    let filtered = leads;
+    let filtered = Array.isArray(leads) ? leads : [];
 
     // Busca full-text
     if (searchTerm) {
@@ -233,7 +233,8 @@ const LeadsTable = () => {
   };
 
   const getSelectedLeadsData = () => {
-    return leads.filter(lead => selectedLeads.has(lead.id));
+    const safeLeads = Array.isArray(leads) ? leads : [];
+    return safeLeads.filter(lead => selectedLeads.has(lead.id));
   };
 
   // Exportação melhorada
