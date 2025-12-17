@@ -83,16 +83,24 @@ const LeadsTable = () => {
 
   const loadLeads = async () => {
     setIsLoading(true);
-    const result = await supabaseCRM.syncAllLeads();
+    try {
+      const result = await supabaseCRM.syncAllLeads();
 
-    if (result.success) {
-      setLeads(result.leads);
-    } else {
+      if (result.success) {
+        setLeads(result.leads);
+      } else {
+        toast.error("Erro ao carregar leads", {
+          description: result.message || "Erro ao acessar banco de dados",
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao carregar leads:", error);
       toast.error("Erro ao carregar leads", {
-        description: result.message || "Erro ao acessar banco de dados",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
       });
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleSync = async () => {
@@ -114,12 +122,12 @@ const LeadsTable = () => {
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(lead =>
-        lead.lead.toLowerCase().includes(term) ||
-        lead.empresa.toLowerCase().includes(term) ||
-        lead.whatsapp.includes(term) ||
-        lead.cidade?.toLowerCase().includes(term) ||
-        lead.categoria?.toLowerCase().includes(term) ||
-        lead.endereco?.toLowerCase().includes(term)
+        (lead.lead || "").toLowerCase().includes(term) ||
+        (lead.empresa || "").toLowerCase().includes(term) ||
+        (lead.whatsapp || "").toLowerCase().includes(term) ||
+        (lead.cidade || "").toLowerCase().includes(term) ||
+        (lead.categoria || "").toLowerCase().includes(term) ||
+        (lead.endereco || "").toLowerCase().includes(term)
       );
     }
 
