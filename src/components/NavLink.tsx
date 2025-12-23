@@ -13,7 +13,10 @@ export function NavLink({
   ...props 
 }: NavLinkProps) {
   const location = useLocation();
-  const isActive = location.pathname === to;
+  
+  // Safely compare pathname - handle both string and object 'to' prop
+  const toPath = typeof to === 'string' ? to : to.pathname || '';
+  const isActive = location.pathname === toPath;
 
   return (
     <Link

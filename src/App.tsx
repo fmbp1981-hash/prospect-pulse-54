@@ -9,6 +9,7 @@ import { Toaster as HotToast } from "react-hot-toast";
 import { Layout } from "@/components/Layout";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Dashboard from "./pages/DashboardV2";
 import LeadsTable from "./pages/LeadsTable";
@@ -26,7 +27,7 @@ function AnimatedRoutes() {
   const location = useLocation();
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="sync">
       <Routes location={location} key={location.pathname}>
         {/* Public routes */}
         <Route path="/auth/login" element={<Login />} />
@@ -39,7 +40,9 @@ function AnimatedRoutes() {
           element={
             <ProtectedRoute>
               <Layout>
-                <Index />
+                <ErrorBoundary>
+                  <Index />
+                </ErrorBoundary>
               </Layout>
             </ProtectedRoute>
           }
@@ -49,7 +52,9 @@ function AnimatedRoutes() {
           element={
             <ProtectedRoute>
               <Layout>
-                <Dashboard />
+                <ErrorBoundary>
+                  <Dashboard />
+                </ErrorBoundary>
               </Layout>
             </ProtectedRoute>
           }
@@ -59,7 +64,9 @@ function AnimatedRoutes() {
           element={
             <ProtectedRoute>
               <Layout>
-                <LeadsTable />
+                <ErrorBoundary>
+                  <LeadsTable />
+                </ErrorBoundary>
               </Layout>
             </ProtectedRoute>
           }
@@ -69,7 +76,9 @@ function AnimatedRoutes() {
           element={
             <ProtectedRoute>
               <Layout>
-                <Kanban />
+                <ErrorBoundary>
+                  <Kanban />
+                </ErrorBoundary>
               </Layout>
             </ProtectedRoute>
           }
@@ -79,7 +88,9 @@ function AnimatedRoutes() {
           element={
             <ProtectedRoute>
               <Layout>
-                <Settings />
+                <ErrorBoundary>
+                  <Settings />
+                </ErrorBoundary>
               </Layout>
             </ProtectedRoute>
           }
@@ -89,7 +100,9 @@ function AnimatedRoutes() {
           element={
             <ProtectedRoute>
               <Layout>
-                <Integrations />
+                <ErrorBoundary>
+                  <Integrations />
+                </ErrorBoundary>
               </Layout>
             </ProtectedRoute>
           }
