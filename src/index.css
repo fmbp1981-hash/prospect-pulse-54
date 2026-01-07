@@ -59,8 +59,8 @@ All colors MUST be HSL.
     --shadow-card: 0 4px 6px -1px hsl(201 79% 26% / 0.1), 0 2px 4px -1px hsl(201 79% 26% / 0.06);
     --shadow-elevated: 0 20px 25px -5px hsl(201 79% 26% / 0.1), 0 10px 10px -5px hsl(201 79% 26% / 0.04);
 
-    /* Sidebar colors with PRD palette */
-    --sidebar-background: 0 0% 98%;
+    /* Sidebar colors with PRD palette - OPAQUE backgrounds */
+    --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 192 9% 20%;
     --sidebar-primary: 201 79% 26%;
     --sidebar-primary-foreground: 0 0% 100%;
@@ -120,13 +120,14 @@ All colors MUST be HSL.
     --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.3), 0 2px 4px -1px hsl(0 0% 0% / 0.2);
     --shadow-elevated: 0 20px 25px -5px hsl(0 0% 0% / 0.3), 0 10px 10px -5px hsl(0 0% 0% / 0.2);
 
-    --sidebar-background: 192 9% 10%;
+    /* Sidebar OPAQUE for dark mode */
+    --sidebar-background: 192 9% 8%;
     --sidebar-foreground: 210 29% 97%;
     --sidebar-primary: 201 79% 35%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 201 20% 16%;
     --sidebar-accent-foreground: 210 29% 97%;
-    --sidebar-border: 201 20% 16%;
+    --sidebar-border: 201 20% 18%;
     --sidebar-ring: 201 79% 35%;
   }
 }
@@ -234,7 +235,7 @@ All colors MUST be HSL.
     }
   }
 
-  /* Sidebar custom styles */
+  /* Sidebar custom styles - OPAQUE BACKGROUND */
   [data-sidebar] {
     --sidebar-background: hsl(var(--background));
     --sidebar-foreground: hsl(var(--foreground));
@@ -242,6 +243,46 @@ All colors MUST be HSL.
     --sidebar-primary-foreground: #ffffff;
     --sidebar-accent: rgba(15, 76, 117, 0.1);
     --sidebar-accent-foreground: #0F4C75;
+  }
+
+  /* Force sidebar to be fully opaque */
+  .sidebar,
+  [data-sidebar="sidebar"],
+  aside[data-sidebar] {
+    background-color: hsl(var(--sidebar-background)) !important;
+    opacity: 1 !important;
+  }
+
+  .dark .sidebar,
+  .dark [data-sidebar="sidebar"],
+  .dark aside[data-sidebar] {
+    background-color: hsl(192 9% 8%) !important;
+  }
+
+  /* Leads table scroll container */
+  .leads-table-container {
+    max-height: calc(100vh - 280px);
+    overflow-y: auto;
+    overflow-x: auto;
+  }
+
+  .leads-table-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .leads-table-container::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 4px;
+  }
+
+  .leads-table-container::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.3);
+    border-radius: 4px;
+  }
+
+  .leads-table-container::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.5);
   }
 
   /* Hover glow effect */

@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from "react";
 import { LayoutDashboard, Table, Search, Settings, Link2, MessageSquare, CheckCircle, LogOut, User, FileText, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
@@ -5,6 +7,7 @@ import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TemplateManager } from "@/components/TemplateManager";
@@ -43,7 +46,8 @@ const items = [
 ];
 
 export function AppSidebar() {
-  const { user, signOut, isAdmin } = useAuth();
+  const { user, signOut } = useAuth();
+  const { isAdmin } = useUserRole();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
@@ -69,8 +73,13 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="bg-sidebar border-r border-sidebar-border">
       <SidebarContent>
+        {/* Logo no topo */}
+        <div className="px-4 py-5 border-b border-sidebar-border">
+          <Logo size={isCollapsed ? "sm" : "md"} showText={!isCollapsed} />
+        </div>
+
         <SidebarGroup>
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -94,7 +103,7 @@ export function AppSidebar() {
                         </button>
                       ) : (
                         <NavLink
-                          to={item.url}
+                          href={item.url}
                           className="group relative overflow-hidden rounded-lg transition-all duration-200 hover:scale-[1.02] hover:bg-primary hover:text-primary-foreground hover:shadow-lg my-1"
                           activeClassName="bg-primary text-primary-foreground shadow-md before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-success before:rounded-l-lg"
                         >

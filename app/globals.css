@@ -1,0 +1,265 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* PRD Color System - Azul petróleo (#0F4C75) como primária */
+    --background: 210 29% 97%;
+    --foreground: 192 9% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 192 9% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 192 9% 20%;
+
+    --primary: 201 79% 26%; /* Azul petróleo #0F4C75 */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 201 79% 22%;
+    --primary-glow: 201 79% 35%;
+
+    --secondary: 210 17% 95%;
+    --secondary-foreground: 192 9% 20%;
+
+    --muted: 210 17% 95%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 145 63% 49%; /* Verde ação #2ECC71 */
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 145 63% 45%;
+
+    --success: 145 63% 49%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 42 89% 67%; /* Amarelo #F6C85F */
+    --warning-foreground: 192 9% 20%;
+
+    --destructive: 0 68% 61%; /* Vermelho #E05656 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 201 79% 26%;
+
+    --radius: 0.75rem;
+
+    /* PRD Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(201 79% 26%), hsl(201 79% 35%));
+    --gradient-success: linear-gradient(135deg, hsl(145 63% 49%), hsl(145 63% 59%));
+    --gradient-subtle: linear-gradient(180deg, hsl(210 29% 97%), hsl(201 79% 96%));
+    
+    /* PRD Shadows with primary color */
+    --shadow-elegant: 0 10px 30px -10px hsl(201 79% 26% / 0.3);
+    --shadow-glow: 0 0 40px hsl(201 79% 35% / 0.4);
+    --shadow-card: 0 4px 6px -1px hsl(201 79% 26% / 0.1), 0 2px 4px -1px hsl(201 79% 26% / 0.06);
+    --shadow-elevated: 0 20px 25px -5px hsl(201 79% 26% / 0.1), 0 10px 10px -5px hsl(201 79% 26% / 0.04);
+
+    /* Sidebar colors with PRD palette */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 192 9% 20%;
+    --sidebar-primary: 201 79% 26%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 192 9% 20%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 201 79% 26%;
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 192 9% 12%;
+    --foreground: 210 29% 97%;
+
+    --card: 192 9% 16%;
+    --card-foreground: 210 29% 97%;
+
+    --popover: 192 9% 16%;
+    --popover-foreground: 210 29% 97%;
+
+    --primary: 201 79% 35%; /* Lighter primary for dark mode */
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 201 79% 40%;
+    --primary-glow: 201 79% 45%;
+
+    --secondary: 201 20% 20%;
+    --secondary-foreground: 210 29% 97%;
+
+    --muted: 201 20% 20%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 145 63% 55%; /* Lighter green for dark mode */
+    --accent-foreground: 0 0% 100%;
+    --accent-hover: 145 63% 60%;
+
+    --success: 145 63% 55%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 42 89% 72%;
+    --warning-foreground: 192 9% 12%;
+
+    --destructive: 0 68% 56%;
+    --destructive-foreground: 210 29% 97%;
+
+    --border: 201 20% 20%;
+    --input: 201 20% 20%;
+    --ring: 201 79% 35%;
+
+    --gradient-primary: linear-gradient(135deg, hsl(201 79% 35%), hsl(201 79% 45%));
+    --gradient-success: linear-gradient(135deg, hsl(145 63% 55%), hsl(145 63% 65%));
+    --gradient-subtle: linear-gradient(180deg, hsl(192 9% 12%), hsl(201 79% 16%));
+    
+    --shadow-elegant: 0 10px 30px -10px hsl(0 0% 0% / 0.5);
+    --shadow-glow: 0 0 40px hsl(201 79% 45% / 0.3);
+    --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.3), 0 2px 4px -1px hsl(0 0% 0% / 0.2);
+    --shadow-elevated: 0 20px 25px -5px hsl(0 0% 0% / 0.3), 0 10px 10px -5px hsl(0 0% 0% / 0.2);
+
+    --sidebar-background: 192 9% 10%;
+    --sidebar-foreground: 210 29% 97%;
+    --sidebar-primary: 201 79% 35%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 201 20% 16%;
+    --sidebar-accent-foreground: 210 29% 97%;
+    --sidebar-border: 201 20% 16%;
+    --sidebar-ring: 201 79% 35%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    line-height: 1.5;
+  }
+
+  h1 {
+    @apply text-3xl font-semibold tracking-tight;
+    line-height: 1.2;
+  }
+
+  h2 {
+    @apply text-2xl font-semibold tracking-tight;
+    line-height: 1.3;
+  }
+
+  h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-success {
+    background: var(--gradient-success);
+  }
+  
+  .gradient-subtle {
+    background: var(--gradient-subtle);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .shadow-elegant {
+    box-shadow: var(--shadow-elegant);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.28s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.28s ease-out;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 1.4s infinite linear;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -1000px 0;
+    }
+    100% {
+      background-position: 1000px 0;
+    }
+  }
+
+  /* Sidebar custom styles */
+  [data-sidebar] {
+    --sidebar-background: hsl(var(--background));
+    --sidebar-foreground: hsl(var(--foreground));
+    --sidebar-primary: #0F4C75;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: rgba(15, 76, 117, 0.1);
+    --sidebar-accent-foreground: #0F4C75;
+  }
+
+  /* Hover glow effect */
+  .sidebar-item-hover {
+    position: relative;
+    transition: all 0.2s ease;
+  }
+
+  .sidebar-item-hover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at center, rgba(15, 76, 117, 0.2), transparent);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .sidebar-item-hover:hover::before {
+    opacity: 1;
+  }
+}

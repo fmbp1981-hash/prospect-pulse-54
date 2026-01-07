@@ -1,25 +1,30 @@
-import { Link, LinkProps, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
+'use client';
 
-interface NavLinkProps extends LinkProps {
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { ReactNode } from "react";
+
+interface NavLinkProps {
+  href: string;
+  className?: string;
   activeClassName?: string;
+  children: ReactNode;
 }
 
 export function NavLink({ 
-  to, 
+  href, 
   className, 
   activeClassName = "bg-sidebar-accent text-sidebar-accent-foreground", 
-  children, 
-  ...props 
+  children,
 }: NavLinkProps) {
-  const location = useLocation();
-  const isActive = location.pathname === to;
+  const pathname = usePathname();
+  const isActive = pathname === href;
 
   return (
     <Link
-      to={to}
+      href={href}
       className={cn(className, isActive && activeClassName)}
-      {...props}
     >
       {children}
     </Link>

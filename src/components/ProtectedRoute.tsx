@@ -1,6 +1,9 @@
-import { Navigate } from "react-router-dom";
+"use client";
+
+import { redirect } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
+import { useEffect } from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,6 +11,12 @@ interface ProtectedRouteProps {
 
 export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.href = "/login";
+    }
+  }, [loading, user]);
 
   if (loading) {
     return (
@@ -18,7 +27,7 @@ export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   if (!user) {
-    return <Navigate to="/auth/login" replace />;
+    return null;
   }
 
   return <>{children}</>;

@@ -1,0 +1,23 @@
+
+> leadfinder-pro@2.0.0 build
+> next build
+
+  Ôû▓ Next.js 14.2.35
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ Ô£ô Compiled successfully
+   Linting and checking validity of types ...
+Failed to compile.
+
+./src/components/KanbanBoard.tsx:191:19
+Type error: Argument of type 'Record<string, unknown>' is not assignable to parameter of type 'never'.
+
+  189 |         const { error } = await supabase
+  190 |           .from("leads_prospeccao")
+> 191 |           .update(updateData as Record<string, unknown>)
+      |                   ^
+  192 |           .eq("id", activeId);
+  193 |
+  194 |         if (error) throw error;
+Next.js build worker exited with code: 1 and signal: null

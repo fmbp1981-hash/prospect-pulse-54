@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +12,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -46,7 +48,7 @@ const formatLocation = (location: string | LocationData): string => {
 };
 
 export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading = false }: SearchHistoryProps) => {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [whatsappStatuses, setWhatsappStatuses] = useState<Record<string, { status: 'sent' | 'not_sent' | 'failed'; sentAt?: string }>>({});
   const [isLoadingStatuses, setIsLoadingStatuses] = useState(false);
@@ -434,7 +436,7 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
                       onClick={() => {
                         // Redirecionar para tabela com filtros aplicados
                         const location = formatLocation(search.location);
-                        navigate(`/leads?categoria=${encodeURIComponent(search.niche)}&cidade=${encodeURIComponent(location.split(',')[0].trim())}`);
+                        router.push(`/leads?categoria=${encodeURIComponent(search.niche)}&cidade=${encodeURIComponent(location.split(',')[0].trim())}`);
                         toast.success("Redirecionando para tabela de leads...");
                       }}
                       className="flex-1"

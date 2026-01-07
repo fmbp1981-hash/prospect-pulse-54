@@ -221,6 +221,7 @@ export const WhatsAppDispatchModal = ({
 
         // Atualizar status no Supabase
         if (isSuccess) {
+          // Atualizar status de envio de WhatsApp
           await supabaseCRM.updateLead(lead.id, {
             statusMsgWA: "sent",
             dataEnvioWA: new Date().toISOString(),
@@ -228,6 +229,11 @@ export const WhatsAppDispatchModal = ({
             // Let's update it to reflect what was actually sent.
             ...(isEditing && validLeads.length === 1 ? { mensagemWhatsApp: messageToSend } : {})
           });
+
+          // Atualizar status do lead para Contato Inicial (sincroniza CRM e Kanban)
+          if (lead.status === "Novo Lead" || lead.status === "Novo") {
+            await supabaseCRM.updateLeadStatus(lead.id, "Contato Inicial");
+          }
         }
 
         setStatuses(prev => prev.map(s =>

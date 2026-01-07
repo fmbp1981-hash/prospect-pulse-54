@@ -148,7 +148,238 @@ export async function updateLeadStatus(
   leadId: string,
   status: LeadStatus
 ): Promise<{ success: boolean; message: string }> {
-  return updateLead(leadId, { status });
+  try {
+    // Atualizar ambos status e estagio_pipeline para sincronizar CRM e Kanban
+    const { error } = await supabase
+      .from("leads_prospeccao")
+      .update({
+        status: status,
+        estagio_pipeline: status,
+        updated_at: new Date().toISOString()
+      } as Record<string, unknown>)
+      .eq("id", leadId);
+
+    if (error) throw error;
+
+    return { success: true, message: `Status atualizado para ${status}` };
+  } catch (error: unknown) {
+    console.error("Erro ao atualizar status:", error);
+    return { success: false, message: (error as Error).message || "Erro ao atualizar status" };
+  }
+}
+
+// ============= NORMALIZAÇÃO DE TEXTO =============
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/[^a-z0-9\s]/g, "") // Remove caracteres especiais
+    .trim();
+}
+
+// ============= VERIFICAR DUPLICATA =============
+export async function checkDuplicateLead(
+  nome: string,
+  whatsapp?: string,
+  website?: string
+): Promise<{ isDuplicate: boolean; existingLead?: Lead; message: string }> {
+  try {
+    const normalizedNome = normalizeText(nome);
+    
+    // Buscar por WhatsApp (chave primária de unicidade)
+    if (whatsapp && whatsapp.trim()) {
+      const cleanPhone = whatsapp.replace(/\D/g, "");
+      const { data: whatsappMatches } = await supabase
+        .from("leads_prospeccao")
+        .select("*")
+        .or(`whatsapp.ilike.%${cleanPhone}%,telefone.ilike.%${cleanPhone}%`)
+        .limit(1);
+
+      if (whatsappMatches && whatsappMatches.length > 0) {
+        return {
+          isDuplicate: true,
+          existingLead: mapRowToLead(whatsappMatches[0]),
+          message: "Lead com este telefone/WhatsApp já existe"
+        };
+      }
+    }
+
+    // Buscar por website/domínio
+    if (website && website.trim()) {
+      const domain = website.replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase();
+      const { data: websiteMatches } = await supabase
+        .from("leads_prospeccao")
+        .select("*")
+        .ilike("website", `%${domain}%`)
+        .limit(1);
+
+      if (websiteMatches && websiteMatches.length > 0) {
+        return {
+          isDuplicate: true,
+          existingLead: mapRowToLead(websiteMatches[0]),
+          message: "Lead com este website já existe"
+        };
+      }
+    }
+
+    // Buscar por nome similar (usando busca textual normalizada)
+    const { data: nameMatches } = await supabase
+      .from("leads_prospeccao")
+      .select("*")
+      .or(`lead.ilike.%${normalizedNome}%,empresa.ilike.%${normalizedNome}%`)
+      .limit(5);
+
+    if (nameMatches && nameMatches.length > 0) {
+      // Verificar similaridade mais estrita
+      for (const match of nameMatches) {
+        const matchNome = normalizeText(match.lead || "");
+        const matchEmpresa = normalizeText(match.empresa || "");
+        
+        if (matchNome === normalizedNome || matchEmpresa === normalizedNome) {
+          return {
+            isDuplicate: true,
+            existingLead: mapRowToLead(match),
+            message: "Lead com nome similar já existe"
+          };
+        }
+      }
+    }
+
+    return { isDuplicate: false, message: "Lead único" };
+  } catch (error) {
+    console.error("Erro ao verificar duplicata:", error);
+    return { isDuplicate: false, message: "Erro na verificação" };
+  }
+}
+
+// ============= MESCLAR LEADS =============
+export async function mergeLeads(
+  keepLeadId: string,
+  mergeLeadId: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Buscar dados dos dois leads
+    const { data: leads, error: fetchError } = await supabase
+      .from("leads_prospeccao")
+      .select("*")
+      .in("id", [keepLeadId, mergeLeadId]);
+
+    if (fetchError || !leads || leads.length !== 2) {
+      return { success: false, message: "Não foi possível encontrar os leads para mesclar" };
+    }
+
+    const keepLead = leads.find(l => l.id === keepLeadId);
+    const mergeLead = leads.find(l => l.id === mergeLeadId);
+
+    if (!keepLead || !mergeLead) {
+      return { success: false, message: "Leads não encontrados" };
+    }
+
+    // Mesclar dados (priorizar dados do lead que será mantido)
+    const mergedData = {
+      lead: keepLead.lead || mergeLead.lead,
+      empresa: keepLead.empresa || mergeLead.empresa,
+      categoria: keepLead.categoria || mergeLead.categoria,
+      contato: keepLead.contato || mergeLead.contato,
+      whatsapp: keepLead.whatsapp || mergeLead.whatsapp,
+      telefone: keepLead.telefone || mergeLead.telefone,
+      email: keepLead.email || mergeLead.email,
+      website: keepLead.website || mergeLead.website,
+      instagram: keepLead.instagram || mergeLead.instagram,
+      cidade: keepLead.cidade || mergeLead.cidade,
+      endereco: keepLead.endereco || mergeLead.endereco,
+      bairro: keepLead.bairro || mergeLead.bairro,
+      link_gmn: keepLead.link_gmn || mergeLead.link_gmn,
+      resumo_analitico: keepLead.resumo_analitico || mergeLead.resumo_analitico,
+      updated_at: new Date().toISOString()
+    };
+
+    // Atualizar lead principal
+    const { error: updateError } = await supabase
+      .from("leads_prospeccao")
+      .update(mergedData as Record<string, unknown>)
+      .eq("id", keepLeadId);
+
+    if (updateError) throw updateError;
+
+    // Deletar lead mesclado
+    const { error: deleteError } = await supabase
+      .from("leads_prospeccao")
+      .delete()
+      .eq("id", mergeLeadId);
+
+    if (deleteError) throw deleteError;
+
+    return { success: true, message: "Leads mesclados com sucesso" };
+  } catch (error) {
+    console.error("Erro ao mesclar leads:", error);
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+// ============= LIMPAR HISTÓRICO DO LEAD =============
+export async function clearLeadHistory(
+  leadId: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const { error } = await supabase
+      .from("leads_prospeccao")
+      .update({
+        mensagem_whatsapp: null,
+        status_msg_wa: WHATSAPP_STATUS.NOT_SENT,
+        data_envio_wa: null,
+        resumo_analitico: null,
+        updated_at: new Date().toISOString()
+      } as Record<string, unknown>)
+      .eq("id", leadId);
+
+    if (error) throw error;
+
+    return { success: true, message: "Histórico do lead limpo com sucesso" };
+  } catch (error) {
+    console.error("Erro ao limpar histórico:", error);
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+// Helper para mapear row do banco para Lead
+function mapRowToLead(row: SupabaseLeadRow): Lead {
+  return {
+    id: row.id,
+    lead: row.lead || "",
+    status: (row.status || LEAD_STATUS.NOVO) as LeadStatus,
+    data: row.data || "",
+    empresa: row.empresa || "",
+    categoria: row.categoria || "",
+    contato: row.contato || "",
+    whatsapp: row.whatsapp || "",
+    telefone: row.telefone || "",
+    email: row.email || "",
+    website: row.website || "",
+    instagram: row.instagram || "",
+    cidade: row.cidade || "",
+    endereco: row.endereco || "",
+    bairro: row.bairro || "",
+    bairroRegiao: row.bairro_regiao || "",
+    linkGMN: row.link_gmn || "",
+    aceitaCartao: row.aceita_cartao || "",
+    cnpj: row.cnpj || "",
+    mensagemWhatsApp: row.mensagem_whatsapp || "",
+    statusMsgWA: (row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT) as WhatsAppStatus,
+    dataEnvioWA: row.data_envio_wa || null,
+    resumoAnalitico: row.resumo_analitico || "",
+    createdAt: row.created_at || new Date().toISOString(),
+    updatedAt: row.updated_at || new Date().toISOString(),
+    origem: LEAD_ORIGIN.PROSPECCAO_ATIVA,
+    prioridade: LEAD_PRIORITY.MEDIA,
+    regiao: row.cidade || "",
+    segmento: row.categoria || "",
+    ticketMedioEstimado: 0,
+    contatoPrincipal: row.contato || "",
+    dataContato: row.created_at || new Date().toISOString(),
+    observacoes: "",
+  };
 }
 
 // ============= CREATE LEAD =============
@@ -156,12 +387,29 @@ export async function createLead(
   leadData: Omit<Lead, "id">
 ): Promise<{ success: boolean; leadId?: string; message: string }> {
   try {
+    // Verificar duplicata antes de criar
+    const duplicateCheck = await checkDuplicateLead(
+      leadData.lead || leadData.empresa || "",
+      leadData.whatsapp,
+      leadData.website
+    );
+
+    if (duplicateCheck.isDuplicate) {
+      return {
+        success: false,
+        message: duplicateCheck.message
+      };
+    }
+
+    const initialStatus = leadData.status || LEAD_STATUS.NOVO_LEAD;
+    
     const { data, error } = await supabase
       .from("leads_prospeccao")
       .insert({
         id: crypto.randomUUID(),
         lead: leadData.lead || "Lead-000",
-        status: leadData.status || LEAD_STATUS.NOVO_LEAD,
+        status: initialStatus,
+        estagio_pipeline: initialStatus, // Sincronizar com Kanban
         empresa: leadData.empresa || "",
         categoria: leadData.categoria,
         contato: leadData.contatoPrincipal,
@@ -180,7 +428,7 @@ export async function createLead(
         status_msg_wa: leadData.statusMsgWA || WHATSAPP_STATUS.NOT_SENT,
         resumo_analitico: leadData.resumoAnalitico,
         cnpj: leadData.cnpj,
-        data: leadData.data,
+        data: leadData.data || new Date().toISOString(),
       })
       .select()
       .single();
@@ -338,6 +586,32 @@ export async function getLeadsForWhatsApp(
   }
 }
 
+// ============= DELETE LEADS =============
+export async function deleteLeads(
+  leadIds: string[]
+): Promise<{ success: boolean; message: string }> {
+  try {
+    if (!leadIds || leadIds.length === 0) {
+      return { success: false, message: "Nenhum lead selecionado" };
+    }
+
+    const { error } = await supabase
+      .from("leads_prospeccao")
+      .delete()
+      .in("id", leadIds);
+
+    if (error) throw error;
+
+    return { success: true, message: `${leadIds.length} leads excluídos com sucesso` };
+  } catch (error: unknown) {
+    console.error("Erro ao excluir leads:", error);
+    return {
+      success: false,
+      message: (error as Error).message || "Erro ao excluir leads"
+    };
+  }
+}
+
 // Exportar como objeto compatível com a API antiga
 export const supabaseCRM = {
   syncAllLeads,
@@ -346,4 +620,8 @@ export const supabaseCRM = {
   createLead,
   getMetrics,
   getLeadsForWhatsApp,
+  deleteLeads,
+  checkDuplicateLead,
+  mergeLeads,
+  clearLeadHistory,
 };

@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -179,12 +181,14 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
     if (lead && lead.status !== newStatus) {
       // Atualizar no banco
       try {
+        const updateData = {
+          estagio_pipeline: newStatus,
+          updated_at: new Date().toISOString()
+        };
+        
         const { error } = await supabase
           .from("leads_prospeccao")
-          .update({
-            estagio_pipeline: newStatus,
-            updated_at: new Date().toISOString()
-          })
+          .update(updateData as Record<string, unknown>)
           .eq("id", activeId);
 
         if (error) throw error;

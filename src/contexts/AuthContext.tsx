@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useState } from "react";
+'use client';
+
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -108,8 +110,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const resetPassword = async (email: string) => {
     try {
+      // Usar variável de ambiente para base URL ou fallback seguro
+      const baseUrl = typeof window !== 'undefined' 
+        ? window.location.origin 
+        : process.env.NEXT_PUBLIC_APP_URL || '';
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: `${baseUrl}/reset-password`,
       });
 
       if (error) {

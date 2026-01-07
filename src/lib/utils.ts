@@ -21,3 +21,30 @@ export function toTitleCase(str: string): string {
     })
     .join(' ');
 }
+
+/**
+ * Normaliza texto para busca (remove acentos, converte para minúsculas)
+ * Exemplo: "São Paulo" → "sao paulo", "JOÃO" → "joao"
+ */
+export function normalizeForSearch(text: string): string {
+  if (!text) return "";
+  
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/[^a-z0-9\s]/g, "") // Remove caracteres especiais
+    .trim();
+}
+
+/**
+ * Verifica se um texto contém outro, ignorando acentos e case
+ */
+export function searchMatch(text: string, searchTerm: string): boolean {
+  if (!text || !searchTerm) return false;
+  
+  const normalizedText = normalizeForSearch(text);
+  const normalizedSearch = normalizeForSearch(searchTerm);
+  
+  return normalizedText.includes(normalizedSearch);
+}
