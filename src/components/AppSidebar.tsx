@@ -269,7 +269,7 @@ export function AppSidebar() {
               <img
                 src="/intellix-logo.png"
                 alt="IntelliX.AI"
-                className="h-6 w-6 object-contain"
+                className="h-8 w-8 object-contain"
               />
               {!isCollapsed && (
                 <span>Desenvolvido por <strong className="text-primary">IntelliX.AI</strong></span>

@@ -359,91 +359,91 @@ export default function LeadsPage() {
           <div className="border rounded-lg overflow-hidden bg-card">
             <div className="leads-table-container">
               <Table>
-              <TableHeader className="sticky top-0 bg-card z-10">
-                <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={selectedLeads.size === paginatedLeads.length && paginatedLeads.length > 0}
-                      onCheckedChange={handleSelectAll}
-                    />
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('lead')}>
-                    Lead <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                  </TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('empresa')}>
-                    Empresa <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                  </TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>WhatsApp</TableHead>
-                  <TableHead>Cidade</TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('status')}>
-                    Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
-                  </TableHead>
-                  <TableHead>Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedLeads.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell>
+                <TableHeader className="sticky top-0 bg-card z-10">
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox
-                        checked={selectedLeads.has(lead.id)}
-                        onCheckedChange={() => handleSelectLead(lead.id)}
+                        checked={selectedLeads.size === paginatedLeads.length && paginatedLeads.length > 0}
+                        onCheckedChange={handleSelectAll}
                       />
-                    </TableCell>
-                    <TableCell className="font-medium">{lead.lead}</TableCell>
-                    <TableCell>{toTitleCase(lead.empresa || "")}</TableCell>
-                    <TableCell>{toTitleCase(lead.categoria || "")}</TableCell>
-                    <TableCell>
-                      {lead.whatsapp ? (
-                        <a
-                          href={`https://wa.me/${lead.whatsapp.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-green-600 hover:underline flex items-center gap-1"
-                        >
-                          <MessageCircle className="h-4 w-4" />
-                          {lead.whatsapp}
-                        </a>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{toTitleCase(lead.cidade || "")}</TableCell>
-                    <TableCell>
-                      <Badge className={`${getStatusColor(lead.status || "Novo")} text-white`}>
-                        {lead.status || "Novo"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <RoleGuard requiredPermission="canUpdate">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(lead)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </RoleGuard>
-                        {lead.website && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            asChild
-                          >
-                            <a href={lead.website} target="_blank" rel="noopener noreferrer">
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+                    </TableHead>
+                    <TableHead className="cursor-pointer" onClick={() => handleSort('lead')}>
+                      Lead <ArrowUpDown className="inline h-4 w-4 ml-1" />
+                    </TableHead>
+                    <TableHead className="cursor-pointer" onClick={() => handleSort('empresa')}>
+                      Empresa <ArrowUpDown className="inline h-4 w-4 ml-1" />
+                    </TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>WhatsApp</TableHead>
+                    <TableHead>Cidade</TableHead>
+                    <TableHead className="cursor-pointer" onClick={() => handleSort('status')}>
+                      Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
+                    </TableHead>
+                    <TableHead>Ações</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {paginatedLeads.map((lead) => (
+                    <TableRow key={lead.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedLeads.has(lead.id)}
+                          onCheckedChange={() => handleSelectLead(lead.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{lead.lead}</TableCell>
+                      <TableCell>{toTitleCase(lead.empresa || "")}</TableCell>
+                      <TableCell>{toTitleCase(lead.categoria || "")}</TableCell>
+                      <TableCell>
+                        {lead.whatsapp ? (
+                          <a
+                            href={`https://wa.me/${lead.whatsapp.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-green-600 hover:underline flex items-center gap-1"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                            {lead.whatsapp}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{toTitleCase(lead.cidade || "")}</TableCell>
+                      <TableCell>
+                        <Badge className={`${getStatusColor(lead.status || "Novo")} text-white`}>
+                          {lead.status || "Novo"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <RoleGuard requiredPermission="canUpdate">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEdit(lead)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          </RoleGuard>
+                          {lead.website && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              asChild
+                            >
+                              <a href={lead.website} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
 
           {/* Pagination */}
@@ -516,16 +516,17 @@ export default function LeadsPage() {
         selectedLeads={leads.filter(l => selectedLeads.has(l.id))}
         onTemplateApplied={() => {
           loadLeads();
-          // Mantém seleção e abre modal de WhatsApp para fluxo contínuo
+          // Fluxo contínuo: fecha modal de template e abre modal de WhatsApp automaticamente
           setIsApplyTemplateModalOpen(false);
-          toast.success("Templates aplicados! Pronto para enviar.", {
-            description: "Clique em 'Enviar WhatsApp' para disparar as mensagens.",
-            action: {
-              label: "Enviar Agora",
-              onClick: () => setIsWhatsAppModalOpen(true)
-            },
-            duration: 8000
-          });
+
+          // Pequeno delay para garantir que os leads foram atualizados
+          setTimeout(() => {
+            setIsWhatsAppModalOpen(true);
+            toast.success("Templates aplicados! Pronto para enviar.", {
+              description: "O modal de envio foi aberto automaticamente.",
+              duration: 3000
+            });
+          }, 500);
         }}
       />
 

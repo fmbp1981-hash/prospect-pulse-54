@@ -56,8 +56,35 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.niche || !formData.location.city) {
-      toast.error("Preencha todos os campos obrigatórios");
+    // Função de normalização para remover acentos e espaços extras
+    const normalizeText = (text: string): string => {
+      return text
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    };
+
+    // Validação de campos obrigatórios com mensagens específicas
+    if (!formData.niche || formData.niche.trim() === "") {
+      toast.error("Campo obrigatório vazio", {
+        description: "Por favor, informe o nicho de negócios que deseja prospectar."
+      });
+      return;
+    }
+
+    if (!formData.location.city || formData.location.city.trim() === "") {
+      toast.error("Cidade não informada", {
+        description: "A cidade é obrigatória para a busca no Google Places. Selecione ou digite uma cidade válida."
+      });
+      return;
+    }
+
+    // Normalizar cidade antes de enviar
+    const normalizedCity = normalizeText(formData.location.city);
+    if (normalizedCity.length < 3) {
+      toast.error("Nome de cidade muito curto", {
+        description: "Por favor, informe o nome completo da cidade."
+      });
       return;
     }
 

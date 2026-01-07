@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors, closestCorners, useDroppable, useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Phone, MapPin, GripVertical } from "lucide-react";
+import { Building2, Phone, MapPin, GripVertical, RefreshCw } from "lucide-react";
 import { Lead, LeadStatus } from "@/types/prospection";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -147,6 +147,8 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -155,6 +157,56 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
       },
     })
   );
+
+  // Supabase Realtime subscription para atualizações automáticas
+  useEffect(() => {
+    // Debounce para evitar muitas atualizações simultâneas
+    let updateTimeout: NodeJS.Timeout | null = null;
+
+    const debouncedUpdate = () => {
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+      }
+      updateTimeout = setTimeout(() => {
+        setLastUpdate(new Date());
+        onLeadUpdate();
+      }, 500); // Debounce de 500ms
+    };
+
+    // Configurar subscription para mudanças na tabela leads_prospeccao
+    const channel = supabase
+      .channel('kanban-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'leads_prospeccao',
+        },
+        (payload) => {
+          console.log('📡 Kanban Realtime: Mudança detectada', payload.eventType);
+          debouncedUpdate();
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setIsRealTimeConnected(true);
+          console.log('✅ Kanban Realtime: Conectado');
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          setIsRealTimeConnected(false);
+          console.log('❌ Kanban Realtime: Desconectado');
+        }
+      });
+
+    // Cleanup: remover subscription quando componente desmontar
+    return () => {
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+      }
+      supabase.removeChannel(channel);
+      setIsRealTimeConnected(false);
+    };
+  }, [onLeadUpdate]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -185,7 +237,7 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
           estagio_pipeline: newStatus,
           updated_at: new Date().toISOString()
         };
-        
+
         const { error } = await supabase
           .from("leads_prospeccao")
           .update(updateData as Record<string, unknown>)
@@ -226,7 +278,18 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="overflow-x-auto pb-4 h-[calc(100vh-250px)]">
+        {/* Indicador de sincronização em tempo real */}
+        <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className={`h-2 w-2 rounded-full ${isRealTimeConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+          <span>{isRealTimeConnected ? 'Sincronização ativa' : 'Sincronização offline'}</span>
+          {lastUpdate && (
+            <span className="ml-2 flex items-center gap-1">
+              <RefreshCw className="h-3 w-3" />
+              {lastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
+        <div className="overflow-x-auto pb-4 h-[calc(100vh-280px)]">
           <div className="flex gap-4 min-w-max h-full">
             {LEAD_STATUSES.map((status) => (
               <KanbanColumn
