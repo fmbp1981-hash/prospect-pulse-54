@@ -125,9 +125,9 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
-        .from('leads_prospeccao')
-        .update(updateData as any)
+      const { error } = await (supabase
+        .from('leads_prospeccao') as any)
+        .update(updateData)
         .eq('id', lead.id);
 
       if (error) throw error;

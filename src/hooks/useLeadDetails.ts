@@ -35,8 +35,8 @@ export function useLeadDetails(leadId: string | undefined) {
         setIsLoading(true);
         try {
             // Load Notes
-            const { data: notesData } = await supabase
-                .from("lead_notes" as any)
+            const { data: notesData } = await (supabase
+                .from("lead_notes") as any)
                 .select("*")
                 .eq("lead_id", leadId)
                 .order("created_at", { ascending: false });
@@ -44,8 +44,8 @@ export function useLeadDetails(leadId: string | undefined) {
             if (notesData) setNotes(notesData);
 
             // Load Interactions
-            const { interactionsData } = await supabase
-                .from("lead_interactions" as any)
+            const { interactionsData } = await (supabase
+                .from("lead_interactions") as any)
                 .select("*")
                 .eq("lead_id", leadId)
                 .order("created_at", { ascending: false }) as any;
@@ -53,8 +53,8 @@ export function useLeadDetails(leadId: string | undefined) {
             if (interactionsData) setInteractions(interactionsData);
 
             // Load Tags (from lead table)
-            const { data: leadData } = await supabase
-                .from("leads_prospeccao")
+            const { data: leadData } = await (supabase
+                .from("leads_prospeccao") as any)
                 .select("tags")
                 .eq("id", leadId)
                 .single();
@@ -72,8 +72,8 @@ export function useLeadDetails(leadId: string | undefined) {
     const addNote = async (content: string) => {
         if (!leadId) return;
         try {
-            const { error } = await supabase
-                .from("lead_notes" as any)
+            const { error } = await (supabase
+                .from("lead_notes") as any)
                 .insert([{ lead_id: leadId, content }]);
 
             if (error) throw error;
@@ -93,9 +93,9 @@ export function useLeadDetails(leadId: string | undefined) {
         if (!leadId) return;
         const newTags = [...tags, tag];
         try {
-            const { error } = await supabase
-                .from("leads_prospeccao")
-                .update({ tags: newTags } as any)
+            const { error } = await (supabase
+                .from("leads_prospeccao") as any)
+                .update({ tags: newTags })
                 .eq("id", leadId);
 
             if (error) throw error;
@@ -112,9 +112,9 @@ export function useLeadDetails(leadId: string | undefined) {
         if (!leadId) return;
         const newTags = tags.filter(t => t !== tagToRemove);
         try {
-            const { error } = await supabase
-                .from("leads_prospeccao")
-                .update({ tags: newTags } as any)
+            const { error } = await (supabase
+                .from("leads_prospeccao") as any)
+                .update({ tags: newTags })
                 .eq("id", leadId);
 
             if (error) throw error;
@@ -130,8 +130,8 @@ export function useLeadDetails(leadId: string | undefined) {
     const logInteraction = async (type: Interaction['type'], description: string, metadata = {}) => {
         if (!leadId) return;
         try {
-            await supabase
-                .from("lead_interactions" as any)
+            await (supabase
+                .from("lead_interactions") as any)
                 .insert([{
                     lead_id: leadId,
                     type,

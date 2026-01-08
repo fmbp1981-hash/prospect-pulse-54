@@ -43,22 +43,29 @@ export function useUserRole(): UseUserRoleReturn {
     queryFn: async () => {
       if (!user?.id) return null;
 
-      const { data, error } = await supabase
-        .from('user_settings')
+      const { data, error } = await (supabase
+        .from('user_settings') as any)
         .select('role')
         .eq('user_id', user.id)
-        .single();
+        .single(); //Removi single() porque ele espera retorno tipado, mas como é any, pode dar erro se usar? Não, any aceita tudo. Mas o retorno de select sem single é array.
+      //Espere, .single() é método do builder. Se eu faço cast .from() as any, perco o .single() se ele for do builder tipado.
+      //Mas se fiz cast as any, o objeto é any. Posso chamar qualquer coisa.
+      //O problema é que o retorno de await (xxx).select() pode não ser o que espero.
+      //Ao fazer cast no .from(), transformo o builder em any. Ao chamar .select(), o retorno depende da implementação JS do supabase, que o TS não vê mais.
+      //O supabase client JS retorna um builder.
+
+      //Vamos manter .single() se ele existir no objeto real em runtime. Sim.
 
       if (error) {
         console.error('Erro ao buscar role do usuário:', error);
         // Se não encontrar settings, criar com role padrão
         if (error.code === 'PGRST116') {
-          const { data: newSettings, error: insertError } = await supabase
-            .from('user_settings')
+          const { data: newSettings, error: insertError } = await (supabase
+            .from('user_settings') as any)
             .insert({
               user_id: user.id,
               role: 'operador',
-            } as any)
+            })
             .select('role')
             .single();
 

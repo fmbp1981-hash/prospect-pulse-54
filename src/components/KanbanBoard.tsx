@@ -238,9 +238,9 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
           updated_at: new Date().toISOString()
         };
 
-        const { error } = await supabase
-          .from("leads_prospeccao")
-          .update(updateData as any)
+        const { error } = await (supabase
+          .from("leads_prospeccao") as any)
+          .update(updateData)
           .eq("id", activeId);
 
         if (error) throw error;
