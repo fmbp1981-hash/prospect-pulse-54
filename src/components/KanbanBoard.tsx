@@ -240,7 +240,7 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
 
         const { error } = await supabase
           .from("leads_prospeccao")
-          .update(updateData as Record<string, unknown>)
+          .update(updateData as any)
           .eq("id", activeId);
 
         if (error) throw error;

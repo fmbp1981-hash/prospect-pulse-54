@@ -231,7 +231,7 @@ export const WhatsAppDispatchModal = ({
           });
 
           // Atualizar status do lead para Contato Inicial (sincroniza CRM e Kanban)
-          if (lead.status === "Novo Lead" || lead.status === "Novo") {
+          if ((lead.status as string) === "Novo Lead" || (lead.status as string) === "Novo") {
             await supabaseCRM.updateLeadStatus(lead.id, "Contato Inicial");
           }
         }

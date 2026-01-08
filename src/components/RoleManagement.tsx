@@ -37,14 +37,14 @@ export function RoleManagement() {
       // vamos mostrar apenas o user_id e role por enquanto
       const { data: userSettings, error } = await supabase
         .from('user_settings')
-        .select('user_id, role, created_at');
+        .select('user_id, role, created_at' as any); // Cast any para evitar erro de tipo inexistente
 
       if (error) throw error;
 
       // Buscar o usuário atual para mostrar seu email
       const { data: { user: currentUser } } = await supabase.auth.getUser();
 
-      const usersData: UserWithSettings[] = (userSettings || []).map(setting => ({
+      const usersData: UserWithSettings[] = (userSettings || []).map((setting: any) => ({
         id: setting.user_id,
         email: setting.user_id === currentUser?.id ? (currentUser.email || 'Você') : setting.user_id.substring(0, 8) + '...',
         role: (setting.role as UserRole) || 'operador',
@@ -65,7 +65,7 @@ export function RoleManagement() {
     try {
       const { error } = await supabase
         .from('user_settings')
-        .update({ role: newRole })
+        .update({ role: newRole } as any)
         .eq('user_id', userId);
 
       if (error) throw error;

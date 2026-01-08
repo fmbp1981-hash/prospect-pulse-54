@@ -58,7 +58,7 @@ export function useUserRole(): UseUserRoleReturn {
             .insert({
               user_id: user.id,
               role: 'operador',
-            })
+            } as any)
             .select('role')
             .single();
 
@@ -67,7 +67,7 @@ export function useUserRole(): UseUserRoleReturn {
             return 'operador' as UserRole;
           }
 
-          return newSettings.role as UserRole;
+          return (newSettings?.role || 'operador') as UserRole;
         }
         return 'operador' as UserRole;
       }

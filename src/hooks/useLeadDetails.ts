@@ -36,7 +36,7 @@ export function useLeadDetails(leadId: string | undefined) {
         try {
             // Load Notes
             const { data: notesData } = await supabase
-                .from("lead_notes")
+                .from("lead_notes" as any)
                 .select("*")
                 .eq("lead_id", leadId)
                 .order("created_at", { ascending: false });
@@ -44,11 +44,11 @@ export function useLeadDetails(leadId: string | undefined) {
             if (notesData) setNotes(notesData);
 
             // Load Interactions
-            const { data: interactionsData } = await supabase
-                .from("lead_interactions")
+            const { interactionsData } = await supabase
+                .from("lead_interactions" as any)
                 .select("*")
                 .eq("lead_id", leadId)
-                .order("created_at", { ascending: false });
+                .order("created_at", { ascending: false }) as any;
 
             if (interactionsData) setInteractions(interactionsData);
 
@@ -73,7 +73,7 @@ export function useLeadDetails(leadId: string | undefined) {
         if (!leadId) return;
         try {
             const { error } = await supabase
-                .from("lead_notes")
+                .from("lead_notes" as any)
                 .insert([{ lead_id: leadId, content }]);
 
             if (error) throw error;
@@ -95,7 +95,7 @@ export function useLeadDetails(leadId: string | undefined) {
         try {
             const { error } = await supabase
                 .from("leads_prospeccao")
-                .update({ tags: newTags })
+                .update({ tags: newTags } as any)
                 .eq("id", leadId);
 
             if (error) throw error;
@@ -114,7 +114,7 @@ export function useLeadDetails(leadId: string | undefined) {
         try {
             const { error } = await supabase
                 .from("leads_prospeccao")
-                .update({ tags: newTags })
+                .update({ tags: newTags } as any)
                 .eq("id", leadId);
 
             if (error) throw error;
@@ -131,7 +131,7 @@ export function useLeadDetails(leadId: string | undefined) {
         if (!leadId) return;
         try {
             await supabase
-                .from("lead_interactions")
+                .from("lead_interactions" as any)
                 .insert([{
                     lead_id: leadId,
                     type,
