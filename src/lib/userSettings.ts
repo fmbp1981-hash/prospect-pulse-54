@@ -23,8 +23,8 @@ export const userSettingsService = {
         throw new Error("Usuário não autenticado");
       }
 
-      const { data, error } = await supabase
-        .from("user_settings")
+      const { data, error } = await (supabase
+        .from("user_settings") as any)
         .select("*")
         .eq("user_id", user.id)
         .single();
@@ -66,16 +66,16 @@ export const userSettingsService = {
       }
 
       // Verificar se já existe configuração
-      const { data: existing } = await supabase
-        .from("user_settings")
+      const { data: existing } = await (supabase
+        .from("user_settings") as any)
         .select("id")
         .eq("user_id", user.id)
         .single();
 
       if (existing) {
         // Atualizar
-        const { data, error } = await supabase
-          .from("user_settings")
+        const { data, error } = await (supabase
+          .from("user_settings") as any)
           .update({
             company_name: settings.company_name,
             evolution_api_url: settings.evolution_api_url,
@@ -91,8 +91,8 @@ export const userSettingsService = {
         return data;
       } else {
         // Inserir
-        const { data, error } = await supabase
-          .from("user_settings")
+        const { data, error } = await (supabase
+          .from("user_settings") as any)
           .insert({
             user_id: user.id,
             company_name: settings.company_name,

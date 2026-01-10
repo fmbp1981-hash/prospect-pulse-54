@@ -39,8 +39,8 @@ interface SupabaseLeadRow {
 // ============= SYNC LEADS =============
 export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[]; message?: string }> {
   try {
-    const { data, error } = await supabase
-      .from("leads_prospeccao")
+    const { data, error } = await (supabase
+      .from("leads_prospeccao") as any)
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -129,8 +129,8 @@ export async function updateLead(
     // Sempre atualizar updated_at
     dbUpdates.updated_at = new Date().toISOString();
 
-    const { error } = await supabase
-      .from("leads_prospeccao")
+    const { error } = await (supabase
+      .from("leads_prospeccao") as any)
       .update(dbUpdates)
       .eq("id", leadId);
 
@@ -150,13 +150,13 @@ export async function updateLeadStatus(
 ): Promise<{ success: boolean; message: string }> {
   try {
     // Atualizar ambos status e estagio_pipeline para sincronizar CRM e Kanban
-    const { error } = await supabase
-      .from("leads_prospeccao")
+    const { error } = await (supabase
+      .from("leads_prospeccao") as any)
       .update({
         status: status,
         estagio_pipeline: status,
         updated_at: new Date().toISOString()
-      } as Record<string, unknown>)
+      })
       .eq("id", leadId);
 
     if (error) throw error;
@@ -186,12 +186,12 @@ export async function checkDuplicateLead(
 ): Promise<{ isDuplicate: boolean; existingLead?: Lead; message: string }> {
   try {
     const normalizedNome = normalizeText(nome);
-    
+
     // Buscar por WhatsApp (chave primária de unicidade)
     if (whatsapp && whatsapp.trim()) {
       const cleanPhone = whatsapp.replace(/\D/g, "");
-      const { data: whatsappMatches } = await supabase
-        .from("leads_prospeccao")
+      const { data: whatsappMatches } = await (supabase
+        .from("leads_prospeccao") as any)
         .select("*")
         .or(`whatsapp.ilike.%${cleanPhone}%,telefone.ilike.%${cleanPhone}%`)
         .limit(1);
@@ -208,8 +208,8 @@ export async function checkDuplicateLead(
     // Buscar por website/domínio
     if (website && website.trim()) {
       const domain = website.replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase();
-      const { data: websiteMatches } = await supabase
-        .from("leads_prospeccao")
+      const { data: websiteMatches } = await (supabase
+        .from("leads_prospeccao") as any)
         .select("*")
         .ilike("website", `%${domain}%`)
         .limit(1);
@@ -224,8 +224,8 @@ export async function checkDuplicateLead(
     }
 
     // Buscar por nome similar (usando busca textual normalizada)
-    const { data: nameMatches } = await supabase
-      .from("leads_prospeccao")
+    const { data: nameMatches } = await (supabase
+      .from("leads_prospeccao") as any)
       .select("*")
       .or(`lead.ilike.%${normalizedNome}%,empresa.ilike.%${normalizedNome}%`)
       .limit(5);
@@ -235,7 +235,7 @@ export async function checkDuplicateLead(
       for (const match of nameMatches) {
         const matchNome = normalizeText(match.lead || "");
         const matchEmpresa = normalizeText(match.empresa || "");
-        
+
         if (matchNome === normalizedNome || matchEmpresa === normalizedNome) {
           return {
             isDuplicate: true,
@@ -260,8 +260,8 @@ export async function mergeLeads(
 ): Promise<{ success: boolean; message: string }> {
   try {
     // Buscar dados dos dois leads
-    const { data: leads, error: fetchError } = await supabase
-      .from("leads_prospeccao")
+    const { data: leads, error: fetchError } = await (supabase
+      .from("leads_prospeccao") as any)
       .select("*")
       .in("id", [keepLeadId, mergeLeadId]);
 
@@ -296,16 +296,16 @@ export async function mergeLeads(
     };
 
     // Atualizar lead principal
-    const { error: updateError } = await supabase
-      .from("leads_prospeccao")
-      .update(mergedData as Record<string, unknown>)
+    const { error: updateError } = await (supabase
+      .from("leads_prospeccao") as any)
+      .update(mergedData)
       .eq("id", keepLeadId);
 
     if (updateError) throw updateError;
 
     // Deletar lead mesclado
-    const { error: deleteError } = await supabase
-      .from("leads_prospeccao")
+    const { error: deleteError } = await (supabase
+      .from("leads_prospeccao") as any)
       .delete()
       .eq("id", mergeLeadId);
 
@@ -323,15 +323,15 @@ export async function clearLeadHistory(
   leadId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const { error } = await supabase
-      .from("leads_prospeccao")
+    const { error } = await (supabase
+      .from("leads_prospeccao") as any)
       .update({
         mensagem_whatsapp: null,
         status_msg_wa: WHATSAPP_STATUS.NOT_SENT,
         data_envio_wa: null,
         resumo_analitico: null,
         updated_at: new Date().toISOString()
-      } as Record<string, unknown>)
+      })
       .eq("id", leadId);
 
     if (error) throw error;
@@ -402,9 +402,9 @@ export async function createLead(
     }
 
     const initialStatus = leadData.status || LEAD_STATUS.NOVO_LEAD;
-    
-    const { data, error } = await supabase
-      .from("leads_prospeccao")
+
+    const { data, error } = await (supabase
+      .from("leads_prospeccao") as any)
       .insert({
         id: crypto.randomUUID(),
         lead: leadData.lead || "Lead-000",
@@ -456,8 +456,8 @@ export async function getMetrics(): Promise<{
   message?: string
 }> {
   try {
-    const { data: leads, error } = await supabase
-      .from("leads_prospeccao")
+    const { data: leads, error } = await (supabase
+      .from("leads_prospeccao") as any)
       .select("*");
 
     if (error) throw error;
@@ -532,8 +532,8 @@ export async function getLeadsForWhatsApp(
   leadIds: string[]
 ): Promise<{ success: boolean; leads: Lead[]; message?: string }> {
   try {
-    const { data, error } = await supabase
-      .from("leads_prospeccao")
+    const { data, error } = await (supabase
+      .from("leads_prospeccao") as any)
       .select("*")
       .in("id", leadIds);
 
@@ -595,8 +595,8 @@ export async function deleteLeads(
       return { success: false, message: "Nenhum lead selecionado" };
     }
 
-    const { error } = await supabase
-      .from("leads_prospeccao")
+    const { error } = await (supabase
+      .from("leads_prospeccao") as any)
       .delete()
       .in("id", leadIds);
 

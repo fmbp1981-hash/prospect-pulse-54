@@ -24,8 +24,8 @@ export const logAudit = async (log: AuditLog) => {
     }
 
     // Salvar no Supabase
-    const { error } = await supabase
-      .from('audit_logs')
+    const { error } = await (supabase
+      .from('audit_logs') as any)
       .insert({
         user_id: user.id,
         action: log.action,
@@ -56,14 +56,14 @@ export const logAudit = async (log: AuditLog) => {
 // Função para buscar logs de auditoria do usuário atual
 export const getAuditLogs = async (limit: number = 100) => {
   try {
-    const { data, error } = await supabase
-      .from('audit_logs')
+    const { data, error } = await (supabase
+      .from('audit_logs') as any)
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
 
     if (error) throw error;
-    return data || [];
+    return (data as any[]) || [];
   } catch (error) {
     console.error('[AUDIT] Erro ao buscar logs:', error);
     return [];

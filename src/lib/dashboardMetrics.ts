@@ -36,37 +36,37 @@ export interface DashboardMetrics {
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   try {
     // Total de leads
-    const { count: totalLeads, error: totalError } = await supabase
-      .from('leads_prospeccao')
+    const { count: totalLeads, error: totalError } = await (supabase
+      .from('leads_prospeccao') as any)
       .select('*', { count: 'exact', head: true });
 
     if (totalError) throw totalError;
 
     // Leads por status
-    const { data: statusData, error: statusError } = await supabase
-      .from('leads_prospeccao')
+    const { data: statusData, error: statusError } = await (supabase
+      .from('leads_prospeccao') as any)
       .select('status')
       .not('status', 'is', null);
 
     if (statusError) throw statusError;
 
-    const newLeads = statusData?.filter(l => l.status === 'Novo').length || 0;
-    const recurrentLeads = statusData?.filter(l => l.status === 'Recorrente').length || 0;
+    const newLeads = (statusData as any[])?.filter(l => l.status === 'Novo').length || 0;
+    const recurrentLeads = (statusData as any[])?.filter(l => l.status === 'Recorrente').length || 0;
 
     // Leads com informações de contato
-    const { data: contactData, error: contactError } = await supabase
-      .from('leads_prospeccao')
+    const { data: contactData, error: contactError } = await (supabase
+      .from('leads_prospeccao') as any)
       .select('whatsapp, telefone, email, website');
 
     if (contactError) throw contactError;
 
-    const leadsWithPhone = contactData?.filter(l => l.whatsapp || l.telefone).length || 0;
-    const leadsWithEmail = contactData?.filter(l => l.email).length || 0;
-    const leadsWithWebsite = contactData?.filter(l => l.website).length || 0;
+    const leadsWithPhone = (contactData as any[])?.filter(l => l.whatsapp || l.telefone).length || 0;
+    const leadsWithEmail = (contactData as any[])?.filter(l => l.email).length || 0;
+    const leadsWithWebsite = (contactData as any[])?.filter(l => l.website).length || 0;
 
     // Leads por status (agregado)
     const leadsByStatus = Object.entries(
-      statusData?.reduce((acc: Record<string, number>, lead) => {
+      (statusData as any[])?.reduce((acc: Record<string, number>, lead: any) => {
         const status = lead.status || 'Sem Status';
         acc[status] = (acc[status] || 0) + 1;
         return acc;
@@ -74,8 +74,8 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     ).map(([status, count]) => ({ status, count: count as number }));
 
     // Leads por categoria
-    const { data: categoryData, error: categoryError } = await supabase
-      .from('leads_prospeccao')
+    const { data: categoryData, error: categoryError } = await (supabase
+      .from('leads_prospeccao') as any)
       .select('categoria')
       .not('categoria', 'is', null)
       .limit(100);
@@ -83,7 +83,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     if (categoryError) throw categoryError;
 
     const leadsByCategory = Object.entries(
-      categoryData?.reduce((acc: Record<string, number>, lead) => {
+      (categoryData as any[])?.reduce((acc: Record<string, number>, lead: any) => {
         const categoria = lead.categoria || 'Sem Categoria';
         acc[categoria] = (acc[categoria] || 0) + 1;
         return acc;
@@ -93,8 +93,8 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
       .slice(0, 10);
 
     // Leads por cidade
-    const { data: cityData, error: cityError } = await supabase
-      .from('leads_prospeccao')
+    const { data: cityData, error: cityError } = await (supabase
+      .from('leads_prospeccao') as any)
       .select('cidade')
       .not('cidade', 'is', null)
       .limit(100);
@@ -102,7 +102,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     if (cityError) throw cityError;
 
     const leadsByCity = Object.entries(
-      cityData?.reduce((acc: Record<string, number>, lead) => {
+      (cityData as any[])?.reduce((acc: Record<string, number>, lead: any) => {
         const cidade = lead.cidade || 'Sem Cidade';
         acc[cidade] = (acc[cidade] || 0) + 1;
         return acc;
@@ -112,8 +112,8 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
       .slice(0, 10);
 
     // Leads recentes
-    const { data: recentLeads, error: recentError } = await supabase
-      .from('leads_prospeccao')
+    const { data: recentLeads, error: recentError } = await (supabase
+      .from('leads_prospeccao') as any)
       .select('id, lead, empresa, categoria, cidade, created_at')
       .order('created_at', { ascending: false })
       .limit(10);
@@ -121,8 +121,8 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     if (recentError) throw recentError;
 
     // Timeline de leads (últimos 30 dias)
-    const { data: timelineData, error: timelineError } = await supabase
-      .from('leads_prospeccao')
+    const { data: timelineData, error: timelineError } = await (supabase
+      .from('leads_prospeccao') as any)
       .select('created_at')
       .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: true });
@@ -130,7 +130,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
     if (timelineError) throw timelineError;
 
     const leadsTimeline = Object.entries(
-      timelineData?.reduce((acc: Record<string, number>, lead) => {
+      (timelineData as any[])?.reduce((acc: Record<string, number>, lead: any) => {
         const date = new Date(lead.created_at).toLocaleDateString('pt-BR');
         acc[date] = (acc[date] || 0) + 1;
         return acc;
@@ -147,7 +147,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
       leadsByStatus,
       leadsByCategory,
       leadsByCity,
-      recentLeads: recentLeads || [],
+      recentLeads: (recentLeads as any[]) || [],
       leadsTimeline,
     };
   } catch (error) {

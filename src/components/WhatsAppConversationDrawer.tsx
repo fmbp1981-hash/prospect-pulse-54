@@ -48,15 +48,15 @@ export function WhatsAppConversationDrawer({
 
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('whatsapp_conversations')
+      const { data, error } = await (supabase
+        .from('whatsapp_conversations') as any)
         .select('*')
         .eq('lead_id', leadId)
         .order('timestamp', { ascending: true });
 
       if (error) throw error;
 
-      setConversations(data || []);
+      setConversations((data as Conversation[]) || []);
     } catch (error) {
       console.error('Error loading conversations:', error);
       toast.error('Erro ao carregar conversas');
@@ -73,8 +73,8 @@ export function WhatsAppConversationDrawer({
       // Aqui você pode chamar a Evolution API diretamente
       // ou salvar a mensagem e deixar o backend enviar
 
-      const { error } = await supabase
-        .from('whatsapp_conversations')
+      const { error } = await (supabase
+        .from('whatsapp_conversations') as any)
         .insert({
           lead_id: leadId,
           message: newMessage,
