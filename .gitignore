@@ -10,7 +10,12 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.next
+.vercel
 *.local
+
+# Bun
+bun.lockb
 
 # Environment variables (SECURITY)
 .env

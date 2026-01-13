@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 export interface UserSettings {
   id?: string;
@@ -82,7 +83,7 @@ export const userSettingsService = {
             evolution_api_key: settings.evolution_api_key,
             evolution_instance_name: settings.evolution_instance_name,
             updated_at: new Date().toISOString(),
-          })
+          } satisfies Database['public']['Tables']['user_settings']['Update'])
           .eq("user_id", user.id)
           .select()
           .single();
@@ -99,7 +100,7 @@ export const userSettingsService = {
             evolution_api_url: settings.evolution_api_url,
             evolution_api_key: settings.evolution_api_key,
             evolution_instance_name: settings.evolution_instance_name,
-          })
+          } satisfies Database['public']['Tables']['user_settings']['Insert'])
           .select()
           .single();
 

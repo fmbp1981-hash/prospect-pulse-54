@@ -10,6 +10,7 @@ import { Lead, LeadStatus } from "@/types/prospection";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
+import type { Database } from "@/integrations/supabase/types";
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -236,10 +237,10 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
         const updateData = {
           estagio_pipeline: newStatus,
           updated_at: new Date().toISOString()
-        };
+        } satisfies Database['public']['Tables']['leads_prospeccao']['Update'];
 
-        const { error } = await (supabase
-          .from("leads_prospeccao") as any)
+        const { error } = await supabase
+          .from("leads_prospeccao")
           .update(updateData)
           .eq("id", activeId);
 

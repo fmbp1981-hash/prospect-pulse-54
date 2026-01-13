@@ -35,6 +35,132 @@ export type Database = {
         }
         Relationships: []
       }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string | null
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      search_history: {
+        Row: {
+          created_at: string | null
+          id: string
+          location: Json
+          niche: string
+          quantity: number
+          saved_count: number | null
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          location: Json
+          niche: string
+          quantity: number
+          saved_count?: number | null
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          location?: Json
+          niche?: string
+          quantity?: number
+          saved_count?: number | null
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      lead_notes: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          lead_id: string
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          lead_id: string
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          lead_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      lead_interactions: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          lead_id: string
+          metadata: Json | null
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          lead_id: string
+          metadata?: Json | null
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          lead_id?: string
+          metadata?: Json | null
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       leads_prospeccao: {
         Row: {
           aceita_cartao: string | null
@@ -136,6 +262,7 @@ export type Database = {
           evolution_api_url: string | null
           evolution_instance_name: string | null
           id: string
+          role: Database["public"]["Enums"]["user_role"]
           updated_at: string | null
           user_id: string
         }
@@ -146,6 +273,7 @@ export type Database = {
           evolution_api_url?: string | null
           evolution_instance_name?: string | null
           id?: string
+          role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string | null
           user_id: string
         }
@@ -156,6 +284,7 @@ export type Database = {
           evolution_api_url?: string | null
           evolution_instance_name?: string | null
           id?: string
+          role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string | null
           user_id?: string
         }
@@ -211,7 +340,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      user_role: "admin" | "operador" | "visualizador"
     }
     CompositeTypes: {
       [_ in never]: never

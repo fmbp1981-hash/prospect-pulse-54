@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { ProspectionSearch, LocationData } from "@/types/prospection";
+import type { Database } from "@/integrations/supabase/types";
 
 export interface SearchHistoryItem {
     id: string;
@@ -17,7 +18,7 @@ export const historyService = {
     async getHistory(): Promise<ProspectionSearch[]> {
         // Cast to any to bypass type check for new table
         const { data, error } = await (supabase
-            .from('search_history' as any)
+            .from('search_history')
             .select('*')
             .order('created_at', { ascending: false }));
 
@@ -40,7 +41,7 @@ export const historyService = {
     // Save new search to Supabase
     async saveSearch(search: Omit<ProspectionSearch, 'id' | 'timestamp'> & { user_id?: string }): Promise<ProspectionSearch> {
         const { data, error } = await (supabase
-            .from('search_history' as any)
+            .from('search_history')
             .insert({
                 niche: search.niche,
                 location: search.location, // Supabase handles JSONB automatically
@@ -48,7 +49,7 @@ export const historyService = {
                 status: search.status,
                 saved_count: search.savedCount || 0,
                 user_id: search.user_id || (await supabase.auth.getUser()).data.user?.id
-            })
+            } satisfies Database['public']['Tables']['search_history']['Insert'])
             .select()
             .single());
 
@@ -73,7 +74,7 @@ export const historyService = {
     // Clear all history for user
     async clearHistory(): Promise<void> {
         const { error } = await (supabase
-            .from('search_history' as any)
+            .from('search_history')
             .delete()
             .neq('id', '00000000-0000-0000-0000-000000000000')); // Delete all rows where ID is not empty UUID (effectively all)
 
@@ -86,7 +87,7 @@ export const historyService = {
     // Delete single item
     async deleteSearch(id: string): Promise<void> {
         const { error } = await (supabase
-            .from('search_history' as any)
+            .from('search_history')
             .delete()
             .eq('id', id));
 

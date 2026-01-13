@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 const leadEditSchema = z.object({
   empresa: z.string().min(1, "Nome da empresa é obrigatório"),
@@ -109,11 +110,11 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
 
     try {
       // Mapear campos do formulário para os campos do banco de dados
-      const updateData: any = {
+      const updateData = {
         empresa: data.empresa,
         status: data.status,
         contato: data.contato || null,
-        telefone_whatsapp: data.whatsapp || null,
+        whatsapp: data.whatsapp || null,
         email: data.email || null,
         website: data.website || null,
         instagram: data.instagram || null,
@@ -123,10 +124,10 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
         cnpj: data.cnpj || null,
         aceita_cartao: data.aceitaCartao || null,
         updated_at: new Date().toISOString(),
-      };
+      } satisfies Database['public']['Tables']['leads_prospeccao']['Update'];
 
-      const { error } = await (supabase
-        .from('leads_prospeccao') as any)
+      const { error } = await supabase
+        .from('leads_prospeccao')
         .update(updateData)
         .eq('id', lead.id);
 

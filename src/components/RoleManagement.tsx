@@ -35,8 +35,8 @@ export function RoleManagement() {
       // Buscar user_settings e juntar com audit_logs para pegar o email
       // Como não temos acesso direto aos emails de outros usuários,
       // vamos mostrar apenas o user_id e role por enquanto
-      const { data: userSettings, error } = await (supabase
-        .from('user_settings') as any)
+      const { data: userSettings, error } = await supabase
+        .from('user_settings')
         .select('user_id, role, created_at');
 
       if (error) throw error;
@@ -63,8 +63,8 @@ export function RoleManagement() {
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setUpdatingUserId(userId);
     try {
-      const { error } = await (supabase
-        .from('user_settings') as any)
+      const { error } = await supabase
+        .from('user_settings')
         .update({ role: newRole })
         .eq('user_id', userId);
 

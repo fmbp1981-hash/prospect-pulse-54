@@ -4,12 +4,9 @@ import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
 import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 
-export interface LocationData {
-  country: string;
-  state: string;
-  city: string;
-  neighborhood?: string;
-}
+import type { LocationData as ProspectionLocationData } from "@/types/prospection";
+
+export type LocationData = ProspectionLocationData;
 
 interface LocationCascadeProps {
   value: LocationData;

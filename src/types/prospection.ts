@@ -3,6 +3,7 @@ export interface LocationData {
   state: string;
   city: string;
   neighborhood?: string;
+  [key: string]: string | undefined;
 }
 
 export interface ProspectionSearch {

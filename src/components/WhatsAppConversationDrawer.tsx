@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Send, Bot, User, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import type { Database } from "@/integrations/supabase/types";
 
 interface Conversation {
   id: string;
@@ -81,7 +82,7 @@ export function WhatsAppConversationDrawer({
           from_lead: false,
           ai_generated: false,
           timestamp: new Date().toISOString(),
-        });
+        } satisfies Database['public']['Tables']['whatsapp_conversations']['Insert']);
 
       if (error) throw error;
 

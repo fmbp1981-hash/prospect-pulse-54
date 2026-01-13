@@ -11,7 +11,7 @@ export interface Note {
 
 export interface Interaction {
     id: string;
-    type: 'status_change' | 'whatsapp_sent' | 'note_added' | 'manual_log';
+    type: string;
     description: string;
     metadata: any;
     created_at: string;
@@ -35,8 +35,8 @@ export function useLeadDetails(leadId: string | undefined) {
         setIsLoading(true);
         try {
             // Load Notes
-            const { data: notesData } = await (supabase
-                .from("lead_notes") as any)
+            const { data: notesData } = await supabase
+                .from("lead_notes")
                 .select("*")
                 .eq("lead_id", leadId)
                 .order("created_at", { ascending: false });
@@ -44,11 +44,11 @@ export function useLeadDetails(leadId: string | undefined) {
             if (notesData) setNotes(notesData);
 
             // Load Interactions
-            const { interactionsData } = await (supabase
-                .from("lead_interactions") as any)
+            const { data: interactionsData } = await supabase
+                .from("lead_interactions")
                 .select("*")
                 .eq("lead_id", leadId)
-                .order("created_at", { ascending: false }) as any;
+                .order("created_at", { ascending: false });
 
             if (interactionsData) setInteractions(interactionsData);
 
@@ -72,8 +72,8 @@ export function useLeadDetails(leadId: string | undefined) {
     const addNote = async (content: string) => {
         if (!leadId) return;
         try {
-            const { error } = await (supabase
-                .from("lead_notes") as any)
+            const { error } = await supabase
+                .from("lead_notes")
                 .insert([{ lead_id: leadId, content }]);
 
             if (error) throw error;
@@ -130,8 +130,8 @@ export function useLeadDetails(leadId: string | undefined) {
     const logInteraction = async (type: Interaction['type'], description: string, metadata = {}) => {
         if (!leadId) return;
         try {
-            await (supabase
-                .from("lead_interactions") as any)
+            await supabase
+                .from("lead_interactions")
                 .insert([{
                     lead_id: leadId,
                     type,
