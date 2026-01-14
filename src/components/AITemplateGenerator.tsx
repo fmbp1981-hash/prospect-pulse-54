@@ -280,7 +280,7 @@ export function AITemplateGenerator({
                         ✨ Template Gerado: {generatedName}
                       </p>
                       <p className="text-xs text-green-700 mt-1">
-                        3 variações criadas automaticamente. Revise abaixo e clique em "Usar Template"
+                        3 variações criadas automaticamente. Revise abaixo e clique em &quot;Usar Template&quot;
                         para editar no Template Manager antes de salvar.
                       </p>
                     </div>

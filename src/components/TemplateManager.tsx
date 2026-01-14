@@ -232,12 +232,12 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
       const newTemplates = templates.map((t) =>
         t.id === currentTemplate.id
           ? {
-              ...t,
-              name: formData.name,
-              category: formData.category,
-              variations: formData.variations,
-              updatedAt: new Date().toISOString(),
-            }
+            ...t,
+            name: formData.name,
+            category: formData.category,
+            variations: formData.variations,
+            updatedAt: new Date().toISOString(),
+          }
           : t
       );
       saveTemplates(newTemplates);
@@ -334,7 +334,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                   <div className="flex-1">
                     <p className="text-xs font-medium text-yellow-900">💡 Templates Antigos?</p>
                     <p className="text-xs text-yellow-800">
-                      Se seus templates estão desatualizados ou com erros, clique em "Resetar"
+                      Se seus templates estão desatualizados ou com erros, clique em &quot;Resetar&quot;
                     </p>
                   </div>
                   <Button

@@ -186,7 +186,7 @@ export async function checkDuplicateLead(
 ): Promise<{ isDuplicate: boolean; existingLead?: Lead; message: string }> {
   try {
     const normalizedNome = normalizeText(nome);
-    
+
     // Buscar por WhatsApp (chave primária de unicidade)
     if (whatsapp && whatsapp.trim()) {
       const cleanPhone = whatsapp.replace(/\D/g, "");
@@ -235,7 +235,7 @@ export async function checkDuplicateLead(
       for (const match of nameMatches) {
         const matchNome = normalizeText(match.lead || "");
         const matchEmpresa = normalizeText(match.empresa || "");
-        
+
         if (matchNome === normalizedNome || matchEmpresa === normalizedNome) {
           return {
             isDuplicate: true,
@@ -269,8 +269,8 @@ export async function mergeLeads(
       return { success: false, message: "Não foi possível encontrar os leads para mesclar" };
     }
 
-    const keepLead = leads.find(l => l.id === keepLeadId);
-    const mergeLead = leads.find(l => l.id === mergeLeadId);
+    const keepLead = leads.find(l => l.id === keepLeadId) as SupabaseLeadRow | undefined;
+    const mergeLead = leads.find(l => l.id === mergeLeadId) as SupabaseLeadRow | undefined;
 
     if (!keepLead || !mergeLead) {
       return { success: false, message: "Leads não encontrados" };
@@ -289,7 +289,7 @@ export async function mergeLeads(
       instagram: keepLead.instagram || mergeLead.instagram,
       cidade: keepLead.cidade || mergeLead.cidade,
       endereco: keepLead.endereco || mergeLead.endereco,
-      bairro: keepLead.bairro || mergeLead.bairro,
+      bairro_regiao: keepLead.bairro_regiao || mergeLead.bairro_regiao,
       link_gmn: keepLead.link_gmn || mergeLead.link_gmn,
       resumo_analitico: keepLead.resumo_analitico || mergeLead.resumo_analitico,
       updated_at: new Date().toISOString()
@@ -402,7 +402,7 @@ export async function createLead(
     }
 
     const initialStatus = leadData.status || LEAD_STATUS.NOVO_LEAD;
-    
+
     const { data, error } = await supabase
       .from("leads_prospeccao")
       .insert({
