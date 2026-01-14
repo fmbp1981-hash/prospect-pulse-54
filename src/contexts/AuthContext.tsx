@@ -1,8 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useMemo } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { getSupabaseClient } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface AuthContextType {
@@ -21,8 +21,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isClient, setIsClient] = useState(false);
+
+  // Marcar que estamos no cliente
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
+    // Só executar no cliente
+    if (!isClient) return;
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      console.warn('Supabase client não disponível');
+      setLoading(false);
+      return;
+    }
+
     // Verificar sessão atual
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -40,10 +56,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isClient]);
 
   const signIn = async (email: string, password: string) => {
     try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        return { error: { message: 'Supabase não disponível' } as AuthError };
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -66,6 +87,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        return { error: { message: 'Supabase não disponível' } as AuthError };
+      }
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -93,6 +119,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signOut = async () => {
     try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        toast.error("Supabase não disponível");
+        return;
+      }
+
       const { error } = await supabase.auth.signOut();
 
       if (error) {
@@ -110,11 +142,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const resetPassword = async (email: string) => {
     try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        return { error: { message: 'Supabase não disponível' } as AuthError };
+      }
+
       // Usar variável de ambiente para base URL ou fallback seguro
-      const baseUrl = typeof window !== 'undefined' 
-        ? window.location.origin 
+      const baseUrl = typeof window !== 'undefined'
+        ? window.location.origin
         : process.env.NEXT_PUBLIC_APP_URL || '';
-      
+
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${baseUrl}/reset-password`,
       });

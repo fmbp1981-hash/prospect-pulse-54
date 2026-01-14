@@ -2,46 +2,94 @@
 // Adaptado para Next.js App Router com @supabase/ssr
 
 import { createBrowserClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Verificar se as variáveis estão configuradas
-const isConfigured = SUPABASE_URL && SUPABASE_ANON_KEY;
-
-type SupabaseBrowserClient = SupabaseClient<Database>;
-
-// Função para criar cliente (útil em Server Components)
-export function createClient() {
-  if (!isConfigured) {
-    console.warn('⚠️ Supabase não configurado. Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY em .env.local');
-    // Retornar um mock client para evitar crashes durante desenvolvimento
-    return null as unknown as SupabaseBrowserClient;
-  }
-  return createBrowserClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+// Tipo do cliente browser
+type SupabaseBrowserClient = ReturnType<typeof createBrowserClient<Database>>;
 
 // Singleton para componentes client (evita múltiplas instâncias)
 let browserClient: SupabaseBrowserClient | null = null;
 
-function getSupabaseClient() {
-  if (!isConfigured) {
-    return null as unknown as SupabaseBrowserClient;
-  }
-  
+// Função para criar cliente apenas quando no browser
+function createSupabaseClient(): SupabaseBrowserClient | null {
+  // Apenas criar cliente se estiver no browser E variáveis configuradas
   if (typeof window === 'undefined') {
-    // Server-side: criar novo cliente
-    return createClient() as SupabaseBrowserClient;
+    // Durante SSR, retornar null - componentes devem lidar com isso
+    return null;
   }
-  
-  // Client-side: reutilizar cliente existente
+
+  // No browser, verificar configuração
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.warn('⚠️ Supabase não configurado. Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY');
+    return null;
+  }
+
+  return createBrowserClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// Função para obter cliente (lazy initialization)
+export function getSupabaseClient(): SupabaseBrowserClient | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
   if (!browserClient) {
-    browserClient = createClient() as SupabaseBrowserClient;
+    browserClient = createSupabaseClient();
   }
   return browserClient;
 }
 
-// Export principal para uso em toda a aplicação
-export const supabase = getSupabaseClient();
+// Função para criar novo cliente (útil em casos específicos)
+export function createClient(): SupabaseBrowserClient | null {
+  return createSupabaseClient();
+}
+
+// Export principal - LAZY, não cria no momento do import
+// Usar getSupabaseClient() para obter o cliente quando necessário
+export const supabase = {
+  get auth() {
+    const client = getSupabaseClient();
+    if (!client) {
+      throw new Error('Supabase client not initialized. Are you running on the server?');
+    }
+    return client.auth;
+  },
+  get from() {
+    const client = getSupabaseClient();
+    if (!client) {
+      throw new Error('Supabase client not initialized. Are you running on the server?');
+    }
+    return client.from.bind(client);
+  },
+  get storage() {
+    const client = getSupabaseClient();
+    if (!client) {
+      throw new Error('Supabase client not initialized. Are you running on the server?');
+    }
+    return client.storage;
+  },
+  get functions() {
+    const client = getSupabaseClient();
+    if (!client) {
+      throw new Error('Supabase client not initialized. Are you running on the server?');
+    }
+    return client.functions;
+  },
+  get channel() {
+    const client = getSupabaseClient();
+    if (!client) {
+      throw new Error('Supabase client not initialized. Are you running on the server?');
+    }
+    return client.channel.bind(client);
+  },
+  get removeChannel() {
+    const client = getSupabaseClient();
+    if (!client) {
+      throw new Error('Supabase client not initialized. Are you running on the server?');
+    }
+    return client.removeChannel.bind(client);
+  },
+};
