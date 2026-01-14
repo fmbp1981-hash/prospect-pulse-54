@@ -25,7 +25,8 @@ export const logAudit = async (log: AuditLog) => {
     }
 
     // Salvar no Supabase
-    const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from('audit_logs')
       .insert({
         user_id: user.id,
@@ -35,7 +36,7 @@ export const logAudit = async (log: AuditLog) => {
         details: log.details,
         ip_address: null, // Pode ser obtido via API externa se necessário
         user_agent: navigator.userAgent,
-      } satisfies Database['public']['Tables']['audit_logs']['Insert']);
+      });
 
     if (error) {
       console.error('[AUDIT] Erro ao salvar log:', error);

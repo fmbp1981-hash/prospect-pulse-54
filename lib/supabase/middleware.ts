@@ -5,9 +5,24 @@ export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Se o Supabase não está configurado, permitir acesso (dev mode)
+  const { pathname } = request.nextUrl;
+
+  // Rotas públicas (não requerem autenticação)
+  const publicRoutes = ['/login', '/signup', '/forgot-password'];
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+
+  // Se o Supabase não está configurado, redirecionar para login se não é rota pública
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('⚠️ Supabase não configurado no middleware. Permitindo acesso.');
+    console.warn('⚠️ Supabase não configurado no middleware.');
+
+    // Se não é rota pública, redirecionar para login
+    if (!isPublicRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/login';
+      return NextResponse.redirect(url);
+    }
+
+    // Se é rota pública, permitir acesso
     return NextResponse.next({ request });
   }
 
@@ -43,12 +58,6 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const { pathname } = request.nextUrl;
-
-  // Rotas públicas (não requerem autenticação)
-  const publicRoutes = ['/login', '/signup', '/forgot-password'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
 
   // Se não está autenticado e tentando acessar rota protegida
   if (!user && !isPublicRoute) {

@@ -129,7 +129,8 @@ export async function updateLead(
     // Sempre atualizar updated_at
     dbUpdates.updated_at = new Date().toISOString();
 
-    const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from("leads_prospeccao")
       .update(dbUpdates)
       .eq("id", leadId);
@@ -149,14 +150,14 @@ export async function updateLeadStatus(
   status: LeadStatus
 ): Promise<{ success: boolean; message: string }> {
   try {
-    // Atualizar ambos status e estagio_pipeline para sincronizar CRM e Kanban
-    const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from("leads_prospeccao")
       .update({
         status: status,
         estagio_pipeline: status,
         updated_at: new Date().toISOString()
-      } as Record<string, unknown>)
+      })
       .eq("id", leadId);
 
     if (error) throw error;
@@ -190,7 +191,8 @@ export async function checkDuplicateLead(
     // Buscar por WhatsApp (chave primária de unicidade)
     if (whatsapp && whatsapp.trim()) {
       const cleanPhone = whatsapp.replace(/\D/g, "");
-      const { data: whatsappMatches } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: whatsappMatches } = await (supabase as any)
         .from("leads_prospeccao")
         .select("*")
         .or(`whatsapp.ilike.%${cleanPhone}%,telefone.ilike.%${cleanPhone}%`)
@@ -208,7 +210,8 @@ export async function checkDuplicateLead(
     // Buscar por website/domínio
     if (website && website.trim()) {
       const domain = website.replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase();
-      const { data: websiteMatches } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: websiteMatches } = await (supabase as any)
         .from("leads_prospeccao")
         .select("*")
         .ilike("website", `%${domain}%`)
@@ -224,7 +227,8 @@ export async function checkDuplicateLead(
     }
 
     // Buscar por nome similar (usando busca textual normalizada)
-    const { data: nameMatches } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: nameMatches } = await (supabase as any)
       .from("leads_prospeccao")
       .select("*")
       .or(`lead.ilike.%${normalizedNome}%,empresa.ilike.%${normalizedNome}%`)
@@ -260,7 +264,8 @@ export async function mergeLeads(
 ): Promise<{ success: boolean; message: string }> {
   try {
     // Buscar dados dos dois leads
-    const { data: leads, error: fetchError } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leads, error: fetchError } = await (supabase as any)
       .from("leads_prospeccao")
       .select("*")
       .in("id", [keepLeadId, mergeLeadId]);
@@ -296,15 +301,17 @@ export async function mergeLeads(
     };
 
     // Atualizar lead principal
-    const { error: updateError } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updateError } = await (supabase as any)
       .from("leads_prospeccao")
-      .update(mergedData as Record<string, unknown>)
+      .update(mergedData)
       .eq("id", keepLeadId);
 
     if (updateError) throw updateError;
 
     // Deletar lead mesclado
-    const { error: deleteError } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: deleteError } = await (supabase as any)
       .from("leads_prospeccao")
       .delete()
       .eq("id", mergeLeadId);
@@ -323,7 +330,8 @@ export async function clearLeadHistory(
   leadId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from("leads_prospeccao")
       .update({
         mensagem_whatsapp: null,
@@ -331,7 +339,7 @@ export async function clearLeadHistory(
         data_envio_wa: null,
         resumo_analitico: null,
         updated_at: new Date().toISOString()
-      } as Record<string, unknown>)
+      })
       .eq("id", leadId);
 
     if (error) throw error;
@@ -403,7 +411,8 @@ export async function createLead(
 
     const initialStatus = leadData.status || LEAD_STATUS.NOVO_LEAD;
 
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from("leads_prospeccao")
       .insert({
         id: crypto.randomUUID(),

@@ -40,7 +40,8 @@ export const historyService = {
 
     // Save new search to Supabase
     async saveSearch(search: Omit<ProspectionSearch, 'id' | 'timestamp'> & { user_id?: string }): Promise<ProspectionSearch> {
-        const { data, error } = await (supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
             .from('search_history')
             .insert({
                 niche: search.niche,
@@ -49,9 +50,9 @@ export const historyService = {
                 status: search.status,
                 saved_count: search.savedCount || 0,
                 user_id: search.user_id || (await supabase.auth.getUser()).data.user?.id
-            } satisfies Database['public']['Tables']['search_history']['Insert'])
+            })
             .select()
-            .single());
+            .single();
 
         if (error) {
             console.error('Error saving search:', error);

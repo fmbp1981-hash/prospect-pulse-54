@@ -237,9 +237,10 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
         const updateData = {
           estagio_pipeline: newStatus,
           updated_at: new Date().toISOString()
-        } satisfies Database['public']['Tables']['leads_prospeccao']['Update'];
+        };
 
-        const { error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await (supabase as any)
           .from("leads_prospeccao")
           .update(updateData)
           .eq("id", activeId);

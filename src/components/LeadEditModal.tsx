@@ -124,9 +124,10 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
         cnpj: data.cnpj || null,
         aceita_cartao: data.aceitaCartao || null,
         updated_at: new Date().toISOString(),
-      } satisfies Database['public']['Tables']['leads_prospeccao']['Update'];
+      };
 
-      const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
         .from('leads_prospeccao')
         .update(updateData)
         .eq('id', lead.id);

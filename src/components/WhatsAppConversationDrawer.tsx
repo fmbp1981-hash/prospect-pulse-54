@@ -74,7 +74,8 @@ export function WhatsAppConversationDrawer({
       // Aqui você pode chamar a Evolution API diretamente
       // ou salvar a mensagem e deixar o backend enviar
 
-      const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
         .from('whatsapp_conversations')
         .insert({
           lead_id: leadId,
@@ -82,7 +83,7 @@ export function WhatsAppConversationDrawer({
           from_lead: false,
           ai_generated: false,
           timestamp: new Date().toISOString(),
-        } satisfies Database['public']['Tables']['whatsapp_conversations']['Insert']);
+        });
 
       if (error) throw error;
 

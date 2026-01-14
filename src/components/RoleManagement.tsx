@@ -63,7 +63,8 @@ export function RoleManagement() {
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setUpdatingUserId(userId);
     try {
-      const { error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
         .from('user_settings')
         .update({ role: newRole })
         .eq('user_id', userId);

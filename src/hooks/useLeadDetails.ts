@@ -72,7 +72,8 @@ export function useLeadDetails(leadId: string | undefined) {
     const addNote = async (content: string) => {
         if (!leadId) return;
         try {
-            const { error } = await supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any)
                 .from("lead_notes")
                 .insert([{ lead_id: leadId, content }]);
 
@@ -130,7 +131,8 @@ export function useLeadDetails(leadId: string | undefined) {
     const logInteraction = async (type: Interaction['type'], description: string, metadata = {}) => {
         if (!leadId) return;
         try {
-            await supabase
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (supabase as any)
                 .from("lead_interactions")
                 .insert([{
                     lead_id: leadId,

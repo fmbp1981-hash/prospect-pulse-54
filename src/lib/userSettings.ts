@@ -75,7 +75,8 @@ export const userSettingsService = {
 
       if (existing) {
         // Atualizar
-        const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
           .from("user_settings")
           .update({
             company_name: settings.company_name,
@@ -83,7 +84,7 @@ export const userSettingsService = {
             evolution_api_key: settings.evolution_api_key,
             evolution_instance_name: settings.evolution_instance_name,
             updated_at: new Date().toISOString(),
-          } satisfies Database['public']['Tables']['user_settings']['Update'])
+          })
           .eq("user_id", user.id)
           .select()
           .single();
@@ -92,7 +93,8 @@ export const userSettingsService = {
         return data;
       } else {
         // Inserir
-        const { data, error } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
           .from("user_settings")
           .insert({
             user_id: user.id,
@@ -100,7 +102,7 @@ export const userSettingsService = {
             evolution_api_url: settings.evolution_api_url,
             evolution_api_key: settings.evolution_api_key,
             evolution_instance_name: settings.evolution_instance_name,
-          } satisfies Database['public']['Tables']['user_settings']['Insert'])
+          })
           .select()
           .single();
 

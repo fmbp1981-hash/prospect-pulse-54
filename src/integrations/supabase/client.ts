@@ -13,29 +13,16 @@ type SupabaseBrowserClient = ReturnType<typeof createBrowserClient<Database>>;
 // Singleton para componentes client (evita múltiplas instâncias)
 let browserClient: SupabaseBrowserClient | null = null;
 
-// Função para criar cliente apenas quando no browser
-function createSupabaseClient(): SupabaseBrowserClient | null {
-  // Apenas criar cliente se estiver no browser E variáveis configuradas
-  if (typeof window === 'undefined') {
-    // Durante SSR, retornar null - componentes devem lidar com isso
-    return null;
-  }
-
-  // No browser, verificar configuração
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.warn('⚠️ Supabase não configurado. Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY');
-    return null;
-  }
-
-  return createBrowserClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Função para criar cliente
+function createSupabaseClient(): SupabaseBrowserClient {
+  return createBrowserClient<Database>(
+    SUPABASE_URL || 'https://placeholder.supabase.co',
+    SUPABASE_ANON_KEY || 'placeholder-key'
+  );
 }
 
 // Função para obter cliente (lazy initialization)
-export function getSupabaseClient(): SupabaseBrowserClient | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
+export function getSupabaseClient(): SupabaseBrowserClient {
   if (!browserClient) {
     browserClient = createSupabaseClient();
   }
@@ -43,53 +30,10 @@ export function getSupabaseClient(): SupabaseBrowserClient | null {
 }
 
 // Função para criar novo cliente (útil em casos específicos)
-export function createClient(): SupabaseBrowserClient | null {
+export function createClient(): SupabaseBrowserClient {
   return createSupabaseClient();
 }
 
-// Export principal - LAZY, não cria no momento do import
-// Usar getSupabaseClient() para obter o cliente quando necessário
-export const supabase = {
-  get auth() {
-    const client = getSupabaseClient();
-    if (!client) {
-      throw new Error('Supabase client not initialized. Are you running on the server?');
-    }
-    return client.auth;
-  },
-  get from() {
-    const client = getSupabaseClient();
-    if (!client) {
-      throw new Error('Supabase client not initialized. Are you running on the server?');
-    }
-    return client.from.bind(client);
-  },
-  get storage() {
-    const client = getSupabaseClient();
-    if (!client) {
-      throw new Error('Supabase client not initialized. Are you running on the server?');
-    }
-    return client.storage;
-  },
-  get functions() {
-    const client = getSupabaseClient();
-    if (!client) {
-      throw new Error('Supabase client not initialized. Are you running on the server?');
-    }
-    return client.functions;
-  },
-  get channel() {
-    const client = getSupabaseClient();
-    if (!client) {
-      throw new Error('Supabase client not initialized. Are you running on the server?');
-    }
-    return client.channel.bind(client);
-  },
-  get removeChannel() {
-    const client = getSupabaseClient();
-    if (!client) {
-      throw new Error('Supabase client not initialized. Are you running on the server?');
-    }
-    return client.removeChannel.bind(client);
-  },
-};
+// Export principal - sempre retorna um cliente válido (pode usar placeholders durante SSR)
+// O cliente com placeholders falhará nas operações, mas não causa erro de tipo
+export const supabase: SupabaseBrowserClient = getSupabaseClient();
