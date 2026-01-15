@@ -6,14 +6,18 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon } from "lucide-react";
-import { userSettingsService, UserSettings } from "@/lib/userSettings";
+import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History } from "lucide-react";
+import { userSettingsService } from "@/lib/userSettings";
 import { RoleGuard } from "@/components/RoleGuard";
 import { RoleManagement } from "@/components/RoleManagement";
+import { supabaseCRM, syncAllLeads } from "@/lib/supabaseCRM";
+import { historyService } from "@/lib/history";
 
 export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingLeads, setIsDeletingLeads] = useState(false);
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
@@ -65,6 +69,65 @@ export default function SettingsPage() {
       toast.error("Erro ao salvar configurações");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteAllLeads = async () => {
+    const confirmed = window.confirm(
+      "⚠️ ATENÇÃO: Esta ação irá APAGAR PERMANENTEMENTE todos os leads da base de dados.\n\nEsta ação NÃO pode ser desfeita!\n\nDeseja continuar?"
+    );
+
+    if (!confirmed) return;
+
+    const doubleConfirm = window.confirm(
+      "Tem CERTEZA ABSOLUTA? Digite 'CONFIRMAR' mentalmente e clique OK para prosseguir."
+    );
+
+    if (!doubleConfirm) return;
+
+    setIsDeletingLeads(true);
+    try {
+      // Buscar todos os leads
+      const { leads } = await syncAllLeads();
+
+      if (leads.length === 0) {
+        toast.info("Não há leads para excluir");
+        return;
+      }
+
+      // Excluir todos os leads
+      const leadIds = leads.map(l => l.id);
+      const result = await supabaseCRM.deleteLeads(leadIds);
+
+      if (result.success) {
+        toast.success(`${leads.length} leads excluídos com sucesso!`);
+      } else {
+        toast.error(result.message || "Erro ao excluir leads");
+      }
+    } catch (error) {
+      console.error("Erro ao excluir leads:", error);
+      toast.error("Erro ao excluir leads");
+    } finally {
+      setIsDeletingLeads(false);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    const confirmed = window.confirm(
+      "⚠️ ATENÇÃO: Esta ação irá limpar todo o histórico de pesquisas.\n\nEsta ação NÃO pode ser desfeita!\n\nDeseja continuar?"
+    );
+
+    if (!confirmed) return;
+
+    setIsClearingHistory(true);
+    try {
+      await historyService.clearHistory();
+      toast.success("Histórico de pesquisas limpo com sucesso!");
+    } catch (error) {
+      console.error("Erro ao limpar histórico:", error);
+      toast.error("Erro ao limpar histórico");
+    } finally {
+      setIsClearingHistory(false);
     }
   };
 
@@ -134,8 +197,8 @@ export default function SettingsPage() {
             </p>
             <div className="text-xs text-blue-800 dark:text-blue-200 bg-white dark:bg-blue-950 p-3 rounded border border-blue-200 dark:border-blue-800">
               <p className="whitespace-pre-wrap">
-                Olá! Sou da <strong>{companyName || "Sua Empresa"}</strong>.<br/><br/>
-                Notei que a <strong>{"{{empresa}}"}</strong> em <strong>{"{{cidade}}"}</strong> atua no ramo de <strong>{"{{categoria}}"}</strong>.<br/><br/>
+                Olá! Sou da <strong>{companyName || "Sua Empresa"}</strong>.<br /><br />
+                Notei que a <strong>{"{{empresa}}"}</strong> em <strong>{"{{cidade}}"}</strong> atua no ramo de <strong>{"{{categoria}}"}</strong>.<br /><br />
                 Podemos ajudar a impulsionar seus resultados. Posso apresentar nossa solução?
               </p>
             </div>
@@ -259,6 +322,82 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Danger Zone - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
+        <Card className="border-red-200 dark:border-red-800">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <CardTitle className="text-red-600 dark:text-red-400">Zona de Perigo</CardTitle>
+            </div>
+            <CardDescription className="text-red-600/80 dark:text-red-400/80">
+              Ações destrutivas que não podem ser desfeitas. Use com cuidado!
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-950/30">
+                <h4 className="font-medium text-red-700 dark:text-red-300 mb-2 flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Apagar Todos os Leads
+                </h4>
+                <p className="text-xs text-red-600 dark:text-red-400 mb-3">
+                  Remove permanentemente todos os leads da base de dados.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteAllLeads}
+                  disabled={isDeletingLeads}
+                  className="w-full sm:w-auto"
+                >
+                  {isDeletingLeads ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Apagar Todos os Leads
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="flex-1 p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-950/30">
+                <h4 className="font-medium text-red-700 dark:text-red-300 mb-2 flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Limpar Histórico de Pesquisas
+                </h4>
+                <p className="text-xs text-red-600 dark:text-red-400 mb-3">
+                  Remove todo o histórico de pesquisas realizadas.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleClearHistory}
+                  disabled={isClearingHistory}
+                  className="w-full sm:w-auto"
+                >
+                  {isClearingHistory ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Limpando...
+                    </>
+                  ) : (
+                    <>
+                      <History className="h-4 w-4 mr-2" />
+                      Limpar Histórico
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </RoleGuard>
 
       {/* Role Management - Apenas para Admins */}
       <RoleGuard allowedRoles={['admin']}>
