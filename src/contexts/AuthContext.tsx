@@ -62,7 +62,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const supabase = getSupabaseClient();
       if (!supabase) {
-        return { error: { message: 'Supabase não disponível' } as AuthError };
+        const errorMsg = 'Supabase não disponível. Verifique sua conexão.';
+        toast.error("Erro ao fazer login", { description: errorMsg });
+        return { error: { message: errorMsg } as AuthError };
       }
 
       const { error } = await supabase.auth.signInWithPassword({
@@ -71,17 +73,45 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (error) {
+        // Mensagens de erro mais amigáveis
+        let description = error.message;
+        if (error.message.includes('Invalid login credentials')) {
+          description = 'Email ou senha incorretos. Verifique suas credenciais.';
+        } else if (error.message.includes('Email not confirmed')) {
+          description = 'Email não confirmado. Verifique sua caixa de entrada.';
+        }
+
         toast.error("Erro ao fazer login", {
-          description: error.message,
+          description,
         });
       } else {
         toast.success("Login realizado com sucesso!");
       }
 
       return { error };
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Erro no signIn:", error);
-      return { error: error as AuthError };
+
+      // Tratamento específico para erros de rede
+      let errorMessage = 'Erro inesperado ao fazer login.';
+
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch') || error.message.includes('fetch')) {
+          errorMessage = 'Falha na conexão. Verifique sua internet e tente novamente.';
+        } else if (error.message.includes('NetworkError')) {
+          errorMessage = 'Erro de rede. Verifique sua conexão com a internet.';
+        } else if (error.message.includes('CORS')) {
+          errorMessage = 'Erro de configuração do servidor. Contate o suporte.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      toast.error("Erro ao fazer login", {
+        description: errorMessage,
+      });
+
+      return { error: { message: errorMessage } as AuthError };
     }
   };
 
