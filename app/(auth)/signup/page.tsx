@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Rocket } from "lucide-react";
+import { Loader2, Rocket, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 
@@ -22,8 +22,8 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [signupSuccess, setSignupSuccess] = useState(false);
-  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,131 +91,120 @@ export default function SignUpPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {signupSuccess ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
-                  <h3 className="font-semibold text-green-800 dark:text-green-200 mb-2">
-                    ✅ Conta criada com sucesso!
-                  </h3>
-                  <p className="text-sm text-green-700 dark:text-green-300 mb-4">
-                    Enviamos um email de confirmação para:
-                    <br />
-                    <strong>{registeredEmail}</strong>
-                  </p>
-                  <div className="space-y-2 text-sm text-green-700 dark:text-green-300">
-                    <p><strong>📧 Próximos passos:</strong></p>
-                    <ol className="list-decimal list-inside space-y-1 ml-2">
-                      <li>Abra seu email</li>
-                      <li>Procure por &quot;Confirm your email&quot; (verifique spam também)</li>
-                      <li>Clique no link de confirmação</li>
-                      <li>Volte aqui e faça login</li>
-                    </ol>
-                  </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
+                  {error}
                 </div>
+              )}
 
-                <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md text-sm">
-                  <p className="text-blue-800 dark:text-blue-200">
-                    <strong>💡 Dica:</strong> Se não recebeu o email em 5 minutos:
-                  </p>
-                  <ul className="list-disc list-inside ml-2 mt-2 text-blue-700 dark:text-blue-300">
-                    <li>Verifique a pasta de spam/lixo eletrônico</li>
-                    <li>Verifique se digitou o email corretamente</li>
-                    <li>Aguarde alguns minutos e tente novamente</li>
-                  </ul>
-                </div>
-
-                <Link href="/login">
-                  <Button className="w-full">
-                    Ir para Login
-                  </Button>
-                </Link>
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Nome Completo</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  placeholder="Seu nome"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  autoComplete="name"
+                />
               </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                {error && (
-                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">
-                    {error}
-                  </div>
-                )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Nome Completo</Label>
-                  <Input
-                    id="fullName"
-                    type="text"
-                    placeholder="Seu nome"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    autoComplete="name"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                />
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    autoComplete="email"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password">Senha</Label>
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <div className="relative">
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     autoComplete="new-password"
+                    className="pr-10"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+                <div className="relative">
                   <Input
                     id="confirmPassword"
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
                     autoComplete="new-password"
+                    className="pr-10"
                   />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Criando conta...
-                    </>
-                  ) : (
-                    "Criar Conta"
-                  )}
-                </Button>
-
-                <p className="text-center text-sm text-muted-foreground">
-                  Já tem uma conta?{" "}
-                  <Link
-                    href="/login"
-                    className="text-primary hover:underline"
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    tabIndex={-1}
                   >
-                    Fazer login
-                  </Link>
-                </p>
-              </form>
-            )}
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Criando conta...
+                  </>
+                ) : (
+                  "Criar Conta"
+                )}
+              </Button>
+
+              <p className="text-center text-sm text-muted-foreground">
+                Já tem uma conta?{" "}
+                <Link
+                  href="/login"
+                  className="text-primary hover:underline"
+                >
+                  Fazer login
+                </Link>
+              </p>
+            </form>
           </CardContent>
         </Card>
       </motion.div>
