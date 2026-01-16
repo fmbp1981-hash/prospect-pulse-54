@@ -100,7 +100,7 @@ export const LeadsFilters = ({
           <Checkbox
             id="whatsapp-filter"
             checked={hasWhatsAppFilter}
-            onCheckedChange={setHasWhatsAppFilter}
+            onCheckedChange={(checked) => setHasWhatsAppFilter(checked === true)}
           />
           <label htmlFor="whatsapp-filter" className="text-sm font-medium cursor-pointer">
             Apenas com WhatsApp
