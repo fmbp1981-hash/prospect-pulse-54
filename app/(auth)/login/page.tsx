@@ -160,9 +160,12 @@ export default function LoginPage() {
         transition={{ delay: 0.5, duration: 0.4 }}
         className="mt-8 text-center text-sm text-muted-foreground"
       >
-        Desenvolvido por{" "}
-        <span className="font-semibold" style={{ color: "#D4AF37" }}>IntelliX</span>
-        <span className="font-semibold" style={{ color: "#3B82F6" }}>.AI</span>
+        <p>
+          Desenvolvido por{" "}
+          <span className="font-semibold" style={{ color: "#D4AF37" }}>IntelliX</span>
+          <span className="font-semibold" style={{ color: "#3B82F6" }}>.AI</span>
+        </p>
+        <p className="text-xs mt-1">© {new Date().getFullYear()} Todos os direitos reservados</p>
       </motion.div>
     </div>
   );
