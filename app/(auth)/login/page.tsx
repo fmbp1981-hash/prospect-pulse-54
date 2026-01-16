@@ -31,7 +31,8 @@ export default function LoginPage() {
     const { error } = await signIn(email, password);
 
     if (!error) {
-      router.push("/");
+      // Usando replace para navegação mais rápida (não adiciona ao histórico)
+      router.replace("/");
     }
 
     setIsLoading(false);
@@ -46,7 +47,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen gradient-hero flex items-center justify-center px-4">
+    <div className="min-h-screen gradient-hero flex flex-col items-center justify-center px-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -151,6 +152,19 @@ export default function LoginPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* IntelliX.AI Footer */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5, duration: 0.4 }}
+        className="mt-8 text-center text-sm text-muted-foreground"
+      >
+        Desenvolvido por{" "}
+        <span className="font-semibold" style={{ color: "#D4AF37" }}>IntelliX</span>
+        <span className="font-semibold" style={{ color: "#3B82F6" }}>.AI</span>
+      </motion.div>
     </div>
   );
 }
+

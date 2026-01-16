@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { LayoutDashboard, Table, Search, Settings, Link2, MessageSquare, CheckCircle, LogOut, User, FileText, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import { NavLink } from "@/components/NavLink";
@@ -46,10 +47,16 @@ const items = [
 ];
 
 export function AppSidebar() {
+  const router = useRouter();
   const { user, signOut } = useAuth();
   const { isAdmin } = useUserRole();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+
+  const handleLogout = async () => {
+    await signOut();
+    router.push("/login");
+  };
 
   const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -250,7 +257,7 @@ export function AppSidebar() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={signOut}
+                    onClick={handleLogout}
                     className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
                   >
                     <LogOut className="h-4 w-4 mr-2" />
@@ -262,18 +269,15 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* IntelliX.AI Footer */}
+        {/* IntelliX.AI Footer - Logo only */}
         <SidebarGroup className="border-t border-border/40 pt-3 pb-3">
           <SidebarGroupContent>
-            <div className="px-3 py-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="px-3 py-2 flex justify-center">
               <img
                 src="/intellix-logo.png"
                 alt="IntelliX.AI"
-                className="h-8 w-8 object-contain"
+                className="h-10 w-10 object-contain"
               />
-              {!isCollapsed && (
-                <span>Desenvolvido por <strong className="text-primary">IntelliX.AI</strong></span>
-              )}
             </div>
           </SidebarGroupContent>
         </SidebarGroup>
