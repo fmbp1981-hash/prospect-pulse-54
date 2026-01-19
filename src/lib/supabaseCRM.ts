@@ -12,6 +12,7 @@ interface SupabaseLeadRow {
   id: string;
   lead?: string;
   status?: string;
+  estagio_pipeline?: string;
   data?: string;
   empresa?: string;
   categoria?: string;
@@ -31,6 +32,8 @@ interface SupabaseLeadRow {
   mensagem_whatsapp?: string;
   status_msg_wa?: string;
   data_envio_wa?: string;
+  data_envio_proposta?: string;
+  data_ultima_interacao?: string;
   resumo_analitico?: string;
   created_at?: string;
   updated_at?: string;
@@ -49,7 +52,8 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
     const leads: Lead[] = (data || []).map((row: SupabaseLeadRow) => ({
       id: row.id,
       lead: row.lead || "",
-      status: (row.status || LEAD_STATUS.NOVO) as LeadStatus,
+      // Priorizar estagio_pipeline para sincronizar com Kanban
+      status: (row.estagio_pipeline || row.status || LEAD_STATUS.NOVO) as LeadStatus,
       data: row.data || "",
       empresa: row.empresa || "",
       categoria: row.categoria || "",
@@ -478,11 +482,12 @@ export async function getMetrics(): Promise<{
       [LEAD_STATUS.QUALIFICACAO]: 0,
       [LEAD_STATUS.PROPOSTA_ENVIADA]: 0,
       [LEAD_STATUS.NEGOCIACAO]: 0,
+      [LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR]: 0,
       [LEAD_STATUS.FECHADO_GANHO]: 0,
       [LEAD_STATUS.FECHADO_PERDIDO]: 0,
       [LEAD_STATUS.EM_FOLLOWUP]: 0,
-      'Fechado': 0,
-      'Follow-up': 0,
+      [LEAD_STATUS.FECHADO]: 0,
+      [LEAD_STATUS.FOLLOWUP]: 0,
     };
 
     const originCounts: Record<string, number> = {};

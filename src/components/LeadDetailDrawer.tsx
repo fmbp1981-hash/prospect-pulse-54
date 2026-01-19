@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Phone, Mail, MapPin, Building2, Tag, Calendar, History, StickyNote, Send, Plus, Trash2 } from "lucide-react";
+import { X, Phone, Mail, MapPin, Building2, Tag, Calendar, History, StickyNote, Send, Plus, Trash2, ArrowRight, FileText, UserCheck, CheckCircle, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { useLeadDetails } from "@/hooks/useLeadDetails";
+import { leadAutomation, FOLLOWUP_REASONS } from "@/lib/leadAutomation";
+import { toast } from "sonner";
 import type { Lead } from "@/types/prospection";
 
 interface LeadDetailDrawerProps {
@@ -22,6 +25,8 @@ export function LeadDetailDrawer({ lead, open, onClose, onUpdate }: LeadDetailDr
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [newTag, setNewTag] = useState("");
+  const [isMovingStage, setIsMovingStage] = useState(false);
+  const [selectedFollowUpReason, setSelectedFollowUpReason] = useState<string>("");
 
   const { notes, interactions, tags, isLoading, addNote, addTag, removeTag } = useLeadDetails(lead?.id);
 
@@ -31,6 +36,48 @@ export function LeadDetailDrawer({ lead, open, onClose, onUpdate }: LeadDetailDr
     setIsEditModalOpen(false);
     if (onUpdate) {
       onUpdate();
+    }
+  };
+
+  const handleMoveToStage = async (action: 'proposta' | 'negociacao' | 'consultor' | 'fechado' | 'followup') => {
+    if (!lead) return;
+    setIsMovingStage(true);
+
+    try {
+      let result;
+      switch (action) {
+        case 'proposta':
+          result = await leadAutomation.moveToPropostaEnviada(lead.id);
+          break;
+        case 'negociacao':
+          result = await leadAutomation.moveToNegociacao(lead.id);
+          break;
+        case 'consultor':
+          result = await leadAutomation.moveToTransferidoParaConsultor(lead.id);
+          break;
+        case 'fechado':
+          result = await leadAutomation.moveToFechado(lead.id);
+          break;
+        case 'followup':
+          if (!selectedFollowUpReason) {
+            toast.error("Selecione um motivo para o Follow-up");
+            setIsMovingStage(false);
+            return;
+          }
+          result = await leadAutomation.moveToFollowUp(lead.id, selectedFollowUpReason);
+          break;
+      }
+
+      if (result.success) {
+        toast.success(result.message);
+        if (onUpdate) onUpdate();
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error("Erro ao mover lead");
+    } finally {
+      setIsMovingStage(false);
     }
   };
 
@@ -103,6 +150,94 @@ export function LeadDetailDrawer({ lead, open, onClose, onUpdate }: LeadDetailDr
                     <Badge variant="outline" className="bg-accent/10 text-accent border-accent/20">
                       {lead.origem}
                     </Badge>
+                  </div>
+
+                  {/* Ações Rápidas de Movimentação */}
+                  <div className="space-y-3 bg-muted/30 p-4 rounded-lg">
+                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <ArrowRight className="h-4 w-4 text-primary" />
+                      Ações Rápidas
+                    </h3>
+                    <div className="flex flex-wrap gap-2">
+                      {lead.status !== 'Proposta Enviada' && lead.status !== 'Negociação' && 
+                       lead.status !== 'Transferido para Consultor' && lead.status !== 'Fechado' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMoveToStage('proposta')}
+                          disabled={isMovingStage}
+                          className="text-xs"
+                        >
+                          <FileText className="h-3 w-3 mr-1" />
+                          Proposta Enviada
+                        </Button>
+                      )}
+                      {lead.status !== 'Negociação' && lead.status !== 'Transferido para Consultor' && 
+                       lead.status !== 'Fechado' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMoveToStage('negociacao')}
+                          disabled={isMovingStage}
+                          className="text-xs"
+                        >
+                          <ArrowRight className="h-3 w-3 mr-1" />
+                          Negociação
+                        </Button>
+                      )}
+                      {lead.status !== 'Transferido para Consultor' && lead.status !== 'Fechado' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMoveToStage('consultor')}
+                          disabled={isMovingStage}
+                          className="text-xs text-cyan-600 border-cyan-300 hover:bg-cyan-50"
+                        >
+                          <UserCheck className="h-3 w-3 mr-1" />
+                          Transferir para Consultor
+                        </Button>
+                      )}
+                      {lead.status !== 'Fechado' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMoveToStage('fechado')}
+                          disabled={isMovingStage}
+                          className="text-xs text-green-600 border-green-300 hover:bg-green-50"
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Fechado
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Follow-up com motivo */}
+                    {lead.status !== 'Follow-up' && (
+                      <div className="flex gap-2 mt-2 pt-2 border-t border-border/50">
+                        <Select value={selectedFollowUpReason} onValueChange={setSelectedFollowUpReason}>
+                          <SelectTrigger className="flex-1 h-8 text-xs">
+                            <SelectValue placeholder="Selecione motivo..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FOLLOWUP_REASONS.map((reason) => (
+                              <SelectItem key={reason.code} value={reason.code} className="text-xs">
+                                {reason.description}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMoveToStage('followup')}
+                          disabled={isMovingStage || !selectedFollowUpReason}
+                          className="text-xs text-pink-600 border-pink-300 hover:bg-pink-50"
+                        >
+                          <Clock className="h-3 w-3 mr-1" />
+                          Follow-up
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Tags Section */}

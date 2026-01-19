@@ -10,9 +10,12 @@ export const LEAD_STATUS = {
   QUALIFICACAO: 'Qualificação',
   PROPOSTA_ENVIADA: 'Proposta Enviada',
   NEGOCIACAO: 'Negociação',
+  TRANSFERIDO_PARA_CONSULTOR: 'Transferido para Consultor',
   FECHADO_GANHO: 'Fechado Ganho',
   FECHADO_PERDIDO: 'Fechado Perdido',
+  FECHADO: 'Fechado',
   EM_FOLLOWUP: 'Em Follow-up',
+  FOLLOWUP: 'Follow-up',
   RECORRENTE: 'Recorrente',
 } as const;
 

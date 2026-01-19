@@ -276,7 +276,7 @@ export function AppSidebar() {
               <img
                 src="/intellix-logo.png"
                 alt="IntelliX.AI"
-                className="h-14 w-14 object-contain"
+                className="h-24 w-24 object-contain"
               />
             </div>
           </SidebarGroupContent>

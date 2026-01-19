@@ -5,24 +5,33 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History } from "lucide-react";
+import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw } from "lucide-react";
 import { userSettingsService } from "@/lib/userSettings";
 import { RoleGuard } from "@/components/RoleGuard";
 import { RoleManagement } from "@/components/RoleManagement";
 import { supabaseCRM, syncAllLeads } from "@/lib/supabaseCRM";
 import { historyService } from "@/lib/history";
+import { leadAutomation, type FollowUpConfig } from "@/lib/leadAutomation";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SettingsPage() {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingLeads, setIsDeletingLeads] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+  const [isProcessingFollowUp, setIsProcessingFollowUp] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
   const [evolutionInstanceName, setEvolutionInstanceName] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
+  
+  // Configurações de Follow-up automático
+  const [followUpEnabled, setFollowUpEnabled] = useState(true);
+  const [followUpDays, setFollowUpDays] = useState(7);
 
   useEffect(() => {
     loadSettings();
@@ -37,6 +46,13 @@ export default function SettingsPage() {
         setEvolutionApiUrl(settings.evolution_api_url || "");
         setEvolutionApiKey(settings.evolution_api_key || "");
         setEvolutionInstanceName(settings.evolution_instance_name || "");
+      }
+      
+      // Carregar configurações de Follow-up
+      if (user?.id) {
+        const followUpConfig = leadAutomation.loadFollowUpConfig(user.id);
+        setFollowUpEnabled(followUpConfig.enabled);
+        setFollowUpDays(followUpConfig.daysToFollowUp);
       }
     } catch (error) {
       console.error("Erro ao carregar configurações:", error);
@@ -61,6 +77,16 @@ export default function SettingsPage() {
         evolution_instance_name: evolutionInstanceName,
       });
 
+      // Salvar configurações de Follow-up
+      if (user?.id) {
+        const followUpConfig: FollowUpConfig = {
+          enabled: followUpEnabled,
+          daysToFollowUp: followUpDays,
+          stages: ['Contato Inicial', 'Proposta Enviada', 'Negociação'],
+        };
+        await leadAutomation.saveFollowUpConfig(user.id, followUpConfig);
+      }
+
       toast.success("Configurações salvas com sucesso!", {
         description: "Suas configurações foram atualizadas",
       });
@@ -69,6 +95,33 @@ export default function SettingsPage() {
       toast.error("Erro ao salvar configurações");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleProcessFollowUp = async () => {
+    setIsProcessingFollowUp(true);
+    try {
+      const config: FollowUpConfig = {
+        enabled: followUpEnabled,
+        daysToFollowUp: followUpDays,
+        stages: ['Contato Inicial', 'Proposta Enviada', 'Negociação'],
+      };
+      const result = await leadAutomation.processInactiveLeads(config);
+      
+      if (result.moved > 0) {
+        toast.success(`${result.moved} leads movidos para Follow-up`, {
+          description: `${result.processed} leads verificados, ${result.errors} erros`,
+        });
+      } else {
+        toast.info("Nenhum lead inativo encontrado", {
+          description: `${result.processed} leads verificados`,
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao processar leads inativos:", error);
+      toast.error("Erro ao processar leads inativos");
+    } finally {
+      setIsProcessingFollowUp(false);
     }
   };
 
@@ -219,6 +272,104 @@ export default function SettingsPage() {
                 <>
                   <Save className="h-4 w-4 mr-2" />
                   Salvar Configurações
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Configurações de Follow-up Automático */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-primary" />
+            <CardTitle>Follow-up Automático</CardTitle>
+          </div>
+          <CardDescription>
+            Configure a automação para mover leads inativos para Follow-up
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between max-w-md">
+            <div className="space-y-0.5">
+              <Label htmlFor="followup_enabled">Ativar Follow-up Automático</Label>
+              <p className="text-xs text-muted-foreground">
+                Leads inativos serão movidos automaticamente para Follow-up
+              </p>
+            </div>
+            <Switch
+              id="followup_enabled"
+              checked={followUpEnabled}
+              onCheckedChange={setFollowUpEnabled}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="followup_days">
+              Dias de Inatividade para Follow-up
+            </Label>
+            <div className="flex items-center gap-2 max-w-md">
+              <Input
+                id="followup_days"
+                type="number"
+                min={1}
+                max={90}
+                value={followUpDays}
+                onChange={(e) => setFollowUpDays(parseInt(e.target.value) || 7)}
+                disabled={!followUpEnabled}
+                className="max-w-24"
+              />
+              <span className="text-sm text-muted-foreground">dias sem interação</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leads nos estágios &quot;Contato Inicial&quot;, &quot;Proposta Enviada&quot; e &quot;Negociação&quot; 
+              serão movidos para Follow-up após este período de inatividade
+            </p>
+          </div>
+
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+              ⚠️ Como funciona:
+            </p>
+            <div className="space-y-1 text-xs text-amber-800 dark:text-amber-200">
+              <p>• Leads são verificados ao executar o processo manualmente ou por automação</p>
+              <p>• O motivo &quot;Inatividade prolongada&quot; é registrado automaticamente</p>
+              <p>• Leads em Follow-up podem ser reativados manualmente a qualquer momento</p>
+            </div>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              onClick={handleSave}
+              disabled={isSaving}
+              variant="outline"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Salvar Configurações
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={handleProcessFollowUp}
+              disabled={isProcessingFollowUp || !followUpEnabled}
+            >
+              {isProcessingFollowUp ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Processar Leads Inativos Agora
                 </>
               )}
             </Button>
