@@ -19,8 +19,42 @@ interface TemplateManagerProps {
   onClose: () => void;
 }
 
-// Apenas templates mínimos - usuário cria os seus
-const DEFAULT_TEMPLATES: MessageTemplate[] = [];
+// Template XPAG - template padrão que não pode ser removido
+const DEFAULT_TEMPLATES: MessageTemplate[] = [
+  {
+    id: "xpag-prospeccao-ativa",
+    name: "Msg de Prospecção Ativa Xpag",
+    category: "Primeiro Contato",
+    variations: [
+      {
+        style: 'formal',
+        message: `Olá! 👋
+
+Aqui é da XPAG, empresa especializada em soluções de pagamento para negócios como o seu.
+Vi que vocês atuam como {{categoria}} em {{cidade}} e achei que poderia ser interessante apresentar a XPAG.
+Caso faça sentido, posso te conectar com um consultor XPAG para explicar como podemos apoiar o crescimento do seu negócio. 😊`
+      },
+      {
+        style: 'casual',
+        message: `Oi! 😊
+
+Sou da XPAG, e percebi que vocês são {{categoria}} aí em {{cidade}}.
+Trabalhamos com soluções de pagamento e posso ajudar seu negócio a crescer!
+Se quiser conhecer um pouco mais, posso te colocar em contato com um consultor XPAG.`
+      },
+      {
+        style: 'direto',
+        message: `Olá!
+
+Sou da XPAG, e vi que vocês atuam como {{categoria}} em {{cidade}}.
+Temos soluções de pagamento que podem ajudar seu negócio.
+Posso pedir para um consultor XPAG te enviar mais informações?`
+      }
+    ],
+    isDefault: true,
+    createdAt: new Date().toISOString(),
+  },
+];
 
 const TEMPLATE_CATEGORIES = [
   "Primeiro Contato",

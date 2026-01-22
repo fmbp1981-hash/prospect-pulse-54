@@ -1,3 +1,5 @@
+"use client";
+
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Download, Trash2, X, FileText } from "lucide-react";
