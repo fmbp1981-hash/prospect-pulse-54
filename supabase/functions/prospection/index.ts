@@ -16,6 +16,7 @@ interface ProspectionRequest {
   };
   quantity: number;
   user_id?: string; // ID do usuário autenticado (multi-tenant)
+  businessName?: string; // Nome específico do estabelecimento (opcional)
 }
 
 interface GooglePlacesResult {
@@ -234,14 +235,25 @@ serve(async (req) => {
       );
     }
 
-    const { niche, location, quantity, user_id } = await req.json() as ProspectionRequest;
+    const { niche, location, quantity, user_id, businessName } = await req.json() as ProspectionRequest;
 
-    console.log('📍 Prospecção iniciada:', { niche, location, quantity, user_id });
+    console.log('📍 Prospecção iniciada:', { niche, location, quantity, user_id, businessName });
 
-    // Validações
-    if (!niche || !location || !quantity) {
+    // Validações - permitir busca só por nome do estabelecimento
+    const hasBusinessName = businessName && businessName.trim().length > 0;
+    const hasLocation = location && (typeof location === 'string' ? location.trim().length > 0 : location.city?.trim().length > 0);
+    
+    if (!niche || !quantity) {
       return new Response(
-        JSON.stringify({ error: 'Parâmetros inválidos: niche, location e quantity são obrigatórios' }),
+        JSON.stringify({ error: 'Parâmetros inválidos: niche e quantity são obrigatórios' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Pelo menos uma forma de busca é necessária
+    if (!hasBusinessName && !hasLocation) {
+      return new Response(
+        JSON.stringify({ error: 'Informe o nome do estabelecimento ou uma localização' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -262,21 +274,35 @@ serve(async (req) => {
       );
     }
 
-    // Formatar localização para busca
-    const locationQuery = typeof location === 'string'
-      ? location
-      : `${location.city}, ${location.state}, ${location.country}`;
+    // Formatar localização para busca (pode ser vazia se buscando por nome)
+    let locationQuery = '';
+    if (hasLocation) {
+      locationQuery = typeof location === 'string'
+        ? location
+        : `${location.city}${location.state ? ', ' + location.state : ''}${location.country ? ', ' + location.country : ''}`;
+    }
 
     // Adicionar bairro à query se disponível
-    if (typeof location !== 'string' && location.neighborhood) {
+    if (typeof location !== 'string' && location?.neighborhood) {
       console.log(`🏘️ Bairro especificado: ${location.neighborhood}`);
     }
 
     // 1. Buscar lugares no Google Places
-    // Se bairro for especificado, incluir na busca para maior precisão
-    const neighborhoodPart = (typeof location !== 'string' && location.neighborhood) ? ` ${location.neighborhood}` : '';
-    const searchQuery = `${niche} em ${locationQuery}${neighborhoodPart}`;
-    console.log('🔍 Buscando no Google Places:', { niche, location: locationQuery, neighborhood: neighborhoodPart });
+    // Construir query de forma flexível: nome do estabelecimento OU nicho + localização
+    const neighborhoodPart = (typeof location !== 'string' && location?.neighborhood) ? ` ${location.neighborhood}` : '';
+    
+    let searchQuery: string;
+    if (hasBusinessName) {
+      // Busca por nome específico do estabelecimento (mais precisa)
+      searchQuery = hasLocation 
+        ? `${businessName} ${locationQuery}${neighborhoodPart}`
+        : businessName;
+      console.log('🔍 Buscando por nome do estabelecimento:', { businessName, location: locationQuery || 'N/A' });
+    } else {
+      // Busca tradicional por nicho + localização
+      searchQuery = `${niche} em ${locationQuery}${neighborhoodPart}`;
+      console.log('🔍 Buscando no Google Places:', { niche, location: locationQuery, neighborhood: neighborhoodPart });
+    }
     console.log('📍 Query de busca completa:', searchQuery);
 
     const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${GOOGLE_API_KEY}`;
@@ -525,7 +551,7 @@ serve(async (req) => {
         data_envio_wa: null,
         resumo_analitico: place.enrichedSummary || null,
         cnpj: null,
-        status: 'Novo',
+        status: 'Novo Lead', // Sincronizado com estagio_pipeline
         estagio_pipeline: 'Novo Lead',
         data: dataFormatada,
         email: null,
