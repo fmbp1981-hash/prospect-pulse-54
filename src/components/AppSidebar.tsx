@@ -1,16 +1,12 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Table, Search, Settings, Link2, MessageSquare, CheckCircle, LogOut, User, FileText, LayoutGrid } from "lucide-react";
-import { toast } from "sonner";
+import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUserRole } from "@/hooks/useUserRole";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { TemplateManager } from "@/components/TemplateManager";
 import { RoleBadge } from "@/components/RoleBadge";
 
@@ -25,15 +21,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 const items = [
@@ -49,7 +36,6 @@ const items = [
 export function AppSidebar() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { isAdmin } = useUserRole();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
 
@@ -59,25 +45,6 @@ export function AppSidebar() {
   };
 
   const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [whatsappWebhook, setWhatsappWebhook] = useState("");
-
-  useEffect(() => {
-    const savedWebhook = localStorage.getItem("whatsapp_webhook_url");
-    if (savedWebhook) setWhatsappWebhook(savedWebhook);
-  }, []);
-
-  const handleSaveConfiguration = () => {
-    localStorage.setItem("whatsapp_webhook_url", whatsappWebhook);
-    toast.success("Configurações salvas com sucesso!");
-    setIsDialogOpen(false);
-  };
-
-  const handleCancelConfiguration = () => {
-    const savedWebhook = localStorage.getItem("whatsapp_webhook_url");
-    setWhatsappWebhook(savedWebhook || "");
-    setIsDialogOpen(false);
-  };
 
   return (
     <Sidebar collapsible="icon" className="bg-sidebar border-r border-sidebar-border">
@@ -125,115 +92,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* Configurações Section - ADMIN ONLY */}
-        {isAdmin && (
-          <SidebarGroup className="px-3 py-4 border-t border-border/40">
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <SidebarMenuButton
-                  tooltip="Configurações de Webhook WhatsApp"
-                  className="group hover:bg-muted transition-all"
-                >
-                  <Link2 className="h-5 w-5" />
-                  {!isCollapsed && <span className="font-medium">Config. Webhook</span>}
-                </SidebarMenuButton>
-              </DialogTrigger>
-
-              <DialogContent className="sm:max-w-[500px]">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Link2 className="h-5 w-5" />
-                    Configurações de Integrações
-                  </DialogTitle>
-                </DialogHeader>
-
-                <div className="space-y-6 py-4">
-                  {/* Webhook WhatsApp */}
-                  <div className="space-y-2">
-                    <Label className="text-sm flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-primary" />
-                      Webhook de WhatsApp
-                      {whatsappWebhook && (
-                        <CheckCircle className="h-4 w-4 text-success ml-auto" />
-                      )}
-                    </Label>
-                    <Input
-                      value={whatsappWebhook}
-                      onChange={(e) => setWhatsappWebhook(e.target.value)}
-                      placeholder="https://seu-n8n.com/webhook/whatsapp"
-                      className="font-mono text-xs"
-                      type="password"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      URL do webhook n8n para envio via Evolution API
-                    </p>
-                  </div>
-
-                  <div className="border-t" />
-
-                  {/* Gerenciador de Templates */}
-                  <div className="space-y-2">
-                    <Label className="text-sm flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" />
-                      Templates de Mensagens
-                    </Label>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => setIsTemplateManagerOpen(true)}
-                    >
-                      <MessageSquare className="h-4 w-4 mr-2" />
-                      Gerenciar Templates
-                    </Button>
-                    <p className="text-xs text-muted-foreground">
-                      Crie e personalize templates para mensagens WhatsApp
-                    </p>
-                  </div>
-
-                  <div className="border-t" />
-
-                  {/* Status da Conexão */}
-                  <div className="rounded-lg bg-muted/50 p-4">
-                    <h4 className="text-sm font-medium mb-2">Status da Configuração</h4>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center gap-2">
-                        {whatsappWebhook ? (
-                          <>
-                            <CheckCircle className="h-3 w-3 text-success" />
-                            <span className="text-success">WhatsApp configurado</span>
-                          </>
-                        ) : (
-                          <>
-                            <div className="h-3 w-3 rounded-full bg-yellow-500" />
-                            <span className="text-muted-foreground">WhatsApp não configurado</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <strong>💡 Dica:</strong> Mantenha esse endereço em segredo para proteger sua integração.
-                  </p>
-                </div>
-
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline" onClick={handleCancelConfiguration}>
-                      Cancelar
-                    </Button>
-                  </DialogClose>
-                  <DialogClose asChild>
-                    <Button onClick={handleSaveConfiguration}>
-                      Salvar Configurações
-                    </Button>
-                  </DialogClose>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </SidebarGroup>
-        )}
 
         {/* User Section */}
         <SidebarGroup className="mt-auto border-t border-border/40 pt-4">

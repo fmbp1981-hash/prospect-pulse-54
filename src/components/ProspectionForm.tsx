@@ -31,6 +31,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       neighborhood: ""
     },
     quantity: 50,
+    businessName: "", // Nome do estabelecimento (opcional)
   });
 
   const handleUseLastSearch = () => {
@@ -72,20 +73,26 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       return;
     }
 
-    if (!formData.location.city || formData.location.city.trim() === "") {
-      toast.error("Cidade não informada", {
-        description: "A cidade é obrigatória para a busca no Google Places. Selecione ou digite uma cidade válida."
+    // Verificar se tem nome do estabelecimento OU localização
+    const hasBusinessName = formData.businessName && formData.businessName.trim().length > 0;
+    const hasCity = formData.location.city && formData.location.city.trim().length > 0;
+
+    if (!hasBusinessName && !hasCity) {
+      toast.error("Localização ou nome do estabelecimento obrigatório", {
+        description: "Informe a cidade para busca genérica ou o nome do estabelecimento para busca específica."
       });
       return;
     }
 
-    // Normalizar cidade antes de enviar
-    const normalizedCity = normalizeText(formData.location.city);
-    if (normalizedCity.length < 3) {
-      toast.error("Nome de cidade muito curto", {
-        description: "Por favor, informe o nome completo da cidade."
-      });
-      return;
+    // Se tem cidade, validar tamanho
+    if (hasCity) {
+      const normalizedCity = normalizeText(formData.location.city);
+      if (normalizedCity.length < 3) {
+        toast.error("Nome de cidade muito curto", {
+          description: "Por favor, informe o nome completo da cidade."
+        });
+        return;
+      }
     }
 
     if (formData.quantity < 1 || formData.quantity > 500) {
@@ -96,7 +103,9 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
     setIsLoading(true);
 
     const loadingToast = toast.loading("Iniciando prospecção no Google Places...", {
-      description: `Buscando até ${formData.quantity} leads...`,
+      description: hasBusinessName 
+        ? `Buscando "${formData.businessName}"...` 
+        : `Buscando até ${formData.quantity} leads...`,
       duration: Infinity,
     });
 
@@ -177,6 +186,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
           neighborhood: ""
         },
         quantity: 50,
+        businessName: "",
       });
     } catch (error) {
       console.error("❌ Erro na prospecção:", error);
@@ -284,6 +294,26 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 value={formData.location}
                 onChange={(location) => setFormData({ ...formData, location })}
               />
+            </div>
+
+            {/* Campo opcional: Nome do Estabelecimento */}
+            <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/30">
+              <Label htmlFor="businessName" className="flex items-center gap-2 text-sm">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                Nome do Estabelecimento
+                <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              <Input
+                id="businessName"
+                placeholder="Ex: Restaurante do João, Padaria Central..."
+                value={formData.businessName || ""}
+                onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
+                className="transition-all focus:shadow-card"
+              />
+              <p className="text-xs text-muted-foreground">
+                💡 Para buscar um estabelecimento específico pelo nome, preencha este campo. 
+                A localização é opcional neste caso.
+              </p>
             </div>
 
             <div className="space-y-2">

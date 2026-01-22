@@ -1,47 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { MessageVariation, MessageStyle, MESSAGE_STYLES } from "@/types/prospection";
+import { MessageVariation, MESSAGE_STYLES } from "@/types/prospection";
 
 interface AITemplateGeneratorProps {
   isOpen: boolean;
   onClose: () => void;
   onGenerated: (name: string, category: string, variations: MessageVariation[]) => void;
+  presetType?: 'primeiro-contato-formal' | 'primeiro-contato-descontraido' | 'follow-up' | '';
 }
 
-const TEMPLATE_CATEGORIES = [
-  "Primeiro Contato",
-  "Follow-up",
-  "Proposta",
-  "Negociação",
-  "Pós-venda",
-  "Personalizado",
-];
+const PRESET_CONFIGS = {
+  'primeiro-contato-formal': {
+    name: 'Primeiro Contato - Formal',
+    category: 'Primeiro Contato',
+    description: 'Mensagem de primeiro contato com tom profissional e formal para prospecção de clientes. Deve ser cordial, direto e demonstrar valor.',
+    tone: 'profissional' as const,
+  },
+  'primeiro-contato-descontraido': {
+    name: 'Primeiro Contato - Descontraído',
+    category: 'Primeiro Contato',
+    description: 'Mensagem de primeiro contato com tom leve e descontraído para prospecção de clientes. Usar linguagem amigável, emojis moderados e ser acessível.',
+    tone: 'casual' as const,
+  },
+  'follow-up': {
+    name: 'Follow-Up',
+    category: 'Follow-up',
+    description: 'Mensagem de follow-up para leads que já foram contatados anteriormente. Tom amigável, lembrando do contato anterior e oferecendo ajuda.',
+    tone: 'misto' as const,
+  },
+};
 
 export function AITemplateGenerator({
   isOpen,
   onClose,
   onGenerated,
+  presetType = '',
 }: AITemplateGeneratorProps) {
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Primeiro Contato");
-  const [tone, setTone] = useState<"profissional" | "casual" | "misto">("misto");
+  const [businessContext, setBusinessContext] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedVariations, setGeneratedVariations] = useState<MessageVariation[]>([]);
   const [generatedName, setGeneratedName] = useState("");
 
+  // Reset when dialog opens with new preset
+  useEffect(() => {
+    if (isOpen) {
+      setGeneratedVariations([]);
+      setGeneratedName("");
+    }
+  }, [isOpen, presetType]);
+
+  const currentPreset = presetType && PRESET_CONFIGS[presetType];
+
   const handleGenerate = async () => {
-    if (!description.trim()) {
-      toast.error("Descreva o que você quer no template");
+    if (!currentPreset) {
+      toast.error("Tipo de template não selecionado");
       return;
     }
 
@@ -52,6 +75,15 @@ export function AITemplateGenerator({
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+      // Construir descrição completa
+      let fullDescription = currentPreset.description;
+      if (companyName.trim()) {
+        fullDescription += ` A empresa que está prospectando se chama "${companyName}".`;
+      }
+      if (businessContext.trim()) {
+        fullDescription += ` Contexto adicional: ${businessContext}`;
+      }
+
       const response = await fetch(`${supabaseUrl}/functions/v1/generate-template-ai`, {
         method: 'POST',
         headers: {
@@ -59,9 +91,9 @@ export function AITemplateGenerator({
           'Authorization': `Bearer ${supabaseAnonKey}`,
         },
         body: JSON.stringify({
-          description,
-          category,
-          tone,
+          description: fullDescription,
+          category: currentPreset.category,
+          tone: currentPreset.tone,
         }),
       });
 
@@ -86,9 +118,10 @@ export function AITemplateGenerator({
 
       setGeneratedVariations(variations);
 
-      // Extrair nome do template
-      const nameMatch = generatedText.match(/NOME_TEMPLATE:\s*(.+?)(?:\n|$)/);
-      const templateName = nameMatch ? nameMatch[1].trim() : `Template ${category} - IA`;
+      // Nome do template
+      const templateName = companyName.trim() 
+        ? `${currentPreset.name} - ${companyName}`
+        : currentPreset.name;
       setGeneratedName(templateName);
 
       toast.success("Templates gerados com sucesso!", {
@@ -97,7 +130,7 @@ export function AITemplateGenerator({
     } catch (error) {
       console.error("Erro ao gerar templates:", error);
       toast.error("Erro ao gerar templates com IA", {
-        description: "Tente novamente com uma descrição diferente",
+        description: "Tente novamente",
       });
     } finally {
       setIsGenerating(false);
@@ -143,12 +176,14 @@ export function AITemplateGenerator({
       return;
     }
 
+    const category = currentPreset?.category || "Primeiro Contato";
     onGenerated(generatedName, category, generatedVariations);
     handleClose();
   };
 
   const handleClose = () => {
-    setDescription("");
+    setBusinessContext("");
+    setCompanyName("");
     setGeneratedVariations([]);
     setGeneratedName("");
     onClose();
@@ -170,7 +205,7 @@ export function AITemplateGenerator({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-purple-500" />
-            Gerar Template com IA
+            Gerar Template com IA - {currentPreset?.name || 'Personalizado'}
           </DialogTitle>
         </DialogHeader>
 
@@ -183,64 +218,42 @@ export function AITemplateGenerator({
                   <div className="flex items-start gap-3">
                     <Sparkles className="h-5 w-5 text-purple-600 mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-purple-900">Como funciona?</p>
+                      <p className="text-sm font-medium text-purple-900">
+                        {currentPreset?.name || 'Template Personalizado'}
+                      </p>
                       <p className="text-xs text-purple-700 mt-1">
-                        Descreva o que você quer e a IA criará automaticamente 3 variações
-                        com estilos diferentes (Formal, Casual e Direto). Você poderá revisar
-                        e editar antes de salvar.
+                        A IA criará automaticamente 3 variações com estilos diferentes 
+                        (Formal, Casual e Direto). Você poderá revisar e editar antes de salvar.
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="category">Categoria do Template</Label>
-                  <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TEMPLATE_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="companyName">Nome da sua empresa (opcional)</Label>
+                  <Input
+                    id="companyName"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Ex: Minha Empresa Ltda"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    A IA incluirá o nome da sua empresa nas mensagens
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="tone">Tom Geral</Label>
-                  <Select value={tone} onValueChange={(v) => setTone(v as any)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="profissional">
-                        👔 Profissional (mais formal)
-                      </SelectItem>
-                      <SelectItem value="misto">
-                        🎯 Misto (balanceado)
-                      </SelectItem>
-                      <SelectItem value="casual">
-                        😊 Casual (mais descontraído)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Descreva o Template</Label>
+                  <Label htmlFor="businessContext">Contexto adicional (opcional)</Label>
                   <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Exemplo: Quero uma mensagem para oferecer nosso serviço de consultoria empresarial para empresas que estão crescendo rapidamente. Quero enfatizar que ajudamos a escalar operações sem perder qualidade."
-                    rows={6}
+                    id="businessContext"
+                    value={businessContext}
+                    onChange={(e) => setBusinessContext(e.target.value)}
+                    placeholder="Ex: Oferecemos soluções de pagamento para pequenos negócios. Nosso diferencial é o atendimento personalizado..."
+                    rows={4}
                     className="resize-none"
                   />
                   <p className="text-xs text-muted-foreground">
-                    💡 Dica: Seja específico sobre o objetivo, público-alvo e principais benefícios
+                    Descreva seu negócio, produto ou serviço para mensagens mais personalizadas
                   </p>
                 </div>
 
@@ -327,7 +340,7 @@ export function AITemplateGenerator({
               </Button>
               <Button
                 onClick={handleGenerate}
-                disabled={!description.trim() || isGenerating}
+                disabled={!currentPreset || isGenerating}
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 {isGenerating ? (

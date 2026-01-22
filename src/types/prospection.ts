@@ -24,6 +24,7 @@ export interface ProspectionFormData {
   location: LocationData;
   quantity: number;
   webhookUrl?: string;
+  businessName?: string; // Nome específico do estabelecimento (opcional)
 }
 
 // Tipos completos do CRM (Google Sheets)

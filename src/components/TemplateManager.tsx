@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Plus, Edit2, Trash2, Star, Copy, Shuffle, Sparkles, RefreshCw } from "lucide-react";
+import { MessageSquare, Plus, Edit2, Trash2, Star, Copy, Shuffle, Sparkles, RefreshCw, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { MessageTemplate, MessageVariation, MessageStyle, MESSAGE_STYLES, TEMPLATE_VARIABLES } from "@/types/prospection";
 import { AITemplateGenerator } from "./AITemplateGenerator";
@@ -19,65 +19,36 @@ interface TemplateManagerProps {
   onClose: () => void;
 }
 
+// Template XPAG - template padrão que não pode ser removido
 const DEFAULT_TEMPLATES: MessageTemplate[] = [
   {
-    id: "default-1",
-    name: "Primeiro Contato - Profissional",
+    id: "xpag-prospeccao-ativa",
+    name: "Msg de Prospecção Ativa Xpag",
     category: "Primeiro Contato",
     variations: [
       {
         style: 'formal',
-        message: `Olá! 👋\n\nEstou entrando em contato com a {{empresa}} em {{cidade}} porque identificamos oportunidades interessantes para o seu negócio de {{categoria}}.\n\nPodemos agendar uma conversa rápida para apresentar nossa solução?\n\nAguardo seu retorno!`
+        message: `Olá! 👋
+
+Aqui é da XPAG, empresa especializada em soluções de pagamento para negócios como o seu.
+Vi que vocês atuam como {{categoria}} em {{cidade}} e achei que poderia ser interessante apresentar a XPAG.
+Caso faça sentido, posso te conectar com um consultor XPAG para explicar como podemos apoiar o crescimento do seu negócio. 😊`
       },
-      {
-        style: 'consultivo',
-        message: `Bom dia!\n\nNotei que a {{empresa}} atua com {{categoria}} em {{cidade}}. Acredito que posso agregar valor ao seu negócio.\n\nQue tal conversarmos sobre oportunidades de crescimento?\n\nFico à disposição!`
-      },
-      {
-        style: 'executivo',
-        message: `{{empresa}},\n\nIdentificamos potencial de parceria com seu negócio de {{categoria}} em {{cidade}}.\n\nDisponível para apresentação executiva?\n\nAtenciosamente`
-      }
-    ],
-    isDefault: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "default-2",
-    name: "Primeiro Contato - Descontraído",
-    category: "Primeiro Contato",
-    variations: [
       {
         style: 'casual',
-        message: `E aí! 😊\n\nVi a {{empresa}} em {{cidade}} e achei super interessante o trabalho de vocês com {{categoria}}.\n\nTenho algo que pode ajudar muito vocês - bora conversar?`
-      },
-      {
-        style: 'amigavel',
-        message: `Oi! Tudo bem?\n\nConheci a {{empresa}} e fiquei impressionado com o trabalho de vocês!\n\nTenho uma proposta que pode fazer sentido pra vocês. Vamos trocar uma ideia?`
+        message: `Oi! 😊
+
+Sou da XPAG, e percebi que vocês são {{categoria}} aí em {{cidade}}.
+Trabalhamos com soluções de pagamento e posso ajudar seu negócio a crescer!
+Se quiser conhecer um pouco mais, posso te colocar em contato com um consultor XPAG.`
       },
       {
         style: 'direto',
-        message: `Olá {{empresa}}!\n\nDireto ao ponto: tenho uma solução que pode otimizar seu negócio de {{categoria}}.\n\nPosso te mostrar em 10 minutos?`
-      }
-    ],
-    isDefault: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "default-3",
-    name: "Follow-up",
-    category: "Follow-up",
-    variations: [
-      {
-        style: 'formal',
-        message: `Olá novamente!\n\nEnviei uma mensagem semana passada sobre a {{empresa}}.\n\nConseguiu dar uma olhada? Seria ótimo conversar sobre como podemos ajudar vocês!`
-      },
-      {
-        style: 'casual',
-        message: `Oi! Só passando pra dar um toque aqui 😊\n\nTe mandei uma msg sobre uma parceria pra {{empresa}}. Viu lá?\n\nQualquer coisa é só chamar!`
-      },
-      {
-        style: 'consultivo',
-        message: `Olá! Retomando nosso contato...\n\nGostaria de saber se há interesse em conhecer nossa proposta para {{empresa}}.\n\nPosso esclarecer qualquer dúvida!`
+        message: `Olá!
+
+Sou da XPAG, e vi que vocês atuam como {{categoria}} em {{cidade}}.
+Temos soluções de pagamento que podem ajudar seu negócio.
+Posso pedir para um consultor XPAG te enviar mais informações?`
       }
     ],
     isDefault: true,
@@ -100,6 +71,9 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
   const [currentTemplate, setCurrentTemplate] = useState<MessageTemplate | null>(null);
   const [activeVariationTab, setActiveVariationTab] = useState("0");
   const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
+  const [aiGeneratorMode, setAIGeneratorMode] = useState<'from-scratch' | 'variations'>('from-scratch');
+  const [baseTemplateForVariations, setBaseTemplateForVariations] = useState<string>("");
+  const [isGeneratingVariations, setIsGeneratingVariations] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     category: "Primeiro Contato",
@@ -284,6 +258,81 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
     });
   };
 
+  // Gerar variações a partir de um template existente usando IA
+  const handleGenerateVariationsFromTemplate = async () => {
+    const baseMessage = formData.variations[0]?.message;
+    if (!baseMessage || baseMessage.trim().length < 20) {
+      toast.error("Digite pelo menos a primeira variação do template", {
+        description: "A IA usará como base para gerar as demais variações",
+      });
+      return;
+    }
+
+    setIsGeneratingVariations(true);
+
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/generate-template-ai`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          description: `Gere 2 variações a partir desta mensagem base (mantendo o mesmo significado mas com estilos diferentes - casual e direto): "${baseMessage}"`,
+          category: formData.category,
+          tone: 'misto',
+          baseMessage: baseMessage,
+          generateVariationsOnly: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`IA API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Erro ao gerar variações');
+      }
+
+      const generatedText = data.generated_text || '';
+
+      // Parse das variações geradas
+      const var2Match = generatedText.match(/VARIACAO_2:\s*(.+?)(?=VARIACAO_3:|$)/s);
+      const var3Match = generatedText.match(/VARIACAO_3:\s*(.+?)(?=NOME_TEMPLATE:|$)/s);
+
+      const newVariations = [...formData.variations];
+      if (var2Match) {
+        newVariations[1] = { style: 'casual', message: var2Match[1].trim() };
+      }
+      if (var3Match) {
+        newVariations[2] = { style: 'direto', message: var3Match[1].trim() };
+      }
+
+      setFormData({ ...formData, variations: newVariations });
+
+      toast.success("Variações geradas com sucesso!", {
+        description: "Revise as variações 2 e 3 antes de salvar",
+      });
+    } catch (error) {
+      console.error("Erro ao gerar variações:", error);
+      toast.error("Erro ao gerar variações com IA", {
+        description: "Tente novamente ou crie manualmente",
+      });
+    } finally {
+      setIsGeneratingVariations(false);
+    }
+  };
+
+  const openAIGenerator = (mode: 'from-scratch' | 'variations') => {
+    setAIGeneratorMode(mode);
+    setIsAIGeneratorOpen(true);
+  };
+
   const renderPreview = (message: string) => {
     return message
       .replace(/\{\{minha_empresa\}\}/g, "Sua Empresa")
@@ -314,15 +363,6 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                     {templates.length} template(s) disponíveis
                   </p>
                   <div className="flex gap-2">
-                    <Button
-                      onClick={() => setIsAIGeneratorOpen(true)}
-                      size="sm"
-                      variant="outline"
-                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Gerar com IA
-                    </Button>
                     <Button onClick={handleCreate} size="sm">
                       <Plus className="h-4 w-4 mr-2" />
                       Novo Template
@@ -330,80 +370,121 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <div className="flex-1">
-                    <p className="text-xs font-medium text-yellow-900">💡 Templates Antigos?</p>
-                    <p className="text-xs text-yellow-800">
-                      Se seus templates estão desatualizados ou com erros, clique em &quot;Resetar&quot;
-                    </p>
+                {/* Opções de Geração com IA */}
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-purple-600" />
+                    <p className="text-sm font-medium text-purple-900">Gerar Template com IA</p>
                   </div>
-                  <Button
-                    onClick={handleResetTemplates}
-                    size="sm"
-                    variant="outline"
-                    className="border-yellow-300 text-yellow-700 hover:bg-yellow-100"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Resetar
-                  </Button>
+                  <p className="text-xs text-purple-700">
+                    Deixe a IA criar templates profissionais para você
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <Button
+                      onClick={() => {
+                        setAIGeneratorMode('from-scratch');
+                        setBaseTemplateForVariations('primeiro-contato-formal');
+                        setIsAIGeneratorOpen(true);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-200 text-purple-600 hover:bg-purple-100 justify-start"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Primeiro Contato Formal
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setAIGeneratorMode('from-scratch');
+                        setBaseTemplateForVariations('primeiro-contato-descontraido');
+                        setIsAIGeneratorOpen(true);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-200 text-purple-600 hover:bg-purple-100 justify-start"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Primeiro Contato Descontraído
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setAIGeneratorMode('from-scratch');
+                        setBaseTemplateForVariations('follow-up');
+                        setIsAIGeneratorOpen(true);
+                      }}
+                      size="sm"
+                      variant="outline"
+                      className="border-purple-200 text-purple-600 hover:bg-purple-100 justify-start"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Follow-Up
+                    </Button>
+                  </div>
                 </div>
-              </div>
 
-              {templates.map((template) => {
-                const variations = template.variations || (template.message ? [{ style: 'formal' as MessageStyle, message: template.message }] : []);
-                const validVariations = variations.filter(v => v.message && v.message.trim() !== "");
+                {templates.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                    <p className="text-sm">Nenhum template ainda</p>
+                    <p className="text-xs">Crie um template manualmente ou use a IA para gerar</p>
+                  </div>
+                )}
 
-                return (
-                  <Card key={template.id} className="p-4 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold">{template.name}</h4>
-                          {template.isDefault && (
-                            <Badge variant="secondary" className="gap-1">
-                              <Star className="h-3 w-3" />
-                              Padrão
-                            </Badge>
-                          )}
-                          <Badge variant="outline">{template.category}</Badge>
-                          {validVariations.length > 1 && (
-                            <Badge variant="default" className="gap-1">
-                              <Shuffle className="h-3 w-3" />
-                              {validVariations.length} variações
-                            </Badge>
-                          )}
+                {templates.map((template) => {
+                  const variations = template.variations || (template.message ? [{ style: 'formal' as MessageStyle, message: template.message }] : []);
+                  const validVariations = variations.filter(v => v.message && v.message.trim() !== "");
+
+                  return (
+                    <Card key={template.id} className="p-4 space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold">{template.name}</h4>
+                            {template.isDefault && (
+                              <Badge variant="secondary" className="gap-1">
+                                <Star className="h-3 w-3" />
+                                Padrão
+                              </Badge>
+                            )}
+                            <Badge variant="outline">{template.category}</Badge>
+                            {validVariations.length > 1 && (
+                              <Badge variant="default" className="gap-1">
+                                <Shuffle className="h-3 w-3" />
+                                {validVariations.length} variações
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Criado em {new Date(template.createdAt).toLocaleDateString("pt-BR")}
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          Criado em {new Date(template.createdAt).toLocaleDateString("pt-BR")}
-                        </p>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDuplicate(template)}
+                            title="Duplicar"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(template)}
+                            disabled={template.isDefault}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(template.id)}
+                            disabled={template.isDefault}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDuplicate(template)}
-                          title="Duplicar"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(template)}
-                          disabled={template.isDefault}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(template.id)}
-                          disabled={template.isDefault}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
 
                     <Separator />
 
@@ -428,6 +509,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                   </Card>
                 );
               })}
+              </div>
             </div>
 
             <DialogFooter>
@@ -474,12 +556,33 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
 
                 {/* Tabs para as 3 variações */}
                 <div className="space-y-2">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Shuffle className="h-4 w-4" />
-                    <Label>Variações de Mensagem (Envio Aleatório)</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Shuffle className="h-4 w-4" />
+                      <Label>Variações de Mensagem (Envio Aleatório)</Label>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateVariationsFromTemplate}
+                      disabled={isGeneratingVariations || !formData.variations[0]?.message}
+                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                    >
+                      {isGeneratingVariations ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Gerando...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="h-4 w-4 mr-2" />
+                          Gerar Variações com IA
+                        </>
+                      )}
+                    </Button>
                   </div>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Configure até 3 variações com estilos diferentes. No disparo em massa, uma será escolhida aleatoriamente para cada lead.
+                    Escreva a primeira variação e use a IA para gerar as demais automaticamente, ou configure manualmente.
                   </p>
 
                   <Tabs value={activeVariationTab} onValueChange={setActiveVariationTab}>
@@ -592,8 +695,12 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
       {/* AI Template Generator Modal */}
       <AITemplateGenerator
         isOpen={isAIGeneratorOpen}
-        onClose={() => setIsAIGeneratorOpen(false)}
+        onClose={() => {
+          setIsAIGeneratorOpen(false);
+          setBaseTemplateForVariations("");
+        }}
         onGenerated={handleAIGenerated}
+        presetType={baseTemplateForVariations as 'primeiro-contato-formal' | 'primeiro-contato-descontraido' | 'follow-up' | ''}
       />
     </Dialog>
   );

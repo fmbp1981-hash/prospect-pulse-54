@@ -377,6 +377,7 @@ export default function LeadsPage() {
                     <TableHead>Categoria</TableHead>
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>Cidade</TableHead>
+                    <TableHead>Links</TableHead>
                     <TableHead className="cursor-pointer" onClick={() => handleSort('status')}>
                       Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
                     </TableHead>
@@ -412,6 +413,37 @@ export default function LeadsPage() {
                       </TableCell>
                       <TableCell>{toTitleCase(lead.cidade || "")}</TableCell>
                       <TableCell>
+                        <div className="flex items-center gap-2">
+                          {lead.website && (
+                            <a
+                              href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline text-xs flex items-center gap-1"
+                              title="Website"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Site
+                            </a>
+                          )}
+                          {lead.linkGMN && (
+                            <a
+                              href={lead.linkGMN}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-orange-600 hover:underline text-xs flex items-center gap-1"
+                              title="Google Maps"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Mapa
+                            </a>
+                          )}
+                          {!lead.website && !lead.linkGMN && (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         <Badge className={`${getStatusColor(lead.status || "Novo")} text-white`}>
                           {lead.status || "Novo"}
                         </Badge>
@@ -427,17 +459,6 @@ export default function LeadsPage() {
                               <Edit className="h-4 w-4" />
                             </Button>
                           </RoleGuard>
-                          {lead.website && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              asChild
-                            >
-                              <a href={lead.website} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          )}
                         </div>
                       </TableCell>
                     </TableRow>
