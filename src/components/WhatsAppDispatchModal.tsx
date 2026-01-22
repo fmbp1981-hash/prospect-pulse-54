@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -39,21 +39,24 @@ export const WhatsAppDispatchModal = ({
   const [editedMessage, setEditedMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
-  // Filtrar leads válidos (com WhatsApp, mensagem e não enviados)
-  const validLeads = selectedLeads.filter(lead =>
+  // Filtrar leads válidos (com WhatsApp, mensagem e não enviados) - memoizado para evitar loop infinito
+  const validLeads = useMemo(() => selectedLeads.filter(lead =>
     lead.whatsapp &&
     lead.whatsapp.trim() !== "" &&
     lead.mensagemWhatsApp &&
     lead.mensagemWhatsApp.trim() !== "" &&
     lead.statusMsgWA !== 'sent'
-  );
-  const leadsWithoutWhatsApp = selectedLeads.filter(lead =>
+  ), [selectedLeads]);
+
+  const leadsWithoutWhatsApp = useMemo(() => selectedLeads.filter(lead =>
     !lead.whatsapp || lead.whatsapp.trim() === ""
-  );
-  const leadsWithoutMessage = selectedLeads.filter(lead =>
+  ), [selectedLeads]);
+
+  const leadsWithoutMessage = useMemo(() => selectedLeads.filter(lead =>
     lead.whatsapp && lead.whatsapp.trim() !== "" && !lead.mensagemWhatsApp
-  );
-  const alreadySent = selectedLeads.filter(lead => lead.statusMsgWA === 'sent');
+  ), [selectedLeads]);
+
+  const alreadySent = useMemo(() => selectedLeads.filter(lead => lead.statusMsgWA === 'sent'), [selectedLeads]);
 
   // Initialize edited message when opening for a single lead
   useEffect(() => {
