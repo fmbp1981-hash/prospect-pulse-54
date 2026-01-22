@@ -7,6 +7,7 @@ import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Lead } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
 import { auditWhatsAppDispatch } from "@/lib/audit";
+import { leadAutomation } from "@/lib/leadAutomation";
 import { toast } from "sonner";
 
 interface DispatchStatus {
@@ -230,9 +231,9 @@ export const WhatsAppDispatchModal = ({
             ...(isEditing && validLeads.length === 1 ? { mensagemWhatsApp: messageToSend } : {})
           });
 
-          // Atualizar status do lead para Contato Inicial (sincroniza CRM e Kanban)
+          // Atualizar status do lead para Contato Inicial usando automação (sincroniza CRM e Kanban)
           if ((lead.status as string) === "Novo Lead" || (lead.status as string) === "Novo") {
-            await supabaseCRM.updateLeadStatus(lead.id, "Contato Inicial");
+            await leadAutomation.moveToContatoInicial(lead.id);
           }
         }
 

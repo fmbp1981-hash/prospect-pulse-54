@@ -41,6 +41,7 @@ const leadEditSchema = z.object({
     "Qualificação",
     "Proposta Enviada",
     "Negociação",
+    "Transferido para Consultor",
     "Fechado Ganho",
     "Fechado Perdido",
     "Em Follow-up",
@@ -160,8 +161,11 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
     "Qualificação",
     "Proposta Enviada",
     "Negociação",
+    "Transferido para Consultor",
     "Fechado Ganho",
     "Fechado Perdido",
+    "Fechado",
+    "Follow-up",
     "Em Follow-up",
   ];
 

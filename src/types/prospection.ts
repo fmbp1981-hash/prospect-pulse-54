@@ -32,6 +32,7 @@ export type LeadStatus =
   | 'Contato Inicial'    // Assim que a mensagem de prospecção for enviada via WhatsApp
   | 'Proposta Enviada'   // Quando proposta comercial for enviada
   | 'Negociação'         // Após proposta ser enviada e lead responder
+  | 'Transferido para Consultor' // Quando lead for transferido para consultor de negócios
   | 'Fechado'            // Quando negociação for fechada (ganho)
   | 'Follow-up'          // Quando lead ficar estagnado ou não responder
   // Deprecated (para retrocompatibilidade)

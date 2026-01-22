@@ -22,6 +22,7 @@ const LEAD_STATUSES: LeadStatus[] = [
   "Contato Inicial",
   "Proposta Enviada",
   "Negociação",
+  "Transferido para Consultor",
   "Fechado",
   "Follow-up",
 ];
@@ -31,6 +32,7 @@ const STATUS_COLORS: Record<LeadStatus, string> = {
   "Contato Inicial": "bg-purple-500",
   "Proposta Enviada": "bg-orange-500",
   "Negociação": "bg-indigo-500",
+  "Transferido para Consultor": "bg-cyan-500",
   "Fechado": "bg-green-500",
   "Follow-up": "bg-pink-500",
   // Deprecated statuses (para migração)

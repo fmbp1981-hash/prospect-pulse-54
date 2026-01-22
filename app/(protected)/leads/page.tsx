@@ -258,6 +258,7 @@ export default function LeadsPage() {
       "Contato Inicial": "bg-purple-500",
       "Proposta Enviada": "bg-orange-500",
       "Negociação": "bg-indigo-500",
+      "Transferido para Consultor": "bg-cyan-500",
       "Fechado": "bg-green-500",
       "Follow-up": "bg-pink-500",
     };

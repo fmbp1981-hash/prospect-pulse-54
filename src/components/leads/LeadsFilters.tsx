@@ -46,6 +46,7 @@ export const LeadsFilters = ({
     "Qualificação",
     "Proposta Enviada",
     "Negociação",
+    "Transferido para Consultor",
     "Fechado Ganho",
     "Fechado Perdido",
     "Em Follow-up",
