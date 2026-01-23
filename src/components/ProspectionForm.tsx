@@ -65,17 +65,17 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
         .replace(/[\u0300-\u036f]/g, "");
     };
 
-    // Validação de campos obrigatórios com mensagens específicas
-    if (!formData.niche || formData.niche.trim() === "") {
-      toast.error("Campo obrigatório vazio", {
-        description: "Por favor, informe o nicho de negócios que deseja prospectar."
-      });
-      return;
-    }
-
     // Verificar se tem nome do estabelecimento OU localização
     const hasBusinessName = formData.businessName && formData.businessName.trim().length > 0;
     const hasCity = formData.location.city && formData.location.city.trim().length > 0;
+
+    // Nicho só é obrigatório se NÃO tiver nome do estabelecimento
+    if (!hasBusinessName && (!formData.niche || formData.niche.trim() === "")) {
+      toast.error("Campo obrigatório vazio", {
+        description: "Por favor, informe o nicho de negócios ou o nome do estabelecimento."
+      });
+      return;
+    }
 
     if (!hasBusinessName && !hasCity) {
       toast.error("Localização ou nome do estabelecimento obrigatório", {

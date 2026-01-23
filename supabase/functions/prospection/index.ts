@@ -220,6 +220,97 @@ Posso pedir para um consultor XPAG te enviar mais informações?`
   }
 }
 
+// Mapear tipos do Google Places para categorias legíveis em português
+function translateGoogleType(types: string[] | undefined): string {
+  if (!types || types.length === 0) return 'Estabelecimento';
+  
+  const typeMap: Record<string, string> = {
+    'restaurant': 'Restaurante',
+    'food': 'Alimentação',
+    'store': 'Loja',
+    'beauty_salon': 'Salão de Beleza',
+    'hair_care': 'Cabeleireiro',
+    'gym': 'Academia',
+    'dentist': 'Dentista',
+    'doctor': 'Médico',
+    'lawyer': 'Advogado',
+    'accounting': 'Contabilidade',
+    'car_repair': 'Oficina Mecânica',
+    'car_dealer': 'Concessionária',
+    'car_wash': 'Lava Jato',
+    'lodging': 'Hotel/Pousada',
+    'cafe': 'Cafeteria',
+    'bar': 'Bar',
+    'pharmacy': 'Farmácia',
+    'bakery': 'Padaria',
+    'clothing_store': 'Loja de Roupas',
+    'shoe_store': 'Loja de Calçados',
+    'jewelry_store': 'Joalheria',
+    'electronics_store': 'Loja de Eletrônicos',
+    'furniture_store': 'Loja de Móveis',
+    'home_goods_store': 'Loja de Casa',
+    'pet_store': 'Pet Shop',
+    'veterinary_care': 'Veterinária',
+    'real_estate_agency': 'Imobiliária',
+    'insurance_agency': 'Seguradora',
+    'bank': 'Banco',
+    'atm': 'Caixa Eletrônico',
+    'supermarket': 'Supermercado',
+    'grocery_or_supermarket': 'Mercado',
+    'convenience_store': 'Conveniência',
+    'gas_station': 'Posto de Combustível',
+    'hospital': 'Hospital',
+    'health': 'Saúde',
+    'spa': 'Spa',
+    'florist': 'Floricultura',
+    'travel_agency': 'Agência de Viagens',
+    'school': 'Escola',
+    'university': 'Universidade',
+    'church': 'Igreja',
+    'meal_delivery': 'Delivery',
+    'meal_takeaway': 'Comida para Viagem',
+    'night_club': 'Casa Noturna',
+    'shopping_mall': 'Shopping',
+    'department_store': 'Loja de Departamentos',
+    'laundry': 'Lavanderia',
+    'locksmith': 'Chaveiro',
+    'moving_company': 'Mudanças',
+    'painter': 'Pintor',
+    'plumber': 'Encanador',
+    'electrician': 'Eletricista',
+    'roofing_contractor': 'Telhados',
+    'general_contractor': 'Empreiteiro',
+    'ice_cream_shop': 'Sorveteria',
+    'liquor_store': 'Loja de Bebidas',
+    'book_store': 'Livraria',
+    'hardware_store': 'Loja de Ferragens',
+    'bicycle_store': 'Loja de Bicicletas',
+    'movie_theater': 'Cinema',
+    'museum': 'Museu',
+    'amusement_park': 'Parque de Diversões',
+    'aquarium': 'Aquário',
+    'zoo': 'Zoológico',
+    'campground': 'Camping',
+    'rv_park': 'Área de Camping',
+    'parking': 'Estacionamento',
+    'taxi_stand': 'Ponto de Táxi',
+    'transit_station': 'Estação de Transporte',
+    'train_station': 'Estação de Trem',
+    'bus_station': 'Rodoviária',
+    'airport': 'Aeroporto',
+  };
+  
+  for (const type of types) {
+    if (typeMap[type]) return typeMap[type];
+  }
+  
+  // Se não encontrou mapeamento, formatar o primeiro tipo
+  const firstType = types[0];
+  return firstType
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -243,9 +334,10 @@ serve(async (req) => {
     const hasBusinessName = businessName && businessName.trim().length > 0;
     const hasLocation = location && (typeof location === 'string' ? location.trim().length > 0 : location.city?.trim().length > 0);
     
-    if (!niche || !quantity) {
+    // Nicho só é obrigatório se não tiver nome do estabelecimento
+    if (!hasBusinessName && (!niche || !quantity)) {
       return new Response(
-        JSON.stringify({ error: 'Parâmetros inválidos: niche e quantity são obrigatórios' }),
+        JSON.stringify({ error: 'Parâmetros inválidos: niche e quantity são obrigatórios para busca por categoria' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -256,6 +348,13 @@ serve(async (req) => {
         JSON.stringify({ error: 'Informe o nome do estabelecimento ou uma localização' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Se buscar por nome do estabelecimento, limitar a 1 resultado para ser assertivo
+    let effectiveQuantity = quantity || 50;
+    if (hasBusinessName) {
+      effectiveQuantity = 1;
+      console.log('🎯 Busca por nome de estabelecimento: limitando a 1 resultado');
     }
 
     const GOOGLE_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY');
@@ -340,8 +439,8 @@ serve(async (req) => {
       );
     }
 
-    // Limitar pela quantidade solicitada
-    const limitedResults = results.slice(0, Math.min(quantity, results.length));
+    // Limitar pela quantidade solicitada (usa effectiveQuantity para busca por nome)
+    const limitedResults = results.slice(0, Math.min(effectiveQuantity, results.length));
 
     // 2. ⚡ OTIMIZADO: Buscar detalhes em PARALELO (muito mais rápido!)
     console.log('\n🔄 Iniciando processamento PARALELO dos leads...');
@@ -531,11 +630,16 @@ serve(async (req) => {
         minute: '2-digit'
       });
 
+      // Extrair categoria do Google Places se buscar por nome, senão usar niche informado
+      const categoriaFinal = hasBusinessName && place.types 
+        ? translateGoogleType(place.types)
+        : (niche || translateGoogleType(place.types));
+
       return {
         id: place.place_id || generateUniqueId(place.name || 'unknown', address),
         lead: '',
         empresa: place.name,
-        categoria: niche,
+        categoria: categoriaFinal,
         whatsapp: whatsappNumber,
         telefone: telefoneNumber,
         endereco: address,

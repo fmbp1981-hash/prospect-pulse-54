@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { TemplateManager } from "@/components/TemplateManager";
 import { RoleBadge } from "@/components/RoleBadge";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 import {
   Sidebar,
@@ -100,13 +101,16 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <div className="px-3 py-2 space-y-2">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <User className="h-4 w-4 text-muted-foreground" />
-                      {!isCollapsed && (
-                        <span className="text-muted-foreground truncate">
-                          {user?.email || "Usuário"}
-                        </span>
-                      )}
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        {!isCollapsed && (
+                          <span className="text-muted-foreground truncate">
+                            {user?.email || "Usuário"}
+                          </span>
+                        )}
+                      </div>
+                      <ThemeToggle />
                     </div>
                     {!isCollapsed && (
                       <RoleBadge showIcon className="text-xs" />
@@ -128,11 +132,11 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* IntelliX.AI Footer - Logo only */}
-        <SidebarGroup className="border-t border-border/40 pt-3 pb-3">
+        <SidebarGroup className="border-t border-border/40 pt-3 pb-3 bg-slate-800 dark:bg-slate-900 rounded-lg mx-2 mb-2">
           <SidebarGroupContent>
             <div className="px-3 py-2 flex justify-center">
               <img
-                src="/intellix-logo.png"
+                src="/Logotipo-removebg-preview.png.png"
                 alt="IntelliX.AI"
                 className="h-24 w-24 object-contain"
               />

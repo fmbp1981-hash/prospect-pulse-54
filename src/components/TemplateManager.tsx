@@ -28,27 +28,15 @@ const DEFAULT_TEMPLATES: MessageTemplate[] = [
     variations: [
       {
         style: 'formal',
-        message: `Olá! 👋
+        message: `Olá! 👋 Tudo bem?
 
-Aqui é da XPAG, empresa especializada em soluções de pagamento para negócios como o seu.
-Vi que vocês atuam como {{categoria}} em {{cidade}} e achei que poderia ser interessante apresentar a XPAG.
-Caso faça sentido, posso te conectar com um consultor XPAG para explicar como podemos apoiar o crescimento do seu negócio. 😊`
-      },
-      {
-        style: 'casual',
-        message: `Oi! 😊
+Aqui é da XPAG Brasil.
+Entramos em contato porque identificamos que sua empresa pode se beneficiar de uma estrutura mais organizada para recebimentos via cartão e Pix.
 
-Sou da XPAG, e percebi que vocês são {{categoria}} aí em {{cidade}}.
-Trabalhamos com soluções de pagamento e posso ajudar seu negócio a crescer!
-Se quiser conhecer um pouco mais, posso te colocar em contato com um consultor XPAG.`
-      },
-      {
-        style: 'direto',
-        message: `Olá!
+A XPAG atua há mais de 5 anos ajudando empresas em todo o Brasil a ganhar mais controle, previsibilidade e segurança financeira, sem complicação.
 
-Sou da XPAG, e vi que vocês atuam como {{categoria}} em {{cidade}}.
-Temos soluções de pagamento que podem ajudar seu negócio.
-Posso pedir para um consultor XPAG te enviar mais informações?`
+Queria entender rapidinho:
+👉 Hoje sua empresa já recebe pagamentos por cartão, crédito, débito ou Pix?`
       }
     ],
     isDefault: true,
