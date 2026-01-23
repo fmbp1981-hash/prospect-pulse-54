@@ -274,7 +274,6 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 placeholder="Ou digite manualmente..."
                 value={formData.niche}
                 onChange={(e) => setFormData({ ...formData, niche: e.target.value })}
-                required
                 className="transition-all focus:shadow-card"
               />
             </div>
@@ -297,22 +296,22 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
             </div>
 
             {/* Campo opcional: Nome do Estabelecimento */}
-            <div className="space-y-2 p-3 rounded-lg bg-muted/30 border border-dashed border-muted-foreground/30">
+            <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
               <Label htmlFor="businessName" className="flex items-center gap-2 text-sm">
-                <Search className="h-4 w-4 text-muted-foreground" />
-                Nome do Estabelecimento
-                <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
+                <Search className="h-4 w-4 text-primary" />
+                Busca por Nome do Estabelecimento
+                <Badge variant="secondary" className="text-[10px]">Recomendado</Badge>
               </Label>
               <Input
                 id="businessName"
                 placeholder="Ex: Restaurante do João, Padaria Central..."
                 value={formData.businessName || ""}
                 onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                className="transition-all focus:shadow-card"
+                className="transition-all focus:shadow-card border-primary/30"
               />
               <p className="text-xs text-muted-foreground">
-                💡 Para buscar um estabelecimento específico pelo nome, preencha este campo. 
-                A localização é opcional neste caso.
+                💡 <strong>Busca direta:</strong> Digite o nome exato do estabelecimento. 
+                O nicho e localização são opcionais - serão extraídos automaticamente do Google.
               </p>
             </div>
 

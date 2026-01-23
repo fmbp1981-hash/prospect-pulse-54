@@ -132,9 +132,9 @@ export function AppSidebar() {
         </SidebarGroup>
 
         {/* IntelliX.AI Footer - Logo only */}
-        <SidebarGroup className="border-t border-border/40 pt-3 pb-3 bg-slate-800 dark:bg-slate-900 rounded-lg mx-2 mb-2">
+        <SidebarGroup className="border-t border-border/40 pt-3 pb-3">
           <SidebarGroupContent>
-            <div className="px-3 py-2 flex justify-center">
+            <div className="px-3 py-2 flex justify-center bg-gradient-to-t from-slate-700/80 via-slate-600/40 to-transparent dark:from-slate-800/90 dark:via-slate-700/50 dark:to-transparent rounded-lg">
               <img
                 src="/Logotipo-removebg-preview.png.png"
                 alt="IntelliX.AI"

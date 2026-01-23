@@ -29,7 +29,21 @@ export default function KanbanPage() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setLeads((data || []) as Lead[]);
+      
+      // Mapear campos do banco para o tipo Lead, priorizando estagio_pipeline para status
+      const mappedLeads: Lead[] = (data || []).map((row: any) => ({
+        ...row,
+        status: row.estagio_pipeline || row.status || 'Novo Lead',
+        linkGMN: row.link_gmn,
+        mensagemWhatsApp: row.mensagem_whatsapp,
+        statusMsgWA: row.status_msg_wa,
+        dataEnvioWA: row.data_envio_wa,
+        resumoAnalitico: row.resumo_analitico,
+        bairroRegiao: row.bairro_regiao,
+        aceitaCartao: row.aceita_cartao,
+      }));
+      
+      setLeads(mappedLeads);
     } catch (error) {
       console.error("Erro ao carregar leads:", error);
       toast.error("Erro ao carregar leads");
