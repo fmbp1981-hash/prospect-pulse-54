@@ -234,6 +234,13 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
     const lead = leads.find((l) => l.id === activeId);
 
     if (lead && lead.status !== newStatus) {
+      // Atualização otimista - atualizar UI imediatamente
+      const previousStatus = lead.status;
+      
+      // Atualizar estado local imediatamente para feedback instantâneo
+      // O componente pai receberá a atualização via Realtime
+      lead.status = newStatus;
+      
       // Atualizar no banco
       try {
         const updateData = {
@@ -250,10 +257,13 @@ export function KanbanBoard({ leads, onLeadUpdate }: KanbanBoardProps) {
         if (error) throw error;
 
         toast.success(`Lead movido para ${newStatus}`);
-        onLeadUpdate(); // Notificar pai para atualizar lista
+        // Não chamar onLeadUpdate() - deixar o Realtime sincronizar
       } catch (error) {
         console.error("Error updating lead:", error);
+        // Reverter mudança otimista em caso de erro
+        lead.status = previousStatus;
         toast.error("Erro ao atualizar lead");
+        onLeadUpdate(); // Forçar refresh apenas em caso de erro
       }
     }
   };

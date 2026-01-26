@@ -334,20 +334,21 @@ serve(async (req) => {
     const hasBusinessName = businessName && businessName.trim().length > 0;
     const hasLocation = location && (typeof location === 'string' ? location.trim().length > 0 : location.city?.trim().length > 0);
     
-    // Nicho só é obrigatório se não tiver nome do estabelecimento
-    if (!hasBusinessName && (!niche || !quantity)) {
-      return new Response(
-        JSON.stringify({ error: 'Parâmetros inválidos: niche e quantity são obrigatórios para busca por categoria' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // Pelo menos uma forma de busca é necessária
-    if (!hasBusinessName && !hasLocation) {
-      return new Response(
-        JSON.stringify({ error: 'Informe o nome do estabelecimento ou uma localização' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Se tem businessName, não precisa de niche nem quantity
+    // Se não tem businessName, precisa de niche E location
+    if (!hasBusinessName) {
+      if (!niche || niche.trim().length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'Informe o nicho ou o nome do estabelecimento' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!hasLocation) {
+        return new Response(
+          JSON.stringify({ error: 'Informe a localização para busca por nicho' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Se buscar por nome do estabelecimento, limitar a 1 resultado para ser assertivo
@@ -648,7 +649,9 @@ serve(async (req) => {
         bairro_regiao: null, // Deprecated, manter null por enquanto ou migrar
         website: place.website || null,
         instagram: null,
-        link_gmn: `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
+        link_gmn: place.geometry?.location?.lat && place.geometry?.location?.lng
+          ? `https://www.google.com/maps/search/?api=1&query=${place.geometry.location.lat},${place.geometry.location.lng}&query_place_id=${place.place_id}`
+          : `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
         aceita_cartao: null,
         mensagem_whatsapp: null,
         status_msg_wa: 'not_sent',

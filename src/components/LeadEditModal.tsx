@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -90,23 +91,25 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
     },
   });
 
-  // Reset form when lead changes
-  if (lead && open) {
-    form.reset({
-      empresa: lead.empresa || "",
-      status: lead.status || "Novo Lead",
-      contato: lead.contato || "",
-      whatsapp: lead.whatsapp || "",
-      email: lead.email || "",
-      website: lead.website || "",
-      instagram: lead.instagram || "",
-      cidade: lead.cidade || "",
-      endereco: lead.endereco || "",
-      categoria: lead.categoria || "",
-      cnpj: lead.cnpj || "",
-      aceitaCartao: lead.aceitaCartao || "",
-    });
-  }
+  // Reset form when lead changes - properly wrapped in useEffect to avoid infinite loop
+  useEffect(() => {
+    if (lead && open) {
+      form.reset({
+        empresa: lead.empresa || "",
+        status: lead.status || "Novo Lead",
+        contato: lead.contato || "",
+        whatsapp: lead.whatsapp || "",
+        email: lead.email || "",
+        website: lead.website || "",
+        instagram: lead.instagram || "",
+        cidade: lead.cidade || "",
+        endereco: lead.endereco || "",
+        categoria: lead.categoria || "",
+        cnpj: lead.cnpj || "",
+        aceitaCartao: lead.aceitaCartao || "",
+      });
+    }
+  }, [lead?.id, open, form]);
 
   const onSubmit = async (data: LeadEditFormData) => {
     if (!lead) return;
