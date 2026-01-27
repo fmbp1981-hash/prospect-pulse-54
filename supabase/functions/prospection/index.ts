@@ -578,12 +578,79 @@ serve(async (req) => {
       }
     }
 
-    const leadsToInsert = detailedPlacesResults.filter((place) => place !== null);
+    // Filtrar resultados válidos do Google Places
+    const validPlaces = detailedPlacesResults.filter((place): place is GooglePlacesResult => place !== null);
+
+    // Extrair cidade da localização formatada
+    const extractCity = (address: string | undefined): string => {
+      if (!address) return locationQuery || 'Não informada';
+      // Tentar extrair cidade do endereço (geralmente penúltimo elemento antes do país)
+      const parts = address.split(',').map(p => p.trim());
+      if (parts.length >= 2) {
+        // Formato típico: "Rua X, Bairro, Cidade - Estado, País"
+        const cityPart = parts[parts.length - 2]; // Pega "Cidade - Estado"
+        const cityMatch = cityPart.match(/^([^-]+)/);
+        if (cityMatch) return cityMatch[1].trim();
+      }
+      return locationQuery || parts[0] || 'Não informada';
+    };
+
+    // Extrair bairro do endereço
+    const extractNeighborhood = (address: string | undefined): string => {
+      if (!address) return '';
+      const parts = address.split(',').map(p => p.trim());
+      // Bairro geralmente é o segundo elemento
+      if (parts.length >= 3) {
+        return parts[1] || '';
+      }
+      return '';
+    };
+
+    // Transformar dados do Google Places para o schema do banco de dados
+    let leadsToInsert = await Promise.all(validPlaces.map(async (place) => {
+      const phone = place.international_phone_number || place.formatted_phone_number || '';
+      const hasWhatsApp = whatsappResults.get(phone) ?? true; // Assumir true se não verificado
+
+      // Gerar mensagem WhatsApp se tiver API key
+      let mensagemWhatsApp = '';
+      if (LOVABLE_API_KEY && phone) {
+        try {
+          mensagemWhatsApp = await generateWhatsAppMessage(
+            place.name || 'Empresa',
+            niche || translateGoogleType(place.types),
+            extractCity(place.formatted_address),
+            LOVABLE_API_KEY
+          );
+        } catch (error) {
+          console.warn(`⚠️ Erro ao gerar mensagem WhatsApp para ${place.name}:`, error);
+        }
+      }
+
+      return {
+        id: place.place_id || generateUniqueId(place.name || 'empresa', place.formatted_address || ''),
+        empresa: place.name || 'Empresa não identificada',
+        categoria: niche || translateGoogleType(place.types),
+        telefone_whatsapp: hasWhatsApp ? phone : null,
+        endereco: place.formatted_address || '',
+        cidade: extractCity(place.formatted_address),
+        bairro_regiao: extractNeighborhood(place.formatted_address),
+        website: place.website || null,
+        link_gmn: place.place_id ? `https://www.google.com/maps/place/?q=place_id:${place.place_id}` : null,
+        mensagem_whatsapp: mensagemWhatsApp || null,
+        status_msg_wa: 'not_sent',
+        status: 'Novo',
+        data: new Date().toLocaleDateString('pt-BR'),
+        resumo_analitico: place.enrichedSummary || null,
+      };
+    }));
+
+    // Filtrar por bairros se especificado
     if (bairros && Array.isArray(bairros) && bairros.length > 0) {
       const bairrosLower = bairros.map(b => b.trim().toLowerCase());
       leadsToInsert = leadsToInsert.filter(lead => {
-        const bairroLead = (lead.bairro || lead.bairro_regiao || "").toLowerCase();
-        return bairrosLower.some(b => bairroLead.includes(b));
+        const bairroLead = (lead.bairro_regiao || '').toLowerCase();
+        const enderecoLead = (lead.endereco || '').toLowerCase();
+        return bairrosLower.some(b => bairroLead.includes(b) || enderecoLead.includes(b));
       });
       console.log(`🏘️ Filtrando leads por bairros: ${bairros.join(", ")}. Restaram ${leadsToInsert.length} leads.`);
     }
@@ -642,20 +709,23 @@ serve(async (req) => {
             recurrentCount++;
           } else {
             // Novo lead - inserir com número sequencial
-            lead.lead = formatLeadNumber(nextLeadNumber);
-            console.log(`🆕 Novo lead: ${lead.lead} - ${lead.empresa}`);
+            const leadNumber = formatLeadNumber(nextLeadNumber);
+            const leadToInsert = {
+              ...lead,
+              lead: leadNumber,
+            };
+            console.log(`🆕 Novo lead: ${leadNumber} - ${lead.empresa}`);
             console.log('📦 Dados:', {
-              id: lead.id,
-              empresa: lead.empresa,
-              cidade: lead.cidade,
-              whatsapp: lead.whatsapp,
-              telefone: lead.telefone,
-              link: lead.link_gmn
+              id: leadToInsert.id,
+              empresa: leadToInsert.empresa,
+              cidade: leadToInsert.cidade,
+              telefone_whatsapp: leadToInsert.telefone_whatsapp,
+              link_gmn: leadToInsert.link_gmn
             });
 
             const { error: insertError } = await supabase
               .from('leads_prospeccao')
-              .insert(lead);
+              .insert(leadToInsert);
 
             if (insertError) {
               console.error('❌ Erro ao inserir lead:', insertError);
@@ -663,7 +733,7 @@ serve(async (req) => {
             } else {
               insertedCount++;
               nextLeadNumber++; // Incrementar para o próximo
-              console.log(`✅ Novo lead inserido: ${lead.lead} - ${lead.empresa}`);
+              console.log(`✅ Novo lead inserido: ${leadNumber} - ${lead.empresa}`);
             }
           }
         } catch (error) {
