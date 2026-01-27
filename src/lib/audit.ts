@@ -39,7 +39,10 @@ export const logAudit = async (log: AuditLog) => {
       });
 
     if (error) {
-      console.error('[AUDIT] Erro ao salvar log:', error);
+      // Silenciar erro PGRST205 (tabela não existe) - é esperado se audit_logs não foi criada
+      if (error.code !== 'PGRST205') {
+        console.warn('[AUDIT] Erro ao salvar log:', error.message || error);
+      }
       // Fallback: salvar no localStorage se Supabase falhar
       const localLogs = JSON.parse(localStorage.getItem('audit_logs_fallback') || '[]');
       localLogs.push({

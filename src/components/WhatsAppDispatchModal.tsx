@@ -131,7 +131,16 @@ export const WhatsAppDispatchModal = ({
       }
 
       const result = await response.json();
-      const isSuccess = result.success === true;
+      // Considerar sucesso se:
+      // 1. result.success === true (formato esperado)
+      // 2. HTTP 200 + "Workflow was started" (n8n)
+      // 3. HTTP 200 + sem erro explícito
+      const isSuccess = result.success === true ||
+        result.message?.toLowerCase().includes('started') ||
+        result.message?.toLowerCase().includes('success') ||
+        result.message?.toLowerCase().includes('enviado') ||
+        result.message?.toLowerCase().includes('sent') ||
+        (!result.error && response.ok);
 
       if (isSuccess) {
         // Don't update lead status for test send
@@ -223,7 +232,16 @@ export const WhatsAppDispatchModal = ({
         }
 
         const result = await response.json();
-        const isSuccess = result.success === true;
+        // Considerar sucesso se:
+        // 1. result.success === true (formato esperado)
+        // 2. HTTP 200 + "Workflow was started" (n8n)
+        // 3. HTTP 200 + sem erro explícito
+        const isSuccess = result.success === true ||
+          result.message?.toLowerCase().includes('started') ||
+          result.message?.toLowerCase().includes('success') ||
+          result.message?.toLowerCase().includes('enviado') ||
+          result.message?.toLowerCase().includes('sent') ||
+          (!result.error && response.ok);
 
         // Atualizar status no Supabase
         if (isSuccess) {
