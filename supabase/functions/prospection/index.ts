@@ -582,27 +582,64 @@ serve(async (req) => {
     const validPlaces = detailedPlacesResults.filter((place): place is GooglePlacesResult => place !== null);
 
     // Extrair cidade da localização formatada
+    // Formato típico BR: "Rua X, 123 - Bairro, Cidade - UF, CEP, Brasil"
+    // Ou: "Rua X, 123, Bairro, Cidade - UF, CEP, Brasil"
     const extractCity = (address: string | undefined): string => {
       if (!address) return locationQuery || 'Não informada';
-      // Tentar extrair cidade do endereço (geralmente penúltimo elemento antes do país)
+
       const parts = address.split(',').map(p => p.trim());
-      if (parts.length >= 2) {
-        // Formato típico: "Rua X, Bairro, Cidade - Estado, País"
-        const cityPart = parts[parts.length - 2]; // Pega "Cidade - Estado"
-        const cityMatch = cityPart.match(/^([^-]+)/);
-        if (cityMatch) return cityMatch[1].trim();
+
+      // Procurar parte que contém "Cidade - UF" (ex: "São Paulo - SP")
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const part = parts[i];
+        // Ignora CEP (só números e hífen), Brasil, e partes muito curtas
+        if (/^\d{5}-?\d{3}$/.test(part)) continue; // CEP
+        if (part.toLowerCase() === 'brasil' || part.toLowerCase() === 'brazil') continue;
+
+        // Procura padrão "Cidade - UF"
+        const cityStateMatch = part.match(/^(.+?)\s*-\s*([A-Z]{2})$/);
+        if (cityStateMatch) {
+          return cityStateMatch[1].trim();
+        }
+
+        // Se não tem hífen mas parece nome de cidade (não é número/CEP)
+        if (!/^\d/.test(part) && part.length > 2 && i < parts.length - 1) {
+          return part;
+        }
       }
-      return locationQuery || parts[0] || 'Não informada';
+
+      return locationQuery || 'Não informada';
     };
 
     // Extrair bairro do endereço
+    // Formato típico BR: "Rua X, 123 - Bairro, Cidade - UF, CEP, Brasil"
     const extractNeighborhood = (address: string | undefined): string => {
       if (!address) return '';
-      const parts = address.split(',').map(p => p.trim());
-      // Bairro geralmente é o segundo elemento
-      if (parts.length >= 3) {
-        return parts[1] || '';
+
+      // Primeiro, tentar extrair bairro do formato "Rua X, 123 - Bairro"
+      const dashMatch = address.match(/\d+\s*-\s*([^,]+)/);
+      if (dashMatch) {
+        const bairro = dashMatch[1].trim();
+        // Verificar se não é UF (2 letras maiúsculas)
+        if (!/^[A-Z]{2}$/.test(bairro)) {
+          return bairro;
+        }
       }
+
+      // Fallback: pegar segundo elemento se existir
+      const parts = address.split(',').map(p => p.trim());
+      if (parts.length >= 3) {
+        // Verificar se o segundo elemento não é número/CEP
+        const secondPart = parts[1];
+        if (!/^\d/.test(secondPart)) {
+          return secondPart;
+        }
+        // Tentar terceiro elemento
+        if (parts.length >= 4 && !/^\d/.test(parts[2])) {
+          return parts[2];
+        }
+      }
+
       return '';
     };
 
@@ -626,6 +663,14 @@ serve(async (req) => {
         }
       }
 
+      // Gerar link do Google Maps usando place_id ou coordenadas
+      let googleMapsLink: string | null = null;
+      if (place.place_id) {
+        googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name || '')}&query_place_id=${place.place_id}`;
+      } else if (place.geometry?.location) {
+        googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${place.geometry.location.lat},${place.geometry.location.lng}`;
+      }
+
       return {
         id: place.place_id || generateUniqueId(place.name || 'empresa', place.formatted_address || ''),
         empresa: place.name || 'Empresa não identificada',
@@ -636,10 +681,11 @@ serve(async (req) => {
         cidade: extractCity(place.formatted_address),
         bairro_regiao: extractNeighborhood(place.formatted_address),
         website: place.website || null,
-        link_gmn: place.place_id ? `https://www.google.com/maps/place/?q=place_id:${place.place_id}` : null,
+        link_gmn: googleMapsLink,
         mensagem_whatsapp: mensagemWhatsApp || null,
         status_msg_wa: 'not_sent',
         status: 'Novo',
+        estagio_pipeline: 'Novo Lead',
         data: new Date().toLocaleDateString('pt-BR'),
         resumo_analitico: place.enrichedSummary || null,
       };
