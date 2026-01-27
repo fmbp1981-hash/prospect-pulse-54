@@ -17,6 +17,7 @@ interface ProspectionRequest {
   quantity: number;
   user_id?: string; // ID do usuário autenticado (multi-tenant)
   businessName?: string; // Nome específico do estabelecimento (opcional)
+  bairros?: string[]; // NOVO: array de bairros para filtro
 }
 
 interface GooglePlacesResult {
@@ -326,9 +327,9 @@ serve(async (req) => {
       );
     }
 
-    const { niche, location, quantity, user_id, businessName } = await req.json() as ProspectionRequest;
+    const { niche, location, quantity, user_id, businessName, bairros } = await req.json() as ProspectionRequest;
 
-    console.log('📍 Prospecção iniciada:', { niche, location, quantity, user_id, businessName });
+    console.log('📍 Prospecção iniciada:', { niche, location, quantity, user_id, businessName, bairros });
 
     // Validações - permitir busca só por nome do estabelecimento
     const hasBusinessName = businessName && businessName.trim().length > 0;
@@ -577,95 +578,15 @@ serve(async (req) => {
       }
     }
 
-    const leadsToInsert = detailedPlaces.map((place) => {
-      const phone = place.international_phone_number || place.formatted_phone_number || '';
-      const address = place.formatted_address || '';
-      const addressParts = address.split(',');
-
-      // Extrair cidade: normalmente é o terceiro elemento do final (antes do CEP e do país)
-      // Ex: "Rua, 123 - Bairro, São Paulo - SP, 01234-567, Brasil"
-      // addressParts = ["Rua", " 123 - Bairro", " São Paulo - SP", " 01234-567", " Brasil"]
-      // Cidade está no índice length - 3 (São Paulo - SP)
-      let city = locationQuery;
-      if (addressParts.length >= 3) {
-        // Pegar terceiro do final e remover código de estado (ex: " - SP")
-        const cityPart = addressParts[addressParts.length - 3].trim();
-        city = cityPart.split('-')[0].trim(); // Remove " - SP" e pega só "São Paulo"
-      } else if (addressParts.length === 2) {
-        city = addressParts[0].trim();
-      }
-
-      // Extrair bairro se possível (geralmente o segundo elemento)
-      // Ex: "Rua, 123 - Bairro, Cidade - UF"
-      let bairro = null;
-      if (typeof location !== 'string' && location.neighborhood) {
-        // Se o usuário especificou bairro, usar ele
-        bairro = location.neighborhood;
-      } else if (addressParts.length >= 4) {
-        // Tentar extrair do endereço: "Rua X, 123 - Bairro Y, Cidade Z - UF"
-        // Bairro costuma estar no índice 1 ou 2 dependendo do formato
-        // Simplificação: se não foi passado, deixamos null ou tentamos parsing complexo depois
-        // Por enquanto, vamos confiar no input do usuário ou deixar null
-      }
-
-      // Verificar WhatsApp usando resultado do batch
-      let whatsappNumber = null;
-      let telefoneNumber = null;
-
-      if (phone) {
-        const hasWhatsApp = whatsappResults.get(phone) !== false; // Default true se não verificado
-        if (hasWhatsApp) {
-          whatsappNumber = phone;
-        } else {
-          telefoneNumber = phone;
-        }
-      }
-
-      // Gerar data formatada
-      const dataFormatada = new Date().toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }) + ', ' + new Date().toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit'
+    const leadsToInsert = detailedPlacesResults.filter((place) => place !== null);
+    if (bairros && Array.isArray(bairros) && bairros.length > 0) {
+      const bairrosLower = bairros.map(b => b.trim().toLowerCase());
+      leadsToInsert = leadsToInsert.filter(lead => {
+        const bairroLead = (lead.bairro || lead.bairro_regiao || "").toLowerCase();
+        return bairrosLower.some(b => bairroLead.includes(b));
       });
-
-      // Extrair categoria do Google Places se buscar por nome, senão usar niche informado
-      const categoriaFinal = hasBusinessName && place.types 
-        ? translateGoogleType(place.types)
-        : (niche || translateGoogleType(place.types));
-
-      return {
-        id: place.place_id || generateUniqueId(place.name || 'unknown', address),
-        lead: '',
-        empresa: place.name,
-        categoria: categoriaFinal,
-        whatsapp: whatsappNumber,
-        telefone: telefoneNumber,
-        endereco: address,
-        cidade: city,
-        bairro: bairro, // Novo campo
-        bairro_regiao: null, // Deprecated, manter null por enquanto ou migrar
-        website: place.website || null,
-        instagram: null,
-        link_gmn: place.geometry?.location?.lat && place.geometry?.location?.lng
-          ? `https://www.google.com/maps/search/?api=1&query=${place.geometry.location.lat},${place.geometry.location.lng}&query_place_id=${place.place_id}`
-          : `https://www.google.com/maps/place/?q=place_id:${place.place_id}`,
-        aceita_cartao: null,
-        mensagem_whatsapp: null,
-        status_msg_wa: 'not_sent',
-        data_envio_wa: null,
-        resumo_analitico: place.enrichedSummary || null,
-        cnpj: null,
-        status: 'Novo Lead', // Sincronizado com estagio_pipeline
-        estagio_pipeline: 'Novo Lead',
-        data: dataFormatada,
-        email: null,
-        contato: null,
-         user_id: user_id || null, // Necessário para RLS multi-tenant
-      };
-    });
+      console.log(`🏘️ Filtrando leads por bairros: ${bairros.join(", ")}. Restaram ${leadsToInsert.length} leads.`);
+    }
 
     // 4. Salvar no Supabase com verificação de duplicatas
     console.log('\n💾 Salvando leads no Supabase...');

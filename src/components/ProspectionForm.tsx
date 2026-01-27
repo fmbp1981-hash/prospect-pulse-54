@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LocationCascade, LocationData } from "@/components/LocationCascade";
 import { toast } from "sonner";
-import { Search, Loader2, Target, MapPin, Hash, RotateCcw } from "lucide-react";
+import { Search, Loader2, Target, MapPin, Hash, RotateCcw, X } from "lucide-react";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
 import { QuickSelectNiches } from "@/components/QuickSelectNiches";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
@@ -33,6 +33,8 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
     quantity: 50,
     businessName: "", // Nome do estabelecimento (opcional)
   });
+  const [bairros, setBairros] = useState<string[]>([]);
+  const [bairroInput, setBairroInput] = useState("");
 
   const handleUseLastSearch = () => {
     if (!lastSearch) return;
@@ -116,6 +118,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       const { data, error } = await supabase.functions.invoke('prospection', {
         body: {
           ...formData,
+          bairros, // array de bairros
           user_id: user?.id, // Passar ID do usuário autenticado
         }
       });
@@ -200,6 +203,18 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleAddBairro = () => {
+    const value = bairroInput.trim();
+    if (value && !bairros.includes(value)) {
+      setBairros([...bairros, value]);
+      setBairroInput("");
+    }
+  };
+
+  const handleRemoveBairro = (bairro: string) => {
+    setBairros(bairros.filter(b => b !== bairro));
   };
 
   return (
@@ -331,6 +346,36 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 className="transition-all focus:shadow-card"
               />
               <p className="text-xs text-muted-foreground">Máximo: 500 leads por busca</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bairros" className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                Bairros/Regiões (opcional)
+              </Label>
+              <div className="flex gap-2 flex-wrap">
+                {bairros.map(bairro => (
+                  <span key={bairro} className="inline-flex items-center bg-primary/10 rounded px-2 py-1 text-xs mr-1 mb-1">
+                    {bairro}
+                    <button type="button" className="ml-1 text-primary" onClick={() => handleRemoveBairro(bairro)}>
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  id="bairros"
+                  type="text"
+                  value={bairroInput}
+                  onChange={e => setBairroInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddBairro(); } }}
+                  placeholder="Digite e pressione Enter"
+                  className="border rounded px-2 py-1 text-xs min-w-[120px]"
+                />
+                <Button type="button" size="sm" variant="outline" onClick={handleAddBairro} disabled={!bairroInput.trim()}>
+                  Adicionar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Adicione um ou mais bairros para filtrar a busca.</p>
             </div>
 
           </div>
