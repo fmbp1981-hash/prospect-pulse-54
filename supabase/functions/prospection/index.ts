@@ -388,42 +388,129 @@ serve(async (req) => {
       console.log(`🏘️ Bairro especificado: ${location.neighborhood}`);
     }
 
+    // Função para normalizar texto (remover acentos, hífens, lowercase)
+    const normalizeText = (text: string): string => {
+      return text
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .replace(/[-_]/g, ' ') // Substitui hífens e underscores por espaços
+        .replace(/\s+/g, ' ') // Normaliza espaços múltiplos
+        .trim();
+    };
+
+    // Função para verificar correspondência de nomes
+    const isNameMatch = (searchName: string, resultName: string): boolean => {
+      const normalizedSearch = normalizeText(searchName);
+      const normalizedResult = normalizeText(resultName);
+
+      // Correspondência exata
+      if (normalizedResult === normalizedSearch) return true;
+
+      // Verifica se o resultado contém exatamente o nome buscado
+      if (normalizedResult.includes(normalizedSearch)) return true;
+
+      // Verifica se todas as palavras do nome buscado estão no resultado
+      const searchWords = normalizedSearch.split(' ').filter(w => w.length > 2);
+      const resultWords = normalizedResult.split(' ');
+      const allWordsMatch = searchWords.every(word =>
+        resultWords.some(rw => rw.includes(word) || word.includes(rw))
+      );
+
+      return allWordsMatch && searchWords.length > 0;
+    };
+
     // 1. Buscar lugares no Google Places
     // Construir query de forma flexível: nome do estabelecimento OU nicho + localização
     const neighborhoodPart = (typeof location !== 'string' && location?.neighborhood) ? ` ${location.neighborhood}` : '';
-    
+
     let searchQuery: string;
+    let results: any[] = [];
+
     if (hasBusinessName) {
-      // Busca por nome específico do estabelecimento (mais precisa)
-      searchQuery = hasLocation 
+      // Busca por nome específico do estabelecimento - usar Find Place API (mais precisa)
+      const inputQuery = hasLocation
         ? `${businessName} ${locationQuery}${neighborhoodPart}`
         : businessName;
+
       console.log('🔍 Buscando por nome do estabelecimento:', { businessName, location: locationQuery || 'N/A' });
+      console.log('📍 Query de busca completa:', inputQuery);
+
+      // Usar Find Place API para busca mais precisa
+      const findPlaceUrl = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(inputQuery)}&inputtype=textquery&fields=place_id,name,formatted_address,geometry&key=${GOOGLE_API_KEY}`;
+
+      const findResponse = await fetch(findPlaceUrl);
+      const findData = await findResponse.json();
+
+      if (findData.status !== 'OK' && findData.status !== 'ZERO_RESULTS') {
+        console.error('❌ Erro na API Find Place:', findData);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Erro na API do Google: ${findData.status}`,
+            details: findData.error_message
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const candidates = findData.candidates || [];
+      console.log(`✅ Find Place retornou ${candidates.length} candidatos`);
+
+      // Filtrar apenas resultados que correspondem ao nome buscado
+      if (candidates.length > 0) {
+        const matchingResults = candidates.filter((candidate: any) => {
+          const matches = isNameMatch(businessName, candidate.name || '');
+          console.log(`   📋 "${candidate.name}" - ${matches ? '✅ Match' : '❌ Não corresponde'}`);
+          return matches;
+        });
+
+        if (matchingResults.length > 0) {
+          results = matchingResults;
+          console.log(`✅ ${matchingResults.length} resultado(s) correspondem ao nome buscado`);
+        } else {
+          console.log(`⚠️ Nenhum resultado corresponde exatamente a "${businessName}"`);
+          // Retornar lista vazia - não queremos resultados que não correspondem
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: `Nenhum estabelecimento encontrado com o nome exato "${businessName}". Verifique a escrita.`,
+              insertedCount: 0,
+              recurrentCount: 0,
+              total: 0,
+              count: 0,
+              suggestion: candidates.length > 0 ? `Você quis dizer "${candidates[0].name}"?` : undefined
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
     } else {
       // Busca tradicional por nicho + localização
       searchQuery = `${niche} em ${locationQuery}${neighborhoodPart}`;
       console.log('🔍 Buscando no Google Places:', { niche, location: locationQuery, neighborhood: neighborhoodPart });
+      console.log('📍 Query de busca completa:', searchQuery);
+
+      const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${GOOGLE_API_KEY}`;
+
+      const searchResponse = await fetch(textSearchUrl);
+      const searchData = await searchResponse.json();
+
+      if (searchData.status !== 'OK' && searchData.status !== 'ZERO_RESULTS') {
+        console.error('❌ Erro na API do Google Places:', searchData);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Erro na API do Google: ${searchData.status}`,
+            details: searchData.error_message
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      results = searchData.results || [];
     }
-    console.log('📍 Query de busca completa:', searchQuery);
 
-    const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${GOOGLE_API_KEY}`;
-
-    const searchResponse = await fetch(textSearchUrl);
-    const searchData = await searchResponse.json();
-
-    if (searchData.status !== 'OK' && searchData.status !== 'ZERO_RESULTS') {
-      console.error('❌ Erro na API do Google Places:', searchData);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Erro na API do Google: ${searchData.status}`,
-          details: searchData.error_message
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const results = searchData.results || [];
     console.log(`✅ Encontrados ${results.length} resultados no Google Places`);
 
     if (results.length === 0) {
