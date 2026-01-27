@@ -663,6 +663,7 @@ serve(async (req) => {
         data: dataFormatada,
         email: null,
         contato: null,
+         user_id: user_id || null, // Necessário para RLS multi-tenant
       };
     });
 
