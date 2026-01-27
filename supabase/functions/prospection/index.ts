@@ -630,7 +630,8 @@ serve(async (req) => {
         id: place.place_id || generateUniqueId(place.name || 'empresa', place.formatted_address || ''),
         empresa: place.name || 'Empresa não identificada',
         categoria: niche || translateGoogleType(place.types),
-        telefone_whatsapp: hasWhatsApp ? phone : null,
+        telefone: phone || null,
+        whatsapp: hasWhatsApp ? phone : null,
         endereco: place.formatted_address || '',
         cidade: extractCity(place.formatted_address),
         bairro_regiao: extractNeighborhood(place.formatted_address),
@@ -719,7 +720,8 @@ serve(async (req) => {
               id: leadToInsert.id,
               empresa: leadToInsert.empresa,
               cidade: leadToInsert.cidade,
-              telefone_whatsapp: leadToInsert.telefone_whatsapp,
+              telefone: leadToInsert.telefone,
+              whatsapp: leadToInsert.whatsapp,
               link_gmn: leadToInsert.link_gmn
             });
 
