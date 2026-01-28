@@ -1,0 +1,58 @@
+{
+  "parameters": {
+    "operation": "update",
+    "tableId": "leads_prospeccao",
+    "filters": {
+      "conditions": [
+        {
+          "keyName": "whatsapp",
+          "condition": "eq",
+          "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('filter_whatsapp', 'Numero WhatsApp do lead no formato +5581999999999', 'string') }}"
+        }
+      ]
+    },
+    "fieldsUi": {
+      "fieldValues": [
+        {
+          "fieldId": "updated_at",
+          "fieldValue": "={{ $now.toISO() }}"
+        },
+        {
+          "fieldId": "status_msg_wa",
+          "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('status_msg_wa', 'Status da conversa: Em Conversa, Qualificando, Qualificado, Follow-up ou Transferido', 'string') }}"
+        },
+        {
+          "fieldId": "estagio_pipeline",
+          "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('estagio_pipeline', 'Estagio do pipeline: Contato Inicial, Qualificacao, Transferido para Consultor, Follow-up', 'string') }}"
+        },
+        {
+          "fieldId": "data_ultima_interacao",
+          "fieldValue": "={{ $now.toISO() }}"
+        },
+        {
+          "fieldId": "faturamento_declarado",
+          "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('faturamento_declarado', 'Valor numerico do faturamento declarado pelo lead ou null', 'number') }}"
+        },
+        {
+          "fieldId": "motivo_follow_up",
+          "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('motivo_follow_up', 'Motivo do follow-up se aplicavel ou null', 'string') }}"
+        },
+        {
+          "fieldId": "modo_atendimento",
+          "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('modo_atendimento', 'bot ou humano - padrao bot', 'string') }}"
+        }
+      ]
+    }
+  },
+  "type": "n8n-nodes-base.supabaseTool",
+  "typeVersion": 1,
+  "position": [1936, 1536],
+  "id": "65a98dde-0ed6-497e-aa98-954ac3f578e0",
+  "name": "atualizar_lead",
+  "credentials": {
+    "supabaseApi": {
+      "id": "NUptTTiUiV3X2fhI",
+      "name": "Supabase_LeadFinderPro"
+    }
+  }
+}

@@ -1,16 +1,17 @@
 /**
  * Serviço de Automação de Movimentação de Leads
- * 
+ *
  * Este módulo gerencia a movimentação automática de leads entre os estágios do pipeline
  * baseado em ações realizadas no sistema.
- * 
- * Fluxo de estágios:
- * - Novo Lead → Contato Inicial (após disparo WhatsApp)
- * - Contato Inicial → Proposta Enviada (após enviar proposta)
- * - Proposta Enviada → Negociação (após lead responder)
- * - Negociação → Transferido para Consultor (handoff para consultor)
- * - Transferido para Consultor → Fechado (negociação concluída)
- * - Qualquer estágio → Follow-up (lead inativo ou não qualificado)
+ *
+ * Novo Pipeline (7 estágios - reorganizado em 2025):
+ * 1. Novo Lead → Prospecção via sistema
+ * 2. Contato Inicial → MSG WhatsApp disparada
+ * 3. Qualificação → Agente IA qualificando (faturamento >= R$50k)
+ * 4. Transferido para Consultor → Lead qualificado
+ * 5. Fechado Ganho → Negócio fechado com sucesso
+ * 6. Fechado Perdido → Negócio não fechou
+ * 7. Follow-up → Não qualificados ou estagnados >= 7 dias
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -35,8 +36,9 @@ export interface FollowUpReason {
 // ============= MOTIVOS DE FOLLOW-UP =============
 export const FOLLOWUP_REASONS: FollowUpReason[] = [
   { code: 'SEM_RESPOSTA_WHATSAPP', description: 'Não respondeu ao WhatsApp', category: 'sem_resposta' },
-  { code: 'SEM_RESPOSTA_PROPOSTA', description: 'Não respondeu à proposta enviada', category: 'sem_resposta' },
+  { code: 'INATIVIDADE_AUTOMATICA', description: 'Inatividade - sem resposta após 7 dias', category: 'inatividade' },
   { code: 'INATIVIDADE_PROLONGADA', description: 'Inatividade prolongada (automático)', category: 'inatividade' },
+  { code: 'NAO_QUALIFICADO', description: 'Não qualificado (faturamento < R$50k)', category: 'desqualificacao' },
   { code: 'NAO_ATENDE_CRITERIOS', description: 'Não atende aos critérios de qualificação', category: 'desqualificacao' },
   { code: 'ORCAMENTO_INSUFICIENTE', description: 'Orçamento insuficiente', category: 'desqualificacao' },
   { code: 'TIMING_INADEQUADO', description: 'Momento não é adequado para o lead', category: 'desqualificacao' },
@@ -53,10 +55,11 @@ export interface FollowUpConfig {
   stages: LeadStatus[]; // Estágios a monitorar
 }
 
+// Configuração padrão: monitorar Novo Lead e Contato Inicial para inatividade
 const DEFAULT_FOLLOWUP_CONFIG: FollowUpConfig = {
   enabled: true,
   daysToFollowUp: 7,
-  stages: ['Contato Inicial', 'Proposta Enviada', 'Negociação'],
+  stages: ['Novo Lead', 'Contato Inicial'],
 };
 
 // ============= FUNÇÕES DE AUTOMAÇÃO =============
@@ -69,11 +72,10 @@ export async function moveToContatoInicial(leadId: string): Promise<LeadMovement
 }
 
 /**
- * Move lead para "Proposta Enviada" após envio de proposta comercial
+ * Move lead para "Qualificação" quando agente IA está qualificando
  */
-export async function moveToPropostaEnviada(leadId: string): Promise<LeadMovementResult> {
+export async function moveToQualificacao(leadId: string): Promise<LeadMovementResult> {
   try {
-    // Atualizar estágio e registrar data de envio da proposta
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: currentLead, error: fetchError } = await (supabase as any)
       .from("leads_prospeccao")
@@ -85,7 +87,7 @@ export async function moveToPropostaEnviada(leadId: string): Promise<LeadMovemen
       return {
         success: false,
         previousStage: null,
-        newStage: 'Proposta Enviada',
+        newStage: 'Qualificação',
         message: 'Lead não encontrado'
       };
     }
@@ -96,9 +98,9 @@ export async function moveToPropostaEnviada(leadId: string): Promise<LeadMovemen
     const { error } = await (supabase as any)
       .from("leads_prospeccao")
       .update({
-        status: 'Proposta Enviada',
-        estagio_pipeline: 'Proposta Enviada',
-        data_envio_proposta: new Date().toISOString(),
+        status: 'Qualificação',
+        estagio_pipeline: 'Qualificação',
+        data_qualificacao: new Date().toISOString(),
         data_ultima_interacao: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -109,25 +111,32 @@ export async function moveToPropostaEnviada(leadId: string): Promise<LeadMovemen
     return {
       success: true,
       previousStage,
-      newStage: 'Proposta Enviada',
-      message: 'Lead movido para Proposta Enviada'
+      newStage: 'Qualificação',
+      message: 'Lead movido para Qualificação'
     };
   } catch (error) {
-    console.error("Erro ao mover para Proposta Enviada:", error);
+    console.error("Erro ao mover para Qualificação:", error);
     return {
       success: false,
       previousStage: null,
-      newStage: 'Proposta Enviada',
+      newStage: 'Qualificação',
       message: (error as Error).message
     };
   }
 }
 
 /**
- * Move lead para "Negociação" após lead responder à proposta
+ * Move lead para "Fechado Ganho" quando negócio é fechado com sucesso
  */
-export async function moveToNegociacao(leadId: string): Promise<LeadMovementResult> {
-  return moveLeadToStage(leadId, 'Negociação', 'Lead respondeu à proposta');
+export async function moveToFechadoGanho(leadId: string): Promise<LeadMovementResult> {
+  return moveLeadToStage(leadId, 'Fechado Ganho', 'Negócio fechado com sucesso');
+}
+
+/**
+ * Move lead para "Fechado Perdido" quando negócio não é fechado
+ */
+export async function moveToFechadoPerdido(leadId: string, motivo?: string): Promise<LeadMovementResult> {
+  return moveLeadToStage(leadId, 'Fechado Perdido', motivo || 'Negócio não fechado');
 }
 
 /**
@@ -138,10 +147,11 @@ export async function moveToTransferidoParaConsultor(leadId: string): Promise<Le
 }
 
 /**
- * Move lead para "Fechado" quando negociação for concluída com sucesso
+ * @deprecated Use moveToFechadoGanho ou moveToFechadoPerdido
+ * Move lead para "Fechado Ganho" quando negociação for concluída com sucesso
  */
 export async function moveToFechado(leadId: string): Promise<LeadMovementResult> {
-  return moveLeadToStage(leadId, 'Fechado', 'Negociação fechada com sucesso');
+  return moveToFechadoGanho(leadId);
 }
 
 /**
@@ -323,7 +333,7 @@ export async function processInactiveLeads(
     result.processed = inactiveLeadIds.length;
 
     for (const leadId of inactiveLeadIds) {
-      const moveResult = await moveToFollowUp(leadId, 'INATIVIDADE_PROLONGADA');
+      const moveResult = await moveToFollowUp(leadId, 'INATIVIDADE_AUTOMATICA');
       if (moveResult.success) {
         result.moved++;
       } else {
@@ -373,13 +383,17 @@ export function loadFollowUpConfig(userId: string): FollowUpConfig {
 
 // ============= EXPORTAÇÃO =============
 export const leadAutomation = {
+  // Funções principais do novo pipeline
   moveToContatoInicial,
-  moveToPropostaEnviada,
-  moveToNegociacao,
+  moveToQualificacao,
   moveToTransferidoParaConsultor,
-  moveToFechado,
+  moveToFechadoGanho,
+  moveToFechadoPerdido,
   moveToFollowUp,
   moveLeadToStage,
+  // Deprecated (para retrocompatibilidade)
+  moveToFechado,
+  // Automação de follow-up por inatividade
   getInactiveLeads,
   processInactiveLeads,
   saveFollowUpConfig,

@@ -36,20 +36,24 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
+// Novo Pipeline: 7 Estágios
 const leadEditSchema = z.object({
   empresa: z.string().min(1, "Nome da empresa é obrigatório"),
   status: z.enum([
+    // Pipeline Principal (7 estágios)
     "Novo Lead",
     "Contato Inicial",
     "Qualificação",
-    "Proposta Enviada",
-    "Negociação",
     "Transferido para Consultor",
     "Fechado Ganho",
     "Fechado Perdido",
-    "Em Follow-up",
-    "Fechado",
     "Follow-up",
+    // Deprecated (para retrocompatibilidade com dados antigos)
+    "Proposta Enviada",
+    "Negociação",
+    "Fechado",
+    "Em Follow-up",
+    "Novo",
   ] as const),
   contato: z.string().optional(),
   whatsapp: z.string().optional(),
@@ -160,18 +164,15 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
 
   if (!lead) return null;
 
+  // Novo Pipeline: 7 Estágios principais
   const statuses: LeadStatus[] = [
     "Novo Lead",
     "Contato Inicial",
     "Qualificação",
-    "Proposta Enviada",
-    "Negociação",
     "Transferido para Consultor",
     "Fechado Ganho",
     "Fechado Perdido",
-    "Fechado",
     "Follow-up",
-    "Em Follow-up",
   ];
 
   return (

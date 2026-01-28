@@ -3,20 +3,24 @@
  */
 
 // ============= LEAD STATUS =============
+// Novo pipeline com 7 estágios (reorganizado em 2025)
 export const LEAD_STATUS = {
+  // Estágios principais do pipeline (7 estágios)
+  NOVO_LEAD: 'Novo Lead',                           // #1 - Prospecção via sistema
+  CONTATO_INICIAL: 'Contato Inicial',               // #2 - MSG WhatsApp disparada
+  QUALIFICACAO: 'Qualificação',                     // #3 - Agente IA qualificando
+  TRANSFERIDO_PARA_CONSULTOR: 'Transferido para Consultor', // #4 - Lead qualificado
+  FECHADO_GANHO: 'Fechado Ganho',                   // #5 - Negócio fechado com sucesso
+  FECHADO_PERDIDO: 'Fechado Perdido',               // #6 - Negócio não fechou
+  FOLLOWUP: 'Follow-up',                            // #7 - Não qualificados ou estagnados
+
+  // Deprecated (para retrocompatibilidade com dados antigos)
   NOVO: 'Novo',
-  NOVO_LEAD: 'Novo Lead',
-  CONTATO_INICIAL: 'Contato Inicial',
-  QUALIFICACAO: 'Qualificação',
-  PROPOSTA_ENVIADA: 'Proposta Enviada',
-  NEGOCIACAO: 'Negociação',
-  TRANSFERIDO_PARA_CONSULTOR: 'Transferido para Consultor',
-  FECHADO_GANHO: 'Fechado Ganho',
-  FECHADO_PERDIDO: 'Fechado Perdido',
-  FECHADO: 'Fechado',
-  EM_FOLLOWUP: 'Em Follow-up',
-  FOLLOWUP: 'Follow-up',
-  RECORRENTE: 'Recorrente',
+  PROPOSTA_ENVIADA: 'Proposta Enviada',   // Migrar → Qualificação
+  NEGOCIACAO: 'Negociação',               // Migrar → Transferido para Consultor
+  FECHADO: 'Fechado',                     // Migrar → Fechado Ganho
+  EM_FOLLOWUP: 'Em Follow-up',            // Migrar → Follow-up
+  RECORRENTE: 'Recorrente',               // Manter para casos especiais
 } as const;
 
 export type LeadStatusValue = typeof LEAD_STATUS[keyof typeof LEAD_STATUS];
@@ -49,13 +53,32 @@ export function mapAgentStatusToPipeline(agentStatus: string): string {
     case CONVERSATION_STATUS.QUALIFICANDO:
       return LEAD_STATUS.QUALIFICACAO;
     case CONVERSATION_STATUS.QUALIFICADO:
-      return LEAD_STATUS.NEGOCIACAO;
+      // Lead qualificado (faturamento >= R$50k) → Qualificação (aguardando transferência)
+      return LEAD_STATUS.QUALIFICACAO;
     case CONVERSATION_STATUS.FOLLOW_UP:
       return LEAD_STATUS.FOLLOWUP;
     case CONVERSATION_STATUS.TRANSFERIDO:
       return LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR;
     default:
       return agentStatus;
+  }
+}
+
+// Função para migrar status antigos para o novo pipeline
+export function migrateLeadStatus(oldStatus: string): string {
+  switch (oldStatus) {
+    case 'Proposta Enviada':
+      return LEAD_STATUS.QUALIFICACAO;
+    case 'Negociação':
+      return LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR;
+    case 'Fechado':
+      return LEAD_STATUS.FECHADO_GANHO;
+    case 'Em Follow-up':
+      return LEAD_STATUS.FOLLOWUP;
+    case 'Novo':
+      return LEAD_STATUS.NOVO_LEAD;
+    default:
+      return oldStatus;
   }
 }
 

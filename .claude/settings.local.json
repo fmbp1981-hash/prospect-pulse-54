@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "WebFetch(domain:xpagbrasil-one-page.vercel.app)"
+    ]
+  }
+}

@@ -27,20 +27,22 @@ export interface ProspectionFormData {
   businessName?: string; // Nome específico do estabelecimento (opcional)
 }
 
-// Tipos completos do CRM (Google Sheets)
+// Tipos completos do CRM - Novo Pipeline (7 estágios)
 export type LeadStatus =
-  | 'Novo Lead'          // Assim que o lead for prospectado
-  | 'Contato Inicial'    // Assim que a mensagem de prospecção for enviada via WhatsApp
-  | 'Proposta Enviada'   // Quando proposta comercial for enviada
-  | 'Negociação'         // Após proposta ser enviada e lead responder
-  | 'Transferido para Consultor' // Quando lead for transferido para consultor de negócios
-  | 'Fechado'            // Quando negociação for fechada (ganho)
-  | 'Follow-up'          // Quando lead ficar estagnado ou não responder
-  // Deprecated (para retrocompatibilidade)
-  | 'Qualificação'
-  | 'Fechado Ganho'
-  | 'Fechado Perdido'
-  | 'Em Follow-up';
+  // Pipeline Principal (7 estágios - reorganizado em 2025)
+  | 'Novo Lead'                    // #1 - Prospecção via sistema
+  | 'Contato Inicial'              // #2 - MSG WhatsApp disparada
+  | 'Qualificação'                 // #3 - Agente IA qualificando (faturamento >= R$50k)
+  | 'Transferido para Consultor'   // #4 - Lead qualificado, transferido
+  | 'Fechado Ganho'                // #5 - Negócio fechado com sucesso
+  | 'Fechado Perdido'              // #6 - Negócio não fechou
+  | 'Follow-up'                    // #7 - Não qualificados ou estagnados >= 7 dias
+  // Deprecated (para retrocompatibilidade com dados antigos)
+  | 'Proposta Enviada'  // Migra → Qualificação
+  | 'Negociação'        // Migra → Transferido para Consultor
+  | 'Fechado'           // Migra → Fechado Ganho
+  | 'Em Follow-up'      // Migra → Follow-up
+  | 'Novo';             // Migra → Novo Lead
 
 export type LeadPriority = 'Alta' | 'Média' | 'Baixa';
 

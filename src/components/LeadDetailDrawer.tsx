@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Phone, Mail, MapPin, Building2, Tag, Calendar, History, StickyNote, Send, Plus, Trash2, ArrowRight, FileText, UserCheck, CheckCircle, Clock } from "lucide-react";
+import { X, Phone, Mail, MapPin, Building2, Tag, Calendar, History, StickyNote, Send, Plus, Trash2, ArrowRight, UserCheck, CheckCircle, Clock, XCircle, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -41,24 +41,25 @@ export function LeadDetailDrawer({ lead, open, onClose, onUpdate }: LeadDetailDr
     }
   };
 
-  const handleMoveToStage = async (action: 'proposta' | 'negociacao' | 'consultor' | 'fechado' | 'followup') => {
+  // Novo pipeline: ações de movimentação entre estágios
+  const handleMoveToStage = async (action: 'qualificacao' | 'consultor' | 'fechado_ganho' | 'fechado_perdido' | 'followup') => {
     if (!lead) return;
     setIsMovingStage(true);
 
     try {
       let result;
       switch (action) {
-        case 'proposta':
-          result = await leadAutomation.moveToPropostaEnviada(lead.id);
-          break;
-        case 'negociacao':
-          result = await leadAutomation.moveToNegociacao(lead.id);
+        case 'qualificacao':
+          result = await leadAutomation.moveToQualificacao(lead.id);
           break;
         case 'consultor':
           result = await leadAutomation.moveToTransferidoParaConsultor(lead.id);
           break;
-        case 'fechado':
-          result = await leadAutomation.moveToFechado(lead.id);
+        case 'fechado_ganho':
+          result = await leadAutomation.moveToFechadoGanho(lead.id);
+          break;
+        case 'fechado_perdido':
+          result = await leadAutomation.moveToFechadoPerdido(lead.id);
           break;
         case 'followup':
           if (!selectedFollowUpReason) {
@@ -154,40 +155,28 @@ export function LeadDetailDrawer({ lead, open, onClose, onUpdate }: LeadDetailDr
                     </Badge>
                   </div>
 
-                  {/* Ações Rápidas de Movimentação */}
+                  {/* Ações Rápidas de Movimentação - Novo Pipeline (7 estágios) */}
                   <div className="space-y-3 bg-muted/30 p-4 rounded-lg">
                     <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                       <ArrowRight className="h-4 w-4 text-primary" />
                       Ações Rápidas
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      {lead.status !== 'Proposta Enviada' && lead.status !== 'Negociação' && 
-                       lead.status !== 'Transferido para Consultor' && lead.status !== 'Fechado' && (
+                      {/* Contato Inicial → Qualificação */}
+                      {(lead.status === 'Contato Inicial' || lead.status === 'Novo Lead') && (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleMoveToStage('proposta')}
+                          onClick={() => handleMoveToStage('qualificacao')}
                           disabled={isMovingStage}
-                          className="text-xs"
+                          className="text-xs text-amber-600 border-amber-300 hover:bg-amber-50"
                         >
-                          <FileText className="h-3 w-3 mr-1" />
-                          Proposta Enviada
+                          <Search className="h-3 w-3 mr-1" />
+                          Qualificação
                         </Button>
                       )}
-                      {lead.status !== 'Negociação' && lead.status !== 'Transferido para Consultor' && 
-                       lead.status !== 'Fechado' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleMoveToStage('negociacao')}
-                          disabled={isMovingStage}
-                          className="text-xs"
-                        >
-                          <ArrowRight className="h-3 w-3 mr-1" />
-                          Negociação
-                        </Button>
-                      )}
-                      {lead.status !== 'Transferido para Consultor' && lead.status !== 'Fechado' && (
+                      {/* Qualificação → Transferir para Consultor */}
+                      {lead.status === 'Qualificação' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -199,22 +188,35 @@ export function LeadDetailDrawer({ lead, open, onClose, onUpdate }: LeadDetailDr
                           Transferir para Consultor
                         </Button>
                       )}
-                      {lead.status !== 'Fechado' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleMoveToStage('fechado')}
-                          disabled={isMovingStage}
-                          className="text-xs text-green-600 border-green-300 hover:bg-green-50"
-                        >
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Fechado
-                        </Button>
+                      {/* Transferido para Consultor → Fechado Ganho / Fechado Perdido */}
+                      {lead.status === 'Transferido para Consultor' && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleMoveToStage('fechado_ganho')}
+                            disabled={isMovingStage}
+                            className="text-xs text-green-600 border-green-300 hover:bg-green-50"
+                          >
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Fechado Ganho
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleMoveToStage('fechado_perdido')}
+                            disabled={isMovingStage}
+                            className="text-xs text-red-600 border-red-300 hover:bg-red-50"
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Fechado Perdido
+                          </Button>
+                        </>
                       )}
                     </div>
-                    
-                    {/* Follow-up com motivo */}
-                    {lead.status !== 'Follow-up' && (
+
+                    {/* Follow-up com motivo - disponível para todos exceto Fechado Ganho/Perdido/Follow-up */}
+                    {lead.status !== 'Follow-up' && lead.status !== 'Fechado Ganho' && lead.status !== 'Fechado Perdido' && (
                       <div className="flex gap-2 mt-2 pt-2 border-t border-border/50">
                         <Select value={selectedFollowUpReason} onValueChange={setSelectedFollowUpReason}>
                           <SelectTrigger className="flex-1 h-8 text-xs">

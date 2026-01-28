@@ -1,6 +1,6 @@
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { Lead, DashboardMetrics, LeadStatus, WhatsAppStatus } from "@/types/prospection";
-import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS } from "@/lib/constants";
+import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS, CONVERSATION_STATUS, mapAgentStatusToPipeline, migrateLeadStatus } from "@/lib/constants";
 
 // Obter cliente Supabase de forma dinâmica para garantir SSR-compatibility
 function getSupabase() {
@@ -57,8 +57,8 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
     const leads: Lead[] = (data || []).map((row: SupabaseLeadRow) => ({
       id: row.id,
       lead: row.lead || "",
-      // Priorizar estagio_pipeline para sincronizar com Kanban
-      status: (row.estagio_pipeline || row.status || LEAD_STATUS.NOVO) as LeadStatus,
+      // Priorizar estagio_pipeline e aplicar migração de status antigos
+      status: migrateLeadStatus(row.estagio_pipeline || row.status || LEAD_STATUS.NOVO_LEAD) as LeadStatus,
       data: row.data || "",
       empresa: row.empresa || "",
       categoria: row.categoria || "",
@@ -481,17 +481,14 @@ export async function getMetrics(): Promise<{
     if (error) throw error;
 
     const totalLeads = leads?.length || 0;
-    const statusCounts: Record<LeadStatus, number> = {
+    // Novo pipeline: 7 estágios principais
+    const statusCounts: Record<string, number> = {
       [LEAD_STATUS.NOVO_LEAD]: 0,
       [LEAD_STATUS.CONTATO_INICIAL]: 0,
       [LEAD_STATUS.QUALIFICACAO]: 0,
-      [LEAD_STATUS.PROPOSTA_ENVIADA]: 0,
-      [LEAD_STATUS.NEGOCIACAO]: 0,
       [LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR]: 0,
       [LEAD_STATUS.FECHADO_GANHO]: 0,
       [LEAD_STATUS.FECHADO_PERDIDO]: 0,
-      [LEAD_STATUS.EM_FOLLOWUP]: 0,
-      [LEAD_STATUS.FECHADO]: 0,
       [LEAD_STATUS.FOLLOWUP]: 0,
     };
 
@@ -500,9 +497,10 @@ export async function getMetrics(): Promise<{
     let whatsappSent = 0;
 
     leads?.forEach((lead: SupabaseLeadRow) => {
-      const status = lead.status || LEAD_STATUS.NOVO_LEAD;
-      if (status in statusCounts) {
-        statusCounts[status as LeadStatus]++;
+      // Aplicar migração de status antigos
+      const resolvedStatus = migrateLeadStatus(lead.estagio_pipeline || lead.status || LEAD_STATUS.NOVO_LEAD);
+      if (resolvedStatus in statusCounts) {
+        statusCounts[resolvedStatus]++;
       }
 
       const origin = lead.categoria || LEAD_ORIGIN.GOOGLE_PLACES;
@@ -522,12 +520,13 @@ export async function getMetrics(): Promise<{
     const metrics: DashboardMetrics = {
       totalLeads,
       novoLeads: statusCounts[LEAD_STATUS.NOVO_LEAD],
-      emNegociacao: statusCounts[LEAD_STATUS.NEGOCIACAO],
+      // emNegociacao agora mapeia para "Qualificação" (leads em processo de qualificação)
+      emNegociacao: statusCounts[LEAD_STATUS.QUALIFICACAO],
       fechadoGanho: statusCounts[LEAD_STATUS.FECHADO_GANHO],
       fechadoPerdido: statusCounts[LEAD_STATUS.FECHADO_PERDIDO],
       taxaConversao: conversionRate,
       ticketMedioTotal: totalValue,
-      leadsPorStatus: statusCounts,
+      leadsPorStatus: statusCounts as Record<LeadStatus, number>,
       leadsPorOrigem: originCounts,
       leadsPorRegiao: {},
       leadsPorSegmento: {},

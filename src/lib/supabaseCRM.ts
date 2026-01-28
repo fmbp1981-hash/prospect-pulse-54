@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, DashboardMetrics, LeadStatus, WhatsAppStatus } from "@/types/prospection";
-import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS, CONVERSATION_STATUS, mapAgentStatusToPipeline } from "@/lib/constants";
+import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS, CONVERSATION_STATUS, mapAgentStatusToPipeline, migrateLeadStatus } from "@/lib/constants";
 
 /**
  * Integração direta com Supabase para operações de CRM
@@ -48,27 +48,28 @@ interface SupabaseLeadRow {
 
 // Função auxiliar para determinar o status real do lead baseado nos campos
 function resolveLeadStatus(row: SupabaseLeadRow): LeadStatus {
+  let status: string;
+
   // Prioridade: estagio_pipeline > etapa_funil mapeado > status_msg_wa mapeado > status
   if (row.estagio_pipeline) {
-    return row.estagio_pipeline as LeadStatus;
-  }
-
-  // Se etapa_funil existe (definido pelo agente), mapear para LeadStatus
-  if (row.etapa_funil) {
+    status = row.estagio_pipeline;
+  } else if (row.etapa_funil) {
+    // Se etapa_funil existe (definido pelo agente), mapear para LeadStatus
     switch (row.etapa_funil) {
-      case 'Diagnóstico': return LEAD_STATUS.CONTATO_INICIAL as LeadStatus;
-      case 'Transferência': return LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR as LeadStatus;
-      case 'Nutrição': return LEAD_STATUS.FOLLOWUP as LeadStatus;
-      default: return row.etapa_funil as LeadStatus;
+      case 'Diagnóstico': status = LEAD_STATUS.CONTATO_INICIAL; break;
+      case 'Transferência': status = LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR; break;
+      case 'Nutrição': status = LEAD_STATUS.FOLLOWUP; break;
+      default: status = row.etapa_funil;
     }
+  } else if (row.status_msg_wa && Object.values(CONVERSATION_STATUS).includes(row.status_msg_wa as any)) {
+    // Se status_msg_wa é um status de conversa do agente, mapear
+    status = mapAgentStatusToPipeline(row.status_msg_wa);
+  } else {
+    status = row.status || LEAD_STATUS.NOVO_LEAD;
   }
 
-  // Se status_msg_wa é um status de conversa do agente, mapear
-  if (row.status_msg_wa && Object.values(CONVERSATION_STATUS).includes(row.status_msg_wa as any)) {
-    return mapAgentStatusToPipeline(row.status_msg_wa) as LeadStatus;
-  }
-
-  return (row.status || LEAD_STATUS.NOVO) as LeadStatus;
+  // Aplicar migração de status antigos para o novo pipeline
+  return migrateLeadStatus(status) as LeadStatus;
 }
 
 // Função auxiliar para determinar o status de WhatsApp real
@@ -526,17 +527,14 @@ export async function getMetrics(): Promise<{
     if (error) throw error;
 
     const totalLeads = leads?.length || 0;
-    const statusCounts: Record<LeadStatus, number> = {
+    // Novo pipeline: 7 estágios principais
+    const statusCounts: Record<string, number> = {
       [LEAD_STATUS.NOVO_LEAD]: 0,
       [LEAD_STATUS.CONTATO_INICIAL]: 0,
       [LEAD_STATUS.QUALIFICACAO]: 0,
-      [LEAD_STATUS.PROPOSTA_ENVIADA]: 0,
-      [LEAD_STATUS.NEGOCIACAO]: 0,
       [LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR]: 0,
       [LEAD_STATUS.FECHADO_GANHO]: 0,
       [LEAD_STATUS.FECHADO_PERDIDO]: 0,
-      [LEAD_STATUS.EM_FOLLOWUP]: 0,
-      [LEAD_STATUS.FECHADO]: 0,
       [LEAD_STATUS.FOLLOWUP]: 0,
     };
 
@@ -545,9 +543,10 @@ export async function getMetrics(): Promise<{
     let whatsappSent = 0;
 
     leads?.forEach((lead: SupabaseLeadRow) => {
-      const status = lead.status || LEAD_STATUS.NOVO_LEAD;
-      if (status in statusCounts) {
-        statusCounts[status as LeadStatus]++;
+      // Usar resolveLeadStatus para aplicar migração de status antigos
+      const resolvedStatus = resolveLeadStatus(lead);
+      if (resolvedStatus in statusCounts) {
+        statusCounts[resolvedStatus]++;
       }
 
       const origin = lead.categoria || LEAD_ORIGIN.GOOGLE_PLACES;
@@ -567,12 +566,13 @@ export async function getMetrics(): Promise<{
     const metrics: DashboardMetrics = {
       totalLeads,
       novoLeads: statusCounts[LEAD_STATUS.NOVO_LEAD],
-      emNegociacao: statusCounts[LEAD_STATUS.NEGOCIACAO],
+      // emNegociacao agora mapeia para "Qualificação" (leads em processo de qualificação)
+      emNegociacao: statusCounts[LEAD_STATUS.QUALIFICACAO],
       fechadoGanho: statusCounts[LEAD_STATUS.FECHADO_GANHO],
       fechadoPerdido: statusCounts[LEAD_STATUS.FECHADO_PERDIDO],
       taxaConversao: conversionRate,
       ticketMedioTotal: totalValue,
-      leadsPorStatus: statusCounts,
+      leadsPorStatus: statusCounts as Record<LeadStatus, number>,
       leadsPorOrigem: originCounts,
       leadsPorRegiao: {},
       leadsPorSegmento: {},

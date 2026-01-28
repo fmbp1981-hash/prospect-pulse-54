@@ -39,18 +39,15 @@ export const LeadsFilters = ({
 }: LeadsFiltersProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // Novo Pipeline: 7 Estágios principais
   const statusOptions: (LeadStatus | "all")[] = [
     "all",
     "Novo Lead",
     "Contato Inicial",
     "Qualificação",
-    "Proposta Enviada",
-    "Negociação",
     "Transferido para Consultor",
     "Fechado Ganho",
     "Fechado Perdido",
-    "Em Follow-up",
-    "Fechado",
     "Follow-up",
   ];
 

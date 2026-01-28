@@ -17,29 +17,33 @@ interface KanbanBoardProps {
   onLeadUpdate: () => void;
 }
 
+// Novo Pipeline: 7 Estágios (reorganizado em 2025)
 const LEAD_STATUSES: LeadStatus[] = [
-  "Novo Lead",
-  "Contato Inicial",
-  "Proposta Enviada",
-  "Negociação",
-  "Transferido para Consultor",
-  "Fechado",
-  "Follow-up",
+  "Novo Lead",                    // #1 - Prospecção via sistema (blue-500)
+  "Contato Inicial",              // #2 - MSG WhatsApp disparada (purple-500)
+  "Qualificação",                 // #3 - Agente IA qualificando (amber-500)
+  "Transferido para Consultor",   // #4 - Lead qualificado (cyan-500)
+  "Fechado Ganho",                // #5 - Negócio fechado com sucesso (green-500)
+  "Fechado Perdido",              // #6 - Negócio não fechou (red-500)
+  "Follow-up",                    // #7 - Não qualificados ou estagnados >= 7 dias (pink-500)
 ];
 
+// Cores do novo pipeline (7 estágios)
 const STATUS_COLORS: Record<LeadStatus, string> = {
+  // Pipeline Principal
   "Novo Lead": "bg-blue-500",
   "Contato Inicial": "bg-purple-500",
-  "Proposta Enviada": "bg-orange-500",
-  "Negociação": "bg-indigo-500",
+  "Qualificação": "bg-amber-500",
   "Transferido para Consultor": "bg-cyan-500",
-  "Fechado": "bg-green-500",
-  "Follow-up": "bg-pink-500",
-  // Deprecated statuses (para migração)
-  "Qualificação": "bg-yellow-500",
   "Fechado Ganho": "bg-green-500",
   "Fechado Perdido": "bg-red-500",
-  "Em Follow-up": "bg-pink-500",
+  "Follow-up": "bg-pink-500",
+  // Deprecated statuses (para retrocompatibilidade)
+  "Proposta Enviada": "bg-amber-500",   // Migra → Qualificação
+  "Negociação": "bg-cyan-500",          // Migra → Transferido para Consultor
+  "Fechado": "bg-green-500",            // Migra → Fechado Ganho
+  "Em Follow-up": "bg-pink-500",        // Migra → Follow-up
+  "Novo": "bg-blue-500",                // Migra → Novo Lead
 };
 
 interface KanbanCardProps {
