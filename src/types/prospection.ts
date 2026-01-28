@@ -44,7 +44,16 @@ export type LeadStatus =
 
 export type LeadPriority = 'Alta' | 'Média' | 'Baixa';
 
+// Status de envio de mensagem WhatsApp
 export type WhatsAppStatus = 'not_sent' | 'sent' | 'failed';
+
+// Status de conversação do agente de IA (compatível com n8n workflow)
+export type ConversationStatus =
+  | 'Em Conversa'      // Lead respondeu e está em conversa ativa
+  | 'Qualificando'     // Em processo de qualificação (diagnóstico)
+  | 'Qualificado'      // Faturamento >= R$ 50k, pronto para transferência
+  | 'Follow-up'        // Não qualificado, manter contato futuro
+  | 'Transferido';     // Transferido para consultor humano
 
 export type LeadOrigin =
   | 'Prospecção Ativa'

@@ -30,6 +30,35 @@ export const WHATSAPP_STATUS = {
 
 export type WhatsAppStatusValue = typeof WHATSAPP_STATUS[keyof typeof WHATSAPP_STATUS];
 
+// ============= CONVERSATION STATUS (Agente IA n8n) =============
+export const CONVERSATION_STATUS = {
+  EM_CONVERSA: 'Em Conversa',
+  QUALIFICANDO: 'Qualificando',
+  QUALIFICADO: 'Qualificado',
+  FOLLOW_UP: 'Follow-up',
+  TRANSFERIDO: 'Transferido',
+} as const;
+
+export type ConversationStatusValue = typeof CONVERSATION_STATUS[keyof typeof CONVERSATION_STATUS];
+
+// Função para mapear status_msg_wa do agente para status de pipeline
+export function mapAgentStatusToPipeline(agentStatus: string): string {
+  switch (agentStatus) {
+    case CONVERSATION_STATUS.EM_CONVERSA:
+      return LEAD_STATUS.CONTATO_INICIAL;
+    case CONVERSATION_STATUS.QUALIFICANDO:
+      return LEAD_STATUS.QUALIFICACAO;
+    case CONVERSATION_STATUS.QUALIFICADO:
+      return LEAD_STATUS.NEGOCIACAO;
+    case CONVERSATION_STATUS.FOLLOW_UP:
+      return LEAD_STATUS.FOLLOWUP;
+    case CONVERSATION_STATUS.TRANSFERIDO:
+      return LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR;
+    default:
+      return agentStatus;
+  }
+}
+
 // ============= PROSPECTION STATUS =============
 export const PROSPECTION_STATUS = {
   PENDING: 'pending',

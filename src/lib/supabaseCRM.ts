@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, DashboardMetrics, LeadStatus, WhatsAppStatus } from "@/types/prospection";
-import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS } from "@/lib/constants";
+import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS, CONVERSATION_STATUS, mapAgentStatusToPipeline } from "@/lib/constants";
 
 /**
  * Integração direta com Supabase para operações de CRM
@@ -13,6 +13,7 @@ interface SupabaseLeadRow {
   lead?: string;
   status?: string;
   estagio_pipeline?: string;
+  etapa_funil?: string; // Campo usado pelo agente de IA n8n
   data?: string;
   empresa?: string;
   categoria?: string;
@@ -35,8 +36,56 @@ interface SupabaseLeadRow {
   data_envio_proposta?: string;
   data_ultima_interacao?: string;
   resumo_analitico?: string;
+  faturamento_declarado?: number; // Campo usado pelo agente de IA n8n
+  modo_atendimento?: string; // "bot" ou "humano"
+  resposta_inicial?: string; // "SIM" ou "NÃO"
+  motivo_follow_up?: string;
+  data_qualificacao?: string;
+  ultimo_contato?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+// Função auxiliar para determinar o status real do lead baseado nos campos
+function resolveLeadStatus(row: SupabaseLeadRow): LeadStatus {
+  // Prioridade: estagio_pipeline > etapa_funil mapeado > status_msg_wa mapeado > status
+  if (row.estagio_pipeline) {
+    return row.estagio_pipeline as LeadStatus;
+  }
+
+  // Se etapa_funil existe (definido pelo agente), mapear para LeadStatus
+  if (row.etapa_funil) {
+    switch (row.etapa_funil) {
+      case 'Diagnóstico': return LEAD_STATUS.CONTATO_INICIAL as LeadStatus;
+      case 'Transferência': return LEAD_STATUS.TRANSFERIDO_PARA_CONSULTOR as LeadStatus;
+      case 'Nutrição': return LEAD_STATUS.FOLLOWUP as LeadStatus;
+      default: return row.etapa_funil as LeadStatus;
+    }
+  }
+
+  // Se status_msg_wa é um status de conversa do agente, mapear
+  if (row.status_msg_wa && Object.values(CONVERSATION_STATUS).includes(row.status_msg_wa as any)) {
+    return mapAgentStatusToPipeline(row.status_msg_wa) as LeadStatus;
+  }
+
+  return (row.status || LEAD_STATUS.NOVO) as LeadStatus;
+}
+
+// Função auxiliar para determinar o status de WhatsApp real
+function resolveWhatsAppStatus(row: SupabaseLeadRow): WhatsAppStatus {
+  const status = row.status_msg_wa;
+
+  // Se é um status de conversa do agente, significa que msg foi enviada e houve resposta
+  if (status && Object.values(CONVERSATION_STATUS).includes(status as any)) {
+    return WHATSAPP_STATUS.SENT as WhatsAppStatus;
+  }
+
+  // Caso contrário, usar o valor direto se válido
+  if (status === 'sent' || status === 'not_sent' || status === 'failed') {
+    return status as WhatsAppStatus;
+  }
+
+  return WHATSAPP_STATUS.NOT_SENT as WhatsAppStatus;
 }
 
 // ============= SYNC LEADS =============
@@ -52,8 +101,8 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
     const leads: Lead[] = (data || []).map((row: SupabaseLeadRow) => ({
       id: row.id,
       lead: row.lead || "",
-      // Priorizar estagio_pipeline para sincronizar com Kanban
-      status: (row.estagio_pipeline || row.status || LEAD_STATUS.NOVO) as LeadStatus,
+      // Usar função de resolução que considera todos os campos de status
+      status: resolveLeadStatus(row),
       data: row.data || "",
       empresa: row.empresa || "",
       categoria: row.categoria || "",
@@ -71,7 +120,8 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
       aceitaCartao: row.aceita_cartao || "",
       cnpj: row.cnpj || "",
       mensagemWhatsApp: row.mensagem_whatsapp || "",
-      statusMsgWA: (row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT) as WhatsAppStatus,
+      // Usar função de resolução para WhatsApp status
+      statusMsgWA: resolveWhatsAppStatus(row),
       dataEnvioWA: row.data_envio_wa || null,
       resumoAnalitico: row.resumo_analitico || "",
       createdAt: row.created_at || new Date().toISOString(),
@@ -82,10 +132,10 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
       prioridade: LEAD_PRIORITY.MEDIA,
       regiao: row.cidade || "",
       segmento: row.categoria || "",
-      ticketMedioEstimado: 0,
+      ticketMedioEstimado: row.faturamento_declarado || 0,
       contatoPrincipal: row.contato || "",
       dataContato: row.created_at || new Date().toISOString(),
-      observacoes: "",
+      observacoes: row.motivo_follow_up || "",
     }));
 
     return { success: true, leads };
@@ -360,7 +410,7 @@ function mapRowToLead(row: SupabaseLeadRow): Lead {
   return {
     id: row.id,
     lead: row.lead || "",
-    status: (row.status || LEAD_STATUS.NOVO) as LeadStatus,
+    status: resolveLeadStatus(row),
     data: row.data || "",
     empresa: row.empresa || "",
     categoria: row.categoria || "",
@@ -378,7 +428,7 @@ function mapRowToLead(row: SupabaseLeadRow): Lead {
     aceitaCartao: row.aceita_cartao || "",
     cnpj: row.cnpj || "",
     mensagemWhatsApp: row.mensagem_whatsapp || "",
-    statusMsgWA: (row.status_msg_wa || WHATSAPP_STATUS.NOT_SENT) as WhatsAppStatus,
+    statusMsgWA: resolveWhatsAppStatus(row),
     dataEnvioWA: row.data_envio_wa || null,
     resumoAnalitico: row.resumo_analitico || "",
     createdAt: row.created_at || new Date().toISOString(),
@@ -387,10 +437,10 @@ function mapRowToLead(row: SupabaseLeadRow): Lead {
     prioridade: LEAD_PRIORITY.MEDIA,
     regiao: row.cidade || "",
     segmento: row.categoria || "",
-    ticketMedioEstimado: 0,
+    ticketMedioEstimado: row.faturamento_declarado || 0,
     contatoPrincipal: row.contato || "",
     dataContato: row.created_at || new Date().toISOString(),
-    observacoes: "",
+    observacoes: row.motivo_follow_up || "",
   };
 }
 
