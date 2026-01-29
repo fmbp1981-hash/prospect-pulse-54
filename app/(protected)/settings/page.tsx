@@ -377,102 +377,125 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-primary" />
-            <CardTitle>Evolution API - WhatsApp</CardTitle>
-          </div>
-          <CardDescription>
-            Configure sua instância da Evolution API para verificação e envio de mensagens WhatsApp
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="evolution_instance_name">
-              Nome da Instância
-            </Label>
-            <Input
-              id="evolution_instance_name"
-              placeholder="Ex: WA-Pessoal, WA-Producao"
-              value={evolutionInstanceName}
-              onChange={(e) => setEvolutionInstanceName(e.target.value)}
-              className="max-w-md"
-            />
-            <p className="text-xs text-muted-foreground">
-              Nome identificador da sua instância no Evolution API
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="evolution_api_url">
-              URL da API
-            </Label>
-            <Input
-              id="evolution_api_url"
-              placeholder="Ex: https://evolution.intellixai.com.br/chat/whatsappNumbers/WA-Pessoal"
-              value={evolutionApiUrl}
-              onChange={(e) => setEvolutionApiUrl(e.target.value)}
-              className="max-w-2xl"
-            />
-            <p className="text-xs text-muted-foreground">
-              URL completa do endpoint da Evolution API incluindo a instância
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="evolution_api_key">
-              API Key
-            </Label>
-            <div className="relative max-w-2xl">
+      {/* Integrações WhatsApp - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              <CardTitle>Evolution API - WhatsApp</CardTitle>
+            </div>
+            <CardDescription>
+              Configure a instância da Evolution API para verificação e envio de mensagens WhatsApp
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="evolution_instance_name">
+                Nome da Instância
+              </Label>
               <Input
-                id="evolution_api_key"
-                type={showApiKey ? "text" : "password"}
-                placeholder="Sua chave de API da Evolution"
-                value={evolutionApiKey}
-                onChange={(e) => setEvolutionApiKey(e.target.value)}
-                className="pr-10"
+                id="evolution_instance_name"
+                placeholder="Ex: WA-Pessoal, WA-Producao"
+                value={evolutionInstanceName}
+                onChange={(e) => setEvolutionInstanceName(e.target.value)}
+                className="max-w-md"
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                onClick={() => setShowApiKey(!showApiKey)}
-              >
-                {showApiKey ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                Nome identificador da instância no Evolution API
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Chave de autenticação da Evolution API
-            </p>
-          </div>
 
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-              💡 Como configurar:
-            </p>
-            <div className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
-              <p>1. <strong>Teste</strong>: Use a instância atual para testes iniciais</p>
-              <p>2. <strong>Produção</strong>: Quando estiver pronto, altere para a instância de produção</p>
-              <p>3. As configurações são salvas por usuário e aplicadas automaticamente nas próximas prospecções</p>
+            <div className="space-y-2">
+              <Label htmlFor="evolution_api_url">
+                URL da API
+              </Label>
+              <Input
+                id="evolution_api_url"
+                placeholder="Ex: https://evolution.intellixai.com.br/chat/whatsappNumbers/WA-Pessoal"
+                value={evolutionApiUrl}
+                onChange={(e) => setEvolutionApiUrl(e.target.value)}
+                className="max-w-2xl"
+              />
+              <p className="text-xs text-muted-foreground">
+                URL completa do endpoint da Evolution API incluindo a instância
+              </p>
             </div>
-          </div>
 
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-            <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-2">
-              ⚠️ Segurança:
-            </p>
-            <div className="text-xs text-yellow-800 dark:text-yellow-200">
-              <p>Suas credenciais são armazenadas de forma segura e apenas você tem acesso a elas.</p>
+            <div className="space-y-2">
+              <Label htmlFor="evolution_api_key">
+                API Key
+              </Label>
+              <div className="relative max-w-2xl">
+                <Input
+                  id="evolution_api_key"
+                  type={showApiKey ? "text" : "password"}
+                  placeholder="Sua chave de API da Evolution"
+                  value={evolutionApiKey}
+                  onChange={(e) => setEvolutionApiKey(e.target.value)}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Chave de autenticação da Evolution API
+              </p>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
+                💡 Configuração por Usuário:
+              </p>
+              <div className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
+                <p>1. Configure a instância Evolution para este usuário</p>
+                <p>2. O webhook URL único será gerado automaticamente</p>
+                <p>3. As configurações são exclusivas de cada usuário</p>
+              </div>
+            </div>
+
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-2">
+                ⚠️ Importante:
+              </p>
+              <div className="text-xs text-yellow-800 dark:text-yellow-200">
+                <p>Estas configurações são gerenciadas pelo administrador do sistema.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </RoleGuard>
+
+      {/* Mensagem para usuários não-admin */}
+      <RoleGuard allowedRoles={['operador', 'visualizador']}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-primary" />
+              <CardTitle>Integração WhatsApp</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                As configurações de integração com WhatsApp são gerenciadas pelo administrador do sistema.
+                Entre em contato com o suporte caso precise de ajustes.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </RoleGuard>
 
       {/* Danger Zone - Apenas para Admins */}
       <RoleGuard allowedRoles={['admin']}>
