@@ -168,21 +168,30 @@ export type Database = {
           data: string | null
           data_envio_proposta: string | null
           data_envio_wa: string | null
+          data_qualificacao: string | null
           data_ultima_interacao: string | null
           email: string | null
           empresa: string
           endereco: string | null
           estagio_pipeline: string | null
+          etapa_funil: string | null
+          faturamento_declarado: number | null
           id: string
           instagram: string | null
           lead: string
           link_gmn: string | null
           mensagem_whatsapp: string | null
+          modo_atendimento: string | null
+          motivo_follow_up: string | null
+          origem: string | null
+          resposta_inicial: string | null
           resumo_analitico: string | null
           status: string | null
           status_msg_wa: string | null
           telefone: string | null
+          ultimo_contato: string | null
           updated_at: string | null
+          usa_meios_pagamento: string | null
           user_id: string | null
           website: string | null
           whatsapp: string | null
@@ -198,21 +207,30 @@ export type Database = {
           data?: string | null
           data_envio_proposta?: string | null
           data_envio_wa?: string | null
+          data_qualificacao?: string | null
           data_ultima_interacao?: string | null
           email?: string | null
           empresa: string
           endereco?: string | null
           estagio_pipeline?: string | null
+          etapa_funil?: string | null
+          faturamento_declarado?: number | null
           id: string
           instagram?: string | null
           lead: string
           link_gmn?: string | null
           mensagem_whatsapp?: string | null
+          modo_atendimento?: string | null
+          motivo_follow_up?: string | null
+          origem?: string | null
+          resposta_inicial?: string | null
           resumo_analitico?: string | null
           status?: string | null
           status_msg_wa?: string | null
           telefone?: string | null
+          ultimo_contato?: string | null
           updated_at?: string | null
+          usa_meios_pagamento?: string | null
           user_id?: string | null
           website?: string | null
           whatsapp?: string | null
@@ -228,21 +246,30 @@ export type Database = {
           data?: string | null
           data_envio_proposta?: string | null
           data_envio_wa?: string | null
+          data_qualificacao?: string | null
           data_ultima_interacao?: string | null
           email?: string | null
           empresa?: string
           endereco?: string | null
           estagio_pipeline?: string | null
+          etapa_funil?: string | null
+          faturamento_declarado?: number | null
           id?: string
           instagram?: string | null
           lead?: string
           link_gmn?: string | null
           mensagem_whatsapp?: string | null
+          modo_atendimento?: string | null
+          motivo_follow_up?: string | null
+          origem?: string | null
+          resposta_inicial?: string | null
           resumo_analitico?: string | null
           status?: string | null
           status_msg_wa?: string | null
           telefone?: string | null
+          ultimo_contato?: string | null
           updated_at?: string | null
+          usa_meios_pagamento?: string | null
           user_id?: string | null
           website?: string | null
           whatsapp?: string | null
