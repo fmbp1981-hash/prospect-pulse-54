@@ -570,8 +570,8 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Agente de IA - Apenas para Admins */}
-      <RoleGuard allowedRoles={['admin']}>
+      {/* Agente de IA - Admin e Operador */}
+      <RoleGuard requiredPermission="canManageAgent">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -685,8 +685,8 @@ export default function SettingsPage() {
         </Card>
       </RoleGuard>
 
-      {/* Base de Conhecimento RAG - Apenas para Admins */}
-      <RoleGuard allowedRoles={['admin']}>
+      {/* Base de Conhecimento RAG - Admin e Operador */}
+      <RoleGuard requiredPermission="canManageAgent">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">

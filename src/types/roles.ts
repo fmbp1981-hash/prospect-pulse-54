@@ -16,6 +16,7 @@ export interface RolePermissions {
   canBulkDelete: boolean;
   canExport: boolean;
   canSendWhatsApp: boolean;
+  canManageAgent: boolean;     // Editar system prompt, modelo e base RAG
   canManageRoles: boolean;
   canViewAuditLogs: boolean;
   canManageIntegrations: boolean;
@@ -32,6 +33,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canBulkDelete: true,
     canExport: true,
     canSendWhatsApp: true,
+    canManageAgent: true,
     canManageRoles: true,
     canViewAuditLogs: true,
     canManageIntegrations: true,
@@ -40,9 +42,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canCreate: true,
     canUpdate: true,
     canDelete: true,
-    canBulkDelete: false, // Apenas admin pode fazer bulk delete
+    canBulkDelete: false,
     canExport: true,
     canSendWhatsApp: true,
+    canManageAgent: true,      // Pode editar system prompt e base RAG
     canManageRoles: false,
     canViewAuditLogs: false,
     canManageIntegrations: false,
@@ -52,8 +55,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canUpdate: false,
     canDelete: false,
     canBulkDelete: false,
-    canExport: true, // Pode exportar mas não modificar
+    canExport: true,
     canSendWhatsApp: false,
+    canManageAgent: false,
     canManageRoles: false,
     canViewAuditLogs: false,
     canManageIntegrations: false,
@@ -74,7 +78,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
  */
 export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   admin: 'Acesso total ao sistema, incluindo gerenciamento de usuários e configurações',
-  operador: 'Pode criar, editar e deletar leads. Não pode fazer alterações em massa',
+  operador: 'Pode criar, editar e deletar leads, enviar WhatsApp e configurar o Agente de IA (prompt e RAG). Não pode fazer alterações em massa',
   visualizador: 'Apenas visualização e exportação de dados. Sem permissões de escrita',
 };
 
