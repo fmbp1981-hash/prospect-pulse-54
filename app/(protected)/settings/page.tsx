@@ -4,10 +4,14 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw } from "lucide-react";
+import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw } from "lucide-react";
 import { userSettingsService } from "@/lib/userSettings";
 import { RoleGuard } from "@/components/RoleGuard";
 import { RoleManagement } from "@/components/RoleManagement";
@@ -28,10 +32,20 @@ export default function SettingsPage() {
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
   const [evolutionInstanceName, setEvolutionInstanceName] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
-  
+
   // Configurações de Follow-up automático
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
   const [followUpDays, setFollowUpDays] = useState(7);
+
+  // Configurações do Agente de IA
+  const [agentConfigId, setAgentConfigId] = useState<string | null>(null);
+  const [agentSystemPrompt, setAgentSystemPrompt] = useState("");
+  const [agentModel, setAgentModel] = useState("gpt-4.1");
+  const [agentTemperature, setAgentTemperature] = useState(0.7);
+  const [agentMaxIterations, setAgentMaxIterations] = useState(5);
+  const [isSavingAgent, setIsSavingAgent] = useState(false);
+  const [isResettingAgent, setIsResettingAgent] = useState(false);
+  const [agentPromptVersion, setAgentPromptVersion] = useState("default");
 
   useEffect(() => {
     loadSettings();
@@ -47,18 +61,91 @@ export default function SettingsPage() {
         setEvolutionApiKey(settings.evolution_api_key || "");
         setEvolutionInstanceName(settings.evolution_instance_name || "");
       }
-      
+
       // Carregar configurações de Follow-up
       if (user?.id) {
         const followUpConfig = leadAutomation.loadFollowUpConfig(user.id);
         setFollowUpEnabled(followUpConfig.enabled);
         setFollowUpDays(followUpConfig.daysToFollowUp);
       }
+
+      // Carregar configuração do Agente de IA
+      try {
+        const res = await fetch("/api/agent/config");
+        if (res.ok) {
+          const { configs } = await res.json();
+          if (configs && configs.length > 0) {
+            const active = configs.find((c: any) => c.isActive) || configs[0];
+            setAgentConfigId(active.id);
+            setAgentSystemPrompt(active.systemPrompt || "");
+            setAgentModel(active.model || "gpt-4.1");
+            setAgentTemperature(active.temperature ?? 0.7);
+            setAgentMaxIterations(active.maxIterations ?? 5);
+            setAgentPromptVersion(active.promptVersion || "default");
+          }
+        }
+      } catch {
+        // Tabela ainda não criada no Supabase — silencioso
+      }
     } catch (error) {
       console.error("Erro ao carregar configurações:", error);
       toast.error("Erro ao carregar configurações");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveAgentConfig = async () => {
+    if (!agentSystemPrompt.trim()) {
+      toast.error("O System Prompt não pode estar vazio");
+      return;
+    }
+    setIsSavingAgent(true);
+    try {
+      const res = await fetch("/api/agent/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Configuração personalizada",
+          systemPrompt: agentSystemPrompt,
+          model: agentModel,
+          temperature: agentTemperature,
+          maxIterations: agentMaxIterations,
+          activate: true,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const { config } = await res.json();
+      setAgentConfigId(config.id);
+      setAgentPromptVersion(config.promptVersion || "custom");
+      toast.success("Configuração do Agente salva!", {
+        description: "O novo prompt entrará em vigor imediatamente.",
+      });
+    } catch (error) {
+      console.error("Erro ao salvar configuração do agente:", error);
+      toast.error("Erro ao salvar configuração do Agente");
+    } finally {
+      setIsSavingAgent(false);
+    }
+  };
+
+  const handleResetAgentConfig = async () => {
+    setIsResettingAgent(true);
+    try {
+      const res = await fetch("/api/agent/config", { method: "PUT" });
+      if (!res.ok) throw new Error(await res.text());
+      const { config } = await res.json();
+      setAgentSystemPrompt(config.systemPrompt || "");
+      setAgentModel(config.model || "gpt-4.1");
+      setAgentTemperature(config.temperature ?? 0.7);
+      setAgentMaxIterations(config.maxIterations ?? 5);
+      setAgentPromptVersion(config.promptVersion || "default");
+      toast.success("Prompt resetado para o padrão do sistema v3.4");
+    } catch (error) {
+      console.error("Erro ao resetar configuração:", error);
+      toast.error("Erro ao resetar configuração do Agente");
+    } finally {
+      setIsResettingAgent(false);
     }
   };
 
@@ -376,6 +463,121 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Agente de IA - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-primary" />
+              <CardTitle>Agente de IA</CardTitle>
+              {agentPromptVersion && (
+                <Badge variant="outline" className="text-xs">
+                  v{agentPromptVersion}
+                </Badge>
+              )}
+            </div>
+            <CardDescription>
+              Configure o System Prompt, modelo e comportamento do agente de atendimento WhatsApp
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="agent_model">Modelo de IA</Label>
+              <Select value={agentModel} onValueChange={setAgentModel}>
+                <SelectTrigger className="max-w-xs" id="agent_model">
+                  <SelectValue placeholder="Selecione o modelo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gpt-4.1">GPT-4.1 (Recomendado)</SelectItem>
+                  <SelectItem value="gpt-4.1-mini">GPT-4.1 Mini (Rápido)</SelectItem>
+                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                  <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="agent_temperature">
+                  Temperatura: <span className="font-mono font-bold">{agentTemperature.toFixed(2)}</span>
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  {agentTemperature < 0.4 ? "Conservador" : agentTemperature < 0.8 ? "Equilibrado" : "Criativo"}
+                </span>
+              </div>
+              <Slider
+                id="agent_temperature"
+                min={0}
+                max={2}
+                step={0.05}
+                value={[agentTemperature]}
+                onValueChange={([v]) => setAgentTemperature(v)}
+                className="max-w-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Valores mais baixos = respostas mais focadas. Valores mais altos = mais criatividade.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="agent_max_iterations">
+                Máximo de Iterações: <span className="font-mono font-bold">{agentMaxIterations}</span>
+              </Label>
+              <Slider
+                id="agent_max_iterations"
+                min={1}
+                max={10}
+                step={1}
+                value={[agentMaxIterations]}
+                onValueChange={([v]) => setAgentMaxIterations(v)}
+                className="max-w-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Quantidade máxima de chamadas de ferramentas por resposta do agente.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="agent_system_prompt">System Prompt</Label>
+              <Textarea
+                id="agent_system_prompt"
+                placeholder="Digite o system prompt do agente..."
+                value={agentSystemPrompt}
+                onChange={(e) => setAgentSystemPrompt(e.target.value)}
+                className="min-h-[300px] font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                {agentSystemPrompt.length} caracteres · Define a personalidade, regras e comportamento do agente no WhatsApp
+              </p>
+            </div>
+
+            <div className="flex gap-3 flex-wrap">
+              <Button
+                onClick={handleSaveAgentConfig}
+                disabled={isSavingAgent || !agentSystemPrompt.trim()}
+              >
+                {isSavingAgent ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</>
+                ) : (
+                  <><Save className="h-4 w-4 mr-2" />Salvar Configuração</>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleResetAgentConfig}
+                disabled={isResettingAgent}
+              >
+                {isResettingAgent ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Resetando...</>
+                ) : (
+                  <><RotateCcw className="h-4 w-4 mr-2" />Restaurar Padrão (v3.4)</>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </RoleGuard>
 
       {/* Integrações WhatsApp - Apenas para Admins */}
       <RoleGuard allowedRoles={['admin']}>
