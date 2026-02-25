@@ -1,11 +1,8 @@
 /**
- * WORKFLOW XPAG LEAD HANDLER
- * Orquestrador principal — substitui o workflow n8n "Xpag_Buscar_ou_Criar_Lead" completo.
+ * WORKFLOW XPAG LEAD HANDLER — v2 (Otimizado)
+ * Orquestrador principal com error recovery por step, timeouts e resiliência.
  *
- * Fluxo equivalente:
- * WEBHOOK → NORMALIZAR → ANTI-LOOP → TENANT → LEAD → HISTÓRICO
- *   → PROCESSAR MÍDIA → SALVAR MSG → AI AGENT
- *   → HUMANIZAR → ENVIAR MENSAGENS → SALVAR RESPOSTA
+ * Substitui integralmente o workflow n8n "Xpag_Buscar_ou_Criar_Lead" v3.4.
  */
 
 import type { NormalizedMessage } from '../services/message-normalizer.service';
@@ -16,129 +13,145 @@ import { buildAgentContext } from '../services/agent-context-builder.service';
 import { conversationRepository } from '../repositories/conversation.repository';
 import { executeAIAgent } from '../ai/ai-agent.service';
 import { humanizeResponse } from '../services/message-humanizer.service';
-import { sendMessageSequence } from '../integrations/evolution/messaging.client';
 import { leadRepository } from '../repositories/lead.repository';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
+import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
+import { withTimeout } from '../utils/resilience';
 import { randomUUID } from 'crypto';
 
-export async function runXpagWorkflow(
-  normalized: NormalizedMessage
-): Promise<void> {
+const STEP_TIMEOUTS = {
+  tenant: 5_000,
+  lead: 8_000,
+  media: 30_000,
+  agent: 60_000,
+  humanize: 15_000,
+  send: 30_000,
+} as const;
+
+export async function runXpagWorkflow(normalized: NormalizedMessage): Promise<void> {
   const correlationId = randomUUID();
   const logger = new WorkflowLogger('XpagLeadHandler', correlationId);
 
   logger.info('Workflow started', {
     whatsapp: normalized.clienteWhatsApp,
-    messageType: normalized.messageType,
+    type: normalized.messageType,
     instance: normalized.instanceName,
   });
 
-  // ─── STEP 1: RESOLVER TENANT ───────────────────────────────────────────────
-  const tenant = await resolveTenantByInstance(normalized.instanceName);
-  if (!tenant) {
-    logger.warn('Tenant not found for instance', { instance: normalized.instanceName });
-    return;
-  }
+  // ── STEP 1: RESOLVER TENANT ──────────────────────────────────────────────
+  const tenant = await withTimeout(
+    resolveTenantByInstance(normalized.instanceName),
+    STEP_TIMEOUTS.tenant,
+    'resolveTenant'
+  ).catch((err) => {
+    logger.error('Tenant resolution failed', { error: err.message });
+    return null;
+  });
+
+  if (!tenant) return;
   logger.info('Tenant resolved', { userId: tenant.userId });
 
-  // ─── STEP 2: VERIFICAR COMANDO #FINALIZADO ─────────────────────────────────
+  // ── STEP 2: COMANDO #FINALIZADO ──────────────────────────────────────────
   if (isFinalizationCommand(normalized.mensagem)) {
     const lead = await leadRepository.findByWhatsApp(normalized.clienteWhatsApp, tenant.userId);
-    if (lead) {
-      await leadService.returnToBot(lead.id);
-      logger.info('#finalizado: Lead returned to bot mode', { leadId: lead.id });
-    }
+    if (lead) await leadService.returnToBot(lead.id);
+    logger.info('#finalizado processed');
     return;
   }
 
-  // ─── STEP 3: BUSCAR OU CRIAR LEAD ─────────────────────────────────────────
-  const { lead, isNew } = await leadService.findOrCreate({
-    clienteNome: normalized.clienteNome,
-    clienteWhatsApp: normalized.clienteWhatsApp,
-    clienteTelefone: normalized.clienteTelefone,
-    userId: tenant.userId,
-  });
-  logger.info(isNew ? 'New lead created' : 'Lead found', { leadId: lead.id });
+  // ── STEP 3: BUSCAR OU CRIAR LEAD ─────────────────────────────────────────
+  const { lead, isNew } = await withTimeout(
+    leadService.findOrCreate({
+      clienteNome: normalized.clienteNome,
+      clienteWhatsApp: normalized.clienteWhatsApp,
+      clienteTelefone: normalized.clienteTelefone,
+      userId: tenant.userId,
+    }),
+    STEP_TIMEOUTS.lead,
+    'findOrCreate'
+  );
+  logger.info(isNew ? 'Lead created' : 'Lead found', { leadId: lead.id });
 
-  // ─── STEP 4: VERIFICAR MODO ATENDIMENTO ───────────────────────────────────
+  // ── STEP 4: VERIFICAR MODO HUMANO ────────────────────────────────────────
   if (leadService.isInHumanMode(lead)) {
-    logger.info('Lead in human mode — skipping bot response', { leadId: lead.id });
-    // Salva a mensagem do lead no histórico mesmo em modo humano
+    // Salva a mensagem mesmo em modo humano (consultor pode ver no histórico)
     await conversationRepository.saveLeadMessage({
       lead_id: lead.id,
       message: normalized.mensagem,
       from_lead: true,
       ai_generated: false,
       user_id: tenant.userId,
-    });
+    }).catch(() => null); // Não bloqueia o fluxo se falhar
+    logger.info('Human mode — bot skipped');
     return;
   }
 
-  // ─── STEP 5: PROCESSAR MÍDIA ───────────────────────────────────────────────
-  const processed = await processMessageByType(
-    normalized,
-    normalized.instanceName
-  );
-  logger.info('Media processed', { type: processed.messageType });
+  // ── STEP 5: PROCESSAR MÍDIA ──────────────────────────────────────────────
+  const processed = await withTimeout(
+    processMessageByType(normalized, normalized.instanceName),
+    STEP_TIMEOUTS.media,
+    'processMedia'
+  ).catch((err) => {
+    logger.warn('Media processing failed — using raw message', { error: err.message });
+    return { content: normalized.mensagem || '[Mídia não processada]', messageType: normalized.messageType };
+  });
 
-  // ─── STEP 6: SALVAR MENSAGEM DO LEAD ──────────────────────────────────────
+  // ── STEP 6: SALVAR MENSAGEM DO LEAD ──────────────────────────────────────
   await conversationRepository.saveLeadMessage({
     lead_id: lead.id,
     message: processed.content,
     from_lead: true,
     ai_generated: false,
     user_id: tenant.userId,
+  }).catch((err) => logger.warn('Save lead message failed', { error: err.message }));
+
+  // ── STEP 7: MONTAR CONTEXTO + EXECUTAR AGENTE ────────────────────────────
+  const agentCtx = await buildAgentContext(normalized, processed, lead, isNew, tenant);
+
+  const agentResult = await withTimeout(
+    executeAIAgent(agentCtx),
+    STEP_TIMEOUTS.agent,
+    'executeAIAgent'
+  ).catch((err) => {
+    logger.error('AI Agent failed', { error: err.message });
+    return null;
   });
 
-  // ─── STEP 7: MONTAR CONTEXTO DO AGENTE ────────────────────────────────────
-  const agentCtx = await buildAgentContext(
-    normalized,
-    processed,
-    lead,
-    isNew,
-    tenant
-  );
-
-  // ─── STEP 8: EXECUTAR AI AGENT ────────────────────────────────────────────
-  logger.info('Executing AI Agent');
-  const agentResult = await executeAIAgent(agentCtx);
-  logger.info('AI Agent responded', {
-    tools: agentResult.toolCalls,
-    iterations: agentResult.iterations,
-    outputLength: agentResult.output.length,
-  });
-
-  if (!agentResult.output.trim()) {
-    logger.warn('AI Agent returned empty response — aborting send');
+  if (!agentResult?.output?.trim()) {
+    logger.warn('AI Agent returned empty — aborting send');
     return;
   }
 
-  // ─── STEP 9: HUMANIZAR RESPOSTA ───────────────────────────────────────────
-  const messages = await humanizeResponse(agentResult.output);
-  logger.info('Response humanized', { parts: messages.length });
+  logger.info('Agent responded', {
+    tools: agentResult.toolCalls,
+    iterations: agentResult.iterations,
+  });
 
-  // ─── STEP 10: ENVIAR MENSAGENS VIA EVOLUTION API ──────────────────────────
-  const { sent, failed } = await sendMessageSequence(
-    normalized.instanceName,
-    normalized.clienteWhatsApp,
-    messages,
-    3000 // 3s entre mensagens (igual ao n8n Wait_Msg)
-  );
-  logger.info('Messages sent', { sent, failed });
+  // ── STEP 8: HUMANIZAR ────────────────────────────────────────────────────
+  const messages = await withTimeout(
+    humanizeResponse(agentResult.output),
+    STEP_TIMEOUTS.humanize,
+    'humanize'
+  ).catch(() => [agentResult.output]); // Fallback: envia sem humanizar
 
-  // ─── STEP 11: SALVAR RESPOSTA DO AGENTE ──────────────────────────────────
+  // ── STEP 9: ENVIAR VIA WHATSAPP PROVIDER ────────────────────────────────
+  const provider = getWhatsAppProvider();
+  const { sent } = await withTimeout(
+    provider.sendMessageSequence(normalized.instanceName, normalized.clienteWhatsApp, messages, 3000),
+    STEP_TIMEOUTS.send,
+    'sendMessages'
+  ).catch((err) => {
+    logger.error('Send messages failed', { error: err.message });
+    return { sent: 0, failed: messages.length };
+  });
+
+  // ── STEP 10: PERSISTIR RESPOSTA ──────────────────────────────────────────
   if (sent > 0) {
-    await conversationRepository.saveAgentResponse(
-      lead.id,
-      agentResult.output,
-      tenant.userId
-    );
-
-    // Atualiza última interação
-    await leadRepository.update(lead.id, {
-      data_ultima_interacao: new Date().toISOString(),
-    });
+    await Promise.all([
+      conversationRepository.saveAgentResponse(lead.id, agentResult.output, tenant.userId),
+      leadRepository.update(lead.id, { data_ultima_interacao: new Date().toISOString() }),
+    ]).catch((err) => logger.warn('Persist response failed', { error: err.message }));
   }
 
-  logger.info('Workflow completed', { correlationId });
+  logger.info('Workflow completed', { sent, correlationId });
 }

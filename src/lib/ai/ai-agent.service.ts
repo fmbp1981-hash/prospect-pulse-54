@@ -1,25 +1,22 @@
 /**
- * FLUXO 3B - AI AGENT SERVICE (MÓDULO CENTRAL)
- * Equivalente nativo ao node "AI Agent" (GPT-4.1, @n8n/n8n-nodes-langchain.agent) do n8n.
+ * AI AGENT SERVICE — v2 (com AgentConfig + RAG)
  *
- * Implementa:
- * - LLM com tool calling (OpenAI function calling)
- * - Contexto do lead injetado no prompt
- * - Execução de tools (atualizar_lead, transferir_para_consultor)
- * - Máximo 5 iterações (maxIterations=5)
+ * Melhorias v2:
+ * - System prompt carregado dinamicamente do banco (AgentConfigService)
+ * - Contexto RAG injetado automaticamente quando disponível
+ * - Circuit breaker + retry para chamadas OpenAI
+ * - Modelo e temperatura configuráveis por tenant
  */
 
-import { SYSTEM_PROMPT_V3_4, SYSTEM_PROMPT_VERSION } from './prompts/system-prompt.v3.4';
+import { agentConfigService } from './agent-config.service';
+import { buildRagContext } from './rag/rag.service';
 import { updateLeadTool } from './tools/update-lead.tool';
 import { transferConsultantTool } from './tools/transfer-consultant.tool';
+import { openAICircuit, withRetry, withTimeout } from '../utils/resilience';
 import type { AgentTool, ToolExecutionContext } from './tools/tool.interface';
 import type { Database } from '@/integrations/supabase/types';
 
 type LeadRow = Database['public']['Tables']['leads_prospeccao']['Row'];
-
-const OPENAI_API_KEY = () => process.env.OPENAI_API_KEY!;
-const MODEL = 'gpt-4.1'; // Mesmo modelo do n8n
-const MAX_ITERATIONS = 5;
 
 const ALL_TOOLS: AgentTool[] = [updateLeadTool, transferConsultantTool];
 
@@ -41,6 +38,7 @@ export interface AgentExecutionInput {
   processedMessage: string;
   formattedHistory: string;
   instanceName: string;
+  tenant: { userId: string; companyName: string };
 }
 
 export interface AgentExecutionResult {
@@ -70,7 +68,12 @@ function buildUserPrompt(input: AgentExecutionInput): string {
   ${processedMessage}`;
 }
 
-async function callOpenAI(messages: OpenAIMessage[]): Promise<{
+async function callOpenAI(
+  messages: OpenAIMessage[],
+  model: string,
+  temperature: number,
+  withTools: boolean
+): Promise<{
   content: string | null;
   tool_calls?: Array<{
     id: string;
@@ -78,53 +81,80 @@ async function callOpenAI(messages: OpenAIMessage[]): Promise<{
     function: { name: string; arguments: string };
   }>;
 }> {
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY()}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      tools: ALL_TOOLS.map((t) => ({
-        type: 'function',
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.parameters,
+  return openAICircuit.call(() =>
+    withRetry(async () => {
+      const body: Record<string, unknown> = {
+        model,
+        messages,
+        temperature,
+        max_tokens: 1024,
+      };
+
+      if (withTools) {
+        body.tools = ALL_TOOLS.map((t) => ({
+          type: 'function',
+          function: { name: t.name, description: t.description, parameters: t.parameters },
+        }));
+        body.tool_choice = 'auto';
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
         },
-      })),
-      tool_choice: 'auto',
-      max_tokens: 1024,
-      temperature: 0.7,
-    }),
-  });
+        body: JSON.stringify(body),
+      });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} ${err}`);
-  }
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`OpenAI API error: ${response.status} ${err}`);
+      }
 
-  const data = (await response.json()) as {
-    choices: Array<{
-      message: {
-        content: string | null;
-        tool_calls?: Array<{
-          id: string;
-          type: 'function';
-          function: { name: string; arguments: string };
+      const data = (await response.json()) as {
+        choices: Array<{
+          message: {
+            content: string | null;
+            tool_calls?: Array<{
+              id: string;
+              type: 'function';
+              function: { name: string; arguments: string };
+            }>;
+          };
         }>;
       };
-    }>;
-  };
 
-  return data.choices[0].message;
+      return data.choices[0].message;
+    }, { maxAttempts: 2, initialDelayMs: 1500 })
+  );
 }
 
 export async function executeAIAgent(
   input: AgentExecutionInput
 ): Promise<AgentExecutionResult> {
+  // 1. Carrega configuração do agente (prompt + modelo configuráveis por tenant)
+  const config = await agentConfigService.getActive(input.tenant.userId).catch(() => null);
+
+  const model = config?.model ?? 'gpt-4.1';
+  const temperature = config?.temperature ?? 0.7;
+  const maxIterations = config?.maxIterations ?? 5;
+  const promptVersion = config?.promptVersion ?? '3.4';
+
+  // 2. Busca contexto RAG relevante para a mensagem do lead
+  let systemPrompt = config?.systemPrompt ?? '';
+  if (input.processedMessage) {
+    const ragContext = await buildRagContext(
+      input.processedMessage,
+      input.tenant.userId,
+      config?.id !== 'default' ? config?.id : undefined
+    ).catch(() => '');
+
+    if (ragContext) {
+      systemPrompt += ragContext;
+    }
+  }
+
   const toolCtx: ToolExecutionContext = {
     leadId: input.lead.id,
     whatsapp: input.lead.whatsapp ?? '',
@@ -133,51 +163,51 @@ export async function executeAIAgent(
   };
 
   const messages: OpenAIMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT_V3_4 },
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: buildUserPrompt(input) },
   ];
 
   const toolCallHistory: string[] = [];
   let iterations = 0;
 
-  while (iterations < MAX_ITERATIONS) {
+  // 3. Loop de tool calling
+  while (iterations < maxIterations) {
     iterations++;
 
-    const response = await callOpenAI(messages);
+    const response = await withTimeout(
+      callOpenAI(messages, model, temperature, true),
+      30_000,
+      `agent-iteration-${iterations}`
+    );
 
-    // Se não há tool calls → resposta final
-    if (!response.tool_calls || response.tool_calls.length === 0) {
+    if (!response.tool_calls?.length) {
       return {
         output: response.content ?? '',
         toolCalls: toolCallHistory,
-        model: MODEL,
-        promptVersion: SYSTEM_PROMPT_VERSION,
+        model,
+        promptVersion,
         iterations,
       };
     }
 
-    // Adiciona resposta do assistente com tool_calls
     messages.push({
       role: 'assistant',
       content: response.content,
       tool_calls: response.tool_calls,
     });
 
-    // Executa cada tool call
     for (const toolCall of response.tool_calls) {
       const tool = ALL_TOOLS.find((t) => t.name === toolCall.function.name);
-
       let toolResult: unknown;
-      if (tool) {
-        try {
-          const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
-          toolResult = await tool.execute(args, toolCtx);
-          toolCallHistory.push(toolCall.function.name);
-        } catch (err) {
-          toolResult = { error: err instanceof Error ? err.message : String(err) };
-        }
-      } else {
-        toolResult = { error: `Tool "${toolCall.function.name}" not found` };
+
+      try {
+        const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
+        toolResult = tool
+          ? await tool.execute(args, toolCtx)
+          : { error: `Tool "${toolCall.function.name}" not found` };
+        if (tool) toolCallHistory.push(toolCall.function.name);
+      } catch (err) {
+        toolResult = { error: err instanceof Error ? err.message : String(err) };
       }
 
       messages.push({
@@ -189,30 +219,14 @@ export async function executeAIAgent(
     }
   }
 
-  // Última chamada após esgotar iterações (sem tool_choice para forçar resposta)
-  const finalResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY()}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      tool_choice: 'none',
-      max_tokens: 512,
-    }),
-  });
-
-  const finalData = (await finalResponse.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
+  // 4. Forçar resposta final sem tools
+  const finalResponse = await callOpenAI(messages, model, temperature, false);
 
   return {
-    output: finalData.choices[0]?.message?.content ?? '',
+    output: finalResponse.content ?? '',
     toolCalls: toolCallHistory,
-    model: MODEL,
-    promptVersion: SYSTEM_PROMPT_VERSION,
+    model,
+    promptVersion,
     iterations,
   };
 }

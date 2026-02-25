@@ -1,56 +1,73 @@
 /**
- * FLUXO 1 - WEBHOOK
- * Equivalente nativo ao node "Webhook" do workflow n8n.
- * Recebe eventos da Evolution API (POST /api/webhooks/evolution)
+ * WEBHOOK UNIFICADO — Evolution API e Meta Cloud API
  *
- * Corresponde ao endpoint n8n: POST /Xpag_agente_response
+ * Evolution: POST /api/webhooks/evolution
+ * Meta:      POST /api/webhooks/evolution  (mesmo endpoint, payload diferente)
+ *            GET  /api/webhooks/evolution  (verificação Meta)
+ *
+ * O provider detecta o payload e normaliza automaticamente.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { normalizeMessage } from '@/lib/services/message-normalizer.service';
 import { checkAntiLoop } from '@/lib/guards/anti-loop.guard';
 import { runXpagWorkflow } from '@/lib/workflows/xpag-lead-handler.workflow';
+import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 min timeout (equivalente ao n8n)
+export const maxDuration = 300;
 
+// ── POST: Recebe eventos (Evolution ou Meta) ─────────────────────────────────
 export async function POST(req: NextRequest) {
   let body: unknown;
-
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  // Extrai o nome da instância do header ou query param
-  const instanceName =
-    req.headers.get('x-instance-name') ||
-    req.nextUrl.searchParams.get('instance') ||
-    undefined;
+  const provider = getWhatsAppProvider();
 
-  // NORMALIZAR DADOS
-  const normalized = normalizeMessage(body, instanceName);
+  // Usa o provider para normalizar o payload (cada um tem seu formato)
+  const normalizedPayload = provider.normalizeWebhookPayload(body);
+
+  if (!normalizedPayload) {
+    // Pode ser um evento de status de mensagem (ack, delivery) — ignorar silenciosamente
+    return NextResponse.json({ ignored: true }, { status: 200 });
+  }
+
+  // Converte NormalizedWebhookPayload → NormalizedMessage (formato interno)
+  const normalized = normalizeMessage(body, normalizedPayload.instanceName);
 
   // ANTI-LOOP (fromMe)
   const antiLoop = checkAntiLoop(normalized);
   if (!antiLoop.shouldProcess) {
-    return NextResponse.json(
-      { ignored: true, reason: antiLoop.reason },
-      { status: 200 }
-    );
+    return NextResponse.json({ ignored: true, reason: antiLoop.reason }, { status: 200 });
   }
 
-  // Executar workflow principal de forma assíncrona
-  // Retornamos 200 imediatamente para a Evolution API não fazer retry
+  // Executa workflow de forma assíncrona (retorna 200 imediatamente)
   runXpagWorkflow(normalized).catch((err) => {
-    console.error('[Webhook] Workflow execution error:', err);
+    console.error('[Webhook] Workflow error:', err?.message ?? err);
   });
 
   return NextResponse.json({ received: true }, { status: 200 });
 }
 
-// Health check
-export async function GET() {
-  return NextResponse.json({ status: 'ok', endpoint: 'evolution-webhook' });
+// ── GET: Verificação de webhook (Meta Cloud API) ─────────────────────────────
+export async function GET(req: NextRequest) {
+  const params = req.nextUrl.searchParams;
+  const mode = params.get('hub.mode');
+  const token = params.get('hub.verify_token');
+  const challenge = params.get('hub.challenge');
+
+  // Verificação Meta
+  if (mode === 'subscribe' && token === process.env.META_WA_VERIFY_TOKEN) {
+    return new Response(challenge ?? '', { status: 200 });
+  }
+
+  // Health check genérico
+  return NextResponse.json({
+    status: 'ok',
+    provider: process.env.WHATSAPP_PROVIDER || 'evolution',
+  });
 }
