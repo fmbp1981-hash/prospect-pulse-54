@@ -21,7 +21,11 @@ export interface AgentConfig {
   updatedAt: string;
 }
 
-function getServiceClient() {
+// Duck-typed to accept both @supabase/supabase-js and @supabase/ssr clients
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DbClient = { from: (table: string) => any };
+
+function getServiceClient(): DbClient {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -31,6 +35,7 @@ function getServiceClient() {
 export const agentConfigService = {
   /**
    * Retorna a configuração ativa do agente para um tenant.
+   * Sempre usa service client (chamado por webhooks sem contexto de usuário).
    * Se não existir, usa o default (system prompt v3.4).
    */
   async getActive(userId: string): Promise<AgentConfig> {
@@ -79,9 +84,10 @@ export const agentConfigService = {
 
   /**
    * Lista todas as configurações de um tenant (histórico de versões).
+   * Aceita client autenticado do caller (API route) ou usa service client.
    */
-  async list(userId: string): Promise<AgentConfig[]> {
-    const supabase = getServiceClient();
+  async list(userId: string, client?: DbClient): Promise<AgentConfig[]> {
+    const supabase = client ?? getServiceClient();
     const { data, error } = await supabase
       .from('agent_configs')
       .select('*')
@@ -99,9 +105,10 @@ export const agentConfigService = {
   async upsert(
     userId: string,
     config: Partial<Omit<AgentConfig, 'id' | 'userId' | 'createdAt' | 'updatedAt'>>,
-    activate = true
+    activate = true,
+    client?: DbClient
   ): Promise<AgentConfig> {
-    const supabase = getServiceClient();
+    const supabase = client ?? getServiceClient();
 
     if (activate) {
       // Desativa configs anteriores
@@ -135,8 +142,8 @@ export const agentConfigService = {
   /**
    * Ativa uma configuração específica pelo ID.
    */
-  async activate(id: string, userId: string): Promise<void> {
-    const supabase = getServiceClient();
+  async activate(id: string, userId: string, client?: DbClient): Promise<void> {
+    const supabase = client ?? getServiceClient();
 
     await supabase
       .from('agent_configs')
@@ -153,12 +160,12 @@ export const agentConfigService = {
   /**
    * Reseta para o prompt padrão do sistema.
    */
-  async resetToDefault(userId: string): Promise<AgentConfig> {
+  async resetToDefault(userId: string, client?: DbClient): Promise<AgentConfig> {
     return this.upsert(userId, {
       name: `Agente XPAG v${SYSTEM_PROMPT_VERSION} (reset)`,
       systemPrompt: SYSTEM_PROMPT_V3_4,
       promptVersion: SYSTEM_PROMPT_VERSION,
-    }, true);
+    }, true, client);
   },
 };
 

@@ -11,7 +11,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { agentConfigService } from '@/lib/ai/agent-config.service';
 
-async function getAuthUser() {
+async function getAuth() {
   const cookieStore = cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,19 +19,19 @@ async function getAuthUser() {
     { cookies: { getAll: () => cookieStore.getAll() } }
   );
   const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  return { user, supabase };
 }
 
 export async function GET() {
-  const user = await getAuthUser();
+  const { user, supabase } = await getAuth();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const configs = await agentConfigService.list(user.id);
+  const configs = await agentConfigService.list(user.id, supabase);
   return NextResponse.json({ configs });
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getAuthUser();
+  const { user, supabase } = await getAuth();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json() as {
@@ -55,15 +55,15 @@ export async function POST(req: NextRequest) {
     temperature: body.temperature,
     maxIterations: body.maxIterations,
     isActive: body.activate !== false,
-  }, body.activate !== false);
+  }, body.activate !== false, supabase);
 
   return NextResponse.json({ config }, { status: 201 });
 }
 
 export async function PUT() {
-  const user = await getAuthUser();
+  const { user, supabase } = await getAuth();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const config = await agentConfigService.resetToDefault(user.id);
+  const config = await agentConfigService.resetToDefault(user.id, supabase);
   return NextResponse.json({ config, message: 'Reset to default prompt' });
 }

@@ -20,6 +20,6 @@ export async function PUT(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  await agentConfigService.activate(params.id, user.id);
+  await agentConfigService.activate(params.id, user.id, supabase);
   return NextResponse.json({ success: true, activatedId: params.id });
 }

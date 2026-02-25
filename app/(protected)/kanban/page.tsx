@@ -3,54 +3,30 @@
 import { useCallback, useEffect, useState } from "react";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { LayoutGrid, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { supabaseCRM } from "@/lib/supabaseCRM";
 import type { Lead } from "@/types/prospection";
 import { toast } from "sonner";
 
 export default function KanbanPage() {
-  const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadLeads = useCallback(async () => {
-    if (!user?.id) {
-      setLeads([]);
-      setIsLoading(false);
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("leads_prospeccao")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      
-      // Mapear campos do banco para o tipo Lead, priorizando estagio_pipeline para status
-      const mappedLeads: Lead[] = (data || []).map((row: any) => ({
-        ...row,
-        status: row.estagio_pipeline || row.status || 'Novo Lead',
-        linkGMN: row.link_gmn,
-        mensagemWhatsApp: row.mensagem_whatsapp,
-        statusMsgWA: row.status_msg_wa,
-        dataEnvioWA: row.data_envio_wa,
-        resumoAnalitico: row.resumo_analitico,
-        bairroRegiao: row.bairro_regiao,
-        aceitaCartao: row.aceita_cartao,
-      }));
-      
-      setLeads(mappedLeads);
+      const result = await supabaseCRM.syncAllLeads();
+      if (result.success) {
+        setLeads(Array.isArray(result.leads) ? result.leads : []);
+      } else {
+        toast.error("Erro ao carregar leads");
+      }
     } catch (error) {
       console.error("Erro ao carregar leads:", error);
       toast.error("Erro ao carregar leads");
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id]);
+  }, []);
 
   useEffect(() => {
     loadLeads();

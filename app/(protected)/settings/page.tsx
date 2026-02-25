@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw } from "lucide-react";
+import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload } from "lucide-react";
 import { userSettingsService } from "@/lib/userSettings";
 import { RoleGuard } from "@/components/RoleGuard";
 import { RoleManagement } from "@/components/RoleManagement";
@@ -55,9 +55,34 @@ export default function SettingsPage() {
   const [isResettingAgent, setIsResettingAgent] = useState(false);
   const [agentPromptVersion, setAgentPromptVersion] = useState("default");
 
+  // RAG - Base de Conhecimento
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [ragDocuments, setRagDocuments] = useState<any[]>([]);
+  const [isLoadingRag, setIsLoadingRag] = useState(false);
+  const [ragUploadMode, setRagUploadMode] = useState<'file' | 'text'>('file');
+  const [ragTextContent, setRagTextContent] = useState('');
+  const [ragTextFilename, setRagTextFilename] = useState('');
+  const [isUploadingRag, setIsUploadingRag] = useState(false);
+  const ragFileRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     loadSettings();
   }, []);
+
+  const loadRagDocuments = async () => {
+    setIsLoadingRag(true);
+    try {
+      const res = await fetch('/api/agent/rag');
+      if (res.ok) {
+        const { documents } = await res.json();
+        setRagDocuments(documents ?? []);
+      }
+    } catch {
+      // tabela ainda não criada — silencioso
+    } finally {
+      setIsLoadingRag(false);
+    }
+  };
 
   const loadSettings = async () => {
     setIsLoading(true);
@@ -99,6 +124,9 @@ export default function SettingsPage() {
       } catch {
         // Tabela ainda não criada no Supabase — silencioso
       }
+
+      // Carregar documentos RAG
+      await loadRagDocuments();
     } catch (error) {
       console.error("Erro ao carregar configurações:", error);
       toast.error("Erro ao carregar configurações");
@@ -158,6 +186,68 @@ export default function SettingsPage() {
       toast.error("Erro ao resetar configuração do Agente");
     } finally {
       setIsResettingAgent(false);
+    }
+  };
+
+  const handleRagUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingRag(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/agent/rag', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(await res.text());
+      const { chunksCreated } = await res.json();
+      toast.success(`Documento "${file.name}" adicionado!`, {
+        description: `${chunksCreated} chunks indexados`,
+      });
+      await loadRagDocuments();
+    } catch {
+      toast.error('Erro ao fazer upload do documento');
+    } finally {
+      setIsUploadingRag(false);
+      if (ragFileRef.current) ragFileRef.current.value = '';
+    }
+  };
+
+  const handleRagUploadText = async () => {
+    if (!ragTextContent.trim()) {
+      toast.error('O conteúdo não pode estar vazio');
+      return;
+    }
+    setIsUploadingRag(true);
+    try {
+      const res = await fetch('/api/agent/rag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: ragTextFilename.trim() || 'documento.txt',
+          content: ragTextContent,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const { chunksCreated } = await res.json();
+      toast.success('Documento adicionado!', { description: `${chunksCreated} chunks indexados` });
+      setRagTextContent('');
+      setRagTextFilename('');
+      await loadRagDocuments();
+    } catch {
+      toast.error('Erro ao adicionar documento');
+    } finally {
+      setIsUploadingRag(false);
+    }
+  };
+
+  const handleRagDelete = async (id: string, filename: string) => {
+    if (!window.confirm(`Remover "${filename}" da base de conhecimento?`)) return;
+    try {
+      const res = await fetch(`/api/agent/rag?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
+      toast.success('Documento removido');
+      await loadRagDocuments();
+    } catch {
+      toast.error('Erro ao remover documento');
     }
   };
 
@@ -590,6 +680,156 @@ export default function SettingsPage() {
                   <><RotateCcw className="h-4 w-4 mr-2" />Restaurar Padrão (v3.4)</>
                 )}
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </RoleGuard>
+
+      {/* Base de Conhecimento RAG - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5 text-primary" />
+              <CardTitle>Base de Conhecimento (RAG)</CardTitle>
+              <Badge variant="secondary" className="text-xs">
+                {ragDocuments.length} doc{ragDocuments.length !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+            <CardDescription>
+              Adicione documentos para treinar o agente com conhecimento específico da sua empresa.
+              O agente buscará automaticamente informações relevantes ao responder.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Lista de documentos */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Documentos indexados</Label>
+                <Button variant="ghost" size="sm" onClick={loadRagDocuments} disabled={isLoadingRag}>
+                  <RefreshCw className={`h-4 w-4 ${isLoadingRag ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+              {isLoadingRag ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Carregando documentos...
+                </div>
+              ) : ragDocuments.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">
+                  Nenhum documento na base de conhecimento.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {ragDocuments.map((doc: any) => (
+                    <div key={doc.id} className="flex items-center justify-between p-2 border rounded-lg text-sm">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate font-medium">{doc.filename}</span>
+                        <Badge
+                          variant={doc.status === 'ready' ? 'default' : 'secondary'}
+                          className="text-xs shrink-0"
+                        >
+                          {doc.status === 'ready' ? 'Pronto' : doc.status === 'processing' ? 'Processando' : doc.status === 'error' ? 'Erro' : doc.status}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          {doc.chunk_count || 0} chunks
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => handleRagDelete(doc.id, doc.filename)}
+                      >
+                        <Trash2 className="h-3 w-3 text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Upload */}
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Button
+                  variant={ragUploadMode === 'file' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setRagUploadMode('file')}
+                >
+                  Upload Arquivo
+                </Button>
+                <Button
+                  variant={ragUploadMode === 'text' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setRagUploadMode('text')}
+                >
+                  Colar Texto
+                </Button>
+              </div>
+
+              {ragUploadMode === 'file' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="rag_file">Arquivo (.txt, .md, .pdf, .json · máx 10 MB)</Label>
+                  <Input
+                    id="rag_file"
+                    type="file"
+                    ref={ragFileRef}
+                    accept=".txt,.md,.pdf,.json"
+                    onChange={handleRagUploadFile}
+                    disabled={isUploadingRag}
+                    className="max-w-md"
+                  />
+                  {isUploadingRag && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processando e indexando...
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="rag_text_filename">Nome do documento</Label>
+                    <Input
+                      id="rag_text_filename"
+                      placeholder="Ex: politicas-empresa.txt"
+                      value={ragTextFilename}
+                      onChange={(e) => setRagTextFilename(e.target.value)}
+                      className="max-w-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rag_text_content">Conteúdo</Label>
+                    <Textarea
+                      id="rag_text_content"
+                      placeholder="Cole aqui o texto do documento..."
+                      value={ragTextContent}
+                      onChange={(e) => setRagTextContent(e.target.value)}
+                      className="min-h-[120px] text-sm"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleRagUploadText}
+                    disabled={isUploadingRag || !ragTextContent.trim()}
+                  >
+                    {isUploadingRag ? (
+                      <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Processando...</>
+                    ) : (
+                      <><Upload className="h-4 w-4 mr-2" />Adicionar Documento</>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-medium">Como o RAG funciona:</p>
+              <p>• Documentos são fragmentados em chunks e indexados com embeddings vetoriais (OpenAI)</p>
+              <p>• O agente busca automaticamente conhecimento relevante ao responder cada mensagem</p>
+              <p>• Requer <code className="bg-muted px-1 rounded">OPENAI_API_KEY</code> configurada no Vercel</p>
             </div>
           </CardContent>
         </Card>
