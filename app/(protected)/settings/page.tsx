@@ -180,7 +180,7 @@ export default function SettingsPage() {
       setAgentTemperature(config.temperature ?? 0.7);
       setAgentMaxIterations(config.maxIterations ?? 5);
       setAgentPromptVersion(config.promptVersion || "default");
-      toast.success("Prompt resetado para o padrão do sistema v3.4");
+      toast.success("Prompt resetado para o padrão do sistema v3.5");
     } catch (error) {
       console.error("Erro ao resetar configuração:", error);
       toast.error("Erro ao resetar configuração do Agente");

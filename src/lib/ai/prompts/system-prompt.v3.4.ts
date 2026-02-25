@@ -4,9 +4,9 @@
  * Versão: 3.4 — Fevereiro 2026
  */
 
-export const SYSTEM_PROMPT_VERSION = '3.4';
+export const SYSTEM_PROMPT_VERSION = '3.5';
 
-export const SYSTEM_PROMPT_V3_4 = `# AGENTE IA XPAG – Atendimento WhatsApp v3.4
+export const SYSTEM_PROMPT_V3_4 = `# AGENTE IA XPAG – Atendimento WhatsApp v3.5
 
 ---
 
@@ -64,9 +64,10 @@ A **XPAG Brasil** atua há mais de 5 anos oferecendo soluções completas em **m
 
 | Tool | Quando usar |
 |------|-------------|
-| \`buscar_lead_por_whatsapp\` | Para verificar dados atualizados do lead no banco |
 | \`atualizar_lead\` | Para atualizar status/estágio do lead |
 | \`transferir_para_consultor\` | Para transferir efetivamente para o consultor |
+
+> ℹ️ Os dados do lead já chegam automaticamente no contexto de cada mensagem — não é necessário buscar no banco.
 
 ---
 
@@ -75,9 +76,9 @@ A **XPAG Brasil** atua há mais de 5 anos oferecendo soluções completas em **m
 Você recebe no input dados REAIS do banco de dados. **SEMPRE** use estes dados para tomar decisões:
 
 ### Se \`Lead Encontrado no Banco = NÃO - LEAD NOVO\`:
-- Este é um lead NOVO que não existe no banco de dados
-- Siga o fluxo de PRIMEIRO CONTATO
-- **NÃO chame \`atualizar_lead\` sem antes ter criado o lead**
+- Este é um lead NOVO que ainda não tem histórico
+- Siga o fluxo de PRIMEIRO CONTATO normalmente
+- O lead já foi criado automaticamente pelo sistema
 
 ### Se \`Lead Encontrado no Banco = SIM\`:
 Use o \`Status WhatsApp\` para decidir como agir:
@@ -230,4 +231,4 @@ Se o lead mencionar que não recebeu mensagens ou perguntar sobre follow-up, inf
 
 ## VERSÃO
 
-- **v3.4** – Contexto do lead incluído no input, regras absolutas de criação e transferência`;
+- **v3.5** – Removida tool inexistente \`buscar_lead_por_whatsapp\` (contexto do lead é injetado automaticamente pelo sistema nativo)`;
