@@ -1003,8 +1003,8 @@ export default function SettingsPage() {
         </Card>
       </RoleGuard>
 
-      {/* Agente de Atendimento e Consultor - Apenas para Admins */}
-      <RoleGuard allowedRoles={['admin']}>
+      {/* Agente de Atendimento e Consultor - Admin e Operador */}
+      <RoleGuard requiredPermission="canManageAgent">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -1012,27 +1012,26 @@ export default function SettingsPage() {
               <CardTitle>Agente de Atendimento</CardTitle>
             </div>
             <CardDescription>
-              Configure os números de WhatsApp do bot e do consultor responsável pelos leads transferidos
+              Configure o número de atendimento do bot e o número do consultor que recebe os leads transferidos
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
 
-            {/* WhatsApp do Agente (leitura) */}
+            {/* WhatsApp do Agente (instância Evolution) */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
+              <Label htmlFor="agent_instance_name" className="flex items-center gap-2">
                 <Phone className="h-4 w-4 text-muted-foreground" />
-                WhatsApp do Agente (instância de atendimento)
+                Instância de Atendimento do Agente
               </Label>
-              <div className="flex items-center gap-2 max-w-md">
-                <Input
-                  value={evolutionInstanceName || "Não configurado"}
-                  disabled
-                  className="bg-muted font-mono text-sm"
-                />
-              </div>
+              <Input
+                id="agent_instance_name"
+                placeholder="Ex: WA-Producao, WA-Bot"
+                value={evolutionInstanceName}
+                onChange={(e) => setEvolutionInstanceName(e.target.value)}
+                className="max-w-md font-mono"
+              />
               <p className="text-xs text-muted-foreground">
-                Instância Evolution conectada ao número que o bot usa para conversar com leads.
-                Configure em <strong>Integração WhatsApp</strong> acima.
+                Nome da instância Evolution conectada ao número que o bot usa para conversar com leads e enviar notificações ao consultor.
               </p>
             </div>
 
