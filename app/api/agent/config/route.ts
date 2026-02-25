@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { agentConfigService } from '@/lib/ai/agent-config.service';
+import { SYSTEM_PROMPT_V3_4, SYSTEM_PROMPT_VERSION } from '@/lib/ai/prompts/system-prompt.v3.4';
 
 async function getAuth() {
   const cookieStore = cookies();
@@ -27,6 +28,26 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const configs = await agentConfigService.list(user.id, supabase);
+
+  // Se não há configs salvas, retorna o prompt padrão do sistema como config virtual
+  if (configs.length === 0) {
+    return NextResponse.json({
+      configs: [{
+        id: 'default',
+        userId: user.id,
+        name: 'Agente XPAG Padrão',
+        systemPrompt: SYSTEM_PROMPT_V3_4,
+        promptVersion: SYSTEM_PROMPT_VERSION,
+        model: 'gpt-4.1',
+        temperature: 0.7,
+        maxIterations: 5,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }],
+    });
+  }
+
   return NextResponse.json({ configs });
 }
 
