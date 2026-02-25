@@ -32,6 +32,14 @@ export default function SettingsPage() {
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
   const [evolutionInstanceName, setEvolutionInstanceName] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showMetaToken, setShowMetaToken] = useState(false);
+
+  // Provider WhatsApp
+  const [whatsappProvider, setWhatsappProvider] = useState<'evolution' | 'meta'>('evolution');
+  // Meta Cloud API
+  const [metaPhoneNumberId, setMetaPhoneNumberId] = useState("");
+  const [metaAccessToken, setMetaAccessToken] = useState("");
+  const [metaVerifyToken, setMetaVerifyToken] = useState("");
 
   // Configurações de Follow-up automático
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
@@ -57,9 +65,13 @@ export default function SettingsPage() {
       const settings = await userSettingsService.getUserSettings();
       if (settings) {
         setCompanyName(settings.company_name || "");
+        setWhatsappProvider((settings.provider as 'evolution' | 'meta') || 'evolution');
         setEvolutionApiUrl(settings.evolution_api_url || "");
         setEvolutionApiKey(settings.evolution_api_key || "");
         setEvolutionInstanceName(settings.evolution_instance_name || "");
+        setMetaPhoneNumberId(settings.business_phone_number_id || "");
+        setMetaAccessToken(settings.business_access_token || "");
+        setMetaVerifyToken(settings.meta_verify_token || "");
       }
 
       // Carregar configurações de Follow-up
@@ -159,9 +171,13 @@ export default function SettingsPage() {
     try {
       await userSettingsService.saveUserSettings({
         company_name: companyName,
+        provider: whatsappProvider,
         evolution_api_url: evolutionApiUrl,
         evolution_api_key: evolutionApiKey,
         evolution_instance_name: evolutionInstanceName,
+        business_phone_number_id: metaPhoneNumberId,
+        business_access_token: metaAccessToken,
+        meta_verify_token: metaVerifyToken,
       });
 
       // Salvar configurações de Follow-up
@@ -585,95 +601,158 @@ export default function SettingsPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-primary" />
-              <CardTitle>Evolution API - WhatsApp</CardTitle>
+              <CardTitle>Integração WhatsApp</CardTitle>
             </div>
             <CardDescription>
-              Configure a instância da Evolution API para verificação e envio de mensagens WhatsApp
+              Escolha o provedor e configure as credenciais para envio e recebimento de mensagens
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+
+            {/* Selector de Provider */}
             <div className="space-y-2">
-              <Label htmlFor="evolution_instance_name">
-                Nome da Instância
-              </Label>
-              <Input
-                id="evolution_instance_name"
-                placeholder="Ex: WA-Pessoal, WA-Producao"
-                value={evolutionInstanceName}
-                onChange={(e) => setEvolutionInstanceName(e.target.value)}
-                className="max-w-md"
-              />
-              <p className="text-xs text-muted-foreground">
-                Nome identificador da instância no Evolution API
-              </p>
+              <Label>Provedor WhatsApp</Label>
+              <Select value={whatsappProvider} onValueChange={(v) => setWhatsappProvider(v as 'evolution' | 'meta')}>
+                <SelectTrigger className="max-w-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="evolution">Evolution API (não oficial)</SelectItem>
+                  <SelectItem value="meta">Meta Cloud API (oficial)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="evolution_api_url">
-                URL da API
-              </Label>
-              <Input
-                id="evolution_api_url"
-                placeholder="Ex: https://evolution.intellixai.com.br/chat/whatsappNumbers/WA-Pessoal"
-                value={evolutionApiUrl}
-                onChange={(e) => setEvolutionApiUrl(e.target.value)}
-                className="max-w-2xl"
-              />
-              <p className="text-xs text-muted-foreground">
-                URL completa do endpoint da Evolution API incluindo a instância
-              </p>
-            </div>
+            {/* ── EVOLUTION API ── */}
+            {whatsappProvider === 'evolution' && (
+              <div className="space-y-4 border rounded-lg p-4">
+                <p className="text-sm font-medium">Configurações Evolution API</p>
 
-            <div className="space-y-2">
-              <Label htmlFor="evolution_api_key">
-                API Key
-              </Label>
-              <div className="relative max-w-2xl">
-                <Input
-                  id="evolution_api_key"
-                  type={showApiKey ? "text" : "password"}
-                  placeholder="Sua chave de API da Evolution"
-                  value={evolutionApiKey}
-                  onChange={(e) => setEvolutionApiKey(e.target.value)}
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                >
-                  {showApiKey ? (
-                    <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="evolution_instance_name">Nome da Instância</Label>
+                  <Input
+                    id="evolution_instance_name"
+                    placeholder="Ex: WA-Pessoal, WA-Producao"
+                    value={evolutionInstanceName}
+                    onChange={(e) => setEvolutionInstanceName(e.target.value)}
+                    className="max-w-md"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="evolution_api_url">URL da API</Label>
+                  <Input
+                    id="evolution_api_url"
+                    placeholder="https://evolution.seudominio.com.br"
+                    value={evolutionApiUrl}
+                    onChange={(e) => setEvolutionApiUrl(e.target.value)}
+                    className="max-w-2xl"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="evolution_api_key">API Key</Label>
+                  <div className="relative max-w-2xl">
+                    <Input
+                      id="evolution_api_key"
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="Sua chave de API da Evolution"
+                      value={evolutionApiKey}
+                      onChange={(e) => setEvolutionApiKey(e.target.value)}
+                      className="pr-10"
+                    />
+                    <Button type="button" variant="ghost" size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowApiKey(!showApiKey)}>
+                      {showApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    </Button>
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Chave de autenticação da Evolution API
-              </p>
-            </div>
+            )}
 
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-                💡 Configuração por Usuário:
-              </p>
-              <div className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
-                <p>1. Configure a instância Evolution para este usuário</p>
-                <p>2. O webhook URL único será gerado automaticamente</p>
-                <p>3. As configurações são exclusivas de cada usuário</p>
-              </div>
-            </div>
+            {/* ── META CLOUD API (OFICIAL) ── */}
+            {whatsappProvider === 'meta' && (
+              <div className="space-y-4 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">Configurações Meta Cloud API (Oficial)</p>
+                  <Badge className="bg-blue-500 text-white text-xs">Oficial Meta</Badge>
+                </div>
 
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-2">
-                ⚠️ Importante:
-              </p>
-              <div className="text-xs text-yellow-800 dark:text-yellow-200">
-                <p>Estas configurações são gerenciadas pelo administrador do sistema.</p>
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                  <p className="font-medium">Como obter as credenciais:</p>
+                  <p>1. Acesse <strong>developers.facebook.com</strong> → seu App → WhatsApp → Configuração da API</p>
+                  <p>2. Copie o <strong>ID do número de telefone</strong> e o <strong>Token de acesso</strong></p>
+                  <p>3. Defina um Verify Token de sua escolha e configure no webhook da Meta</p>
+                  <p>4. URL do webhook: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">/api/webhooks/evolution</code></p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="meta_phone_id">Phone Number ID</Label>
+                  <Input
+                    id="meta_phone_id"
+                    placeholder="Ex: 123456789012345"
+                    value={metaPhoneNumberId}
+                    onChange={(e) => setMetaPhoneNumberId(e.target.value)}
+                    className="max-w-md font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Encontrado em: Meta App → WhatsApp → Configuração da API → ID do número de telefone
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="meta_access_token">Token de Acesso (System User Token)</Label>
+                  <div className="relative max-w-2xl">
+                    <Input
+                      id="meta_access_token"
+                      type={showMetaToken ? "text" : "password"}
+                      placeholder="EAA..."
+                      value={metaAccessToken}
+                      onChange={(e) => setMetaAccessToken(e.target.value)}
+                      className="pr-10 font-mono"
+                    />
+                    <Button type="button" variant="ghost" size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowMetaToken(!showMetaToken)}>
+                      {showMetaToken ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Use um System User Token permanente (não o token temporário de 24h)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="meta_verify_token">Verify Token (Webhook)</Label>
+                  <Input
+                    id="meta_verify_token"
+                    placeholder="Ex: meu_token_secreto_123"
+                    value={metaVerifyToken}
+                    onChange={(e) => setMetaVerifyToken(e.target.value)}
+                    className="max-w-md font-mono"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Token definido por você. Configure o mesmo valor no painel de webhook da Meta.
+                  </p>
+                </div>
+
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-200">
+                  <p className="font-medium mb-1">Variáveis de ambiente necessárias na Vercel:</p>
+                  <code className="block bg-amber-100 dark:bg-amber-900 p-2 rounded space-y-1">
+                    <span className="block">WHATSAPP_PROVIDER=meta</span>
+                    <span className="block">META_WA_TOKEN={"<Token de Acesso>"}</span>
+                    <span className="block">META_WA_PHONE_NUMBER_ID={"<Phone Number ID>"}</span>
+                    <span className="block">META_WA_VERIFY_TOKEN={"<Verify Token>"}</span>
+                  </code>
+                </div>
               </div>
+            )}
+
+            <div className="flex gap-3">
+              <Button onClick={handleSave} disabled={isSaving || !companyName.trim()}>
+                {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
+              </Button>
             </div>
           </CardContent>
         </Card>
