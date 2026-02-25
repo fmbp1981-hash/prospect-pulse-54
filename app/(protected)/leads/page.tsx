@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabaseCRM } from "@/lib/supabaseCRM";
+import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus } from "@/types/prospection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,7 +84,7 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
-  const loadLeads = async () => {
+  const loadLeads = useCallback(async () => {
     setIsLoading(true);
     try {
       const result = await supabaseCRM.syncAllLeads();
@@ -103,7 +104,7 @@ export default function LeadsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -114,7 +115,21 @@ export default function LeadsPage() {
 
   useEffect(() => {
     loadLeads();
-  }, []);
+  }, [loadLeads]);
+
+  // Realtime: atualiza tabela quando o agente altera um lead no banco
+  useEffect(() => {
+    const channel = supabase
+      .channel('leads-table-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads_prospeccao' },
+        () => { loadLeads(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [loadLeads]);
 
   // Filtrar e ordenar leads
   const filteredAndSortedLeads = useMemo(() => {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { LayoutGrid, Loader2 } from "lucide-react";
 import { supabaseCRM } from "@/lib/supabaseCRM";
+import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/types/prospection";
 import { toast } from "sonner";
 
@@ -30,6 +31,20 @@ export default function KanbanPage() {
 
   useEffect(() => {
     loadLeads();
+  }, [loadLeads]);
+
+  // Realtime: atualiza Kanban quando o agente altera um lead no banco
+  useEffect(() => {
+    const channel = supabase
+      .channel('kanban-leads-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads_prospeccao' },
+        () => { loadLeads(); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [loadLeads]);
 
   if (isLoading) {
