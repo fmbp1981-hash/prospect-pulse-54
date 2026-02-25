@@ -1,0 +1,8 @@
+{
+  "ENABLE_NATIVE_WORKFLOW": false,
+  "ENABLE_SHADOW_MODE": true,
+  "SHADOW_MODE_SAMPLE_RATE": 0.1,
+  "NATIVE_WORKFLOW_TENANTS": ["xpag-test"],
+  "FALLBACK_TO_N8N_ON_ERROR": true,
+  "_comment": "Fase 1 (Shadow Mode): ENABLE_SHADOW_MODE=true, ENABLE_NATIVE_WORKFLOW=false | Fase 2 (Canary): ENABLE_NATIVE_WORKFLOW=true, NATIVE_WORKFLOW_TENANTS=['xpag-test'] | Fase 3 (Rollout): aumentar tenants gradualmente | Fase 4 (Corte): FALLBACK_TO_N8N_ON_ERROR=false"
+}
