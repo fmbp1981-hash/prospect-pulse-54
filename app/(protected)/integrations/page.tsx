@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,42 +11,37 @@ import {
   Link2,
   CheckCircle2,
   XCircle,
-  Clock,
-  Copy,
-  Save,
   RefreshCw,
   Webhook,
   Activity,
   ShieldAlert,
+  MessageSquare,
 } from "lucide-react";
-import { toast } from "sonner";
 import { getAuditLogs } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { userSettingsService } from "@/lib/userSettings";
 
 export default function IntegrationsPage() {
   const { isAdmin, isLoading: isLoadingRole } = useUserRole();
-  const [webhookUrl, setWebhookUrl] = useState("");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [whatsappStatus, setWhatsappStatus] = useState<any>(null);
 
   useEffect(() => {
-    setIsMounted(true);
+    loadAuditLogs();
+    loadWhatsappStatus();
   }, []);
 
-  useEffect(() => {
-    if (!isMounted) return;
-    
-    // Carregar webhook URL do localStorage
-    const savedWebhook = localStorage.getItem("whatsapp_webhook_url");
-    if (savedWebhook) {
-      setWebhookUrl(savedWebhook);
+  const loadWhatsappStatus = async () => {
+    try {
+      const settings = await userSettingsService.getUserSettings();
+      setWhatsappStatus(settings);
+    } catch {
+      // silencioso
     }
-
-    // Carregar logs de auditoria
-    loadAuditLogs();
-  }, [isMounted]);
+  };
 
   const loadAuditLogs = async () => {
     setIsLoadingLogs(true);
@@ -59,20 +53,6 @@ export default function IntegrationsPage() {
     } finally {
       setIsLoadingLogs(false);
     }
-  };
-
-  const handleSaveWebhook = () => {
-    try {
-      localStorage.setItem("whatsapp_webhook_url", webhookUrl);
-      toast.success("Webhook salvo com sucesso!");
-    } catch (error) {
-      toast.error("Erro ao salvar webhook");
-    }
-  };
-
-  const handleCopyWebhook = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    toast.success("URL copiada para área de transferência");
   };
 
   const getStatusBadge = (action: string) => {
@@ -140,7 +120,7 @@ export default function IntegrationsPage() {
           Integrações
         </h1>
         <p className="text-xl text-muted-foreground">
-          Configure webhooks e visualize logs de integração
+          Status das integrações ativas e logs de auditoria
         </p>
       </div>
 
@@ -156,57 +136,92 @@ export default function IntegrationsPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Webhooks Tab */}
+        {/* Webhooks Tab → Status das Integrações */}
         <TabsContent value="webhooks" className="space-y-6">
-          {/* WhatsApp Webhook */}
+          {/* WhatsApp Nativo */}
           <Card className="p-6">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <h2 className="text-2xl font-semibold">Webhook WhatsApp (n8n)</h2>
-                <Badge variant="outline">Evolution API</Badge>
+                <MessageSquare className="h-6 w-6 text-primary" />
+                <h2 className="text-2xl font-semibold">WhatsApp</h2>
+                {whatsappStatus?.provider === 'meta' ? (
+                  <Badge className="bg-blue-500 text-white">Meta Cloud API</Badge>
+                ) : (
+                  <Badge className="bg-green-600 text-white">Evolution API</Badge>
+                )}
+                {(() => {
+                  const s = whatsappStatus;
+                  const configured = s?.provider === 'meta'
+                    ? !!(s?.business_phone_number_id && s?.business_access_token)
+                    : !!(s?.evolution_api_url && s?.evolution_api_key && s?.evolution_instance_name);
+                  return configured ? (
+                    <Badge className="bg-green-500 text-white gap-1">
+                      <CheckCircle2 className="h-3 w-3" />Configurado
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive" className="gap-1">
+                      <XCircle className="h-3 w-3" />Não configurado
+                    </Badge>
+                  );
+                })()}
               </div>
 
-              <p className="text-muted-foreground">
-                Configure o endpoint do n8n que recebe os disparos de WhatsApp.
-                Este webhook deve processar os leads e enviar as mensagens via Evolution API.
+              <p className="text-muted-foreground text-sm">
+                Envio de mensagens via API nativa — sem intermediários. Configure as credenciais em{" "}
+                <strong>Configurações → Integração WhatsApp</strong>.
               </p>
 
-              <div className="space-y-2">
-                <Label htmlFor="webhook-url">URL do Webhook</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="webhook-url"
-                    placeholder="https://n8n.seudominio.com/webhook/whatsapp"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleCopyWebhook}
-                    disabled={!webhookUrl}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
+              {whatsappStatus && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  {whatsappStatus.provider !== 'meta' ? (
+                    <>
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">URL da API</p>
+                        <p className="font-mono truncate">
+                          {whatsappStatus.evolution_api_url || <span className="text-destructive">Não definido</span>}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">Instância</p>
+                        <p className="font-mono truncate">
+                          {whatsappStatus.evolution_instance_name || <span className="text-destructive">Não definido</span>}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">API Key</p>
+                        <p className="font-mono">
+                          {whatsappStatus.evolution_api_key
+                            ? `${'•'.repeat(8)} (configurada)`
+                            : <span className="text-destructive">Não definida</span>}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">Phone Number ID</p>
+                        <p className="font-mono truncate">
+                          {whatsappStatus.business_phone_number_id || <span className="text-destructive">Não definido</span>}
+                        </p>
+                      </div>
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-xs text-muted-foreground mb-1">Access Token</p>
+                        <p className="font-mono">
+                          {whatsappStatus.business_access_token
+                            ? `${'•'.repeat(8)} (configurado)`
+                            : <span className="text-destructive">Não definido</span>}
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
+              )}
 
-              <div className="flex gap-2">
-                <Button onClick={handleSaveWebhook}>
-                  <Save className="h-4 w-4 mr-2" />
-                  Salvar Configuração
-                </Button>
-              </div>
-
-              <div className="mt-6 p-4 bg-muted rounded-lg">
-                <h3 className="font-semibold mb-2">ℹ️ Informações Importantes</h3>
-                <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                  <li>O webhook deve aceitar POST requests com JSON payload</li>
-                  <li>Payload contém: leadId, whatsapp, message, leadName, empresa</li>
-                  <li>Resposta esperada: {"{ success: true }"} ou {"{ success: false, error: \"...\" }"}</li>
-                  <li>Configuração armazenada localmente (localStorage)</li>
-                </ul>
+              <div className="p-4 bg-muted/50 rounded-lg text-xs text-muted-foreground space-y-1">
+                <p className="font-medium">Endpoint de envio nativo:</p>
+                <code className="block bg-muted px-2 py-1 rounded">POST /api/whatsapp/send</code>
+                <p className="mt-2">Webhook de recebimento (inbound):</p>
+                <code className="block bg-muted px-2 py-1 rounded">POST /api/webhooks/evolution</code>
               </div>
             </div>
           </Card>
@@ -221,27 +236,16 @@ export default function IntegrationsPage() {
                   Conectado
                 </Badge>
               </div>
-
-              <p className="text-muted-foreground">
-                Banco de dados e autenticação gerenciados pelo Supabase.
-                Configuração via variáveis de ambiente (somente leitura).
+              <p className="text-muted-foreground text-sm">
+                Banco de dados e autenticação. Configuração via variáveis de ambiente.
               </p>
-
               <div className="space-y-2">
                 <Label>Project URL</Label>
                 <Input
                   value={process.env.NEXT_PUBLIC_SUPABASE_URL || "Não configurado"}
                   disabled
-                  className="bg-muted"
+                  className="bg-muted font-mono text-xs"
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  <span className="text-sm">Conectado e operacional</span>
-                </div>
               </div>
             </div>
           </Card>
