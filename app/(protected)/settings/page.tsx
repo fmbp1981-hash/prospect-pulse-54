@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload } from "lucide-react";
+import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload, Phone, UserCheck } from "lucide-react";
 import { userSettingsService } from "@/lib/userSettings";
 import { RoleGuard } from "@/components/RoleGuard";
 import { RoleManagement } from "@/components/RoleManagement";
@@ -40,6 +40,9 @@ export default function SettingsPage() {
   const [metaPhoneNumberId, setMetaPhoneNumberId] = useState("");
   const [metaAccessToken, setMetaAccessToken] = useState("");
   const [metaVerifyToken, setMetaVerifyToken] = useState("");
+
+  // Consultor para transferências
+  const [consultantWhatsapp, setConsultantWhatsapp] = useState("");
 
   // Configurações de Follow-up automático
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
@@ -97,6 +100,7 @@ export default function SettingsPage() {
         setMetaPhoneNumberId(settings.business_phone_number_id || "");
         setMetaAccessToken(settings.business_access_token || "");
         setMetaVerifyToken(settings.meta_verify_token || "");
+        setConsultantWhatsapp(settings.consultant_whatsapp || "");
       }
 
       // Carregar configurações de Follow-up
@@ -268,6 +272,7 @@ export default function SettingsPage() {
         business_phone_number_id: metaPhoneNumberId,
         business_access_token: metaAccessToken,
         meta_verify_token: metaVerifyToken,
+        consultant_whatsapp: consultantWhatsapp,
       });
 
       // Salvar configurações de Follow-up
@@ -988,6 +993,80 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+
+            <div className="flex gap-3">
+              <Button onClick={handleSave} disabled={isSaving || !companyName.trim()}>
+                {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </RoleGuard>
+
+      {/* Agente de Atendimento e Consultor - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <UserCheck className="h-5 w-5 text-primary" />
+              <CardTitle>Agente de Atendimento</CardTitle>
+            </div>
+            <CardDescription>
+              Configure os números de WhatsApp do bot e do consultor responsável pelos leads transferidos
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+
+            {/* WhatsApp do Agente (leitura) */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                WhatsApp do Agente (instância de atendimento)
+              </Label>
+              <div className="flex items-center gap-2 max-w-md">
+                <Input
+                  value={evolutionInstanceName || "Não configurado"}
+                  disabled
+                  className="bg-muted font-mono text-sm"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Instância Evolution conectada ao número que o bot usa para conversar com leads.
+                Configure em <strong>Integração WhatsApp</strong> acima.
+              </p>
+            </div>
+
+            {/* WhatsApp do Consultor */}
+            <div className="space-y-2">
+              <Label htmlFor="consultant_whatsapp" className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                WhatsApp do Consultor <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="consultant_whatsapp"
+                placeholder="Ex: 5581999990000 (somente dígitos com DDI)"
+                value={consultantWhatsapp}
+                onChange={(e) => setConsultantWhatsapp(e.target.value)}
+                className="max-w-md font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Número que receberá a notificação via WhatsApp quando um lead for transferido.
+                Use o formato internacional sem símbolos: <code className="bg-muted px-1 rounded">5581999990000</code>
+              </p>
+              {consultantWhatsapp && !/^\d{10,15}$/.test(consultantWhatsapp.replace(/\D/g, '')) && (
+                <p className="text-xs text-red-500">
+                  Formato inválido — use apenas dígitos: DDI + DDD + número (ex: 5581999990000)
+                </p>
+              )}
+            </div>
+
+            <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-medium">Como funciona a transferência:</p>
+              <p>• O agente qualifica o lead e chama a tool <code className="bg-muted px-1 rounded">transferir_para_consultor</code></p>
+              <p>• O sistema envia automaticamente uma mensagem ao consultor com nome, empresa e WhatsApp do lead</p>
+              <p>• O lead é marcado como <strong>Transferido para Consultor</strong> no Kanban</p>
+              <p>• O bot para de responder (modo humano) — o consultor assume o atendimento</p>
+            </div>
 
             <div className="flex gap-3">
               <Button onClick={handleSave} disabled={isSaving || !companyName.trim()}>

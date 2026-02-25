@@ -15,6 +15,8 @@ export interface UserSettings {
   business_phone_number_id?: string;
   business_access_token?: string;
   meta_verify_token?: string;
+  // Consultor responsável pelos leads transferidos
+  consultant_whatsapp?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -94,6 +96,7 @@ export const userSettingsService = {
             business_phone_number_id: settings.business_phone_number_id,
             business_access_token: settings.business_access_token,
             meta_verify_token: settings.meta_verify_token,
+            consultant_whatsapp: settings.consultant_whatsapp,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", user.id)
@@ -117,6 +120,7 @@ export const userSettingsService = {
             business_phone_number_id: settings.business_phone_number_id,
             business_access_token: settings.business_access_token,
             meta_verify_token: settings.meta_verify_token,
+            consultant_whatsapp: settings.consultant_whatsapp,
           })
           .select()
           .single();

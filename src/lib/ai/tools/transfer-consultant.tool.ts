@@ -1,35 +1,65 @@
 /**
  * TOOL: transferir_para_consultor
- * Equivalente nativo à tool "transferir_para_consultor" do AI Agent no n8n.
- * Notifica o consultor via WhatsApp e atualiza modo para "humano".
+ * Notifica o consultor via WhatsApp e marca o lead como transferido/humano.
+ * Lê o WhatsApp do consultor e a instância do agente das configurações do tenant (user_settings).
  */
 
+import { createClient } from '@supabase/supabase-js';
 import { sendWhatsAppText } from '../../integrations/evolution/messaging.client';
 import { leadRepository } from '../../repositories/lead.repository';
 import type { AgentTool, ToolExecutionContext } from './tool.interface';
 
-const CONSULTANT_WHATSAPP = process.env.XPAG_CONSULTANT_WHATSAPP!; // ex: 5581999990000
-const CONSULTANT_INSTANCE = process.env.XPAG_CONSULTANT_INSTANCE!;
+function getServiceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+async function getConsultantConfig(userId: string): Promise<{
+  consultantWhatsapp: string | null;
+  agentInstance: string | null;
+}> {
+  try {
+    const supabase = getServiceClient();
+    const { data } = await supabase
+      .from('user_settings')
+      .select('consultant_whatsapp, evolution_instance_name')
+      .eq('user_id', userId)
+      .single();
+
+    return {
+      consultantWhatsapp: data?.consultant_whatsapp || process.env.XPAG_CONSULTANT_WHATSAPP || null,
+      agentInstance: data?.evolution_instance_name || process.env.XPAG_CONSULTANT_INSTANCE || null,
+    };
+  } catch {
+    return {
+      consultantWhatsapp: process.env.XPAG_CONSULTANT_WHATSAPP || null,
+      agentInstance: process.env.XPAG_CONSULTANT_INSTANCE || null,
+    };
+  }
+}
 
 export const transferConsultantTool: AgentTool = {
   name: 'transferir_para_consultor',
   description:
-    'Transfere o lead para o consultor Felipe. Envia notificação via WhatsApp ao consultor e atualiza modo de atendimento para "humano". Chame apenas quando o lead estiver qualificado e demonstrar interesse real.',
+    'Transfere o lead para o consultor. Envia notificação via WhatsApp ao consultor com os dados do lead e atualiza modo de atendimento para "humano". Chame apenas quando o lead estiver qualificado e demonstrar interesse real.',
   parameters: {
     type: 'object',
     properties: {
       motivo: {
         type: 'string',
-        description: 'Motivo ou contexto da transferência (opcional)',
+        description: 'Motivo ou resumo do interesse do lead (opcional)',
       },
     },
   },
+
   async execute(
     args: Record<string, unknown>,
     ctx: ToolExecutionContext
   ): Promise<{
     success: boolean;
-    details: { db_ok: boolean; msg_ok: boolean };
+    details: { db_ok: boolean; msg_ok: boolean; error?: string };
   }> {
     let dbOk = false;
     let msgOk = false;
@@ -53,28 +83,47 @@ export const transferConsultantTool: AgentTool = {
       dbOk = true;
     } catch (err) {
       console.error('[TransferTool] DB update failed:', err);
+      return { success: false, details: { db_ok: false, msg_ok: false, error: String(err) } };
     }
 
-    // 3. Envia notificação ao consultor
-    if (CONSULTANT_WHATSAPP && CONSULTANT_INSTANCE) {
-      const message =
-        `🔔 *Novo Lead Qualificado para Atendimento*\n\n` +
-        `👤 *Nome:* ${leadName}\n` +
-        `🏢 *Empresa:* ${leadCompany}\n` +
-        `📱 *WhatsApp:* ${ctx.whatsapp}\n` +
-        `📊 *Status:* ${leadStatus}\n` +
-        `💬 *Motivo:* ${motivo}\n\n` +
-        `_Enviado automaticamente pelo sistema XPAG_`;
+    // 3. Busca configurações do consultor e instância do agente
+    const { consultantWhatsapp, agentInstance } = await getConsultantConfig(ctx.userId);
 
-      const result = await sendWhatsAppText({
-        instanceName: CONSULTANT_INSTANCE,
-        to: CONSULTANT_WHATSAPP,
-        text: message,
-      });
+    if (!consultantWhatsapp || !agentInstance) {
+      console.warn(
+        '[TransferTool] WhatsApp do consultor ou instância do agente não configurados. ' +
+        'Configure em Configurações → Agente de Atendimento.'
+      );
+      return {
+        success: dbOk,
+        details: {
+          db_ok: dbOk,
+          msg_ok: false,
+          error: 'WhatsApp do consultor não configurado nas Configurações do sistema.',
+        },
+      };
+    }
 
-      msgOk = result.success;
-    } else {
-      console.warn('[TransferTool] Consultant WhatsApp not configured — skipping notification');
+    // 4. Envia notificação ao consultor
+    const message =
+      `🔔 *Novo Lead Qualificado para Atendimento*\n\n` +
+      `👤 *Nome:* ${leadName}\n` +
+      `🏢 *Empresa:* ${leadCompany}\n` +
+      `📱 *WhatsApp:* ${ctx.whatsapp}\n` +
+      `📊 *Status:* ${leadStatus}\n` +
+      `💬 *Motivo:* ${motivo}\n\n` +
+      `_Enviado automaticamente pelo sistema XPAG_`;
+
+    const result = await sendWhatsAppText({
+      instanceName: agentInstance,
+      to: consultantWhatsapp.replace(/\D/g, ''),
+      text: message,
+    });
+
+    msgOk = result.success;
+
+    if (!msgOk) {
+      console.warn('[TransferTool] Notificação ao consultor falhou:', result);
     }
 
     return {
