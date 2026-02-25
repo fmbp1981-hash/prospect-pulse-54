@@ -53,6 +53,7 @@ export type Database = {
           estagio_pipeline: string | null
           etapa_funil: string | null
           faturamento_declarado: number | null
+          follow_up_count: number | null
           id: string
           instagram: string | null
           lead: string
@@ -96,6 +97,7 @@ export type Database = {
           estagio_pipeline?: string | null
           etapa_funil?: string | null
           faturamento_declarado?: number | null
+          follow_up_count?: number | null
           id: string
           instagram?: string | null
           lead: string
@@ -139,6 +141,7 @@ export type Database = {
           estagio_pipeline?: string | null
           etapa_funil?: string | null
           faturamento_declarado?: number | null
+          follow_up_count?: number | null
           id?: string
           instagram?: string | null
           lead?: string

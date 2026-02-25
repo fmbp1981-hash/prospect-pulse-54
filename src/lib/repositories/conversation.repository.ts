@@ -40,7 +40,8 @@ export const conversationRepository = {
     const supabase = getServiceClient();
 
     const { data, error } = await supabase
-      .from('whatsapp_conversations' as keyof Database['public']['Tables'])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('whatsapp_conversations' as any)
       .select('*')
       .eq('lead_id', leadId)
       .order('timestamp', { ascending: false })
@@ -60,7 +61,8 @@ export const conversationRepository = {
     const supabase = getServiceClient();
 
     const { data, error } = await supabase
-      .from('whatsapp_conversations' as keyof Database['public']['Tables'])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .from('whatsapp_conversations' as any)
       .insert({
         ...msg,
         timestamp: new Date().toISOString(),

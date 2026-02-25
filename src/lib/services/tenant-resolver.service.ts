@@ -25,10 +25,9 @@ export async function resolveTenantByInstance(
   const supabase = getServiceClient();
 
   // Chama a RPC get_user_by_evolution_instance (mesma que o n8n usava)
-  const { data, error } = await supabase
-    .rpc('get_user_by_evolution_instance' as never, {
-      p_instance_name: instanceName,
-    });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .rpc('get_user_by_evolution_instance', { p_instance_name: instanceName });
 
   if (error) {
     console.warn(
@@ -38,18 +37,21 @@ export async function resolveTenantByInstance(
     return null;
   }
 
-  if (!data || (Array.isArray(data) && data.length === 0)) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = data as Array<{ user_id: string; company_name: string }> | null;
+
+  if (!rows || rows.length === 0) {
     console.warn(
       `[TenantResolver] No tenant found for instance "${instanceName}"`
     );
     return null;
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
+  const row = rows[0];
 
   return {
-    userId: row.user_id as string,
-    companyName: row.company_name as string,
+    userId: row.user_id,
+    companyName: row.company_name,
     instanceName,
   };
 }
