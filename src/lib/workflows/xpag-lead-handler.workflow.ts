@@ -80,16 +80,24 @@ export async function runXpagWorkflow(normalized: NormalizedMessage): Promise<vo
 
   // ── STEP 4: VERIFICAR MODO HUMANO ────────────────────────────────────────
   if (leadService.isInHumanMode(lead)) {
-    // Salva a mensagem mesmo em modo humano (consultor pode ver no histórico)
+    // Salva a mensagem (consultor pode ver no histórico)
     await conversationRepository.saveLeadMessage({
       lead_id: lead.id,
       message: normalized.mensagem,
       from_lead: true,
       ai_generated: false,
       user_id: tenant.userId,
-    }).catch(() => null); // Não bloqueia o fluxo se falhar
-    logger.info('Human mode — bot skipped');
-    return;
+    }).catch(() => null);
+
+    // Verifica se o consultor está inativo há >= 10min → retoma o bot
+    if (leadService.shouldAutoResumeBot(lead)) {
+      await leadService.returnToBot(lead.id);
+      logger.info('Human mode timeout expired — bot auto-resumed', { leadId: lead.id });
+      // Continua o fluxo normalmente com o bot retomando
+    } else {
+      logger.info('Human mode active — bot skipped');
+      return;
+    }
   }
 
   // ── STEP 5: PROCESSAR MÍDIA ──────────────────────────────────────────────

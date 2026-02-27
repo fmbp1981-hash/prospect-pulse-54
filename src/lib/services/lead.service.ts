@@ -68,7 +68,35 @@ export const leadService = {
   },
 
   /**
-   * Marca lead como retornado ao bot após #finalizado.
+   * Verifica se o bot deve retomar automaticamente baseado na inatividade do consultor.
+   * Retorna true se o consultor estiver inativo há >= CONSULTANT_INACTIVITY_MS.
+   */
+  shouldAutoResumeBot(lead: LeadRow): boolean {
+    const CONSULTANT_INACTIVITY_MS = 10 * 60 * 1000; // 10 minutos
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lastAction = (lead as any).data_ultima_acao_consultor as string | null;
+
+    if (!lastAction) {
+      // Nunca houve ação do consultor — bot pode retomar
+      return true;
+    }
+
+    const inactiveSince = Date.now() - new Date(lastAction).getTime();
+    return inactiveSince >= CONSULTANT_INACTIVITY_MS;
+  },
+
+  /**
+   * Registra atividade do consultor (atualiza data_ultima_acao_consultor).
+   */
+  async recordConsultantActivity(leadId: string): Promise<void> {
+    await leadRepository.update(leadId, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data_ultima_acao_consultor: new Date().toISOString() as any,
+    });
+  },
+
+  /**
+   * Marca lead como retornado ao bot (manual via #finalizado ou auto por timeout).
    */
   async returnToBot(leadId: string): Promise<void> {
     await leadRepository.update(leadId, { modo_atendimento: 'bot' });

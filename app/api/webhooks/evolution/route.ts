@@ -15,6 +15,7 @@ import { runXpagWorkflow } from '@/lib/workflows/xpag-lead-handler.workflow';
 import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
 import { resolveTenantByInstance } from '@/lib/services/tenant-resolver.service';
 import { leadRepository } from '@/lib/repositories/lead.repository';
+import { leadService } from '@/lib/services/lead.service';
 import { conversationRepository } from '@/lib/repositories/conversation.repository';
 
 export const runtime = 'nodejs';
@@ -40,6 +41,9 @@ async function tryCapturConsultantMessage(normalized: ReturnType<typeof normaliz
       ai_generated: false,
       user_id: tenant.userId,
     });
+
+    // Registra timestamp da última ação do consultor (usado para auto-retomada por timeout)
+    await leadService.recordConsultantActivity(lead.id);
 
     console.log(`[Webhook] Mensagem do consultor salva — lead ${lead.id}`);
   } catch (err) {
