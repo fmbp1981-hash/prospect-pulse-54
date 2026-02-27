@@ -9,7 +9,10 @@ export async function updateSession(request: NextRequest) {
 
   // Rotas públicas (não requerem autenticação)
   const publicRoutes = ['/login', '/signup', '/forgot-password'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  // Rotas de API que recebem webhooks externos (Evolution API, cron jobs) — sempre públicas
+  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/'];
+  const isPublicApiRoute = publicApiPrefixes.some(prefix => pathname.startsWith(prefix));
+  const isPublicRoute = isPublicApiRoute || publicRoutes.some(route => pathname.startsWith(route));
 
   // Se o Supabase não está configurado, redirecionar para login se não é rota pública
   if (!supabaseUrl || !supabaseAnonKey) {

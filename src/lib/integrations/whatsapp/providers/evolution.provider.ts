@@ -108,7 +108,12 @@ export class EvolutionProvider implements IWhatsAppProvider {
   }
 
   normalizeWebhookPayload(payload: unknown): NormalizedWebhookPayload | null {
-    const data = payload as {
+    // Evolution API v2 envolve o payload em { event, instance, data: {...} }
+    // Evolution API v1 envia o objeto de mensagem diretamente na raiz
+    const raw = payload as Record<string, unknown>;
+    const inner = (raw?.data ?? raw) as Record<string, unknown>;
+
+    const data = inner as {
       key?: { remoteJid?: string; fromMe?: boolean; id?: string };
       pushName?: string;
       message?: {
@@ -121,6 +126,9 @@ export class EvolutionProvider implements IWhatsAppProvider {
       messageTimestamp?: number;
       instanceName?: string;
     };
+
+    // instanceName pode estar no wrapper (v2) ou no objeto de mensagem (v1)
+    const instanceName = (raw?.instance as string) || data.instanceName || '';
 
     if (!data.key?.remoteJid) return null;
 
@@ -162,7 +170,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
       mediaId: data.key.id,
       mediaMimetype,
       mediaBase64,
-      instanceName: data.instanceName || '',
+      instanceName,
       messageId: data.key.id || '',
       timestamp: data.messageTimestamp
         ? new Date(data.messageTimestamp * 1000).toISOString()

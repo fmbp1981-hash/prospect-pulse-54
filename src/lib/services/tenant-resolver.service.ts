@@ -11,6 +11,7 @@ export interface TenantContext {
   userId: string;
   companyName: string;
   instanceName: string;
+  agentEnabled: boolean;
 }
 
 function getServiceClient() {
@@ -37,22 +38,31 @@ export async function resolveTenantByInstance(
     return null;
   }
 
+  // A RPC retorna RETURNS json (objeto único), não uma tabela/array
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = data as Array<{ user_id: string; company_name: string }> | null;
+  const result = data as { success: boolean; user_id?: string; company_name?: string } | null;
 
-  if (!rows || rows.length === 0) {
+  if (!result || !result.success || !result.user_id) {
     console.warn(
-      `[TenantResolver] No tenant found for instance "${instanceName}"`
+      `[TenantResolver] No tenant found for instance "${instanceName}"`,
+      result
     );
     return null;
   }
 
-  const row = rows[0];
+  // Busca agent_enabled de user_settings
+  const supabase2 = getServiceClient();
+  const { data: settings } = await supabase2
+    .from('user_settings')
+    .select('agent_enabled')
+    .eq('user_id', result.user_id)
+    .single();
 
   return {
-    userId: row.user_id,
-    companyName: row.company_name,
+    userId: result.user_id,
+    companyName: result.company_name || '',
     instanceName,
+    agentEnabled: (settings as { agent_enabled?: boolean } | null)?.agent_enabled ?? true,
   };
 }
 

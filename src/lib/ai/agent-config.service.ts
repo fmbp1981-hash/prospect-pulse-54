@@ -5,7 +5,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { SYSTEM_PROMPT_V3_4, SYSTEM_PROMPT_VERSION } from './prompts/system-prompt.v3.4';
+import { SYSTEM_PROMPT_V4_0, SYSTEM_PROMPT_VERSION } from './prompts/system-prompt.v4.0';
 
 export interface AgentConfig {
   id: string;
@@ -71,7 +71,7 @@ export const agentConfigService = {
       id: 'default',
       userId,
       name: 'Agente XPAG Padrão',
-      systemPrompt: SYSTEM_PROMPT_V3_4,
+      systemPrompt: SYSTEM_PROMPT_V4_0,
       promptVersion: SYSTEM_PROMPT_VERSION,
       model: 'gpt-4.1',
       temperature: 0.7,
@@ -124,7 +124,7 @@ export const agentConfigService = {
       .insert({
         user_id: userId,
         name: config.name || 'Prompt personalizado',
-        system_prompt: config.systemPrompt || SYSTEM_PROMPT_V3_4,
+        system_prompt: config.systemPrompt || SYSTEM_PROMPT_V4_0,
         prompt_version: config.promptVersion || 'custom',
         model: config.model || 'gpt-4.1',
         temperature: config.temperature ?? 0.7,
@@ -163,7 +163,7 @@ export const agentConfigService = {
   async resetToDefault(userId: string, client?: DbClient): Promise<AgentConfig> {
     return this.upsert(userId, {
       name: `Agente XPAG v${SYSTEM_PROMPT_VERSION} (reset)`,
-      systemPrompt: SYSTEM_PROMPT_V3_4,
+      systemPrompt: SYSTEM_PROMPT_V4_0,
       promptVersion: SYSTEM_PROMPT_VERSION,
     }, true, client);
   },

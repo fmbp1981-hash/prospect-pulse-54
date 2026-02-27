@@ -44,6 +44,10 @@ export default function SettingsPage() {
   // Consultor para transferências
   const [consultantWhatsapp, setConsultantWhatsapp] = useState("");
 
+  // Toggle do agente de IA
+  const [agentEnabled, setAgentEnabled] = useState(true);
+  const [isSavingAgentToggle, setIsSavingAgentToggle] = useState(false);
+
   // Configurações de Follow-up automático
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
   const [followUpDays, setFollowUpDays] = useState(7);
@@ -101,6 +105,7 @@ export default function SettingsPage() {
         setMetaAccessToken(settings.business_access_token || "");
         setMetaVerifyToken(settings.meta_verify_token || "");
         setConsultantWhatsapp(settings.consultant_whatsapp || "");
+        setAgentEnabled((settings as any).agent_enabled !== false);
       }
 
       // Carregar configurações de Follow-up
@@ -273,6 +278,7 @@ export default function SettingsPage() {
         business_access_token: metaAccessToken,
         meta_verify_token: metaVerifyToken,
         consultant_whatsapp: consultantWhatsapp,
+        agent_enabled: agentEnabled,
       });
 
       // Salvar configurações de Follow-up
@@ -1016,6 +1022,31 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+
+            {/* Toggle — Ligar/Desligar Agente */}
+            <div className={`flex items-center justify-between rounded-lg border p-4 transition-colors ${agentEnabled ? 'border-green-500/40 bg-green-500/5' : 'border-red-500/40 bg-red-500/5'}`}>
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Bot className={`h-4 w-4 ${agentEnabled ? 'text-green-600' : 'text-red-500'}`} />
+                  <Label className="text-sm font-medium cursor-pointer" htmlFor="agent-toggle">
+                    Agente de IA
+                  </Label>
+                  <Badge variant={agentEnabled ? 'default' : 'destructive'} className="text-xs">
+                    {agentEnabled ? 'Ativo' : 'Pausado'}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {agentEnabled
+                    ? 'O agente está respondendo automaticamente todos os leads via WhatsApp.'
+                    : 'Agente pausado — mensagens chegam mas não são respondidas automaticamente.'}
+                </p>
+              </div>
+              <Switch
+                id="agent-toggle"
+                checked={agentEnabled}
+                onCheckedChange={setAgentEnabled}
+              />
+            </div>
 
             {/* WhatsApp do Agente (instância Evolution) */}
             <div className="space-y-2">

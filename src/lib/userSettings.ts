@@ -17,6 +17,8 @@ export interface UserSettings {
   meta_verify_token?: string;
   // Consultor responsável pelos leads transferidos
   consultant_whatsapp?: string;
+  // Liga/desliga o agente de IA para este tenant
+  agent_enabled?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -97,6 +99,7 @@ export const userSettingsService = {
             business_access_token: settings.business_access_token,
             meta_verify_token: settings.meta_verify_token,
             consultant_whatsapp: settings.consultant_whatsapp,
+            agent_enabled: settings.agent_enabled ?? true,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", user.id)
@@ -121,6 +124,7 @@ export const userSettingsService = {
             business_access_token: settings.business_access_token,
             meta_verify_token: settings.meta_verify_token,
             consultant_whatsapp: settings.consultant_whatsapp,
+            agent_enabled: settings.agent_enabled ?? true,
           })
           .select()
           .single();

@@ -49,7 +49,13 @@ export async function runXpagWorkflow(normalized: NormalizedMessage): Promise<vo
   });
 
   if (!tenant) return;
-  logger.info('Tenant resolved', { userId: tenant.userId });
+  logger.info('Tenant resolved', { userId: tenant.userId, agentEnabled: tenant.agentEnabled });
+
+  // ── STEP 1B: VERIFICAR SE AGENTE ESTÁ ATIVO ──────────────────────────────
+  if (!tenant.agentEnabled) {
+    logger.info('Agent disabled for this tenant — skipping');
+    return;
+  }
 
   // ── STEP 2: COMANDO #FINALIZADO ──────────────────────────────────────────
   if (isFinalizationCommand(normalized.mensagem)) {
@@ -133,6 +139,11 @@ export async function runXpagWorkflow(normalized: NormalizedMessage): Promise<vo
     STEP_TIMEOUTS.humanize,
     'humanize'
   ).catch(() => [agentResult.output]); // Fallback: envia sem humanizar
+
+  // ── STEP 8B: BUFFER DE HUMANIZAÇÃO ───────────────────────────────────────
+  // Aguarda 5-7s antes de enviar, simulando tempo de "digitação" humana
+  const humanDelay = Math.floor(Math.random() * 2000) + 5000; // 5000–7000ms
+  await new Promise(resolve => setTimeout(resolve, humanDelay));
 
   // ── STEP 9: ENVIAR VIA WHATSAPP PROVIDER ────────────────────────────────
   const provider = getWhatsAppProvider();
