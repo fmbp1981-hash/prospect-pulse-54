@@ -5,6 +5,7 @@
  */
 
 import { leadRepository } from '../repositories/lead.repository';
+import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
 
 type LeadRow = Database['public']['Tables']['leads_prospeccao']['Row'];
@@ -21,6 +22,25 @@ function generateOrganicId(): string {
   const timestamp = Date.now();
   const random = Math.random().toString(36).slice(2, 8);
   return `ORG-${timestamp}-${random}`;
+}
+
+/**
+ * Gera o próximo número sequencial para leads orgânicos.
+ * Formato: ORG-001, ORG-002, etc.
+ */
+async function generateOrganicLeadRef(userId: string): Promise<string> {
+  const supabase = createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+  const { count } = await supabase
+    .from('leads_prospeccao')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .like('id', 'ORG-%');
+
+  const next = ((count ?? 0) + 1).toString().padStart(3, '0');
+  return `ORG-${next}`;
 }
 
 export const leadService = {
@@ -40,9 +60,11 @@ export const leadService = {
       return { lead: existing, isNew: false };
     }
 
+    const leadRef = await generateOrganicLeadRef(input.userId);
+
     const newLead = await leadRepository.create({
       id: generateOrganicId(),
-      lead: input.clienteNome,
+      lead: leadRef,             // Nº do lead: ORG-001, ORG-002, etc.
       empresa: input.clienteNome, // Orgânico: empresa = nome até ser informado
       whatsapp: input.clienteWhatsApp,
       telefone: input.clienteTelefone,

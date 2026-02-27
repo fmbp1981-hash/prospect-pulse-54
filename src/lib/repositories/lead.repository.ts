@@ -21,6 +21,9 @@ export const leadRepository = {
   /**
    * Busca lead pelo número de WhatsApp.
    * Equivalente ao node "Encontrar_lead" (filtro: whatsapp = ClienteWhatsApp)
+   *
+   * Usa os últimos 10 dígitos para comparação — ignora diferenças de formato
+   * (+55 81 9..., 5581 9..., (81) 9...) entre prospecção e webhook.
    */
   async findByWhatsApp(
     whatsapp: string,
@@ -28,10 +31,14 @@ export const leadRepository = {
   ): Promise<LeadRow | null> {
     const supabase = getServiceClient();
 
+    // Extrai apenas dígitos e pega os últimos 10 (DDD + número local)
+    const digits = whatsapp.replace(/\D/g, '');
+    const localDigits = digits.slice(-10);
+
     let query = supabase
       .from('leads_prospeccao')
       .select('*')
-      .eq('whatsapp', whatsapp)
+      .or(`whatsapp.ilike.%${localDigits}%,telefone.ilike.%${localDigits}%`)
       .limit(1);
 
     if (userId) {
