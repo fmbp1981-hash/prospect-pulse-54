@@ -25,10 +25,11 @@ function generateOrganicId(): string {
 }
 
 /**
- * Gera o próximo número sequencial para leads orgânicos.
- * Formato: ORG-001, ORG-002, etc.
+ * Gera o próximo número sequencial unificado para todos os leads.
+ * Formato: Lead-001, Lead-002, etc. (mesma sequência para orgânicos e prospectados).
+ * A distinção orgânico vs prospectado fica no campo categoria/origem.
  */
-async function generateOrganicLeadRef(userId: string): Promise<string> {
+async function generateNextLeadRef(userId: string): Promise<string> {
   const supabase = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -36,11 +37,10 @@ async function generateOrganicLeadRef(userId: string): Promise<string> {
   const { count } = await supabase
     .from('leads_prospeccao')
     .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .like('id', 'ORG-%');
+    .eq('user_id', userId);
 
   const next = ((count ?? 0) + 1).toString().padStart(3, '0');
-  return `ORG-${next}`;
+  return `Lead-${next}`;
 }
 
 export const leadService = {
@@ -60,7 +60,7 @@ export const leadService = {
       return { lead: existing, isNew: false };
     }
 
-    const leadRef = await generateOrganicLeadRef(input.userId);
+    const leadRef = await generateNextLeadRef(input.userId);
 
     const newLead = await leadRepository.create({
       id: generateOrganicId(),
