@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return { error: { message: 'Supabase não disponível' } as AuthError };
       }
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -137,7 +137,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           description: error.message,
         });
       } else {
-        toast.success("Conta criada com sucesso!");
+        // Criar user_settings com role padrão e pending_setup=true via API route
+        // (usa service role para contornar RLS no momento do signup)
+        if (data.user?.id) {
+          try {
+            await fetch('/api/admin/init-user-settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: data.user.id }),
+            });
+          } catch (settingsErr) {
+            console.warn('Aviso: não foi possível criar user_settings no signup:', settingsErr);
+          }
+        }
+        toast.success("Conta criada com sucesso!", {
+          description: "Aguarde a aprovação do administrador para acessar o sistema.",
+        });
       }
 
       return { error };

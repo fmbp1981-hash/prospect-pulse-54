@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, UserCog, Eye, Shield, Settings, AlertCircle, CheckCircle, Copy, ExternalLink } from "lucide-react";
+import { Loader2, ShieldCheck, UserCog, Eye, Shield, Settings, AlertCircle, CheckCircle, Copy, CheckSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { UserRole, ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS } from "@/types/roles";
 
@@ -53,6 +53,12 @@ export function RoleManagement() {
     evolution_instance_name: "",
     whatsapp_webhook_url: "",
   });
+
+  // Estado para o dialog de aprovação
+  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
+  const [approveTargetUser, setApproveTargetUser] = useState<UserWithSettings | null>(null);
+  const [approveRole, setApproveRole] = useState<UserRole>('operador');
+  const [isApproving, setIsApproving] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -169,6 +175,33 @@ export function RoleManagement() {
     toast.success('Copiado para a área de transferência!');
   };
 
+  const openApproveDialog = (user: UserWithSettings) => {
+    setApproveTargetUser(user);
+    setApproveRole('operador');
+    setIsApproveDialogOpen(true);
+  };
+
+  const handleApproveUser = async () => {
+    if (!approveTargetUser) return;
+    setIsApproving(true);
+    try {
+      const res = await fetch('/api/admin/approve-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: approveTargetUser.id, newRole: approveRole }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Erro ao aprovar usuário');
+      toast.success('Usuário aprovado e email enviado!');
+      setIsApproveDialogOpen(false);
+      loadUsers();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao aprovar usuário');
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
   const getRoleIcon = (role: UserRole) => {
     const icons = {
       admin: ShieldCheck,
@@ -282,7 +315,6 @@ export function RoleManagement() {
                       <TableRow>
                         <TableHead>Usuário</TableHead>
                         <TableHead>Empresa</TableHead>
-                        <TableHead>Webhook URL</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
@@ -292,35 +324,16 @@ export function RoleManagement() {
                         <TableRow key={user.id}>
                           <TableCell className="font-medium">{user.email}</TableCell>
                           <TableCell>{user.company_name || '-'}</TableCell>
-                          <TableCell>
-                            {user.user_webhook_url ? (
-                              <div className="flex items-center gap-1">
-                                <code className="text-xs bg-muted px-1 py-0.5 rounded max-w-[150px] truncate">
-                                  {user.user_webhook_url}
-                                </code>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => copyToClipboard(user.user_webhook_url!)}
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">Não gerado</span>
-                            )}
-                          </TableCell>
                           <TableCell>{getStatusBadge(user)}</TableCell>
                           <TableCell className="text-right">
                             <Button
                               variant="default"
                               size="sm"
-                              onClick={() => openConfigDialog(user)}
-                              className="gap-1"
+                              onClick={() => openApproveDialog(user)}
+                              className="gap-1 bg-green-600 hover:bg-green-700"
                             >
-                              <Settings className="h-4 w-4" />
-                              Configurar
+                              <CheckSquare className="h-4 w-4" />
+                              Aprovar
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -438,6 +451,74 @@ export function RoleManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog de Aprovação de Usuário */}
+      <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckSquare className="h-5 w-5 text-green-600" />
+              Aprovar Usuário
+            </DialogTitle>
+            <DialogDescription>
+              Selecione o perfil de acesso para <strong>{approveTargetUser?.email}</strong>.
+              Um email de confirmação será enviado após a aprovação.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-3">
+            <Label>Perfil de acesso</Label>
+            <Select value={approveRole} onValueChange={(v) => setApproveRole(v as UserRole)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar perfil" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="operador">
+                  <div className="flex items-center gap-2">
+                    <UserCog className="h-4 w-4" />
+                    Operador
+                  </div>
+                </SelectItem>
+                <SelectItem value="visualizador">
+                  <div className="flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    Visualizador
+                  </div>
+                </SelectItem>
+                <SelectItem value="admin">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4" />
+                    Administrador
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleApproveUser}
+              disabled={isApproving}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isApproving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Aprovando...
+                </>
+              ) : (
+                <>
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  Confirmar Aprovação
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de Configuração de Integração */}
       <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>

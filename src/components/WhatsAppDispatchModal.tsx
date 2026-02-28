@@ -15,7 +15,7 @@ import { toast } from "sonner";
 interface DispatchStatus {
   leadId: string;
   leadName: string;
-  message?: string; // Preview da mensagem
+  message?: string;
   status: "pending" | "sending" | "sent" | "failed";
   error?: string;
 }
@@ -39,7 +39,6 @@ export const WhatsAppDispatchModal = ({
   const [editedMessage, setEditedMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
 
-  // Filtrar leads válidos (com WhatsApp, mensagem e não enviados) - memoizado para evitar loop infinito
   const validLeads = useMemo(() => selectedLeads.filter(lead =>
     lead.whatsapp &&
     lead.whatsapp.trim() !== "" &&
@@ -58,7 +57,6 @@ export const WhatsAppDispatchModal = ({
 
   const alreadySent = useMemo(() => selectedLeads.filter(lead => lead.statusMsgWA === 'sent'), [selectedLeads]);
 
-  // Initialize edited message when opening for a single lead
   useEffect(() => {
     if (isOpen && validLeads.length === 1) {
       setEditedMessage(validLeads[0].mensagemWhatsApp || "");
@@ -81,20 +79,14 @@ export const WhatsAppDispatchModal = ({
     }
   }, [isOpen, validLeads]);
 
+  // ── Envio de teste ─────────────────────────────────────────────────────────
   const handleTestSend = async () => {
     if (validLeads.length === 0) {
       toast.error("Nenhum lead válido para teste");
       return;
     }
-
     if (!testPhoneNumber.trim()) {
       toast.error("Digite um número de WhatsApp para teste");
-      return;
-    }
-
-    const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
-    if (!whatsappWebhook) {
-      toast.error("Configure o webhook WhatsApp nas Configurações da sidebar");
       return;
     }
 
@@ -102,8 +94,7 @@ export const WhatsAppDispatchModal = ({
     setIsDispatching(true);
     setShowTestConfirm(false);
 
-    const testLead = validLeads[0]; // Apenas o primeiro lead
-    // Use edited message if available and we are in single mode, otherwise use lead's message
+    const testLead = validLeads[0];
     const messageToSend = (isEditing && editedMessage) ? editedMessage : testLead.mensagemWhatsApp;
 
     setStatuses([{
@@ -114,49 +105,31 @@ export const WhatsAppDispatchModal = ({
     }]);
 
     try {
-      const response = await fetch(whatsappWebhook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          leadId: testLead.id,
-          whatsapp: testPhoneNumber, // Send to TEST number
+          whatsapp: testPhoneNumber,
           message: messageToSend,
-          leadName: testLead.lead,
-          empresa: testLead.empresa,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Webhook retornou ${response.status}`);
-      }
-
       const result = await response.json();
-      // Considerar sucesso se:
-      // 1. result.success === true (formato esperado)
-      // 2. HTTP 200 + "Workflow was started" (n8n)
-      // 3. HTTP 200 + sem erro explícito
-      const isSuccess = result.success === true ||
-        result.message?.toLowerCase().includes('started') ||
-        result.message?.toLowerCase().includes('success') ||
-        result.message?.toLowerCase().includes('enviado') ||
-        result.message?.toLowerCase().includes('sent') ||
-        (!result.error && response.ok);
 
-      if (isSuccess) {
-        // Don't update lead status for test send
-        setStatuses([{
-          leadId: testLead.id,
-          leadName: testLead.lead,
-          message: messageToSend,
-          status: "sent"
-        }]);
-
-        toast.success("Mensagem de teste enviada com sucesso!", {
-          description: `Enviado para ${testPhoneNumber}`,
-        });
-      } else {
-        throw new Error(result.error || result.message || "Falha no envio");
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || `Erro ${response.status}`);
       }
+
+      setStatuses([{
+        leadId: testLead.id,
+        leadName: testLead.lead,
+        message: messageToSend,
+        status: "sent"
+      }]);
+
+      toast.success("Mensagem de teste enviada com sucesso!", {
+        description: `Enviado para ${testPhoneNumber}`,
+      });
     } catch (error) {
       setStatuses([{
         leadId: testLead.id,
@@ -166,14 +139,13 @@ export const WhatsAppDispatchModal = ({
         error: String(error)
       }]);
 
-      toast.error("Falha no envio de teste", {
-        description: String(error)
-      });
+      toast.error("Falha no envio de teste", { description: String(error) });
     }
 
     setIsDispatching(false);
   };
 
+  // ── Envio em massa ─────────────────────────────────────────────────────────
   const handleDispatch = async () => {
     if (isDispatching || validLeads.length === 0) {
       toast.error("Nenhum lead válido para enviar", {
@@ -182,21 +154,12 @@ export const WhatsAppDispatchModal = ({
       return;
     }
 
-    // Verificar se webhook está configurado
-    const whatsappWebhook = localStorage.getItem("whatsapp_webhook_url");
-    if (!whatsappWebhook) {
-      toast.error("Configure o webhook WhatsApp nas Configurações da sidebar");
-      return;
-    }
-
     setTestMode(false);
     setIsDispatching(true);
 
-    // Processar leads sequencialmente
     for (let i = 0; i < validLeads.length; i++) {
       const lead = validLeads[i];
 
-      // Validação extra antes de enviar
       if (!lead.whatsapp || lead.whatsapp.trim() === "") {
         setStatuses(prev => prev.map(s =>
           s.leadId === lead.id
@@ -210,51 +173,32 @@ export const WhatsAppDispatchModal = ({
         s.leadId === lead.id ? { ...s, status: "sending" } : s
       ));
 
-      // Use edited message if available and we are in single mode
-      const messageToSend = (isEditing && editedMessage && validLeads.length === 1) ? editedMessage : lead.mensagemWhatsApp;
+      const messageToSend = (isEditing && editedMessage && validLeads.length === 1)
+        ? editedMessage
+        : lead.mensagemWhatsApp;
 
       try {
-        // Enviar para webhook n8n com Evolution API
-        const response = await fetch(whatsappWebhook, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+        const response = await fetch('/api/whatsapp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            leadId: lead.id,
             whatsapp: lead.whatsapp,
             message: messageToSend,
-            leadName: lead.lead,
-            empresa: lead.empresa,
           }),
         });
 
-        if (!response.ok) {
-          throw new Error(`Webhook retornou ${response.status}`);
-        }
-
         const result = await response.json();
-        // Considerar sucesso se:
-        // 1. result.success === true (formato esperado)
-        // 2. HTTP 200 + "Workflow was started" (n8n)
-        // 3. HTTP 200 + sem erro explícito
-        const isSuccess = result.success === true ||
-          result.message?.toLowerCase().includes('started') ||
-          result.message?.toLowerCase().includes('success') ||
-          result.message?.toLowerCase().includes('enviado') ||
-          result.message?.toLowerCase().includes('sent') ||
-          (!result.error && response.ok);
+        const isSuccess = response.ok && result.success === true;
 
-        // Atualizar status no Supabase
         if (isSuccess) {
-          // Atualizar status de envio de WhatsApp
+          // Atualiza status de envio no banco
           await supabaseCRM.updateLead(lead.id, {
             statusMsgWA: "sent",
             dataEnvioWA: new Date().toISOString(),
-            // If we edited the message, maybe we should update it in DB too? 
-            // Let's update it to reflect what was actually sent.
             ...(isEditing && validLeads.length === 1 ? { mensagemWhatsApp: messageToSend } : {})
           });
 
-          // Atualizar status do lead para Contato Inicial usando automação (sincroniza CRM e Kanban)
+          // Move lead para "Contato Inicial" se ainda era Novo
           if ((lead.status as string) === "Novo Lead" || (lead.status as string) === "Novo") {
             await leadAutomation.moveToContatoInicial(lead.id);
           }
@@ -265,14 +209,16 @@ export const WhatsAppDispatchModal = ({
             ? {
               ...s,
               status: isSuccess ? "sent" : "failed",
-              error: isSuccess ? undefined : result.error || result.message,
-              message: messageToSend // Update displayed message
+              error: isSuccess ? undefined : (result.error || `Erro ${response.status}`),
+              message: messageToSend,
             }
             : s
         ));
 
-        // Delay entre envios
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Intervalo entre envios (evita ban por spam)
+        if (i < validLeads.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
       } catch (error) {
         setStatuses(prev => prev.map(s =>
           s.leadId === lead.id
@@ -315,9 +261,7 @@ export const WhatsAppDispatchModal = ({
                     <p className="text-sm font-medium text-red-900">
                       {leadsWithoutWhatsApp.length} lead(s) sem número de WhatsApp coletado
                     </p>
-                    <p className="text-xs text-red-700 mt-1">
-                      Estes leads não receberão mensagens:
-                    </p>
+                    <p className="text-xs text-red-700 mt-1">Estes leads não receberão mensagens:</p>
                     <ul className="text-xs text-red-600 mt-2 space-y-1 max-h-24 overflow-y-auto">
                       {leadsWithoutWhatsApp.map(lead => (
                         <li key={lead.id}>• {lead.lead} ({lead.empresa})</li>
@@ -335,9 +279,7 @@ export const WhatsAppDispatchModal = ({
                     <p className="text-sm font-medium text-yellow-900">
                       {leadsWithoutMessage.length} lead(s) sem mensagem configurada
                     </p>
-                    <p className="text-xs text-yellow-700 mt-1">
-                      Configure a mensagem no CRM antes de enviar:
-                    </p>
+                    <p className="text-xs text-yellow-700 mt-1">Configure a mensagem no CRM antes de enviar:</p>
                     <ul className="text-xs text-yellow-600 mt-2 space-y-1 max-h-24 overflow-y-auto">
                       {leadsWithoutMessage.map(lead => (
                         <li key={lead.id}>• {lead.lead}</li>
@@ -397,16 +339,10 @@ export const WhatsAppDispatchModal = ({
                 </div>
               ) : (
                 statuses.map(status => (
-                  <div
-                    key={status.leadId}
-                    className="flex flex-col gap-1 p-3 bg-muted rounded-lg"
-                  >
+                  <div key={status.leadId} className="flex flex-col gap-1 p-3 bg-muted rounded-lg">
                     <div className="flex items-center justify-between">
                       <span className="font-medium truncate flex-1">{status.leadName}</span>
-
-                      {status.status === "pending" && (
-                        <Badge variant="outline">Aguardando</Badge>
-                      )}
+                      {status.status === "pending" && <Badge variant="outline">Aguardando</Badge>}
                       {status.status === "sending" && (
                         <Badge variant="secondary" className="gap-2">
                           <Loader2 className="h-3 w-3 animate-spin" />
@@ -426,19 +362,13 @@ export const WhatsAppDispatchModal = ({
                         </Badge>
                       )}
                     </div>
-
-                    {/* Preview da mensagem */}
                     {status.message && (
                       <p className="text-xs text-muted-foreground truncate">
                         📱 {status.message.substring(0, 60)}...
                       </p>
                     )}
-
-                    {/* Erro se houver */}
                     {status.error && status.status === "failed" && (
-                      <p className="text-xs text-destructive">
-                        ⚠️ {status.error}
-                      </p>
+                      <p className="text-xs text-destructive">⚠️ {status.error}</p>
                     )}
                   </div>
                 ))
@@ -450,12 +380,9 @@ export const WhatsAppDispatchModal = ({
         {/* Botões de ação */}
         <div className="flex flex-col gap-2 pt-4 border-t">
           {isComplete ? (
-            <Button onClick={onClose} className="w-full">
-              Fechar
-            </Button>
+            <Button onClick={onClose} className="w-full">Fechar</Button>
           ) : (
             <>
-              {/* Botão de Teste (apenas se não estiver enviando) */}
               {!isDispatching && validLeads.length > 0 && !testMode && (
                 <Button
                   variant="secondary"
@@ -465,8 +392,6 @@ export const WhatsAppDispatchModal = ({
                   📤 Enviar Teste (1 mensagem)
                 </Button>
               )}
-
-              {/* Botões principais */}
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -482,10 +407,7 @@ export const WhatsAppDispatchModal = ({
                   className="flex-1"
                 >
                   {isDispatching && !testMode ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Enviando...
-                    </>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Enviando...</>
                   ) : (
                     `Enviar para ${validLeads.length} lead(s)`
                   )}

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabaseCRM } from "@/lib/supabaseCRM";
+import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus } from "@/types/prospection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,38 +84,57 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
-  const loadLeads = async () => {
-    setIsLoading(true);
+  const loadLeads = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const result = await supabaseCRM.syncAllLeads();
 
       if (result.success) {
         setLeads(Array.isArray(result.leads) ? result.leads : []);
       } else {
-        toast.error("Erro ao carregar leads", {
-          description: result.message || "Erro ao acessar banco de dados",
-        });
+        if (!silent) {
+          toast.error("Erro ao carregar leads", {
+            description: result.message || "Erro ao acessar banco de dados",
+          });
+        }
       }
     } catch (error) {
       console.error("Erro ao carregar leads:", error);
-      toast.error("Erro ao carregar leads", {
-        description: error instanceof Error ? error.message : "Erro desconhecido",
-      });
+      if (!silent) {
+        toast.error("Erro ao carregar leads", {
+          description: error instanceof Error ? error.message : "Erro desconhecido",
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
-  };
+  }, []);
 
   const handleSync = async () => {
     setIsSyncing(true);
-    await loadLeads();
+    await loadLeads(false);
     setIsSyncing(false);
     toast.success("Leads atualizados!");
   };
 
   useEffect(() => {
     loadLeads();
-  }, []);
+  }, [loadLeads]);
+
+  // Realtime: atualiza tabela silenciosamente quando o agente altera um lead no banco
+  // (silent=true evita o spinner de tela cheia a cada mensagem recebida)
+  useEffect(() => {
+    const channel = supabase
+      .channel('leads-table-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leads_prospeccao' },
+        () => { loadLeads(true); }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [loadLeads]);
 
   // Filtrar e ordenar leads
   const filteredAndSortedLeads = useMemo(() => {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid } from "lucide-react";
+import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
 import { motion } from "framer-motion";
@@ -10,6 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { TemplateManager } from "@/components/TemplateManager";
 import { RoleBadge } from "@/components/RoleBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Badge } from "@/components/ui/badge";
+import { useUserRole } from "@/hooks/useUserRole";
 
 import {
   Sidebar,
@@ -39,6 +41,7 @@ export function AppSidebar() {
   const { user, signOut } = useAuth();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const { isPending } = useUserRole();
 
   const handleLogout = async () => {
     await signOut();
@@ -113,7 +116,14 @@ export function AppSidebar() {
                       <ThemeToggle />
                     </div>
                     {!isCollapsed && (
-                      <RoleBadge showIcon className="text-xs" />
+                      isPending ? (
+                        <Badge className="text-xs bg-yellow-500 hover:bg-yellow-500 text-white gap-1">
+                          <Clock className="h-3 w-3" />
+                          Pendente
+                        </Badge>
+                      ) : (
+                        <RoleBadge showIcon className="text-xs" />
+                      )
                     )}
                   </div>
                   <Button

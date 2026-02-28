@@ -79,6 +79,20 @@ export default function HomePage() {
   };
 
   const handleReprocessSearch = async (search: ProspectionSearch) => {
+    // Validate before invoking edge function
+    const locationObj = typeof search.location === 'object' ? search.location : null;
+    const hasValidNiche = search.niche && search.niche.trim().length > 0;
+    const hasValidLocation = typeof search.location === 'string'
+      ? search.location.trim().length > 0
+      : locationObj?.city && locationObj.city.trim().length > 0;
+
+    if (!hasValidNiche || !hasValidLocation) {
+      toast.error("Busca inválida", {
+        description: "Esta entrada do histórico não possui nicho ou localização válidos.",
+      });
+      return;
+    }
+
     const loadingToast = toast.loading("Reprocessando prospecção...", {
       description: `Buscando até ${search.quantity} leads novamente...`,
       duration: Infinity,
@@ -90,6 +104,7 @@ export default function HomePage() {
           niche: search.niche,
           location: search.location,
           quantity: search.quantity,
+          user_id: user?.id,
         },
       });
 

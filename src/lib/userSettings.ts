@@ -5,9 +5,22 @@ export interface UserSettings {
   id?: string;
   user_id?: string;
   company_name: string;
+  // Evolution API
   evolution_api_url?: string;
   evolution_api_key?: string;
   evolution_instance_name?: string;
+  // WhatsApp provider selector
+  provider?: string;
+  // Meta Cloud API (WhatsApp Business Oficial)
+  business_phone_number_id?: string;
+  business_access_token?: string;
+  meta_verify_token?: string;
+  // Consultor responsável pelos leads transferidos
+  consultant_whatsapp?: string;
+  // Liga/desliga o agente de IA para este tenant
+  agent_enabled?: boolean;
+  // Chave de API OpenAI por tenant (sobrepõe variável de ambiente OPENAI_API_KEY)
+  openai_api_key?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -80,9 +93,16 @@ export const userSettingsService = {
           .from("user_settings")
           .update({
             company_name: settings.company_name,
+            provider: settings.provider,
             evolution_api_url: settings.evolution_api_url,
             evolution_api_key: settings.evolution_api_key,
             evolution_instance_name: settings.evolution_instance_name,
+            business_phone_number_id: settings.business_phone_number_id,
+            business_access_token: settings.business_access_token,
+            meta_verify_token: settings.meta_verify_token,
+            consultant_whatsapp: settings.consultant_whatsapp,
+            agent_enabled: settings.agent_enabled ?? true,
+            openai_api_key: settings.openai_api_key ?? null,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", user.id)
@@ -99,9 +119,16 @@ export const userSettingsService = {
           .insert({
             user_id: user.id,
             company_name: settings.company_name,
+            provider: settings.provider || 'evolution',
             evolution_api_url: settings.evolution_api_url,
             evolution_api_key: settings.evolution_api_key,
             evolution_instance_name: settings.evolution_instance_name,
+            business_phone_number_id: settings.business_phone_number_id,
+            business_access_token: settings.business_access_token,
+            meta_verify_token: settings.meta_verify_token,
+            consultant_whatsapp: settings.consultant_whatsapp,
+            agent_enabled: settings.agent_enabled ?? true,
+            openai_api_key: settings.openai_api_key ?? null,
           })
           .select()
           .single();

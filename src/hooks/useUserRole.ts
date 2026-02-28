@@ -11,6 +11,7 @@ interface UseUserRoleReturn {
   isAdmin: boolean;
   isOperador: boolean;
   isVisualizador: boolean;
+  isPending: boolean;
   hasPermission: (permission: keyof RolePermissions) => boolean;
   refetch: () => void;
 }
@@ -33,28 +34,27 @@ interface UseUserRoleReturn {
  * }
  * ```
  */
+interface UserRoleData {
+  role: UserRole;
+  pending_setup: boolean;
+}
+
 export function useUserRole(): UseUserRoleReturn {
   const { user } = useAuth();
-  const [role, setRole] = useState<UserRole>('operador'); // Default
+  const [role, setRole] = useState<UserRole>('visualizador'); // Default
+  const [isPending, setIsPending] = useState(false);
 
   // Buscar role do usuário no user_settings
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['user-role', user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<UserRoleData | null> => {
       if (!user?.id) return null;
 
       const { data, error } = await (supabase
         .from('user_settings') as any)
-        .select('role')
+        .select('role, pending_setup')
         .eq('user_id', user.id)
-        .single(); //Removi single() porque ele espera retorno tipado, mas como é any, pode dar erro se usar? Não, any aceita tudo. Mas o retorno de select sem single é array.
-      //Espere, .single() é método do builder. Se eu faço cast .from() as any, perco o .single() se ele for do builder tipado.
-      //Mas se fiz cast as any, o objeto é any. Posso chamar qualquer coisa.
-      //O problema é que o retorno de await (xxx).select() pode não ser o que espero.
-      //Ao fazer cast no .from(), transformo o builder em any. Ao chamar .select(), o retorno depende da implementação JS do supabase, que o TS não vê mais.
-      //O supabase client JS retorna um builder.
-
-      //Vamos manter .single() se ele existir no objeto real em runtime. Sim.
+        .single();
 
       if (error) {
         console.error('Erro ao buscar role do usuário:', error);
@@ -64,22 +64,29 @@ export function useUserRole(): UseUserRoleReturn {
             .from('user_settings') as any)
             .insert({
               user_id: user.id,
-              role: 'operador',
+              role: 'visualizador',
+              pending_setup: true,
             })
-            .select('role')
+            .select('role, pending_setup')
             .single();
 
           if (insertError) {
             console.error('Erro ao criar user_settings:', insertError);
-            return 'operador' as UserRole;
+            return { role: 'visualizador', pending_setup: true };
           }
 
-          return (newSettings?.role || 'operador') as UserRole;
+          return {
+            role: (newSettings?.role || 'visualizador') as UserRole,
+            pending_setup: newSettings?.pending_setup ?? true,
+          };
         }
-        return 'operador' as UserRole;
+        return { role: 'visualizador', pending_setup: true };
       }
 
-      return (data?.role || 'operador') as UserRole;
+      return {
+        role: (data?.role || 'visualizador') as UserRole,
+        pending_setup: data?.pending_setup ?? true,
+      };
     },
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000, // Cache por 5 minutos
@@ -88,7 +95,8 @@ export function useUserRole(): UseUserRoleReturn {
   // Atualizar state do role quando data mudar
   useEffect(() => {
     if (data) {
-      setRole(data);
+      setRole(data.role);
+      setIsPending(data.pending_setup);
     }
   }, [data]);
 
@@ -115,6 +123,7 @@ export function useUserRole(): UseUserRoleReturn {
     isAdmin,
     isOperador,
     isVisualizador,
+    isPending,
     hasPermission,
     refetch,
   };

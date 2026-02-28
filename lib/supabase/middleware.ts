@@ -9,7 +9,12 @@ export async function updateSession(request: NextRequest) {
 
   // Rotas públicas (não requerem autenticação)
   const publicRoutes = ['/login', '/signup', '/forgot-password'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  // Rotas de API que recebem webhooks externos (Evolution API, cron jobs) — sempre públicas
+  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/', '/api/admin/init-user-settings'];
+  const isPublicApiRoute = publicApiPrefixes.some(prefix => pathname.startsWith(prefix));
+  const isPublicRoute = isPublicApiRoute || publicRoutes.some(route => pathname.startsWith(route));
+  // Rota de pending — usuário autenticado mas aguardando aprovação
+  const isPendingRoute = pathname.startsWith('/pending');
 
   // Se o Supabase não está configurado, redirecionar para login se não é rota pública
   if (!supabaseUrl || !supabaseAnonKey) {
@@ -71,6 +76,47 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);
+  }
+
+  // Verificar pending_setup: redirecionar para /pending se necessário
+  // Admin (email fixo) nunca é redirecionado
+  const ADMIN_EMAIL = 'fmbp1981@gmail.com';
+  if (user && !isPublicRoute && !isPendingRoute && user.email !== ADMIN_EMAIL) {
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('pending_setup')
+      .eq('user_id', user.id)
+      .single();
+
+    if (settings?.pending_setup === true) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/pending';
+      const redirectResponse = NextResponse.redirect(url);
+      // Propagar cookies de sessão para não deslogar o usuário
+      supabaseResponse.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie.name, cookie.value);
+      });
+      return redirectResponse;
+    }
+  }
+
+  // Se usuário aprovado tenta acessar /pending, redirecionar para home
+  if (user && isPendingRoute && user.email !== ADMIN_EMAIL) {
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('pending_setup')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!settings?.pending_setup) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/';
+      const redirectResponse = NextResponse.redirect(url);
+      supabaseResponse.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie.name, cookie.value);
+      });
+      return redirectResponse;
+    }
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
