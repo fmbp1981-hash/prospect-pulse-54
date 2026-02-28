@@ -120,7 +120,7 @@ async function runWorkflowSteps(
 
   // ── STEP 5: PROCESSAR MÍDIA ──────────────────────────────────────────────
   const processed = await withTimeout(
-    processMessageByType(normalized, normalized.instanceName),
+    processMessageByType(normalized, normalized.instanceName, normalized.messageId),
     STEP_TIMEOUTS.media,
     'processMedia'
   ).catch((err) => {

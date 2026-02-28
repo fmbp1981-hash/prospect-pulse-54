@@ -1514,4 +1514,36 @@ Quando `isNewLead=false`, histórico vazio e `mensagem_personalizada` existe, o 
 
 ---
 
+### fix: processamento de mídia — áudio, imagem e documento (2026-02-28)
+
+**Problema:** O agente não processava nenhum tipo de mídia — retornava sempre o fallback `[Mídia não processada]`.
+
+**Causa raiz (2 bugs):**
+
+**Bug 1 — `messageId` perdido:**
+Webhook configurado com `webhookBase64: false` (base64 não vem no payload). O fallback era baixar via `getBase64FromMediaMessage` usando o `key.id`. Porém, `key.id` nunca era armazenado no `NormalizedMessage` nem passado para `processMessageByType()`.
+
+**Bug 2 — PDF via `image_url`:**
+`pdf-analyzer.service.ts` enviava o PDF como `image_url` para GPT-4o Vision — que não suporta PDF. Documentos sempre falhavam silenciosamente.
+
+**Correções:**
+- `message-normalizer.service.ts` — `messageId?: string` adicionado à interface; `data.key?.id` extraído e armazenado
+- `xpag-lead-handler.workflow.ts` — `processMessageByType(normalized, instanceName, normalized.messageId)`
+- `pdf-analyzer.service.ts` — reescrito: `pdf-parse` extrai texto real → GPT-4o-mini resume; fallback retorna texto bruto
+- `package.json` — dependência `pdf-parse` adicionada
+
+**Fluxo correto após fix:**
+```
+Áudio/Imagem/Doc chega no webhook
+  → normalizer extrai key.id → messageId
+  → processMessageByType(normalized, instance, messageId)
+    → evolutionMediaClient.downloadMedia(instance, messageId) se base64 ausente
+    → Áudio  → Whisper  → transcrição em texto
+    → Imagem → GPT-4o Vision → descrição objetiva
+    → Doc    → pdf-parse → texto bruto → GPT-4o-mini → resumo comercial
+  → conteúdo processado injetado no contexto do agente como [ÁUDIO], [IMAGEM] ou [DOCUMENTO]
+```
+
+---
+
 *Próxima atualização: registrar aqui ao fazer qualquer mudança significativa.*

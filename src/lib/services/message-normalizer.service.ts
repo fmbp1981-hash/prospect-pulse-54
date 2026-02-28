@@ -15,6 +15,7 @@ export interface NormalizedMessage {
   // Conteúdo da mensagem
   mensagem: string;
   messageType: MessageType;
+  messageId?: string;      // key.id — usado para baixar mídia via API
   mediaUrl?: string;
   mediaBase64?: string;
   mediaMimetype?: string;
@@ -162,6 +163,7 @@ export function normalizeMessage(
     clienteWhatsApp: whatsApp,
     mensagem: extractMessageContent(data, type),
     messageType: type,
+    messageId: data.key?.id,
     ...extractMediaInfo(data, type),
     fromMe: data.key?.fromMe ?? false,
     instanceName: instanceName || data.instanceName || '',
