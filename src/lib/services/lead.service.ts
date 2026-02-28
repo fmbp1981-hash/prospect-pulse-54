@@ -118,10 +118,8 @@ export const leadService = {
    * Registra atividade do consultor (atualiza data_ultima_acao_consultor).
    */
   async recordConsultantActivity(leadId: string): Promise<void> {
-    await leadRepository.update(leadId, {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data_ultima_acao_consultor: new Date().toISOString() as any,
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await leadRepository.update(leadId, { data_ultima_acao_consultor: new Date().toISOString() } as any);
   },
 
   /**
