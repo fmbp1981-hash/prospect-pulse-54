@@ -53,19 +53,59 @@ export interface AgentExecutionResult {
 function buildUserPrompt(input: AgentExecutionInput): string {
   const { lead, isNewLead, processedMessage, formattedHistory } = input;
 
-  return `[CONTEXTO DO CONTATO]
+  // Instrução comportamental baseada no tipo de contato
+  const hasHistory = formattedHistory && formattedHistory !== 'Nenhum histórico anterior';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mensagemPersonalizada = (lead as any).mensagem_personalizada as string | null;
+  const isProspectedWithNoHistory = !isNewLead && !hasHistory && mensagemPersonalizada;
+
+  let behaviorInstruction: string;
+  if (isNewLead) {
+    behaviorInstruction = 'NOVO CONTATO — lead não existe no banco. Faça a abordagem inicial conforme o fluxo do sistema prompt.';
+  } else if (isProspectedWithNoHistory) {
+    behaviorInstruction = 'LEAD EXISTENTE RETORNANDO — este lead foi prospectado e está respondendo pela primeira vez. Use a mensagem de prospecção abaixo como contexto do contato anterior. Não se reapresente como se fosse o primeiro contato — você já enviou uma mensagem a ele. Retome naturalmente.';
+  } else if (hasHistory) {
+    behaviorInstruction = 'LEAD RETORNANDO — histórico disponível. NÃO se reapresente. NÃO repita perguntas já respondidas. Retome de onde parou no estágio atual do pipeline.';
+  } else {
+    behaviorInstruction = 'LEAD EXISTENTE — sem histórico de conversa registrado. Trate como retorno, mas aborde com naturalidade.';
+  }
+
+  // Dados de qualificação já coletados (só exibe se preenchido)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const l = lead as any;
+  const qualificationLines = [
+    l.faturamento_declarado ? `Faturamento Declarado: ${l.faturamento_declarado}` : null,
+    l.usa_meios_pagamento ? `Usa Meios de Pagamento: ${l.usa_meios_pagamento}` : null,
+    l.motivo_follow_up ? `Motivo Follow-up: ${l.motivo_follow_up}` : null,
+    l.observacoes ? `Observações: ${l.observacoes}` : null,
+    l.consultor_responsavel ? `Consultor Responsável: ${l.consultor_responsavel}` : null,
+  ].filter(Boolean);
+
+  const qualificationBlock = qualificationLines.length > 0
+    ? `\n  [DADOS DE QUALIFICAÇÃO JÁ COLETADOS]\n  ${qualificationLines.join('\n  ')}`
+    : '';
+
+  const prospectionBlock = isProspectedWithNoHistory
+    ? `\n  [MENSAGEM DE PROSPECÇÃO ENVIADA ANTERIORMENTE]\n  ${mensagemPersonalizada}`
+    : '';
+
+  return `[INSTRUÇÃO DE CONTEXTO]
+  ${behaviorInstruction}
+
+  [DADOS DO LEAD]
   Nome: ${lead.lead || 'Não informado'}
   WhatsApp: ${lead.whatsapp || ''}
-  Lead Encontrado no Banco: ${isNewLead ? 'NÃO - LEAD NOVO' : 'SIM'}
-  Status WhatsApp: ${lead.status_msg_wa || 'not_sent'}
-  Modo Atendimento: ${lead.modo_atendimento || 'bot'}
-  Estágio Pipeline: ${lead.estagio_pipeline || 'Nenhum'}
   Empresa: ${lead.empresa || 'Não informada'}
+  Categoria: ${l.categoria || 'Não informada'}
+  Origem: ${l.origem || 'Não informada'}
+  Status WhatsApp: ${lead.status_msg_wa || 'not_sent'}
+  Estágio Pipeline: ${lead.estagio_pipeline || 'Nenhum'}
+  Última Interação: ${lead.data_ultima_interacao || 'Nunca'}${qualificationBlock}${prospectionBlock}
 
   [HISTÓRICO DE CONVERSAS]
   ${formattedHistory}
 
-  [MENSAGEM RECEBIDA]
+  [MENSAGEM RECEBIDA AGORA]
   ${processedMessage}`;
 }
 

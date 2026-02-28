@@ -1490,4 +1490,28 @@ Authorization: `Bearer ${getCurrentOpenAIKey()}`
 
 ---
 
+### feat: Contexto enriquecido para lead retornando (2026-02-28)
+
+**Arquivo:** `src/lib/ai/ai-agent.service.ts` — função `buildUserPrompt`
+
+**Problema:** O agente recebia contexto mínimo do lead (6 campos) e sem instrução comportamental sobre como tratar leads retornantes vs. novos. Isso causava o agente se reapresentar, repetir perguntas já respondidas e ignorar o estágio atual da qualificação.
+
+**Solução:** Três melhorias no `buildUserPrompt`:
+
+**1. Instrução comportamental por tipo de contato:**
+- `isNewLead=true` → "NOVO CONTATO — faça abordagem inicial"
+- `isNewLead=false, sem histórico, com mensagem de prospecção` → "LEAD PROSPECTADO RETORNANDO — não se reapresente, você já enviou mensagem"
+- `isNewLead=false, com histórico` → "LEAD RETORNANDO — NÃO se reapresente, NÃO repita perguntas já respondidas"
+- `isNewLead=false, sem histórico` → "LEAD EXISTENTE — trate como retorno com naturalidade"
+
+**2. Dados completos de qualificação:**
+Campos adicionados ao contexto (só exibidos se preenchidos):
+- `faturamento_declarado`, `usa_meios_pagamento`, `motivo_follow_up`
+- `observacoes`, `consultor_responsavel`, `categoria`, `origem`, `data_ultima_interacao`
+
+**3. `mensagem_personalizada` para leads prospectados:**
+Quando `isNewLead=false`, histórico vazio e `mensagem_personalizada` existe, o agente recebe a mensagem original de prospecção como contexto do contato anterior — permitindo retomada natural sem perda de contexto.
+
+---
+
 *Próxima atualização: registrar aqui ao fazer qualquer mudança significativa.*
