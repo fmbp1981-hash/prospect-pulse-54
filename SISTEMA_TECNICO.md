@@ -1,6 +1,6 @@
 # SISTEMA_TECNICO.md — LeadFinder Pro / XPAG Brasil
 > **Arquivo vivo.** Atualizar a cada mudança significativa de código, arquitetura ou infraestrutura.
-> Última atualização: 2026-02-25
+> Última atualização: 2026-02-28
 
 ---
 
@@ -632,6 +632,7 @@ user_webhook_url           text
 -- Status de setup
 integration_configured     bool DEFAULT false
 pending_setup              bool DEFAULT true
+approved_by                uuid REFERENCES auth.users  -- admin que aprovou
 created_at / updated_at timestamptz
 ```
 
@@ -799,6 +800,28 @@ Disparo em massa de mensagens WhatsApp.
 
 ---
 
+### `POST /api/admin/init-user-settings`
+Inicializa `user_settings` para novo usuário no momento do cadastro.
+
+**Auth:** Pública (usa service role internamente — sem risco de escalada)
+**Body:** `{ userId: string }`
+**Ação:** Upsert com `role='visualizador'`, `pending_setup=true`. Ignora se já existir.
+**Uso:** Chamada pelo `AuthContext` logo após `supabase.auth.signUp()`
+
+---
+
+### `POST /api/admin/approve-user`
+Aprova um usuário pendente e define seu role definitivo.
+
+**Auth:** Somente admin (`email=fmbp1981@gmail.com` + `role='admin'` no banco)
+**Body:** `{ userId: string, newRole: 'operador' | 'visualizador' | 'admin' }`
+**Ação:**
+1. Valida identidade do admin (dupla verificação: JWT + banco)
+2. Atualiza `user_settings`: `role=newRole`, `pending_setup=false`, `approved_by=adminId`
+3. Envia email de aprovação via Resend com branding IntelliX.AI
+
+---
+
 ## 7. Serviços e Componentes Core
 
 ### `XpagLeadHandlerWorkflow` — Orquestrador Principal
@@ -809,6 +832,7 @@ Disparo em massa de mensagens WhatsApp.
 | Passo | Timeout | Ação | Fallback |
 |-------|---------|------|---------|
 | 1 | 5s | Resolver tenant por instância Evolution | Aborta |
+| 1C | — | Definir chave OpenAI do tenant via `withOpenAIKey()` | Usa `OPENAI_API_KEY` global |
 | 2 | — | Checar comando `#finalizado` | Volta modo bot |
 | 3 | 8s | Buscar ou criar lead | Log, continua |
 | 4 | — | Checar modo `humano` | Salva msg, não responde |
@@ -1058,6 +1082,21 @@ Agente IA atualiza lead no banco
 
 ## 9. Sistema de Roles e Permissões (RBAC)
 
+### Ciclo de Vida de um Usuário
+
+```
+signUp()
+  → POST /api/admin/init-user-settings
+    → user_settings: role='visualizador', pending_setup=true
+  → Middleware detecta pending_setup=true
+    → Redireciona para /pending (página de aguardo)
+  → Admin aprova em /settings aba "Pendentes"
+    → POST /api/admin/approve-user { userId, newRole }
+      → pending_setup=false, role=newRole, approved_by=adminId
+      → Email de aprovação enviado via Resend
+  → Usuário acessa normalmente com o role definido
+```
+
 ### Roles Disponíveis
 
 | Role | Descrição |
@@ -1065,6 +1104,7 @@ Agente IA atualiza lead no banco
 | `admin` | Acesso total. Só para email `fmbp1981@gmail.com` com `role='admin'` |
 | `operador` | Cria, edita, deleta leads. Configura Agente de IA e RAG. Não pode ações em massa |
 | `visualizador` | Somente leitura e exportação |
+| *(pendente)* | `pending_setup=true` — bloqueado em `/pending` até aprovação do admin |
 
 ### Mapa de Permissões
 
@@ -1384,6 +1424,69 @@ CREATE TABLE public.audit_logs (
 **Problema:** Tabela não existia → `GET /rest/v1/audit_logs` retornava 404 → aba "Logs de Auditoria" em `/integrations` exibia erro silencioso.
 
 **Impacto:** Logs de `EXPORT_LEADS`, `WHATSAPP_DISPATCH`, `START_PROSPECTION`, `BULK_DELETE_LEADS` agora são persistidos e exibidos na página de Integrações.
+
+---
+
+### feat: Fluxo de aprovação de usuários (2026-02-27)
+
+**Arquivos criados:**
+- `app/(protected)/pending/page.tsx` — página de aguardo de aprovação
+- `app/api/admin/init-user-settings/route.ts` — inicializa user_settings no signup
+- `app/api/admin/approve-user/route.ts` — aprova usuário e envia email
+
+**Arquivos modificados:**
+- `lib/supabase/middleware.ts` — redireciona `pending_setup=true` para `/pending`
+- `src/contexts/AuthContext.tsx` — chama `init-user-settings` após signUp
+- `src/hooks/useUserRole.ts` — expõe `isPending` baseado em `pending_setup`
+- `src/components/RoleManagement.tsx` — aba "Pendentes" com ação de aprovação + seletor de role
+- `src/components/AppSidebar.tsx` — oculta itens de navegação para usuários pendentes
+- `app/(protected)/settings/page.tsx` — aba "Pendentes" visível para admin
+- `app/(protected)/page.tsx` e `leads/page.tsx` — guards de role atualizados
+- `src/lib/userSettings.ts` — campo `approved_by` na interface e operações
+
+**Supabase Migration:**
+```sql
+ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS approved_by uuid REFERENCES auth.users(id);
+```
+
+**Fluxo:**
+1. Novo cadastro → `role=visualizador`, `pending_setup=true`
+2. Middleware redireciona para `/pending`
+3. Admin aprova em `/settings` aba "Pendentes" → define role
+4. Email de aprovação enviado via Resend (remetente: IntelliX.AI)
+5. Usuário acessa normalmente
+
+---
+
+### feat: Chave OpenAI configurável por tenant (2026-02-28)
+
+**Arquivo criado:**
+- `src/lib/ai/openai-key-context.ts` — AsyncLocalStorage para propagar chave OpenAI do tenant
+
+**Arquivos modificados:**
+- `src/lib/services/tenant-resolver.service.ts` — `TenantContext` com campo `openaiApiKey?`
+- `src/lib/workflows/xpag-lead-handler.workflow.ts` — Step 1C: encapsula pipeline em `withOpenAIKey(tenant.openaiApiKey)`
+- `src/lib/ai/ai-agent.service.ts` — migrado para `getCurrentOpenAIKey()`
+- `src/lib/ai/rag/embeddings.service.ts` — migrado para `getCurrentOpenAIKey()`
+- `src/lib/integrations/openai/vision.service.ts` — migrado para `getCurrentOpenAIKey()`
+- `src/lib/integrations/openai/whisper.service.ts` — migrado para `getCurrentOpenAIKey()`
+- `src/lib/services/message-humanizer.service.ts` — migrado para `getCurrentOpenAIKey()`
+- `src/lib/services/pdf-analyzer.service.ts` — migrado para `getCurrentOpenAIKey()`
+- `src/lib/ai/tools/transfer-consultant.tool.ts` — fix: `leadPipelineStage` substituindo `leadStatus`
+- `supabase/functions/prospection/index.ts` — cliente service role para bypass de RLS com `user_id` do JWT
+
+**Como funciona:**
+```typescript
+// No workflow, ao resolver o tenant:
+const openaiKey = tenant.openaiApiKey || process.env.OPENAI_API_KEY!;
+return withOpenAIKey(openaiKey, () => runWorkflowSteps(...));
+
+// Em qualquer serviço OpenAI:
+Authorization: `Bearer ${getCurrentOpenAIKey()}`
+// → retorna chave do tenant se disponível, senão OPENAI_API_KEY global
+```
+
+**Impacto:** Cada tenant pode ter sua própria chave OpenAI configurada em `user_settings`. Env var `OPENAI_API_KEY` mantida como fallback global.
 
 ---
 
