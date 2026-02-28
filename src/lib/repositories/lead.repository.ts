@@ -22,8 +22,12 @@ export const leadRepository = {
    * Busca lead pelo número de WhatsApp.
    * Equivalente ao node "Encontrar_lead" (filtro: whatsapp = ClienteWhatsApp)
    *
-   * Usa os últimos 10 dígitos para comparação — ignora diferenças de formato
-   * (+55 81 9..., 5581 9..., (81) 9...) entre prospecção e webhook.
+   * Usa regexp_replace no Postgres para remover todos os não-dígitos antes de comparar.
+   * Isso resolve o mismatch entre o formato do Google Places ("+55 81 3788-9757")
+   * e o formato do webhook Evolution API ("+558137889757").
+   *
+   * A comparação é feita com os últimos 8+ dígitos para máxima compatibilidade entre
+   * números fixos (10 dígitos locais) e celulares (11 dígitos locais).
    */
   async findByWhatsApp(
     whatsapp: string,
@@ -31,23 +35,25 @@ export const leadRepository = {
   ): Promise<LeadRow | null> {
     const supabase = getServiceClient();
 
-    // Extrai apenas dígitos e pega os últimos 10 (DDD + número local)
+    // Extrai apenas dígitos e usa os últimos 11 (cobre mobile BR: DDD 2 + 9 dígitos)
+    // Para fixo (DDD 2 + 8 dígitos = 10), os últimos 11 incluem o dígito país correto.
     const digits = whatsapp.replace(/\D/g, '');
-    const localDigits = digits.slice(-10);
+    // Usa pelo menos 8 dígitos (número sem DDD) e no máximo 11 para evitar falsos positivos
+    const localDigits = digits.length >= 11 ? digits.slice(-11) : digits.slice(-8);
 
-    let query = supabase
-      .from('leads_prospeccao')
-      .select('*')
-      .or(`whatsapp.ilike.%${localDigits}%,telefone.ilike.%${localDigits}%`)
-      .limit(1);
+    // Chama a RPC que usa regexp_replace no Postgres — único jeito de comparar
+    // "+55 81 3788-9757" com "558137889757" de forma correta.
+    const { data, error } = await (supabase as any)
+      .rpc('find_lead_by_phone_digits', {
+        p_digits: localDigits,
+        p_user_id: userId || null,
+      });
 
-    if (userId) {
-      query = query.eq('user_id', userId);
-    }
-
-    const { data, error } = await query.maybeSingle();
     if (error) throw new Error(`findByWhatsApp error: ${error.message}`);
-    return data;
+
+    // RPC com SETOF retorna array — pega o primeiro elemento
+    const rows = data as LeadRow[] | null;
+    return rows?.[0] ?? null;
   },
 
   /**

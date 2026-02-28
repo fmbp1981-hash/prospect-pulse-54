@@ -62,12 +62,19 @@ export const leadService = {
 
     const leadRef = await generateNextLeadRef(input.userId);
 
+    // Normaliza para formato compacto "+55XXXXXXXXXX" — garante consistência no banco
+    const normalizePhone = (p: string) => {
+      const d = p.replace(/\D/g, '');
+      if (!d) return p;
+      return d.startsWith('55') ? `+${d}` : `+55${d}`;
+    };
+
     const newLead = await leadRepository.create({
       id: generateOrganicId(),
-      lead: leadRef,             // Nº do lead: ORG-001, ORG-002, etc.
-      empresa: input.clienteNome, // Orgânico: empresa = nome até ser informado
-      whatsapp: input.clienteWhatsApp,
-      telefone: input.clienteTelefone,
+      lead: leadRef,
+      empresa: input.clienteNome,
+      whatsapp: normalizePhone(input.clienteWhatsApp),
+      telefone: input.clienteTelefone ? normalizePhone(input.clienteTelefone) : input.clienteTelefone,
       status: 'Novo Lead',
       estagio_pipeline: 'Novo Lead',
       categoria: 'Lead Orgânico',
