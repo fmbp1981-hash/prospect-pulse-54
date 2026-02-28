@@ -19,6 +19,8 @@ export interface UserSettings {
   consultant_whatsapp?: string;
   // Liga/desliga o agente de IA para este tenant
   agent_enabled?: boolean;
+  // Chave de API OpenAI por tenant (sobrepõe variável de ambiente OPENAI_API_KEY)
+  openai_api_key?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -100,6 +102,7 @@ export const userSettingsService = {
             meta_verify_token: settings.meta_verify_token,
             consultant_whatsapp: settings.consultant_whatsapp,
             agent_enabled: settings.agent_enabled ?? true,
+            openai_api_key: settings.openai_api_key ?? null,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", user.id)
@@ -125,6 +128,7 @@ export const userSettingsService = {
             meta_verify_token: settings.meta_verify_token,
             consultant_whatsapp: settings.consultant_whatsapp,
             agent_enabled: settings.agent_enabled ?? true,
+            openai_api_key: settings.openai_api_key ?? null,
           })
           .select()
           .single();

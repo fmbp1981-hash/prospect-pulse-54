@@ -84,31 +84,35 @@ export default function LeadsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
-  const loadLeads = useCallback(async () => {
-    setIsLoading(true);
+  const loadLeads = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const result = await supabaseCRM.syncAllLeads();
 
       if (result.success) {
         setLeads(Array.isArray(result.leads) ? result.leads : []);
       } else {
-        toast.error("Erro ao carregar leads", {
-          description: result.message || "Erro ao acessar banco de dados",
-        });
+        if (!silent) {
+          toast.error("Erro ao carregar leads", {
+            description: result.message || "Erro ao acessar banco de dados",
+          });
+        }
       }
     } catch (error) {
       console.error("Erro ao carregar leads:", error);
-      toast.error("Erro ao carregar leads", {
-        description: error instanceof Error ? error.message : "Erro desconhecido",
-      });
+      if (!silent) {
+        toast.error("Erro ao carregar leads", {
+          description: error instanceof Error ? error.message : "Erro desconhecido",
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, []);
 
   const handleSync = async () => {
     setIsSyncing(true);
-    await loadLeads();
+    await loadLeads(false);
     setIsSyncing(false);
     toast.success("Leads atualizados!");
   };
@@ -117,14 +121,15 @@ export default function LeadsPage() {
     loadLeads();
   }, [loadLeads]);
 
-  // Realtime: atualiza tabela quando o agente altera um lead no banco
+  // Realtime: atualiza tabela silenciosamente quando o agente altera um lead no banco
+  // (silent=true evita o spinner de tela cheia a cada mensagem recebida)
   useEffect(() => {
     const channel = supabase
       .channel('leads-table-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leads_prospeccao' },
-        () => { loadLeads(); }
+        () => { loadLeads(true); }
       )
       .subscribe();
 

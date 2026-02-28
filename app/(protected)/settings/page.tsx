@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload, Phone, UserCheck } from "lucide-react";
 import { userSettingsService } from "@/lib/userSettings";
+import { supabase } from "@/integrations/supabase/client";
 import { RoleGuard } from "@/components/RoleGuard";
 import { RoleManagement } from "@/components/RoleManagement";
 import { supabaseCRM, syncAllLeads } from "@/lib/supabaseCRM";
@@ -47,6 +48,10 @@ export default function SettingsPage() {
   // Toggle do agente de IA
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [isSavingAgentToggle, setIsSavingAgentToggle] = useState(false);
+
+  // Configuração da chave OpenAI
+  const [openAiApiKey, setOpenAiApiKey] = useState("");
+  const [showOpenAiKey, setShowOpenAiKey] = useState(false);
 
   // Configurações de Follow-up automático
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
@@ -106,6 +111,7 @@ export default function SettingsPage() {
         setMetaVerifyToken(settings.meta_verify_token || "");
         setConsultantWhatsapp(settings.consultant_whatsapp || "");
         setAgentEnabled((settings as any).agent_enabled !== false);
+        setOpenAiApiKey((settings as any).openai_api_key || "");
       }
 
       // Carregar configurações de Follow-up
@@ -141,6 +147,31 @@ export default function SettingsPage() {
       toast.error("Erro ao carregar configurações");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleToggleAgent = async (enabled: boolean) => {
+    setAgentEnabled(enabled);
+    setIsSavingAgentToggle(true);
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error('Não autenticado');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from('user_settings')
+        .update({ agent_enabled: enabled, updated_at: new Date().toISOString() })
+        .eq('user_id', currentUser.id);
+      if (error) throw error;
+      toast.success(enabled ? 'Agente ativado' : 'Agente pausado', {
+        description: enabled
+          ? 'O agente voltará a responder os leads automaticamente.'
+          : 'Mensagens chegam mas não são respondidas automaticamente.',
+      });
+    } catch {
+      setAgentEnabled(!enabled); // reverter em caso de erro
+      toast.error('Erro ao salvar configuração do agente');
+    } finally {
+      setIsSavingAgentToggle(false);
     }
   };
 
@@ -279,6 +310,7 @@ export default function SettingsPage() {
         meta_verify_token: metaVerifyToken,
         consultant_whatsapp: consultantWhatsapp,
         agent_enabled: agentEnabled,
+        openai_api_key: openAiApiKey || undefined,
       });
 
       // Salvar configurações de Follow-up
@@ -599,6 +631,42 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Chave API OpenAI */}
+            <div className="space-y-2">
+              <Label htmlFor="openai_api_key" className="flex items-center gap-2">
+                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
+                Chave de API OpenAI <span className="text-red-500">*</span>
+              </Label>
+              <div className="flex gap-2 max-w-md">
+                <Input
+                  id="openai_api_key"
+                  type={showOpenAiKey ? "text" : "password"}
+                  placeholder="sk-proj-..."
+                  value={openAiApiKey}
+                  onChange={(e) => setOpenAiApiKey(e.target.value)}
+                  className="font-mono text-sm flex-1"
+                  autoComplete="off"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  onClick={() => setShowOpenAiKey(!showOpenAiKey)}
+                  title={showOpenAiKey ? "Ocultar chave" : "Mostrar chave"}
+                >
+                  {showOpenAiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Chave da sua conta OpenAI (começa com <code className="bg-muted px-1 rounded">sk-proj-</code> ou <code className="bg-muted px-1 rounded">sk-</code>).
+                Obtenha em <span className="font-medium">platform.openai.com/api-keys</span>.
+                Salva via botão "Salvar Configurações" abaixo.
+              </p>
+              {openAiApiKey && !openAiApiKey.startsWith('sk-') && (
+                <p className="text-xs text-red-500">Formato inválido — a chave deve começar com <code>sk-</code></p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="agent_model">Modelo de IA</Label>
               <Select value={agentModel} onValueChange={setAgentModel}>
@@ -840,7 +908,7 @@ export default function SettingsPage() {
               <p className="font-medium">Como o RAG funciona:</p>
               <p>• Documentos são fragmentados em chunks e indexados com embeddings vetoriais (OpenAI)</p>
               <p>• O agente busca automaticamente conhecimento relevante ao responder cada mensagem</p>
-              <p>• Requer <code className="bg-muted px-1 rounded">OPENAI_API_KEY</code> configurada no Vercel</p>
+              <p>• Requer a <strong>Chave de API OpenAI</strong> configurada na seção "Agente de IA" acima</p>
             </div>
           </CardContent>
         </Card>
@@ -1041,11 +1109,15 @@ export default function SettingsPage() {
                     : 'Agente pausado — mensagens chegam mas não são respondidas automaticamente.'}
                 </p>
               </div>
-              <Switch
-                id="agent-toggle"
-                checked={agentEnabled}
-                onCheckedChange={setAgentEnabled}
-              />
+              {isSavingAgentToggle ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                <Switch
+                  id="agent-toggle"
+                  checked={agentEnabled}
+                  onCheckedChange={handleToggleAgent}
+                />
+              )}
             </div>
 
             {/* WhatsApp do Agente (instância Evolution) */}
