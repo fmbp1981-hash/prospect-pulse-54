@@ -57,7 +57,7 @@ export const conversationRepository = {
 
     // Converte cada row em até 2 entradas (lead + agente)
     const entries: ConversationEntry[] = [];
-    const rows = ((data ?? []) as Array<{
+    const rows = ((data ?? []) as unknown as Array<{
       message_lead: string | null;
       message_agent: string | null;
       timestamp: string | null;
@@ -101,7 +101,7 @@ export const conversationRepository = {
       .single();
 
     if (error) throw new Error(`saveLeadMessage error: ${error.message}`);
-    return data as { id: string };
+    return data as unknown as { id: string };
   },
 
   /**
@@ -125,7 +125,7 @@ export const conversationRepository = {
       .order('created_at', { ascending: false })
       .limit(1);
 
-    const rowId = (rows as Array<{ id: string }> | null)?.[0]?.id;
+    const rowId = (rows as unknown as Array<{ id: string }> | null)?.[0]?.id;
 
     if (rowId) {
       // Atualiza a row existente com a resposta do agente

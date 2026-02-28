@@ -16,6 +16,13 @@ export async function updateSession(request: NextRequest) {
   // Rota de pending — usuário autenticado mas aguardando aprovação
   const isPendingRoute = pathname.startsWith('/pending');
 
+  // Rotas de API públicas: retornar imediatamente sem chamar Supabase auth.
+  // O @supabase/ssr pode gerar respostas inesperadas ao processar requests sem cookies,
+  // o que causava redirect de webhooks/crons para /login.
+  if (isPublicApiRoute) {
+    return NextResponse.next({ request });
+  }
+
   // Se o Supabase não está configurado, redirecionar para login se não é rota pública
   if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('⚠️ Supabase não configurado no middleware.');
