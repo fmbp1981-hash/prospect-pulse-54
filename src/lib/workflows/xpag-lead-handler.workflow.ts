@@ -7,6 +7,7 @@
 
 import type { NormalizedMessage } from '../services/message-normalizer.service';
 import { resolveTenantByInstance, isFinalizationCommand } from '../services/tenant-resolver.service';
+import type { TenantContext } from '../services/tenant-resolver.service';
 import { leadService } from '../services/lead.service';
 import { processMessageByType } from '../handlers/message-type.handler';
 import { buildAgentContext } from '../services/agent-context-builder.service';
@@ -17,6 +18,7 @@ import { leadRepository } from '../repositories/lead.repository';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
 import { withTimeout } from '../utils/resilience';
+import { withOpenAIKey } from '../ai/openai-key-context';
 import { randomUUID } from 'crypto';
 
 const STEP_TIMEOUTS = {
@@ -57,6 +59,22 @@ export async function runXpagWorkflow(normalized: NormalizedMessage): Promise<vo
     return;
   }
 
+  // ── STEP 1C: DEFINIR CHAVE OPENAI DO TENANT ──────────────────────────────
+  // withOpenAIKey propaga a chave para todos os serviços OpenAI via AsyncLocalStorage
+  // (whisper, vision, pdf, agent, humanizer, embeddings) sem mudar assinaturas.
+  const openaiKey = tenant.openaiApiKey || process.env.OPENAI_API_KEY!;
+  return withOpenAIKey(openaiKey, () => runWorkflowSteps(normalized, tenant, logger, correlationId));
+}
+
+/**
+ * Steps 2-10 do workflow, executados dentro do contexto da chave OpenAI do tenant.
+ */
+async function runWorkflowSteps(
+  normalized: NormalizedMessage,
+  tenant: TenantContext,
+  logger: WorkflowLogger,
+  correlationId: string
+): Promise<void> {
   // ── STEP 2: COMANDO #FINALIZADO ──────────────────────────────────────────
   if (isFinalizationCommand(normalized.mensagem)) {
     const lead = await leadRepository.findByWhatsApp(normalized.clienteWhatsApp, tenant.userId);

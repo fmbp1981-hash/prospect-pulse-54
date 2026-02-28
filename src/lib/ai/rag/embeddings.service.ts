@@ -4,6 +4,7 @@
  */
 
 import { openAICircuit, withRetry } from '@/lib/utils/resilience';
+import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
@@ -16,7 +17,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
       const response = await fetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${getCurrentOpenAIKey()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -48,7 +49,7 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<number[]
       const response = await fetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${getCurrentOpenAIKey()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

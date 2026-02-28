@@ -12,6 +12,7 @@ export interface TenantContext {
   companyName: string;
   instanceName: string;
   agentEnabled: boolean;
+  openaiApiKey?: string;
 }
 
 function getServiceClient() {
@@ -54,15 +55,18 @@ export async function resolveTenantByInstance(
   const supabase2 = getServiceClient();
   const { data: settings } = await supabase2
     .from('user_settings')
-    .select('agent_enabled')
+    .select('agent_enabled, openai_api_key')
     .eq('user_id', result.user_id)
     .single();
+
+  const s = settings as { agent_enabled?: boolean; openai_api_key?: string } | null;
 
   return {
     userId: result.user_id,
     companyName: result.company_name || '',
     instanceName,
-    agentEnabled: (settings as { agent_enabled?: boolean } | null)?.agent_enabled ?? true,
+    agentEnabled: s?.agent_enabled ?? true,
+    openaiApiKey: s?.openai_api_key || undefined,
   };
 }
 

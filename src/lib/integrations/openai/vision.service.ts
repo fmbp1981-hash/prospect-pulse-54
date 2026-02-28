@@ -3,11 +3,13 @@
  * Equivalente nativo ao node "Analise Imagem" (GPT-4 Vision) do n8n.
  */
 
+import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+
 export async function analyzeImage(
   imageBuffer: Buffer,
   mimetype = 'image/jpeg'
 ): Promise<string> {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const OPENAI_API_KEY = getCurrentOpenAIKey();
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
   const base64 = imageBuffer.toString('base64');

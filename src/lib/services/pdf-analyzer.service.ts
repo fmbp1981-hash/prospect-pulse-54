@@ -4,8 +4,10 @@
  * Extrai texto de PDF e resume usando GPT.
  */
 
+import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+
 export async function analyzePdf(pdfBuffer: Buffer): Promise<string> {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const OPENAI_API_KEY = getCurrentOpenAIKey();
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
   const base64 = pdfBuffer.toString('base64');

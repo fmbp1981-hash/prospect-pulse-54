@@ -590,6 +590,9 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Cliente autenticado com JWT do usuário (para user_settings e auth.getUser)
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
@@ -597,6 +600,22 @@ serve(async (req) => {
         }
       }
     });
+
+    // Cliente service role — usado para inserts em leads_prospeccao (bypassa RLS)
+    // user_id é passado explicitamente no insert para garantir isolamento multi-tenant
+    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
+
+    // Extrair user_id autenticado do JWT
+    let effectiveUserId: string | null = user_id || null;
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser?.id) effectiveUserId = authUser.id;
+    } catch {
+      console.warn('⚠️ Não foi possível extrair user_id do JWT, usando body');
+    }
+    console.log('👤 user_id efetivo:', effectiveUserId);
 
     // Buscar configurações do usuário (Evolution API personalizada)
     try {
@@ -775,6 +794,7 @@ serve(async (req) => {
         estagio_pipeline: 'Novo Lead',
         data: new Date().toLocaleDateString('pt-BR'),
         resumo_analitico: place.enrichedSummary || null,
+        user_id: effectiveUserId,
       };
     }));
 
@@ -798,8 +818,8 @@ serve(async (req) => {
     const insertErrors: Array<{ empresa: string; error: string }> = [];
 
     if (leadsToInsert.length > 0) {
-      // Obter próximo número de lead
-      let nextLeadNumber = await getNextLeadNumber(supabase);
+      // Obter próximo número de lead (usa adminSupabase para bypass RLS)
+      let nextLeadNumber = await getNextLeadNumber(adminSupabase);
       console.log(`🔢 Iniciando numeração a partir de: Lead-${String(nextLeadNumber).padStart(3, '0')}`);
 
       for (const lead of leadsToInsert) {
@@ -824,8 +844,8 @@ serve(async (req) => {
 
           console.log(`\n🔍 Verificando duplicata para: ${lead.empresa}`);
 
-          // Verificar se o lead já existe
-          const { data: existingLead, error: checkError } = await supabase
+          // Verificar se o lead já existe (usa adminSupabase para bypass RLS)
+          const { data: existingLead, error: checkError } = await adminSupabase
             .from('leads_prospeccao')
             .select('id, status, lead')
             .eq('id', lead.id)
@@ -858,7 +878,7 @@ serve(async (req) => {
               link_gmn: leadToInsert.link_gmn
             });
 
-            const { error: insertError } = await supabase
+            const { error: insertError } = await adminSupabase
               .from('leads_prospeccao')
               .insert(leadToInsert);
 

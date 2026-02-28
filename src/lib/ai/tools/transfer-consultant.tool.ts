@@ -68,7 +68,7 @@ export const transferConsultantTool: AgentTool = {
     const lead = await leadRepository.findByWhatsApp(ctx.whatsapp, ctx.userId);
     const leadName = lead?.lead || 'Lead';
     const leadCompany = lead?.empresa || 'Empresa não informada';
-    const leadStatus = lead?.status_msg_wa || '-';
+    const leadPipelineStage = lead?.estagio_pipeline || '-';
     const motivo = (args.motivo as string) || 'Lead qualificado';
 
     // 2. Atualiza lead no banco
@@ -110,7 +110,7 @@ export const transferConsultantTool: AgentTool = {
       `👤 *Nome:* ${leadName}\n` +
       `🏢 *Empresa:* ${leadCompany}\n` +
       `📱 *WhatsApp:* ${ctx.whatsapp}\n` +
-      `📊 *Status:* ${leadStatus}\n` +
+      `📋 *Estágio:* ${leadPipelineStage}\n` +
       `💬 *Motivo:* ${motivo}\n\n` +
       `_Enviado automaticamente pelo sistema XPAG_`;
 

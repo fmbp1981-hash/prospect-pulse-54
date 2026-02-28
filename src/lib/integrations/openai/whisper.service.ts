@@ -3,11 +3,13 @@
  * Equivalente nativo ao node "Transcrever Áudio" (OpenAI Whisper) do n8n.
  */
 
+import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+
 export async function transcribeAudio(
   audioBuffer: Buffer,
   mimetype = 'audio/ogg'
 ): Promise<string> {
-  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  const OPENAI_API_KEY = getCurrentOpenAIKey();
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
 
   const extension = mimetype.split('/')[1]?.split(';')[0] || 'ogg';

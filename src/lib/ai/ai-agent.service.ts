@@ -9,6 +9,7 @@
  */
 
 import { agentConfigService } from './agent-config.service';
+import { getCurrentOpenAIKey } from './openai-key-context';
 import { buildRagContext } from './rag/rag.service';
 import { updateLeadTool } from './tools/update-lead.tool';
 import { transferConsultantTool } from './tools/transfer-consultant.tool';
@@ -101,7 +102,7 @@ async function callOpenAI(
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          Authorization: `Bearer ${getCurrentOpenAIKey()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),

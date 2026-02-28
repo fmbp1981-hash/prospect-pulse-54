@@ -4,7 +4,9 @@
  * Divide a resposta do agente em mensagens menores e mais naturais (≤ 240 chars).
  */
 
-const OPENAI_API_KEY = () => process.env.OPENAI_API_KEY!;
+import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+
+const OPENAI_API_KEY = () => getCurrentOpenAIKey();
 const HUMANIZER_MODEL = 'gpt-4.1-mini';
 const MAX_CHARS_PER_MESSAGE = 240;
 
