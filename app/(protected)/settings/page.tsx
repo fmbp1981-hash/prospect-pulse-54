@@ -660,7 +660,7 @@ export default function SettingsPage() {
               <p className="text-xs text-muted-foreground">
                 Chave da sua conta OpenAI (começa com <code className="bg-muted px-1 rounded">sk-proj-</code> ou <code className="bg-muted px-1 rounded">sk-</code>).
                 Obtenha em <span className="font-medium">platform.openai.com/api-keys</span>.
-                Salva via botão "Salvar Configurações" abaixo.
+                Salva via botão &ldquo;Salvar Configurações&rdquo; abaixo.
               </p>
               {openAiApiKey && !openAiApiKey.startsWith('sk-') && (
                 <p className="text-xs text-red-500">Formato inválido — a chave deve começar com <code>sk-</code></p>
@@ -908,7 +908,7 @@ export default function SettingsPage() {
               <p className="font-medium">Como o RAG funciona:</p>
               <p>• Documentos são fragmentados em chunks e indexados com embeddings vetoriais (OpenAI)</p>
               <p>• O agente busca automaticamente conhecimento relevante ao responder cada mensagem</p>
-              <p>• Requer a <strong>Chave de API OpenAI</strong> configurada na seção "Agente de IA" acima</p>
+              <p>• Requer a <strong>Chave de API OpenAI</strong> configurada na seção &ldquo;Agente de IA&rdquo; acima</p>
             </div>
           </CardContent>
         </Card>
