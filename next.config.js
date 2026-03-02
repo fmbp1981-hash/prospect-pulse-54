@@ -9,6 +9,8 @@ const nextConfig = {
       'date-fns',
       'recharts',
     ],
+    // Externaliza pacotes que não devem ser bundlados no servidor
+    serverComponentsExternalPackages: ['pdf-parse'],
   },
 
   // Configuração de imagens externas (se necessário)

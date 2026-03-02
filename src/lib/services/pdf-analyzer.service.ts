@@ -8,8 +8,10 @@
  * 3. Fallback: retorna o texto bruto se o GPT falhar
  */
 
+// Importa lib interna diretamente para evitar o código de teste no index.js
+// que tenta ler 'test/data/05-versions-space.pdf' durante o build do Next.js
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require('pdf-parse') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
+const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
 import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
 
 const MAX_CHARS_TO_GPT = 8000; // Limita o texto enviado ao GPT (~2k tokens)
