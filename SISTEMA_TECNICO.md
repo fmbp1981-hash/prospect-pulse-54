@@ -1550,6 +1550,21 @@ Webhook configurado com `webhookBase64: false` (base64 não vem no payload). O f
 
 ---
 
+### fix: pdf-parse v2→v1.1.1 — compatibilidade Vercel Lambda (2026-03-02)
+
+**Commit:** `2527f14`
+
+**Problema:** `pdf-parse@2.4.5` depende de `@napi-rs/canvas@0.1.80` e `pdfjs-dist@5.x`, que exigem binários nativos (`DOMMatrix`, módulos napi) incompatíveis com o runtime Vercel Lambda. Resultado: webhook `/api/webhooks/evolution` lançava `ReferenceError: DOMMatrix is not defined` em toda requisição → agente de IA totalmente inoperante em produção.
+
+**Arquivos modificados:**
+- `package.json` — downgrade `pdf-parse 2.4.5 → 1.1.1`
+- `src/lib/services/pdf-analyzer.service.ts` — import via `pdf-parse/lib/pdf-parse.js` (bypassa o `index.js` que tenta ler `test/data/05-versions-space.pdf` durante `next build`)
+- `next.config.js` — adicionado `serverComponentsExternalPackages: ['pdf-parse']`
+
+**Resultado:** Build e deploy bem-sucedidos. Webhook retorna 200. Agente de IA operacional.
+
+---
+
 ### fix: security — cron auth guard, CORS, CSP, webhook token validation (2026-03-02)
 
 **Contexto:** Bateria de testes E2E (Seção 15) identificou múltiplas vulnerabilidades de segurança.
@@ -1728,8 +1743,8 @@ Falhou: Latência webhook média 1.16s > threshold 1.0s (Vercel cold start — e
 
 1. ✅ Executar todas as 7 fases E2E
 2. ✅ Corrigir BUG-01 a BUG-08 (segurança crítica + headers)
-3. ⬜ **Verificar Vercel Dashboard** — deploy stuck (ver 15.7)
-4. ⬜ Re-executar Fases 1, 2, 3, 5 após deploy confirmado
+3. ✅ Deploy confirmado em produção (commit `2527f14` — 2026-03-02)
+4. ⬜ Re-executar Fases 1, 2, 3, 5 com deploy novo para validar
 5. ⬜ Adicionar favicon ao projeto (BUG-13)
 6. ⬜ Adicionar `aria-label` nos botões de ícone de senha (BUG-11/12)
 
@@ -1756,6 +1771,6 @@ becb415  fix: early return para rotas de API públicas   (2026-02-28)
 - Preview URLs criadas (ex: `prospect-pulse-54-aj3bio5th-felipe-maranhaos-projects.vercel.app`) retornam 401 (Vercel auth) — deployment EXISTS mas não promovido a produção
 - URL de produção `prospect-pulse-54.vercel.app` ainda serve commit `1a4ca99868be`
 
-**Hipótese:** Build da preview deployment PASSA, mas promoção para produção FALHA. Possível causa: configuração de "Deployment Protection", limite do plano Hobby após muitas falhas, ou erro na promoção de domínio.
+**Causa raiz identificada (2026-03-02):** `pdf-parse@2.4.5` depende de `@napi-rs/canvas@0.1.80` (binário nativo), causando `ReferenceError: DOMMatrix is not defined` no runtime Vercel Lambda. Os 6 commits falhavam silenciosamente no runtime, não no build.
 
-**Ação necessária:** Verificar Vercel Dashboard → projeto `prospect-pulse-54` → aba Deployments → ver erro completo no deploy mais recente → ou acionar redeploy manual via Vercel CLI (`vercel --prod`).
+**Resolução:** Ver seção abaixo — `fix: pdf-parse v2→v1.1.1` (commit `2527f14`). ✅ Deploy confirmado em produção.
