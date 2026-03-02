@@ -1732,10 +1732,12 @@ Falhou: Latência webhook média 1.16s > threshold 1.0s (Vercel cold start — e
 
 | ID | Fase | Descrição | Prioridade |
 |----|------|-----------|------------|
-| BUG-11 | 6 | 1 botão em `/login` sem `aria-label` (ícone visibilidade senha) | 🔵 Menor |
-| BUG-12 | 6 | 2 botões em `/signup` sem `aria-label` | 🔵 Menor |
-| BUG-13 | 6 | Favicon ausente em login/signup | 🔵 Menor |
-| BUG-09 | 7 | Webhook cold-start latência > 1s (Vercel Hobby) | ℹ️ Esperado |
+| BUG-11 | 6 | 1 botão em `/login` sem `aria-label` (ícone visibilidade senha) | ✅ Corrigido `353754c` |
+| BUG-12 | 6 | 2 botões em `/signup` sem `aria-label` | ✅ Corrigido `353754c` |
+| BUG-13 | 6 | Favicon ausente em login/signup | ✅ Corrigido `353754c` |
+| BUG-09 | 7 | Webhook cold-start latência > 1s (Vercel Hobby) | ℹ️ Esperado — plano Hobby |
+
+**Todos os bugs identificados nas 7 fases E2E foram resolvidos.** Zero bugs pendentes não-esperados.
 
 ---
 
@@ -1744,9 +1746,9 @@ Falhou: Latência webhook média 1.16s > threshold 1.0s (Vercel cold start — e
 1. ✅ Executar todas as 7 fases E2E
 2. ✅ Corrigir BUG-01 a BUG-08 (segurança crítica + headers)
 3. ✅ Deploy confirmado em produção (commit `2527f14` — 2026-03-02)
-4. ⬜ Re-executar Fases 1, 2, 3, 5 com deploy novo para validar
-5. ⬜ Adicionar favicon ao projeto (BUG-13)
-6. ⬜ Adicionar `aria-label` nos botões de ícone de senha (BUG-11/12)
+4. ✅ Adicionar favicon ao projeto (BUG-13) — commit `353754c`
+5. ✅ Adicionar `aria-label` nos botões de ícone de senha (BUG-11/12) — commit `353754c`
+6. ⬜ Re-executar Fases 1, 2, 3, 5 com o sistema em produção estável
 
 ---
 
