@@ -60,6 +60,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
+  // Ignora payloads nulos ou não-objetos (ex: body = null, body = 42)
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ ignored: true }, { status: 200 });
+  }
+
   const provider = getWhatsAppProvider();
 
   // Usa o provider para normalizar o payload (cada um tem seu formato)

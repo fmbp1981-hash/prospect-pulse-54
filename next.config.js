@@ -39,6 +39,11 @@ const nextConfig = {
         source: '/:path*',
         headers: [
           {
+            // Restringe CORS para rotas de página — sobrescreve o * padrão do Vercel CDN
+            key: 'Access-Control-Allow-Origin',
+            value: process.env.NEXT_PUBLIC_APP_URL || 'https://prospect-pulse-54.vercel.app',
+          },
+          {
             key: 'X-Frame-Options',
             value: 'DENY',
           },

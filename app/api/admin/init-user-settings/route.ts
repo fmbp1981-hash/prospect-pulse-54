@@ -15,8 +15,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as { userId?: string };
     const { userId } = body;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    // Valida formato UUID antes de tocar no banco — evita 500 com payloads maliciosos
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!userId || typeof userId !== 'string' || !UUID_REGEX.test(userId)) {
+      return NextResponse.json({ error: 'userId must be a valid UUID' }, { status: 400 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
