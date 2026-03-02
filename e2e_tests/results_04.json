@@ -1,1 +1,1 @@
-{"passed": 8, "failed": 3, "errors": [{"test": "fromMe=true retorna 200 sem processar", "detail": "Status: 405"}, {"test": "Mensagem de grupo ignorada (200 + ignored)", "detail": "Status: 405"}, {"test": "Rota API inexistente /api/rota-api-inexistente", "detail": "Retornou 200"}]}
+{"passed": 11, "failed": 0, "errors": []}

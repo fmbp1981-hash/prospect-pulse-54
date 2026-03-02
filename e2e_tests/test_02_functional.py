@@ -281,6 +281,11 @@ async def run():
 
         # Login deve ter link para signup
         await page.goto(f"{BASE_URL}/login", wait_until="networkidle", timeout=30000)
+        # Aguarda hydration React completar antes de avaliar os links
+        try:
+            await page.wait_for_selector("a[href]", timeout=8000)
+        except Exception:
+            pass
         has_signup_link = await page.evaluate("""
             () => {
                 var links = Array.from(document.querySelectorAll('a[href]'));
@@ -297,6 +302,10 @@ async def run():
 
         # Signup deve ter link para login
         await page.goto(f"{BASE_URL}/signup", wait_until="networkidle", timeout=30000)
+        try:
+            await page.wait_for_selector("a[href]", timeout=8000)
+        except Exception:
+            pass
         has_login_link = await page.evaluate("""
             () => {
                 var links = Array.from(document.querySelectorAll('a[href]'));

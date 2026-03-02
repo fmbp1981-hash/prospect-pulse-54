@@ -1,1 +1,1 @@
-{"passed": 13, "failed": 2, "errors": [{"test": "API auth /api/agent/config", "detail": "Retornou 200 com token inválido"}, {"test": "API auth /api/agent/rag", "detail": "Retornou 200 com token inválido"}]}
+{"passed": 15, "failed": 0, "errors": []}

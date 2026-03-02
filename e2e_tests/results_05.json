@@ -1,1 +1,1 @@
-{"passed": 12, "failed": 5, "errors": [{"test": "Content-Security-Policy presente", "detail": "CSP ausente — adicionado no fix de seguranca"}, {"test": "Permissions-Policy presente", "detail": "Header ausente"}, {"test": "CORS nao permite origens arbitrarias", "detail": "CORS permite: *"}, {"test": "approve-user com token invalido -> 403", "detail": "Retornou 307 — poderia ter aprovado indevidamente"}, {"test": "Webhook verify_token invalido -> 403", "detail": "Retornou 307 — esperado 403"}]}
+{"passed": 17, "failed": 0, "errors": []}
