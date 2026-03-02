@@ -239,11 +239,11 @@ function TabSetup() {
         <CardContent className="space-y-0">
           <Step n={1} title="Acesse Configurações → Informações da Empresa">
             <p>Preencha o nome da sua empresa, segmento e site. Essas informações são usadas pelo agente de IA para personalizar as mensagens enviadas aos leads.</p>
-            <p className="mt-1">Caminho: <code className="bg-muted px-1 rounded text-xs">Menu lateral → Configurações → aba "Empresa"</code></p>
+            <p className="mt-1">Caminho: <code className="bg-muted px-1 rounded text-xs">Menu lateral → Configurações → aba &quot;Empresa&quot;</code></p>
           </Step>
           <Separator />
           <Step n={2} title="Configure a chave da OpenAI (opcional por tenant)">
-            <p>Em Configurações → aba "Agente de IA", cole sua chave de API da OpenAI (<code className="bg-muted px-1 rounded text-xs">sk-...</code>). Sem ela, o agente não consegue gerar respostas inteligentes.</p>
+            <p>Em Configurações → aba &quot;Agente de IA&quot;, cole sua chave de API da OpenAI (<code className="bg-muted px-1 rounded text-xs">sk-...</code>). Sem ela, o agente não consegue gerar respostas inteligentes.</p>
             <p className="mt-1">Obtenha sua chave em: <span className="text-primary font-medium">platform.openai.com/api-keys</span></p>
           </Step>
           <Separator />
@@ -263,7 +263,7 @@ function TabSetup() {
           </Step>
           <Separator />
           <Step n={5} title="Configure o Prompt do Agente de IA">
-            <p>Em <code className="bg-muted px-1 rounded text-xs">Configurações → aba "Agente de IA"</code>, personalize o prompt do bot com:</p>
+            <p>Em <code className="bg-muted px-1 rounded text-xs">Configurações → aba &quot;Agente de IA&quot;</code>, personalize o prompt do bot com:</p>
             <ul className="list-disc list-inside mt-1 space-y-0.5">
               <li>Nome e identidade do agente</li>
               <li>Produto/serviço que ele representa</li>
@@ -374,7 +374,7 @@ function TabProspection() {
           <p>
             Após salvar os leads, vá para <code className="bg-muted px-1 rounded text-xs">Tabela de Leads</code>,
             selecione os leads com WhatsApp disponível e clique em{" "}
-            <strong>"Enviar WhatsApp"</strong>. Uma mensagem personalizada gerada pela IA será
+            <strong>&quot;Enviar WhatsApp&quot;</strong>. Uma mensagem personalizada gerada pela IA será
             enviada para cada lead selecionado.
           </p>
           <WarningBox>
@@ -454,7 +454,7 @@ function TabLeads() {
             card se move automaticamente.
           </p>
           <TipBox>
-            O lead passa para <strong>"Transferido para Consultor"</strong> automaticamente quando
+            O lead passa para <strong>&quot;Transferido para Consultor&quot;</strong> automaticamente quando
             o agente detecta que o faturamento declarado está acima do critério de qualificação.
           </TipBox>
         </CardContent>
@@ -534,7 +534,7 @@ function TabAgent() {
           </div>
           <TipBox>
             Para alternar para Modo Humano em um lead, edite o lead na tabela e mude o campo
-            <strong> "Modo Atendimento"</strong> de <code className="bg-muted px-1 rounded text-xs">bot</code> para{" "}
+            <strong> &quot;Modo Atendimento&quot;</strong> de <code className="bg-muted px-1 rounded text-xs">bot</code> para{" "}
             <code className="bg-muted px-1 rounded text-xs">humano</code>.
           </TipBox>
         </CardContent>
