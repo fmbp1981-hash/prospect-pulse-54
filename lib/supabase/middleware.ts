@@ -10,7 +10,7 @@ export async function updateSession(request: NextRequest) {
   // Rotas públicas (não requerem autenticação)
   const publicRoutes = ['/login', '/signup', '/forgot-password'];
   // Rotas de API que recebem webhooks externos (Evolution API, cron jobs) — sempre públicas
-  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/', '/api/admin/init-user-settings'];
+  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/', '/api/admin/'];
   const isPublicApiRoute = publicApiPrefixes.some(prefix => pathname.startsWith(prefix));
   const isPublicRoute = isPublicApiRoute || publicRoutes.some(route => pathname.startsWith(route));
   // Rota de pending — usuário autenticado mas aguardando aprovação
@@ -73,6 +73,10 @@ export async function updateSession(request: NextRequest) {
 
   // Se não está autenticado e tentando acessar rota protegida
   if (!user && !isPublicRoute) {
+    // Rotas de API retornam 401 JSON — não redirecionar para HTML
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);

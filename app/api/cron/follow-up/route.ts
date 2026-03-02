@@ -17,8 +17,9 @@ const CRON_SECRET = process.env.CRON_SECRET;
 
 export async function GET(req: NextRequest) {
   // Valida o segredo do cron para evitar execuções não autorizadas
+  // NOTA: !CRON_SECRET garante que a rota seja bloqueada se a variável não estiver definida
   const authHeader = req.headers.get('authorization');
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

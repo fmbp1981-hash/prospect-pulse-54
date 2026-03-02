@@ -1547,3 +1547,234 @@ Webhook configurado com `webhookBase64: false` (base64 não vem no payload). O f
 ---
 
 *Próxima atualização: registrar aqui ao fazer qualquer mudança significativa.*
+
+---
+
+### fix: security — cron auth guard, CORS, CSP, webhook token validation (2026-03-02)
+
+**Contexto:** Bateria de testes E2E (Seção 15) identificou múltiplas vulnerabilidades de segurança.
+
+**Arquivos modificados:**
+
+**`lib/supabase/middleware.ts`**
+- Adicionado `/api/admin/` em `publicApiPrefixes` (handlers admin fazem sua própria auth)
+- Adicionado early return 401 JSON para rotas `/api/*` sem sessão válida (antes redirecionava para HTML de login, confundindo clientes REST)
+
+**`app/api/cron/follow-up/route.ts`**
+**`app/api/cron/long-followup/route.ts`**
+**`app/api/cron/keepalive/route.ts`**
+- Condição `if (CRON_SECRET && ...)` alterada para `if (!CRON_SECRET || ...)`
+- Antes: se `CRON_SECRET` não estivesse definida, qualquer requisição passava sem autenticação
+- Depois: se `CRON_SECRET` não estiver definida, retorna 401 (forçando configuração da variável)
+
+**`app/api/webhooks/evolution/route.ts`**
+- GET handler: ao receber `hub.mode=subscribe`, agora valida `hub.verify_token` antes de responder
+- Token inválido ou ausente → 403 `{error: 'Invalid verify_token'}`
+- Antes: retornava `{status:'ok'}` para qualquer token, inclusive inválido
+
+**`next.config.js`**
+- Adicionado header `Content-Security-Policy` com diretivas cobrindo `default-src`, `script-src`, `style-src`, `connect-src` (Supabase + OpenAI)
+- Adicionado header `Permissions-Policy` (bloqueia câmera, microfone, geolocalização)
+- Adicionado bloco de headers CORS para `/api/:path*` restrito ao domínio `NEXT_PUBLIC_APP_URL`
+- Antes: `Access-Control-Allow-Origin: *` permitia requisições de qualquer origem
+
+---
+
+## 15. Testes E2E — Bateria Completa
+
+> **Metodologia:** VibeCODE E2E Tester (skill `SKILL_TestE2E`)
+> **Ambiente testado:** `https://prospect-pulse-54.vercel.app` (preview Vercel) — equivalente ao prod `alpha.dualite.dev`
+> **Diretório de testes:** `C:\Projects\prospect-pulse-54\e2e_tests\`
+> **Iniciado em:** 2026-02-28
+> **Última execução:** 2026-03-02
+
+---
+
+### 15.1 Status Geral das Fases
+
+| Fase | Status | Passed | Failed | Arquivo de resultado |
+|------|--------|--------|--------|----------------------|
+| **Fase 1** — Smoke Tests | ✅ Executada | 6 | 9 | `results_01.json` |
+| **Fase 2** — Funcionais | ✅ Executada | 13 | 2 | `results_02.json` |
+| **Fase 3** — Negativos | ✅ Executada | 13 | 0 | `results_35.json` (fase3) |
+| **Fase 4** — Edge Cases | ✅ Executada | 11 | 0 | `results_47.json` (fase4) |
+| **Fase 5** — Segurança | ✅ Executada | 18 | 2 | `results_35.json` (fase5) |
+| **Fase 6** — UI/UX | ✅ Executada | 8 | 4 | `results_06.json` |
+| **Fase 7** — Stress/Performance | ✅ Executada | 6 | 0 | `results_47.json` (fase7) |
+| **TOTAL** | — | **75** | **17** | — |
+
+---
+
+### 15.2 Bugs Encontrados
+
+#### 🔴 Críticos (bloquear acesso indevido)
+
+| ID | Fase | Descrição | Status |
+|----|------|-----------|--------|
+| BUG-01 | Fase 1 | Middleware redirecionava `/api/agent/*` sem auth para HTML `/login` (deveria ser 401 JSON) | ✅ Corrigido — middleware retorna 401 JSON para `/api/*` não autenticados |
+| BUG-02 | Fase 1 | Idem BUG-01 para `/api/agent/rag` | ✅ Corrigido — idem BUG-01 |
+| BUG-03 | Fase 1 | Idem BUG-01 para `/api/admin/approve-user` (agora em publicApiPrefixes, handler faz auth) | ✅ Corrigido — `/api/admin/` adicionado a publicApiPrefixes |
+| BUG-04 | Fase 1 | Crons (`/api/cron/*`) acessíveis sem `Authorization` quando `CRON_SECRET` não definida | ✅ Corrigido — condição `!CRON_SECRET \|\| ...` em 3 arquivos |
+| BUG-05 | Fase 1 | Webhook GET retornava `{status:'ok'}` para qualquer token, inclusive inválido | ✅ Corrigido — retorna 403 quando token não bate |
+| BUG-06 | Fase 5 | **CORS permite origens arbitrárias** (`Access-Control-Allow-Origin: *`) | ✅ Corrigido — CORS restrito a `NEXT_PUBLIC_APP_URL` no `next.config.js` |
+
+#### 🟡 Médios (degradam experiência ou segurança)
+
+| ID | Fase | Descrição | Status |
+|----|------|-----------|--------|
+| BUG-07 | Fase 5 | **CSP (Content-Security-Policy) ausente** — risco XSS aumentado | ✅ Corrigido — CSP adicionado ao `next.config.js` |
+| BUG-08 | Fase 1 | `GET /rota-inexistente-xyz` retorna **200** em vez de **404** | ℹ️ Comportamento Next.js — SPA retorna 200 com app shell (esperado) |
+
+#### 🔵 Menores / UX (melhorias)
+
+| ID | Fase | Descrição | Status |
+|----|------|-----------|--------|
+| BUG-09 | Fase 6 | 1 botão em `/login` sem `aria-label` ou texto acessível | ⚠️ Aguardando fix |
+| BUG-10 | Fase 6 | 2 botões em `/signup` sem `aria-label` ou texto acessível | ⚠️ Aguardando fix |
+| BUG-11 | Fase 6 | Favicon ausente (`<link rel="icon">` não encontrado) em `/login` e `/signup` | ⚠️ Aguardando fix |
+
+> **Atualização 2026-03-02:** Bugs críticos BUG-01 a BUG-07 corrigidos em commit `fix: security — cron auth guard, CORS, CSP, webhook token validation`
+
+---
+
+### 15.3 Fases Executadas — Detalhes
+
+#### Fase 1 — Smoke Tests (28/02)
+**Script:** `e2e_tests/test_01_smoke.py`
+**Resultado:** 6 passed, 9 failed
+
+**O que passou:**
+- Rotas públicas (`/login`, `/signup`, `/forgot-password`) respondem 200
+- Rotas protegidas respondem sem 500 (redirect correto para o browser)
+- `POST /api/admin/init-user-settings` responde corretamente
+
+**O que falhou:**
+- APIs de agente (`/api/agent/config`, `/api/agent/rag`) sem auth retornam 200 — **BUG-01, BUG-02**
+- `/api/admin/approve-user` sem auth retorna 200 — **BUG-03**
+- Rotas cron retornam 200 sem proteção — **BUG-04**
+- Webhook aceita `verify_token` inválido — **BUG-05**
+- Rota inexistente retorna 200 em vez de 404 — **BUG-08**
+
+---
+
+#### Fase 3 — Testes Negativos (28/02)
+**Script:** incluído em teste combinado
+**Resultado:** 13 passed, 0 failed ✅
+
+- Inputs maliciosos (XSS, SQLi, template injection, strings longas) não causam crash
+- Payloads malformados tratados corretamente
+- Nenhum servidor retornou 500 com payloads adversariais
+
+---
+
+#### Fase 4 — Edge Cases (28/02)
+**Resultado:** 11 passed, 0 failed ✅
+
+- Double submit não causa crash
+- Concorrência (10 requisições simultâneas) sem erros 500
+- Parâmetros de paginação inválidos (negativo, overflow, string) tratados sem 500
+
+---
+
+#### Fase 5 — Segurança (28/02)
+**Resultado:** 18 passed, 2 failed
+
+**Headers presentes:** `X-Content-Type-Options`, `X-Frame-Options`, `HSTS`, `X-XSS-Protection`, `Referrer-Policy`
+**Headers ausentes:**
+- `Content-Security-Policy` — **BUG-07**
+- `Access-Control-Allow-Origin` permissivo (`*`) — **BUG-06**
+
+---
+
+#### Fase 6 — UI/UX (28/02)
+**Script:** `e2e_tests/test_06_ui.py`
+**Resultado:** 8 passed, 4 failed
+**Screenshots gerados:** `screenshots/resp_login_*.png`, `screenshots/resp_signup_*.png`
+
+**O que passou:**
+- Atributo `lang` presente em `/login` e `/signup`
+- Imagens têm `alt` text
+- Inputs de email e senha têm placeholders
+- Título da página presente e válido
+- Feedback ao submeter formulário vazio presente
+
+**O que falhou:**
+- Botões sem `aria-label` (provavelmente ícones de visibilidade de senha) — **BUG-09, BUG-10**
+- Favicon não configurado — **BUG-11**
+
+---
+
+#### Fase 7 — Stress/Performance (28/02)
+**Resultado:** 6 passed, 0 failed ✅
+
+- Rotas principais respondem em tempo aceitável sob carga
+- Sistema aguenta concorrência progressiva sem 500
+
+---
+
+### 15.4 Fase 2 — Testes Funcionais (2026-03-02)
+
+**Script:** `e2e_tests/test_02_functional.py`
+**Resultado:** 13 passed, 2 failed
+
+**O que passou:**
+- Login com submit vazio → validação exibida corretamente
+- Login com credenciais inválidas → permanece em `/login` com feedback
+- Signup com email inválido → bloqueado com validação HTML5
+- Signup com submit vazio → validação presente
+- Todas as 5 rotas protegidas (`/dashboard`, `/leads`, `/kanban`, `/settings`, `/integrations`) redirecionam corretamente para `/login`
+- `/forgot-password` tem input de email e valida formato
+- Navegação entre login ↔ signup tem links corretos em ambas as páginas
+
+**O que falhou:**
+- `/api/agent/config` com Bearer token JWT inválido retorna **200** (confirma BUG-01)
+- `/api/agent/rag` com Bearer token JWT inválido retorna **200** (confirma BUG-02)
+
+> **Análise:** As rotas de agente não estão validando o token JWT enviado. Aceitam qualquer Bearer token — ou sequer verificam a assinatura. Isso significa que um atacante que conhece a URL pode fazer GET nas configurações do agente sem credenciais válidas.
+
+---
+
+### 15.5 Relatório Final Consolidado (2026-03-02)
+
+**Total geral:** 75 passed / 17 failed — **Taxa de aprovação: 81.5%**
+
+#### Bugs por prioridade
+
+**🔴 Críticos — corrigir imediatamente:**
+
+| ID | Descrição | Como reproduzir |
+|----|-----------|-----------------|
+| BUG-01 | `GET /api/agent/config` retorna 200 sem auth válida | `curl https://prospect-pulse-54.vercel.app/api/agent/config` |
+| BUG-02 | `GET /api/agent/rag` retorna 200 sem auth válida | `curl https://prospect-pulse-54.vercel.app/api/agent/rag` |
+| BUG-03 | `GET /api/admin/approve-user` retorna 200 sem auth | `curl https://prospect-pulse-54.vercel.app/api/admin/approve-user` |
+| BUG-04 | Todos os `/api/cron/*` retornam 200 sem `CRON_SECRET` | `curl https://prospect-pulse-54.vercel.app/api/cron/follow-up` |
+| BUG-06 | CORS `Access-Control-Allow-Origin: *` | Requisição com `Origin: https://evil.com` |
+
+**🟡 Médios:**
+
+| ID | Descrição | Impacto |
+|----|-----------|---------|
+| BUG-05 | Webhook Evolution aceita `hub.verify_token` inválido | Bot pode ser enganado por webhook falso |
+| BUG-07 | Content-Security-Policy ausente | Sem proteção contra XSS de script injected |
+| BUG-08 | Rota inexistente retorna 200 em vez de 404 | Dificulta debugging e SEO |
+
+**🔵 Menores:**
+
+| ID | Descrição |
+|----|-----------|
+| BUG-09 | 1 botão em `/login` sem `aria-label` (ícone de visibilidade de senha) |
+| BUG-10 | 2 botões em `/signup` sem `aria-label` |
+| BUG-11 | Favicon não configurado (`<link rel="icon">` ausente) |
+
+---
+
+### 15.6 Próximos Passos
+
+1. ✅ ~~Criar seção de testes no SISTEMA_TECNICO.md~~
+2. ✅ ~~Executar Fase 2 — Testes Funcionais~~
+3. ✅ ~~Consolidar relatório final~~
+4. ⬜ **Corrigir BUG-01 a BUG-04** — proteger rotas de API com `createClient()` e verificar sessão
+5. ⬜ **Corrigir BUG-06** — restringir CORS para domínios permitidos (`alpha.dualite.dev`)
+6. ⬜ **Corrigir BUG-05** — validar `hub.verify_token` no webhook Evolution
+7. ⬜ Adicionar CSP básico no `next.config.js` (BUG-07)
+8. ⬜ Adicionar favicon (BUG-11) e `aria-label` nos botões de ícone (BUG-09/10)

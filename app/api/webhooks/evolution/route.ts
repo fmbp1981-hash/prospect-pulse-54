@@ -107,10 +107,16 @@ export async function GET(req: NextRequest) {
   const token = params.get('hub.verify_token');
   const challenge = params.get('hub.challenge');
 
-  if (mode === 'subscribe' && token === process.env.META_WA_VERIFY_TOKEN) {
+  // Requisição de verificação Meta Cloud API
+  if (mode === 'subscribe') {
+    const expectedToken = process.env.META_WA_VERIFY_TOKEN;
+    if (!expectedToken || token !== expectedToken) {
+      return NextResponse.json({ error: 'Invalid verify_token' }, { status: 403 });
+    }
     return new Response(challenge ?? '', { status: 200 });
   }
 
+  // Health check simples (sem parâmetros de verificação)
   return NextResponse.json({
     status: 'ok',
     provider: process.env.WHATSAPP_PROVIDER || 'evolution',

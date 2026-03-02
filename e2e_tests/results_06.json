@@ -1,0 +1,1 @@
+{"passed": 8, "failed": 4, "errors": [{"test": "/login - botoes acessiveis", "detail": "1 botoes sem label"}, {"test": "/login - favicon configurado", "detail": "Favicon ausente"}, {"test": "/signup - botoes acessiveis", "detail": "2 botoes sem label"}, {"test": "/signup - favicon configurado", "detail": "Favicon ausente"}]}

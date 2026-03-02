@@ -1,0 +1,1 @@
+{"fase3": {"passed": 13, "failed": 0, "errors": []}, "fase5": {"passed": 18, "failed": 2, "errors": [{"test": "Content-Security-Policy presente", "detail": "CSP ausente"}, {"test": "CORS nao permite origens arbitrarias", "detail": "CORS permite: *"}]}}
