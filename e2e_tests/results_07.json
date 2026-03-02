@@ -1,0 +1,1 @@
+{"passed": 13, "failed": 1, "errors": [{"test": "Webhook latencia media < 1.0s (atual: 1.16s)", "detail": "Lento! 1.16s — fire-and-forget deveria ser < 1s"}]}

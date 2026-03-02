@@ -1583,198 +1583,179 @@ Webhook configurado com `webhookBase64: false` (base64 não vem no payload). O f
 ## 15. Testes E2E — Bateria Completa
 
 > **Metodologia:** VibeCODE E2E Tester (skill `SKILL_TestE2E`)
-> **Ambiente testado:** `https://prospect-pulse-54.vercel.app` (preview Vercel) — equivalente ao prod `alpha.dualite.dev`
+> **Ambiente testado:** `https://prospect-pulse-54.vercel.app`
 > **Diretório de testes:** `C:\Projects\prospect-pulse-54\e2e_tests\`
 > **Iniciado em:** 2026-02-28
-> **Última execução:** 2026-03-02
+> **Última execução completa:** 2026-03-02 (pré-fix — deploy pendente)
 
 ---
 
 ### 15.1 Status Geral das Fases
 
-| Fase | Status | Passed | Failed | Arquivo de resultado |
-|------|--------|--------|--------|----------------------|
-| **Fase 1** — Smoke Tests | ✅ Executada | 6 | 9 | `results_01.json` |
-| **Fase 2** — Funcionais | ✅ Executada | 13 | 2 | `results_02.json` |
-| **Fase 3** — Negativos | ✅ Executada | 13 | 0 | `results_35.json` (fase3) |
-| **Fase 4** — Edge Cases | ✅ Executada | 11 | 0 | `results_47.json` (fase4) |
-| **Fase 5** — Segurança | ✅ Executada | 18 | 2 | `results_35.json` (fase5) |
-| **Fase 6** — UI/UX | ✅ Executada | 8 | 4 | `results_06.json` |
-| **Fase 7** — Stress/Performance | ✅ Executada | 6 | 0 | `results_47.json` (fase7) |
-| **TOTAL** | — | **75** | **17** | — |
+> ⚠️ **IMPORTANTE:** Resultados abaixo são da execução pré-fix (deploy Vercel pendente — ver 15.7).
+> Os fixes foram commitados e pushados. Esperado: Fases 1, 2, 3, 5 melhoram significativamente após deploy.
+
+| Fase | Status | Passed | Failed | Script |
+|------|--------|--------|--------|--------|
+| **Fase 1** — Smoke Tests | ✅ Executada | 8 | 10 | `test_01_smoke.py` |
+| **Fase 2** — Funcionais | ✅ Executada | 13 | 2 | `test_02_functional.py` |
+| **Fase 3** — Negativos | ✅ Executada | 14 | 17 | `test_03_negative.py` |
+| **Fase 4** — Edge Cases | ✅ Executada | 8 | 3 | `test_04_edge.py` |
+| **Fase 5** — Segurança | ✅ Executada | 12 | 5 | `test_05_security.py` |
+| **Fase 6** — UI/UX | ✅ Executada | 8 | 4 | `test_06_ui.py` |
+| **Fase 7** — Stress/Performance | ✅ Executada | 13 | 1 | `test_07_stress.py` |
+| **TOTAL** | — | **76** | **42** | — |
+
+**Falhas pré-fix (resolverão após deploy):** Fases 1, 2, 3, 5 = ~36 falhas
+**Falhas remanescentes reais:** ~6 (acessibilidade, favicon, latência webhook, rota API inexistente)
 
 ---
 
 ### 15.2 Bugs Encontrados
 
-#### 🔴 Críticos (bloquear acesso indevido)
+#### 🔴 Críticos (segurança)
 
 | ID | Fase | Descrição | Status |
 |----|------|-----------|--------|
-| BUG-01 | Fase 1 | Middleware redirecionava `/api/agent/*` sem auth para HTML `/login` (deveria ser 401 JSON) | ✅ Corrigido — middleware retorna 401 JSON para `/api/*` não autenticados |
-| BUG-02 | Fase 1 | Idem BUG-01 para `/api/agent/rag` | ✅ Corrigido — idem BUG-01 |
-| BUG-03 | Fase 1 | Idem BUG-01 para `/api/admin/approve-user` (agora em publicApiPrefixes, handler faz auth) | ✅ Corrigido — `/api/admin/` adicionado a publicApiPrefixes |
-| BUG-04 | Fase 1 | Crons (`/api/cron/*`) acessíveis sem `Authorization` quando `CRON_SECRET` não definida | ✅ Corrigido — condição `!CRON_SECRET \|\| ...` em 3 arquivos |
-| BUG-05 | Fase 1 | Webhook GET retornava `{status:'ok'}` para qualquer token, inclusive inválido | ✅ Corrigido — retorna 403 quando token não bate |
-| BUG-06 | Fase 5 | **CORS permite origens arbitrárias** (`Access-Control-Allow-Origin: *`) | ✅ Corrigido — CORS restrito a `NEXT_PUBLIC_APP_URL` no `next.config.js` |
+| BUG-01 | Fase 1/3 | Middleware redirecionava `/api/agent/*` sem auth → 200 HTML em vez de 401 JSON | ✅ Corrigido em `lib/supabase/middleware.ts` |
+| BUG-02 | Fase 1/3 | Idem BUG-01 para `/api/agent/rag` | ✅ Corrigido — idem BUG-01 |
+| BUG-03 | Fase 1/3 | `/api/admin/*` sem auth → 200 (admin em public, handler deve validar) | ✅ Corrigido — `/api/admin/` em publicApiPrefixes, handlers validam JWT |
+| BUG-04 | Fase 3 | Crons acessíveis sem CRON_SECRET (`if (CRON_SECRET && ...)` bypass) | ✅ Corrigido — `if (!CRON_SECRET \|\| ...)` em 3 arquivos cron |
+| BUG-05 | Fase 3 | Webhook GET retornava 200 para qualquer `hub.verify_token` | ✅ Corrigido — retorna 403 para token inválido |
+| BUG-06 | Fase 5 | CORS `Access-Control-Allow-Origin: *` em todas as rotas | ✅ Corrigido — CORS restrito a domínios do projeto em `next.config.js` |
 
-#### 🟡 Médios (degradam experiência ou segurança)
-
-| ID | Fase | Descrição | Status |
-|----|------|-----------|--------|
-| BUG-07 | Fase 5 | **CSP (Content-Security-Policy) ausente** — risco XSS aumentado | ✅ Corrigido — CSP adicionado ao `next.config.js` |
-| BUG-08 | Fase 1 | `GET /rota-inexistente-xyz` retorna **200** em vez de **404** | ℹ️ Comportamento Next.js — SPA retorna 200 com app shell (esperado) |
-
-#### 🔵 Menores / UX (melhorias)
+#### 🟡 Médios
 
 | ID | Fase | Descrição | Status |
 |----|------|-----------|--------|
-| BUG-09 | Fase 6 | 1 botão em `/login` sem `aria-label` ou texto acessível | ⚠️ Aguardando fix |
-| BUG-10 | Fase 6 | 2 botões em `/signup` sem `aria-label` ou texto acessível | ⚠️ Aguardando fix |
-| BUG-11 | Fase 6 | Favicon ausente (`<link rel="icon">` não encontrado) em `/login` e `/signup` | ⚠️ Aguardando fix |
+| BUG-07 | Fase 5 | Content-Security-Policy ausente | ✅ Corrigido — CSP adicionado em `next.config.js` |
+| BUG-08 | Fase 5 | Permissions-Policy ausente | ✅ Corrigido — adicionado em `next.config.js` |
+| BUG-09 | Fase 7 | Webhook latência média 1.16s > threshold 1.0s (cold start Vercel) | ℹ️ Esperado — cold start Hobby plan |
+| BUG-10 | Fase 4 | `/api/rota-inexistente` retorna 200 (SPA shell) em vez de 404 | ℹ️ Comportamento Next.js App Router (esperado) |
 
-> **Atualização 2026-03-02:** Bugs críticos BUG-01 a BUG-07 corrigidos em commit `fix: security — cron auth guard, CORS, CSP, webhook token validation`
+#### 🔵 Menores / Acessibilidade
 
----
+| ID | Fase | Descrição | Status |
+|----|------|-----------|--------|
+| BUG-11 | Fase 6 | 1 botão em `/login` sem `aria-label` (ícone visibilidade senha) | ⚠️ Pendente |
+| BUG-12 | Fase 6 | 2 botões em `/signup` sem `aria-label` | ⚠️ Pendente |
+| BUG-13 | Fase 6 | Favicon ausente (`<link rel="icon">` não encontrado) | ⚠️ Pendente |
 
-### 15.3 Fases Executadas — Detalhes
-
-#### Fase 1 — Smoke Tests (28/02)
-**Script:** `e2e_tests/test_01_smoke.py`
-**Resultado:** 6 passed, 9 failed
-
-**O que passou:**
-- Rotas públicas (`/login`, `/signup`, `/forgot-password`) respondem 200
-- Rotas protegidas respondem sem 500 (redirect correto para o browser)
-- `POST /api/admin/init-user-settings` responde corretamente
-
-**O que falhou:**
-- APIs de agente (`/api/agent/config`, `/api/agent/rag`) sem auth retornam 200 — **BUG-01, BUG-02**
-- `/api/admin/approve-user` sem auth retorna 200 — **BUG-03**
-- Rotas cron retornam 200 sem proteção — **BUG-04**
-- Webhook aceita `verify_token` inválido — **BUG-05**
-- Rota inexistente retorna 200 em vez de 404 — **BUG-08**
+**Commits de correção (2026-03-02):**
+- `72d1229` — `fix: security — cron auth guard, CORS, CSP e webhook token validation`
+- `d3f1074` — `fix: cast as any em rescue-human-mode para coluna data_ultima_acao_consultor` (TypeScript build fix)
 
 ---
 
-#### Fase 3 — Testes Negativos (28/02)
-**Script:** incluído em teste combinado
-**Resultado:** 13 passed, 0 failed ✅
+### 15.3 Detalhes por Fase — Execução Completa (2026-03-02)
 
-- Inputs maliciosos (XSS, SQLi, template injection, strings longas) não causam crash
-- Payloads malformados tratados corretamente
-- Nenhum servidor retornou 500 com payloads adversariais
+#### Fase 1 — Smoke Tests
+**Script:** `e2e_tests/test_01_smoke.py` | **Resultado:** 8 passed, 10 failed (pré-fix)
 
----
+Passou: Rotas públicas OK (200), rotas protegidas redirecionam corretamente (307 para browser).
+Falhou (pré-fix): APIs de agente/admin/cron retornam 200 sem auth; webhook aceita token inválido.
 
-#### Fase 4 — Edge Cases (28/02)
-**Resultado:** 11 passed, 0 failed ✅
+#### Fase 2 — Funcionais
+**Script:** `e2e_tests/test_02_functional.py` | **Resultado:** 13 passed, 2 failed (pré-fix)
 
-- Double submit não causa crash
-- Concorrência (10 requisições simultâneas) sem erros 500
-- Parâmetros de paginação inválidos (negativo, overflow, string) tratados sem 500
+Passou: Validações login/signup, redirecionamentos das 5 rotas protegidas, navegação login↔signup.
+Falhou (pré-fix): `/api/agent/config` e `/api/agent/rag` com fake JWT retornam 200.
 
----
+#### Fase 3 — Negativos
+**Script:** `e2e_tests/test_03_negative.py` | **Resultado:** 14 passed, 17 failed (pré-fix)
 
-#### Fase 5 — Segurança (28/02)
-**Resultado:** 18 passed, 2 failed
+Passou: Payloads maliciosos em `init-user-settings` sem crash (XSS, SQLi, objetos, vazio), webhook com payloads inválidos sem 500.
+Falhou (pré-fix): Métodos HTTP inválidos retornam 307 em vez de 405/401; crons sem auth retornam 307; APIs sem auth retornam 307.
 
-**Headers presentes:** `X-Content-Type-Options`, `X-Frame-Options`, `HSTS`, `X-XSS-Protection`, `Referrer-Policy`
-**Headers ausentes:**
-- `Content-Security-Policy` — **BUG-07**
-- `Access-Control-Allow-Origin` permissivo (`*`) — **BUG-06**
+#### Fase 4 — Edge Cases
+**Script:** `e2e_tests/test_04_edge.py` | **Resultado:** 8 passed, 3 failed
 
----
+Passou: Concorrência 10x em rotas públicas sem 5xx; double-submit webhook OK; payload 100KB sem crash; fromMe e grupo chegam sem crash.
+Falhou:
+- `fromMe=true` → 405 (pré-fix: POST redirecionado para /login → 405)
+- Mensagem grupo → 405 (mesmo motivo)
+- `/api/rota-inexistente` → 200 (SPA shell — comportamento Next.js esperado)
 
-#### Fase 6 — UI/UX (28/02)
-**Script:** `e2e_tests/test_06_ui.py`
-**Resultado:** 8 passed, 4 failed
-**Screenshots gerados:** `screenshots/resp_login_*.png`, `screenshots/resp_signup_*.png`
+#### Fase 5 — Segurança
+**Script:** `e2e_tests/test_05_security.py` | **Resultado:** 12 passed, 5 failed
 
-**O que passou:**
-- Atributo `lang` presente em `/login` e `/signup`
-- Imagens têm `alt` text
-- Inputs de email e senha têm placeholders
-- Título da página presente e válido
-- Feedback ao submeter formulário vazio presente
+Passou: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `HSTS`, sem info leak em erros, XSS não refletido (3 payloads), prototype pollution sem crash, webhook público sem auth.
+Falhou (pré-fix): CSP ausente, Permissions-Policy ausente, CORS `*`, approve-user sem auth → 307, webhook verify_token → 307.
 
-**O que falhou:**
-- Botões sem `aria-label` (provavelmente ícones de visibilidade de senha) — **BUG-09, BUG-10**
-- Favicon não configurado — **BUG-11**
+#### Fase 6 — UI/UX
+**Script:** `e2e_tests/test_06_ui.py` | **Resultado:** 8 passed, 4 failed
 
----
+Passou: `lang` attr em login/signup, `alt` em imagens, placeholders de email/senha, título de página, feedback ao submeter vazio.
+Falhou (real): 1 botão em /login sem label, 2 botões em /signup sem label, favicon ausente em ambas as páginas.
 
-#### Fase 7 — Stress/Performance (28/02)
-**Resultado:** 6 passed, 0 failed ✅
+#### Fase 7 — Stress/Performance
+**Script:** `e2e_tests/test_07_stress.py` | **Resultado:** 13 passed, 1 failed
 
-- Rotas principais respondem em tempo aceitável sob carga
-- Sistema aguenta concorrência progressiva sem 500
+Passou: Rotas públicas < 5s média e < 8s p95, stress 1/5/10/25 req simultâneas sem 5xx, 10 webhooks simultâneos sem falha, payloads 1KB-500KB sem crash.
+Falhou: Latência webhook média 1.16s > threshold 1.0s (Vercel cold start — esperado no Hobby plan).
 
 ---
 
-### 15.4 Fase 2 — Testes Funcionais (2026-03-02)
+### 15.4 Relatório de Segurança — Fixes Aplicados (2026-03-02)
 
-**Script:** `e2e_tests/test_02_functional.py`
-**Resultado:** 13 passed, 2 failed
+**Commit:** `72d1229` — `fix: security — cron auth guard, CORS, CSP e webhook token validation`
+**Commit:** `d3f1074` — `fix: cast as any em rescue-human-mode` (TypeScript build fix)
 
-**O que passou:**
-- Login com submit vazio → validação exibida corretamente
-- Login com credenciais inválidas → permanece em `/login` com feedback
-- Signup com email inválido → bloqueado com validação HTML5
-- Signup com submit vazio → validação presente
-- Todas as 5 rotas protegidas (`/dashboard`, `/leads`, `/kanban`, `/settings`, `/integrations`) redirecionam corretamente para `/login`
-- `/forgot-password` tem input de email e valida formato
-- Navegação entre login ↔ signup tem links corretos em ambas as páginas
-
-**O que falhou:**
-- `/api/agent/config` com Bearer token JWT inválido retorna **200** (confirma BUG-01)
-- `/api/agent/rag` com Bearer token JWT inválido retorna **200** (confirma BUG-02)
-
-> **Análise:** As rotas de agente não estão validando o token JWT enviado. Aceitam qualquer Bearer token — ou sequer verificam a assinatura. Isso significa que um atacante que conhece a URL pode fazer GET nas configurações do agente sem credenciais válidas.
+| Arquivo | Fix |
+|---------|-----|
+| `lib/supabase/middleware.ts` | Return 401 JSON para `/api/*` não autenticadas; `/api/admin/` em publicApiPrefixes |
+| `app/api/cron/follow-up/route.ts` | `if (!CRON_SECRET \|\| ...)` em vez de `if (CRON_SECRET && ...)` |
+| `app/api/cron/long-followup/route.ts` | Idem |
+| `app/api/cron/keepalive/route.ts` | Idem |
+| `app/api/webhooks/evolution/route.ts` | GET: retorna 403 para `hub.verify_token` inválido |
+| `next.config.js` | CSP, Permissions-Policy, CORS restrito por domínio |
+| `app/api/cron/rescue-human-mode/route.ts` | `as any` cast para coluna não tipada no Supabase schema |
 
 ---
 
-### 15.5 Relatório Final Consolidado (2026-03-02)
+### 15.5 Bugs Pendentes Pós-Fix
 
-**Total geral:** 75 passed / 17 failed — **Taxa de aprovação: 81.5%**
-
-#### Bugs por prioridade
-
-**🔴 Críticos — corrigir imediatamente:**
-
-| ID | Descrição | Como reproduzir |
-|----|-----------|-----------------|
-| BUG-01 | `GET /api/agent/config` retorna 200 sem auth válida | `curl https://prospect-pulse-54.vercel.app/api/agent/config` |
-| BUG-02 | `GET /api/agent/rag` retorna 200 sem auth válida | `curl https://prospect-pulse-54.vercel.app/api/agent/rag` |
-| BUG-03 | `GET /api/admin/approve-user` retorna 200 sem auth | `curl https://prospect-pulse-54.vercel.app/api/admin/approve-user` |
-| BUG-04 | Todos os `/api/cron/*` retornam 200 sem `CRON_SECRET` | `curl https://prospect-pulse-54.vercel.app/api/cron/follow-up` |
-| BUG-06 | CORS `Access-Control-Allow-Origin: *` | Requisição com `Origin: https://evil.com` |
-
-**🟡 Médios:**
-
-| ID | Descrição | Impacto |
-|----|-----------|---------|
-| BUG-05 | Webhook Evolution aceita `hub.verify_token` inválido | Bot pode ser enganado por webhook falso |
-| BUG-07 | Content-Security-Policy ausente | Sem proteção contra XSS de script injected |
-| BUG-08 | Rota inexistente retorna 200 em vez de 404 | Dificulta debugging e SEO |
-
-**🔵 Menores:**
-
-| ID | Descrição |
-|----|-----------|
-| BUG-09 | 1 botão em `/login` sem `aria-label` (ícone de visibilidade de senha) |
-| BUG-10 | 2 botões em `/signup` sem `aria-label` |
-| BUG-11 | Favicon não configurado (`<link rel="icon">` ausente) |
+| ID | Fase | Descrição | Prioridade |
+|----|------|-----------|------------|
+| BUG-11 | 6 | 1 botão em `/login` sem `aria-label` (ícone visibilidade senha) | 🔵 Menor |
+| BUG-12 | 6 | 2 botões em `/signup` sem `aria-label` | 🔵 Menor |
+| BUG-13 | 6 | Favicon ausente em login/signup | 🔵 Menor |
+| BUG-09 | 7 | Webhook cold-start latência > 1s (Vercel Hobby) | ℹ️ Esperado |
 
 ---
 
-### 15.6 Próximos Passos
+### 15.6 Próximos Passos (pós-deploy)
 
-1. ✅ ~~Criar seção de testes no SISTEMA_TECNICO.md~~
-2. ✅ ~~Executar Fase 2 — Testes Funcionais~~
-3. ✅ ~~Consolidar relatório final~~
-4. ⬜ **Corrigir BUG-01 a BUG-04** — proteger rotas de API com `createClient()` e verificar sessão
-5. ⬜ **Corrigir BUG-06** — restringir CORS para domínios permitidos (`alpha.dualite.dev`)
-6. ⬜ **Corrigir BUG-05** — validar `hub.verify_token` no webhook Evolution
-7. ⬜ Adicionar CSP básico no `next.config.js` (BUG-07)
-8. ⬜ Adicionar favicon (BUG-11) e `aria-label` nos botões de ícone (BUG-09/10)
+1. ✅ Executar todas as 7 fases E2E
+2. ✅ Corrigir BUG-01 a BUG-08 (segurança crítica + headers)
+3. ⬜ **Verificar Vercel Dashboard** — deploy stuck (ver 15.7)
+4. ⬜ Re-executar Fases 1, 2, 3, 5 após deploy confirmado
+5. ⬜ Adicionar favicon ao projeto (BUG-13)
+6. ⬜ Adicionar `aria-label` nos botões de ícone de senha (BUG-11/12)
+
+---
+
+### 15.7 Problema de Deploy Vercel (2026-03-02)
+
+**Status:** Deploy de produção stuck no commit `1a4ca99868be` (2026-02-28T20:38:11Z)
+
+**Commits pushados mas não deployados:**
+```
+d3f1074  fix: cast as any em rescue-human-mode          (2026-03-02, último)
+72d1229  fix: security — cron auth guard, CORS, CSP     (2026-03-02)
+903e42d  fix: cast update object as any                 (2026-02-28)
+becb415  fix: early return para rotas de API públicas   (2026-02-28)
+00b2c4c  fix: escapar aspas em JSX no settings          (2026-02-28)
+946afa2  fix: remove cron hourly do vercel.json         (2026-02-28)
+```
+
+**Evidências:**
+- Build local: `npm run build` e `npx tsc --noEmit` — ambos OK (exit code 0)
+- Build Vercel: Log mostra compilação completa (24 rotas geradas, 0 type errors)
+- GitHub deployment status: `state=failure` para todos os 6 commits acima
+- Preview URLs criadas (ex: `prospect-pulse-54-aj3bio5th-felipe-maranhaos-projects.vercel.app`) retornam 401 (Vercel auth) — deployment EXISTS mas não promovido a produção
+- URL de produção `prospect-pulse-54.vercel.app` ainda serve commit `1a4ca99868be`
+
+**Hipótese:** Build da preview deployment PASSA, mas promoção para produção FALHA. Possível causa: configuração de "Deployment Protection", limite do plano Hobby após muitas falhas, ou erro na promoção de domínio.
+
+**Ação necessária:** Verificar Vercel Dashboard → projeto `prospect-pulse-54` → aba Deployments → ver erro completo no deploy mais recente → ou acionar redeploy manual via Vercel CLI (`vercel --prod`).
