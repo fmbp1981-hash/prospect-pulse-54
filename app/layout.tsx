@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   description: 'Sistema de prospecção e gestão de leads B2B com integração WhatsApp, AI e automações.',
   keywords: ['CRM', 'leads', 'prospecção', 'B2B', 'WhatsApp', 'vendas'],
   authors: [{ name: 'LeadFinder Pro' }],
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+  },
   openGraph: {
     title: 'LeadFinder Pro',
     description: 'Sistema de prospecção e gestão de leads B2B',
