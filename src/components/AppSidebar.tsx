@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock } from "lucide-react";
+import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock, BookOpen } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
 import { motion } from "framer-motion";
@@ -34,6 +34,7 @@ const items = [
   { title: "Templates", url: "#", icon: FileText },
   { title: "Integrações", url: "/integrations", icon: Link2 },
   { title: "Configurações", url: "/settings", icon: Settings },
+  { title: "Tutorial", url: "/tutorial", icon: BookOpen },
 ];
 
 export function AppSidebar() {
