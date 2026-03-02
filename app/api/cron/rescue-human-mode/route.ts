@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     .from('leads_prospeccao')
     .select('id, lead, whatsapp, data_ultima_acao_consultor')
     .eq('modo_atendimento', 'humano')
-    .or(`data_ultima_acao_consultor.is.null,data_ultima_acao_consultor.lt.${cutoff}`);
+    .or(`data_ultima_acao_consultor.is.null,data_ultima_acao_consultor.lt.${cutoff}`) as any;
 
   if (error) {
     console.error('[CronRescue] Query failed:', error.message);
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ rescued: 0, message: 'No stuck leads found' });
   }
 
-  const ids = stuckLeads.map((l) => l.id);
+  const ids = (stuckLeads as Array<{ id: string; lead: string; whatsapp: string; data_ultima_acao_consultor: string | null }>).map((l) => l.id);
 
   const { error: updateError } = await supabase
     .from('leads_prospeccao')
@@ -66,9 +66,10 @@ export async function GET(req: NextRequest) {
 
   console.log(`[CronRescue] Rescued ${ids.length} leads:`, ids);
 
+  const typedLeads = stuckLeads as Array<{ id: string; lead: string; data_ultima_acao_consultor: string | null }>;
   return NextResponse.json({
     rescued: ids.length,
-    leads: stuckLeads.map((l) => ({
+    leads: typedLeads.map((l) => ({
       id: l.id,
       lead: l.lead,
       lastConsultantAction: l.data_ultima_acao_consultor,
