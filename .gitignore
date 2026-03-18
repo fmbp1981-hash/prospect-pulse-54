@@ -45,3 +45,4 @@ git-branch-check.txt
 # Projeto duplicado (legado) dentro do repo
 # Mantido localmente, mas não deve ser versionado nem afetar deploy/lint.
 prospect-pulse-54/
+.env*.local

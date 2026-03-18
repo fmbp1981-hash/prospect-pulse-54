@@ -1,6 +1,6 @@
 # SISTEMA_TECNICO.md — LeadFinder Pro / XPAG Brasil
 > **Arquivo vivo.** Atualizar a cada mudança significativa de código, arquitetura ou infraestrutura.
-> Última atualização: 2026-02-28
+> Última atualização: 2026-03-02
 
 ---
 
@@ -1224,9 +1224,9 @@ NEXT_PUBLIC_APP_URL=https://alpha.dualite.dev
 WHATSAPP_PROVIDER=evolution   # evolution | meta
 
 # ─── EVOLUTION API ─────────────────────────────────────────
-EVOLUTION_API_URL=https://evolution.dominio.com
+EVOLUTION_API_URL=https://evolution.intellixai.com.br
 EVOLUTION_API_KEY=sua-api-key
-EVOLUTION_DEFAULT_INSTANCE=WA-Producao
+EVOLUTION_DEFAULT_INSTANCE=WA-Pessoal
 
 # ─── META CLOUD API ────────────────────────────────────────
 META_WA_TOKEN=EAAxxxxx
@@ -1240,7 +1240,7 @@ OPENAI_API_KEY=sk-...
 # ─── FALLBACK CONSULTOR ────────────────────────────────────
 # Usados se user_settings não tiver configurado
 XPAG_CONSULTANT_WHATSAPP=5581999990000
-XPAG_CONSULTANT_INSTANCE=WA-Producao
+XPAG_CONSULTANT_INSTANCE=WA-Pessoal
 
 # ─── CRON JOBS ─────────────────────────────────────────────
 CRON_SECRET=seu-segredo-aqui
@@ -1756,6 +1756,10 @@ Falhou: Latência webhook média 1.16s > threshold 1.0s (Vercel cold start — e
 4. ✅ Adicionar favicon ao projeto (BUG-13) — commit `353754c`
 5. ✅ Adicionar `aria-label` nos botões de ícone de senha (BUG-11/12) — commit `353754c`
 6. ✅ Re-executar todas as 7 fases com sistema em produção estável — 114 passed, 4 expected failures
+7. ✅ Configurar variáveis de ambiente em produção no Vercel (2026-03-02)
+8. ✅ Redeploy com todas as env vars — build OK, 25 rotas, sistema 100% operacional
+
+**Sistema em produção: TOTALMENTE OPERACIONAL (2026-03-02)**
 
 ---
 
