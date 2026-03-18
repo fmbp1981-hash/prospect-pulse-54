@@ -17,6 +17,7 @@ import { resolveTenantByInstance } from '@/lib/services/tenant-resolver.service'
 import { leadRepository } from '@/lib/repositories/lead.repository';
 import { leadService } from '@/lib/services/lead.service';
 import { conversationRepository } from '@/lib/repositories/conversation.repository';
+import { enqueueBatch } from '@/lib/services/message-batch.service';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -97,9 +98,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, source: 'fromMe' }, { status: 200 });
   }
 
-  // Mensagem do lead → executa workflow completo de forma assíncrona
-  runXpagWorkflow(normalized).catch((err) => {
-    console.error('[Webhook] Workflow error:', err?.message ?? err);
+  // Mensagem do lead → aguarda 2.5s por mensagens consecutivas antes de processar
+  enqueueBatch(normalized.clienteWhatsApp, normalized.mensagem, (batchedMessages) => {
+    // Mescla todas as mensagens do batch em uma só (separadas por newline)
+    const mergedNormalized = batchedMessages.length > 1
+      ? { ...normalized, mensagem: batchedMessages.join('\n') }
+      : normalized;
+
+    runXpagWorkflow(mergedNormalized).catch((err) => {
+      console.error('[Webhook] Workflow error:', err?.message ?? err);
+    });
   });
 
   return NextResponse.json({ received: true }, { status: 200 });

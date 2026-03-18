@@ -42,7 +42,7 @@ Regras:
 3. Cada mensagem deve ser completa e ter sentido sozinha
 4. Retorne APENAS um JSON válido: {"messages": ["msg1", "msg2", ...]}
 5. Preserve emojis e formatação
-6. Máximo 4 mensagens no total`,
+6. Máximo 6 mensagens no total`,
           },
           {
             role: 'user',

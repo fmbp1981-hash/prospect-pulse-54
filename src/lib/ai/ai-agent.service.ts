@@ -128,7 +128,7 @@ async function callOpenAI(
         model,
         messages,
         temperature,
-        max_tokens: 1024,
+        max_tokens: 2048,
       };
 
       if (withTools) {

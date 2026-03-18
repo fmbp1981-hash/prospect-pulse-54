@@ -79,6 +79,37 @@ export class EvolutionProvider implements IWhatsAppProvider {
     return { sent, failed, errors };
   }
 
+  async sendTyping(instance: string, to: string, durationMs: number): Promise<void> {
+    const { url, key } = getEvolutionConfig();
+    const number = normalizeNumber(to);
+
+    try {
+      // Envia "composing" (digitando...)
+      await fetch(`${url}/chat/sendPresence/${instance}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: key },
+        body: JSON.stringify({ number, presence: 'composing', delay: durationMs }),
+      });
+    } catch {
+      // fire-and-forget — falha silenciosa não bloqueia o envio
+    }
+  }
+
+  async markAsRead(instance: string, to: string, messageId: string): Promise<void> {
+    const { url, key } = getEvolutionConfig();
+    const number = normalizeNumber(to);
+
+    try {
+      await fetch(`${url}/chat/markMessageAsRead/${instance}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: key },
+        body: JSON.stringify({ readMessages: [{ remoteJid: `${number}@s.whatsapp.net`, id: messageId, fromMe: false }] }),
+      });
+    } catch {
+      // fire-and-forget
+    }
+  }
+
   async downloadMedia(instance: string, messageId: string): Promise<MediaDownloadResult> {
     const { url, key } = getEvolutionConfig();
 

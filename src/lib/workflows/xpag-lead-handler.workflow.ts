@@ -51,15 +51,9 @@ export async function runXpagWorkflow(normalized: NormalizedMessage): Promise<vo
   });
 
   if (!tenant) return;
-  logger.info('Tenant resolved', { userId: tenant.userId, agentEnabled: tenant.agentEnabled });
+  logger.info('Tenant resolved', { userId: tenant.userId });
 
-  // ── STEP 1B: VERIFICAR SE AGENTE ESTÁ ATIVO ──────────────────────────────
-  if (!tenant.agentEnabled) {
-    logger.info('Agent disabled for this tenant — skipping');
-    return;
-  }
-
-  // ── STEP 1C: DEFINIR CHAVE OPENAI DO TENANT ──────────────────────────────
+  // ── STEP 1B: DEFINIR CHAVE OPENAI DO TENANT ──────────────────────────────
   // withOpenAIKey propaga a chave para todos os serviços OpenAI via AsyncLocalStorage
   // (whisper, vision, pdf, agent, humanizer, embeddings) sem mudar assinaturas.
   const openaiKey = tenant.openaiApiKey || process.env.OPENAI_API_KEY!;
@@ -166,13 +160,22 @@ async function runWorkflowSteps(
     'humanize'
   ).catch(() => [agentResult.output]); // Fallback: envia sem humanizar
 
-  // ── STEP 8B: BUFFER DE HUMANIZAÇÃO ───────────────────────────────────────
-  // Aguarda 5-7s antes de enviar, simulando tempo de "digitação" humana
-  const humanDelay = Math.floor(Math.random() * 2000) + 5000; // 5000–7000ms
-  await new Promise(resolve => setTimeout(resolve, humanDelay));
+  // ── STEP 8B: HUMANIZAÇÃO — read receipt + typing proporcional ───────────
+  const provider = getWhatsAppProvider();
+  const totalChars = messages.reduce((acc, m) => acc + m.length, 0);
+
+  // 1. Marca como lido (double blue check)
+  provider.markAsRead(normalized.instanceName, normalized.clienteWhatsApp, normalized.messageId ?? '').catch(() => {});
+
+  // 2. Aguarda 1s para parecer que leu antes de começar a digitar
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // 3. Typing proporcional: ~4.5 chars/s, mín 3s, máx 12s
+  const typingMs = Math.min(Math.max(Math.round(totalChars / 4.5 * 1000), 3000), 12000);
+  await provider.sendTyping(normalized.instanceName, normalized.clienteWhatsApp, typingMs);
+  await new Promise(resolve => setTimeout(resolve, typingMs));
 
   // ── STEP 9: ENVIAR VIA WHATSAPP PROVIDER ────────────────────────────────
-  const provider = getWhatsAppProvider();
   const { sent } = await withTimeout(
     provider.sendMessageSequence(normalized.instanceName, normalized.clienteWhatsApp, messages, 3000),
     STEP_TIMEOUTS.send,

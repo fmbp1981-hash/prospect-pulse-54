@@ -148,7 +148,7 @@ export async function retrieveRelevantChunks(
       match_count: topK,
       p_user_id: userId,
       p_agent_config_id: agentConfigId ?? null,
-      similarity_threshold: 0.6,
+      similarity_threshold: 0.75,
     }
   );
 

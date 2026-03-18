@@ -45,6 +45,18 @@ export interface IWhatsAppProvider {
   downloadMedia(instanceOrPhoneId: string, mediaId: string): Promise<MediaDownloadResult>;
 
   /**
+   * Envia indicador de digitação ("composing") por durationMs milissegundos.
+   * Fire-and-forget — provedores que não suportam podem ser no-op.
+   */
+  sendTyping(instanceOrPhoneId: string, to: string, durationMs: number): Promise<void>;
+
+  /**
+   * Marca uma mensagem recebida como lida ("double blue check").
+   * Fire-and-forget — provedores que não suportam podem ser no-op.
+   */
+  markAsRead(instanceOrPhoneId: string, to: string, messageId: string): Promise<void>;
+
+  /**
    * Normaliza o payload recebido no webhook para o formato padrão.
    * Cada provedor tem seu próprio formato de webhook.
    */

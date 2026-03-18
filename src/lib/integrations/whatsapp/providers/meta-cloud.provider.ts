@@ -120,6 +120,15 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     return { sent, failed, errors };
   }
 
+  // Meta Cloud API não suporta typing indicator nem read receipt nativo via REST
+  async sendTyping(_instanceOrPhoneId: string, _to: string, _durationMs: number): Promise<void> {
+    // no-op
+  }
+
+  async markAsRead(_instanceOrPhoneId: string, _to: string, _messageId: string): Promise<void> {
+    // no-op
+  }
+
   async downloadMedia(
     _instanceOrPhoneId: string,
     mediaId: string
