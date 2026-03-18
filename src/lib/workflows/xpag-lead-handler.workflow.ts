@@ -162,7 +162,7 @@ async function runWorkflowSteps(
 
   // ── STEP 8B: HUMANIZAÇÃO — read receipt + typing proporcional ───────────
   const provider = getWhatsAppProvider();
-  const totalChars = messages.reduce((acc: number, m) => acc + m.length, 0);
+  const totalChars = messages.map(m => m.length).reduce((a, b) => a + b, 0);
 
   // 1. Marca como lido (double blue check)
   provider.markAsRead(normalized.instanceName, normalized.clienteWhatsApp, normalized.messageId ?? '').catch(() => {});
