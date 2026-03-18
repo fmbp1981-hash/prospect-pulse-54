@@ -182,6 +182,18 @@ export default function SettingsPage() {
     }
     setIsSavingAgent(true);
     try {
+      // Salva chave OpenAI diretamente em user_settings (update parcial)
+      if (openAiApiKey.trim()) {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any)
+            .from('user_settings')
+            .update({ openai_api_key: openAiApiKey.trim(), updated_at: new Date().toISOString() })
+            .eq('user_id', currentUser.id);
+        }
+      }
+
       const res = await fetch("/api/agent/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
