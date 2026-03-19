@@ -983,21 +983,24 @@ export default function SettingsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="evolution_api_key">API Key</Label>
-                  <div className="relative max-w-2xl">
+                  <div className="flex gap-2 max-w-2xl">
                     <Input
                       id="evolution_api_key"
-                      type="text"
+                      type={showApiKey ? "text" : "password"}
                       placeholder="Sua chave de API da Evolution"
                       value={evolutionApiKey}
                       onChange={(e) => setEvolutionApiKey(e.target.value)}
-                      className="pr-10"
-                      style={!showApiKey ? { WebkitTextSecurity: 'disc' } as React.CSSProperties : undefined}
-                      autoComplete="off"
+                      className="font-mono flex-1"
+                      autoComplete="new-password"
                     />
-                    <Button type="button" variant="ghost" size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowApiKey(!showApiKey)}>
-                      {showApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      title={showApiKey ? "Ocultar chave" : "Mostrar chave"}
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
@@ -1036,21 +1039,24 @@ export default function SettingsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="meta_access_token">Token de Acesso (System User Token)</Label>
-                  <div className="relative max-w-2xl">
+                  <div className="flex gap-2 max-w-2xl">
                     <Input
                       id="meta_access_token"
-                      type="text"
+                      type={showMetaToken ? "text" : "password"}
                       placeholder="EAA..."
                       value={metaAccessToken}
                       onChange={(e) => setMetaAccessToken(e.target.value)}
-                      className="pr-10 font-mono"
-                      style={!showMetaToken ? { WebkitTextSecurity: 'disc' } as React.CSSProperties : undefined}
-                      autoComplete="off"
+                      className="font-mono flex-1"
+                      autoComplete="new-password"
                     />
-                    <Button type="button" variant="ghost" size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowMetaToken(!showMetaToken)}>
-                      {showMetaToken ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowMetaToken(!showMetaToken)}
+                      title={showMetaToken ? "Ocultar token" : "Mostrar token"}
+                    >
+                      {showMetaToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
