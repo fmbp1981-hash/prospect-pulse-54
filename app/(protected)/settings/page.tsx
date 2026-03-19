@@ -926,8 +926,8 @@ export default function SettingsPage() {
         </Card>
       </RoleGuard>
 
-      {/* Integrações WhatsApp - Apenas para Admins */}
-      <RoleGuard allowedRoles={['admin']}>
+      {/* Integrações WhatsApp - Admin e Operador configuram suas próprias credenciais */}
+      <RoleGuard allowedRoles={['admin', 'operador']}>
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -1191,8 +1191,8 @@ export default function SettingsPage() {
         </Card>
       </RoleGuard>
 
-      {/* Mensagem para usuários não-admin */}
-      <RoleGuard allowedRoles={['operador', 'visualizador']}>
+      {/* Mensagem para visualizadores */}
+      <RoleGuard allowedRoles={['visualizador']}>
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
