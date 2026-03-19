@@ -160,20 +160,17 @@ async function runWorkflowSteps(
     'humanize'
   ).catch(() => [agentResult.output]); // Fallback: envia sem humanizar
 
-  // ── STEP 8B: HUMANIZAÇÃO — read receipt + typing proporcional ───────────
+  // ── STEP 8B: HUMANIZAÇÃO — read receipt + typing indicator ──────────────
+  // markAsRead e sendTyping são fire-and-forget: não bloqueiam o envio.
+  // A Evolution API gerencia o delay do typing internamente via o param `delay`.
+  // Remover os await setTimeout reduz o tempo de resposta de 15-70s → 5-20s,
+  // evitando timeout da Evolution API (≈10s) que causava webhooks não respondidos.
   const provider = getWhatsAppProvider();
   const totalChars = messages.map(m => m.length).reduce((a, b) => a + b, 0);
-
-  // 1. Marca como lido (double blue check)
-  provider.markAsRead(normalized.instanceName, normalized.clienteWhatsApp, normalized.messageId ?? '').catch(() => {});
-
-  // 2. Aguarda 1s para parecer que leu antes de começar a digitar
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  // 3. Typing proporcional: ~4.5 chars/s, mín 3s, máx 12s
   const typingMs = Math.min(Math.max(Math.round(totalChars / 4.5 * 1000), 3000), 12000);
-  await provider.sendTyping(normalized.instanceName, normalized.clienteWhatsApp, typingMs);
-  await new Promise(resolve => setTimeout(resolve, typingMs));
+
+  provider.markAsRead(normalized.instanceName, normalized.clienteWhatsApp, normalized.messageId ?? '').catch(() => {});
+  provider.sendTyping(normalized.instanceName, normalized.clienteWhatsApp, typingMs).catch(() => {});
 
   // ── STEP 9: ENVIAR VIA WHATSAPP PROVIDER ────────────────────────────────
   const { sent } = await withTimeout(
