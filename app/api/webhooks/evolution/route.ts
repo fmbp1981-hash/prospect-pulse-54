@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { normalizeMessage } from '@/lib/services/message-normalizer.service';
 import { runXpagWorkflow } from '@/lib/workflows/xpag-lead-handler.workflow';
 import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
@@ -19,7 +20,7 @@ import { leadService } from '@/lib/services/lead.service';
 import { conversationRepository } from '@/lib/repositories/conversation.repository';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 /**
  * Tenta salvar mensagem do consultor quando fromMe=true e lead em modo humano.
@@ -98,18 +99,18 @@ export async function POST(req: NextRequest) {
   // fromMe=true: pode ser mensagem do bot (loop) ou do consultor (intervenção humana)
   if (normalized.fromMe) {
     // Fire-and-forget: verifica se é consultor em modo humano e salva contexto
-    tryCapturConsultantMessage(normalized).catch(() => {});
+    waitUntil(tryCapturConsultantMessage(normalized));
     return NextResponse.json({ received: true, source: 'fromMe' }, { status: 200 });
   }
 
-  // Mensagem do lead → await garante execução completa antes de retornar 200.
-  // Vercel Hobby congela contexto após response; await mantém função viva.
-  // maxDuration=300 garante que Vercel aguarda até o workflow completar.
-  try {
-    await runXpagWorkflow(normalized);
-  } catch (err) {
-    console.error('[Webhook] Workflow error:', (err as Error)?.message ?? err);
-  }
+  // Retorna 200 imediatamente para a Evolution API não fazer retry (timeout ~10s).
+  // waitUntil mantém a função viva até o workflow completar (até maxDuration).
+  // Isso elimina: double-sends, atrasos de horas e falhas por timeout da Evolution.
+  waitUntil(
+    runXpagWorkflow(normalized).catch((err) => {
+      console.error('[Webhook] Workflow error:', (err as Error)?.message ?? err);
+    })
+  );
 
   return NextResponse.json({ received: true }, { status: 200 });
 }
