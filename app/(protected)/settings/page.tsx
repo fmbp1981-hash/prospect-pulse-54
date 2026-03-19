@@ -986,11 +986,13 @@ export default function SettingsPage() {
                   <div className="relative max-w-2xl">
                     <Input
                       id="evolution_api_key"
-                      type={showApiKey ? "text" : "password"}
+                      type="text"
                       placeholder="Sua chave de API da Evolution"
                       value={evolutionApiKey}
                       onChange={(e) => setEvolutionApiKey(e.target.value)}
                       className="pr-10"
+                      style={!showApiKey ? { WebkitTextSecurity: 'disc' } as React.CSSProperties : undefined}
+                      autoComplete="off"
                     />
                     <Button type="button" variant="ghost" size="sm"
                       className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
@@ -1037,11 +1039,13 @@ export default function SettingsPage() {
                   <div className="relative max-w-2xl">
                     <Input
                       id="meta_access_token"
-                      type={showMetaToken ? "text" : "password"}
+                      type="text"
                       placeholder="EAA..."
                       value={metaAccessToken}
                       onChange={(e) => setMetaAccessToken(e.target.value)}
                       className="pr-10 font-mono"
+                      style={!showMetaToken ? { WebkitTextSecurity: 'disc' } as React.CSSProperties : undefined}
+                      autoComplete="off"
                     />
                     <Button type="button" variant="ghost" size="sm"
                       className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
