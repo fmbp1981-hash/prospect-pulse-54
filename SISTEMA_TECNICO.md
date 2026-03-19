@@ -1787,3 +1787,91 @@ becb415  fix: early return para rotas de API públicas   (2026-02-28)
 **Causa raiz identificada (2026-03-02):** `pdf-parse@2.4.5` depende de `@napi-rs/canvas@0.1.80` (binário nativo), causando `ReferenceError: DOMMatrix is not defined` no runtime Vercel Lambda. Os 6 commits falhavam silenciosamente no runtime, não no build.
 
 **Resolução:** Ver seção abaixo — `fix: pdf-parse v2→v1.1.1` (commit `2527f14`). ✅ Deploy confirmado em produção.
+
+---
+
+## 16. Sessão de Debug — Agente Nativo (2026-03-18)
+
+### 16.1 Contexto
+
+Após migração do n8n para o agente nativo (branch `feature/agent-improvements-phases-1-2-3-5`), o agente não estava respondendo mensagens WhatsApp enviadas pelo usuário.
+
+---
+
+### 16.2 Bugs identificados e corrigidos
+
+#### BUG-19 — TypeScript build error no Vercel (`reduce<number>`)
+- **Arquivo:** `src/lib/workflows/xpag-lead-handler.workflow.ts:165`
+- **Erro:** `Type error: Expected 0 type arguments, but got 1` (primeiro) → `Type 'string' is not assignable to type 'number'` (segundo)
+- **Causa:** TypeScript resolvia `messages.reduce<number>()` para o overload não-genérico de `Array<string>.reduce`, onde o acumulador deve ser do mesmo tipo que o elemento (`string`), incompatível com o valor inicial `0` (`number`).
+- **Fix (commit `4351e9c`):** `messages.map(m => m.length).reduce((a, b) => a + b, 0)` — evita o overload genérico completamente.
+
+#### BUG-20 — Chave OpenAI não persistia no banco
+- **Arquivo:** `app/(protected)/settings/page.tsx`
+- **Causa:** O campo "Chave API OpenAI" está no card do Agente de IA. O botão "Salvar Configuração" daquele card chama `handleSaveAgentConfig`, que envia apenas `systemPrompt/model/temperature` para `/api/agent/config`. Nunca tocava em `user_settings.openai_api_key`. O usuário clicava no botão mais próximo sem saber que a chave era descartada.
+- **Fix (commit `69c1023`):** `handleSaveAgentConfig` agora faz `UPDATE` parcial em `user_settings` com `openai_api_key` antes de salvar o prompt.
+
+#### BUG-21 — `agent_enabled = false` por padrão para usuário existente
+- **Causa:** O campo `agent_enabled` estava `false` no banco para o usuário `40bd03b1-...` (IntelliX.AI), apesar do default da coluna ser `true`. Valor foi setado como `false` em alguma operação anterior.
+- **Fix:** UPDATE direto no banco via Supabase MCP. O default da coluna já é `true` para novos usuários.
+
+#### BUG-22 — Agente respondendo na URL errada (causa raiz do silêncio)
+- **Causa:** O código do agente nativo estava na branch `feature/agent-improvements-phases-1-2-3-5`, deployada em `prospect-pulse-54-git-feature-dc1084-...vercel.app`. O webhook da Evolution API estava configurado para a URL da **main**: `https://prospect-pulse-54.vercel.app/api/webhooks/evolution`. As duas URLs eram diferentes → mensagens chegavam à main (código antigo/sem agente) enquanto o usuário testava na branch feature.
+- **Fix (2026-03-18):** Merge fast-forward da feature branch na main (`git push origin main`, commit `69c1023`). Agora a URL `prospect-pulse-54.vercel.app` tem o agente nativo completo.
+
+---
+
+### 16.3 Variáveis de ambiente obrigatórias no Vercel (descoberta crítica)
+
+O agente usa `SUPABASE_SERVICE_ROLE_KEY` em **7 serviços server-side críticos**. Sem ela, o `resolveTenantByInstance` falha silenciosamente e o workflow retorna sem responder nada.
+
+| Variável | Obrigatória | Uso |
+|----------|-------------|-----|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Browser client + servidor |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | Auth browser |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ **CRÍTICA** | Tenant resolver, lead repo, conv repo, lead service, agent config, RAG, transfer tool |
+| `EVOLUTION_API_URL` | ✅ | Enviar respostas via Evolution API |
+| `EVOLUTION_API_KEY` | ✅ | Autenticar no Evolution API para envio |
+| `OPENAI_API_KEY` | ⚠️ Opcional | Fallback global — cada tenant tem sua chave em `user_settings.openai_api_key` |
+| `WHATSAPP_PROVIDER` | ⚠️ Opcional | Default: `evolution` |
+
+> **Atenção:** Se `SUPABASE_SERVICE_ROLE_KEY` não estiver setada, o agente falha silenciosamente (sem log de erro visível no Vercel, pois o workflow captura exceções internamente). O webhook retorna `200 OK` mas nenhuma resposta é enviada.
+
+---
+
+### 16.4 Estado do banco após debug (2026-03-18)
+
+| Tabela | Ação | Resultado |
+|--------|------|-----------|
+| `user_settings` (IntelliX.AI) | `agent_enabled = true`, `openai_api_key = sk-proj-...` | ✅ Configurado |
+| `leads_prospeccao` | Vazia (limpa para testes) | ✅ Limpa |
+| `whatsapp_conversations` | Limpa (registros antigos do n8n removidos) | ✅ Limpa |
+
+---
+
+### 16.5 Fluxo do agente nativo (referência)
+
+```
+Evolution API (instância WA-Pessoal)
+  → POST /api/webhooks/evolution
+  → normalizeWebhookPayload() — verifica fromMe, grupo, tipo desconhecido
+  → enqueueBatch() — aguarda 2.5s por mensagens consecutivas
+  → runXpagWorkflow(normalizedMessage)
+    → STEP 1: resolveTenantByInstance('WA-Pessoal')  [usa SUPABASE_SERVICE_ROLE_KEY]
+    → STEP 3: leadService.findOrCreate()              [usa SUPABASE_SERVICE_ROLE_KEY]
+    → STEP 4: verifica modo humano
+    → STEP 5: processMessageByType() — mídia/texto
+    → STEP 6: conversationRepository.saveLeadMessage()
+    → STEP 7: executeAIAgent()                        [usa openai_api_key do tenant]
+    → STEP 8: humanizeResponse()
+    → STEP 8B: markAsRead + sendTyping + sendText()  [usa EVOLUTION_API_URL + EVOLUTION_API_KEY]
+```
+
+---
+
+### 16.6 Próximos passos (2026-03-18)
+
+1. ⬜ Confirmar que `SUPABASE_SERVICE_ROLE_KEY`, `EVOLUTION_API_URL` e `EVOLUTION_API_KEY` estão setados no Vercel
+2. ⬜ Testar agente com mensagem real para a instância WA-Pessoal
+3. ⬜ Verificar criação de lead orgânico no banco após mensagem
+4. ⬜ Verificar resposta enviada pelo agente no WhatsApp
