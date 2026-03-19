@@ -1916,3 +1916,80 @@ A Evolution API gerencia o delay do typing indicator internamente via o parâmet
 | `leads_prospeccao` | 2 leads | Lead-001 (+558137889757), Lead-002 (+5581988514775) |
 | `whatsapp_conversations` | 3 conversas | Todas para Lead-001, com respostas do agente (`message_agent` preenchido) |
 | `agent_configs` | 5 configs | 1 ativa (gpt-4.1, temp 0.7) para tenant 40bd03b1 |
+
+---
+
+## 18. Fixes e melhorias — 2026-03-19 (sessão tarde/noite)
+
+### 18.1 Problema raiz identificado: sessão Baileys corrompida + Evolution timeout
+
+**Diagnóstico completo:**
+- Instância WA-Pessoal tinha sessão Baileys em estado degradado: **enviava mensagens mas não sincronizava recebidas** — mensagens chegavam ao telefone físico mas não ao Evolution API, portanto nenhum webhook era disparado
+- Mensagens que chegavam geravam atrasos de horas (Evolution API retentava webhook com backoff exponencial porque Vercel demorava >10s para retornar 200)
+- Double-sends: retry + original ambos completavam → duas respostas idênticas
+
+**Solução aplicada:**
+1. Instância WA-Pessoal deletada e recriada pelo usuário
+2. Webhook reconfigurado via API (`POST /webhook/set/WA-Pessoal`)
+
+### 18.2 Fix crítico: `waitUntil` para resposta 200 imediata (commit `ce4ba7d`)
+
+**Arquivo:** `app/api/webhooks/evolution/route.ts`
+
+**Antes:**
+```typescript
+await runXpagWorkflow(normalized); // bloqueava 20-60s
+return NextResponse.json({ received: true }, { status: 200 });
+```
+
+**Depois:**
+```typescript
+import { waitUntil } from '@vercel/functions';
+waitUntil(runXpagWorkflow(normalized).catch(...)); // retorna 200 imediatamente
+return NextResponse.json({ received: true }, { status: 200 });
+```
+
+**Resultado:** Evolution API recebe 200 em <1s → sem retries → sem double-sends → sem delays de horas. `maxDuration` ajustado de 300s → 60s (limite real do Hobby).
+
+### 18.3 Fix: `shouldAutoResumeBot` com lógica correta (commits `2f9bd9a`, `247961c`)
+
+**Arquivo:** `src/lib/services/lead.service.ts`
+
+**Bug:** `data_ultima_acao_consultor = null` retornava `true` imediatamente → bot retomava logo após a transferência.
+
+**Fix final:** quando `lastAction = null`, usa `data_transferencia` como ponto de partida do timer de 10 min:
+```typescript
+if (!lastAction) {
+  const transferTime = (lead as any).data_transferencia as string | null;
+  if (!transferTime) return false;
+  return Date.now() - new Date(transferTime).getTime() >= CONSULTANT_INACTIVITY_MS;
+}
+```
+
+**Comportamento correto:**
+- Transferido → consultor não age em 10min → bot retoma
+- Consultor agiu → fica inativo 10min → bot retoma
+- Comando `#finalizado` → bot retoma imediatamente
+
+### 18.4 Configurações de acesso por role (commit `fbe04c0`)
+
+**Arquivo:** `app/(protected)/settings/page.tsx`
+
+Integração WhatsApp liberada para role `operador` (era só `admin`). Cada usuário configura suas próprias credenciais Evolution API na tela de Configurações. `visualizador` continua vendo mensagem de bloqueio.
+
+### 18.5 Fix: toggle Eye da API Key (commit `a1b1c43`)
+
+**Causa:** `type="password"` injeta ícone nativo do browser Chrome/Edge sobre o botão absoluto, bloqueando clique.
+
+**Fix:** `type="text"` + `style={{ WebkitTextSecurity: 'disc' }}` — mascaramento idêntico visualmente, sem conflito com browser. Aplicado em Evolution API Key e Meta Access Token.
+
+### 18.6 Estado final da instância WA-Pessoal
+
+| Campo | Valor |
+|---|---|
+| Instance ID | `7cb0ded4-cc80-4eb5-8af9-361de004bdbf` |
+| ownerJid | `558188514775@s.whatsapp.net` |
+| Status | `open` |
+| Webhook URL | `https://prospect-pulse-54.vercel.app/api/webhooks/evolution` |
+| Webhook events | `MESSAGES_UPSERT, MESSAGES_UPDATE, CONNECTION_UPDATE` |
+
