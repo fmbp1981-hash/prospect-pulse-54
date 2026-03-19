@@ -106,8 +106,11 @@ export const leadService = {
     const lastAction = (lead as any).data_ultima_acao_consultor as string | null;
 
     if (!lastAction) {
-      // Consultor nunca atuou — transferência recente, não retomar ainda
-      return false;
+      // Consultor nunca atuou — usa data_transferencia como ponto de partida do timer
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const transferTime = (lead as any).data_transferencia as string | null;
+      if (!transferTime) return false; // sem registro de transferência, não retomar
+      return Date.now() - new Date(transferTime).getTime() >= CONSULTANT_INACTIVITY_MS;
     }
 
     const inactiveSince = Date.now() - new Date(lastAction).getTime();
