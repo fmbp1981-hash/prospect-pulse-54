@@ -67,11 +67,16 @@ export async function POST(req: NextRequest) {
 
   const provider = getWhatsAppProvider();
 
+  // DEBUG TEMP: loga estrutura do payload para diagnosticar formato da Evolution API
+  const rawDebug = body as Record<string, unknown>;
+  console.log('[Webhook][DEBUG] event:', rawDebug.event, '| instance:', rawDebug.instance, '| data keys:', Object.keys((rawDebug.data as Record<string,unknown>) || {}));
+
   // Usa o provider para normalizar o payload (cada um tem seu formato)
   const normalizedPayload = provider.normalizeWebhookPayload(body);
 
   if (!normalizedPayload) {
     // Evento de status de mensagem (ack, delivery) — ignorar silenciosamente
+    console.log('[Webhook][DEBUG] normalizedPayload=null para event:', rawDebug.event, '| raw.data:', JSON.stringify(rawDebug.data).substring(0, 300));
     return NextResponse.json({ ignored: true }, { status: 200 });
   }
 
