@@ -10,6 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { normalizeMessage } from '@/lib/services/message-normalizer.service';
 import { runXpagWorkflow } from '@/lib/workflows/xpag-lead-handler.workflow';
 import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
@@ -97,16 +98,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, source: 'fromMe' }, { status: 200 });
   }
 
-  // Mensagem do lead → aguarda workflow completo antes de retornar 200
-  // IMPORTANTE: No plano Hobby da Vercel, o contexto é congelado após o response.
-  // Por isso precisamos AWAIT o workflow antes de retornar (não fire-and-forget).
-  // maxDuration=300 garante que Vercel aguarda a execução completa.
-  try {
-    await runXpagWorkflow(normalized);
-  } catch (err) {
-    const e = err as Error;
-    console.error('[Webhook] Workflow error:', e?.message ?? err);
-  }
+  // Mensagem do lead → waitUntil garante execução em background após retornar 200.
+  // @vercel/functions/waitUntil mantém o contexto serverless vivo até o workflow
+  // completar, sem bloquear a resposta para a Evolution API.
+  waitUntil(
+    runXpagWorkflow(normalized).catch((err) => {
+      console.error('[Webhook] Workflow error:', (err as Error)?.message ?? err);
+    })
+  );
 
   return NextResponse.json({ received: true }, { status: 200 });
 }
