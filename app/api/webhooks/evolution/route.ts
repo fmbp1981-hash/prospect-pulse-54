@@ -97,12 +97,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, source: 'fromMe' }, { status: 200 });
   }
 
-  // Mensagem do lead → executa workflow (fire-and-forget)
-  // NOTA: batching com setTimeout não funciona em serverless (Vercel congela o contexto
-  // após o response ser retornado). Por isso chamamos runXpagWorkflow diretamente.
-  runXpagWorkflow(normalized).catch((err) => {
-    console.error('[Webhook] Workflow error:', err?.message ?? err);
-  });
+  // Mensagem do lead → aguarda workflow completo antes de retornar 200
+  // IMPORTANTE: No plano Hobby da Vercel, o contexto é congelado após o response.
+  // Por isso precisamos AWAIT o workflow antes de retornar (não fire-and-forget).
+  // maxDuration=300 garante que Vercel aguarda a execução completa.
+  try {
+    await runXpagWorkflow(normalized);
+  } catch (err) {
+    const e = err as Error;
+    console.error('[Webhook] Workflow error:', e?.message ?? err);
+  }
 
   return NextResponse.json({ received: true }, { status: 200 });
 }
