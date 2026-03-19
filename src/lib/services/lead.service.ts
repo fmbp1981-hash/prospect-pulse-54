@@ -106,8 +106,8 @@ export const leadService = {
     const lastAction = (lead as any).data_ultima_acao_consultor as string | null;
 
     if (!lastAction) {
-      // Nunca houve ação do consultor — bot pode retomar
-      return true;
+      // Consultor nunca atuou — transferência recente, não retomar ainda
+      return false;
     }
 
     const inactiveSince = Date.now() - new Date(lastAction).getTime();
