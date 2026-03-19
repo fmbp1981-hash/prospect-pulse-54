@@ -1869,9 +1869,50 @@ Evolution API (instância WA-Pessoal)
 
 ---
 
-### 16.6 Próximos passos (2026-03-18)
+### 16.6 Verificação (2026-03-19)
 
-1. ⬜ Confirmar que `SUPABASE_SERVICE_ROLE_KEY`, `EVOLUTION_API_URL` e `EVOLUTION_API_KEY` estão setados no Vercel
-2. ⬜ Testar agente com mensagem real para a instância WA-Pessoal
-3. ⬜ Verificar criação de lead orgânico no banco após mensagem
-4. ⬜ Verificar resposta enviada pelo agente no WhatsApp
+1. ✅ `SUPABASE_SERVICE_ROLE_KEY`, `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `OPENAI_API_KEY`, `WHATSAPP_PROVIDER` — todos setados no Vercel (production)
+2. ✅ Agente processou mensagens reais — 3 conversas confirmadas no banco (`whatsapp_conversations`) com respostas do OpenAI
+3. ✅ Leads criados organicamente: Lead-001 (+558137889757) e Lead-002 (+5581988514775)
+4. ✅ Mensagens salvas em `whatsapp_conversations.message_agent` confirmam envio
+
+---
+
+## 17. BUG-27 — Mensagem das 7:33 BRT não processada (2026-03-19)
+
+### 17.1 Diagnóstico
+
+**Causa raiz:** Evolution API tem timeout de ~10s para resposta do webhook. O workflow com `await runXpagWorkflow()` demorava **15-70 segundos** para retornar o HTTP 200 (devido a dois `await new Promise(setTimeout(...))` no step 8B):
+
+```
+await new Promise(resolve => setTimeout(resolve, 1000))   → +1s  (aguardar "ler" antes de digitar)
+await new Promise(resolve => setTimeout(resolve, typingMs)) → +3-12s (aguardar typing indicator)
+```
+
+**Timeline do incidente:**
+- 7:09 BRT — Novo deploy `a9c0199` em produção (cold start iminente)
+- 7:18 BRT — Instância WA-Pessoal desconectou (401 Unauthorized Baileys session)
+- 7:30 BRT — Instância WA-Pessoal reconectou
+- 7:33 BRT — Mensagem enviada → Evolution disparou webhook → Vercel em cold start demorou >10s → Evolution timeout → webhook marcado como falho → **sem resposta**
+- 7:05 BRT (antes) — Outro teste funcionou (função aquecida, sem cold start)
+
+**Confirmado via banco:** nenhum registro em `whatsapp_conversations` entre 10:05 UTC e 13:42 UTC. Os registros existentes têm respostas completas do agente.
+
+### 17.2 Fix aplicado (commit `22e622b`, 2026-03-19)
+
+**Arquivo:** `src/lib/workflows/xpag-lead-handler.workflow.ts` — step 8B
+
+`markAsRead` e `sendTyping` convertidos para **fire-and-forget** (`.catch(() => {})`). Os dois `await new Promise(setTimeout(...))` foram removidos.
+
+A Evolution API gerencia o delay do typing indicator internamente via o parâmetro `delay` do endpoint `/chat/sendPresence`. Não há necessidade de aguardar no servidor.
+
+**Resultado:** Workflow cai de 15-70s → **5-20s** de execução, dentro do timeout da Evolution API (~10s para primeiros steps, OpenAI incluído).
+
+### 17.3 Estado do banco (2026-03-19)
+
+| Tabela | Registros | Observação |
+|--------|-----------|------------|
+| `user_settings` | 7 usuários | IntelliX.AI (40bd03b1) com `agent_enabled=true`, `evolution_instance_name=WA-Pessoal` |
+| `leads_prospeccao` | 2 leads | Lead-001 (+558137889757), Lead-002 (+5581988514775) |
+| `whatsapp_conversations` | 3 conversas | Todas para Lead-001, com respostas do agente (`message_agent` preenchido) |
+| `agent_configs` | 5 configs | 1 ativa (gpt-4.1, temp 0.7) para tenant 40bd03b1 |
