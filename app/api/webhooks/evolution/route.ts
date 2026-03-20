@@ -84,12 +84,16 @@ export async function POST(req: NextRequest) {
   // Evolution API v2 envolve em { event, instance, data: {...} } — extrai o inner data
   const rawBody = body as Record<string, unknown>;
   const messageData = rawBody?.data ?? body;
-  const normalized = normalizeMessage(messageData, normalizedPayload.instanceName);
 
-  // Ignorar grupos
-  if (normalized.clienteWhatsApp.includes('@g.us')) {
+  // Ignorar grupos — checa no payload RAW antes da normalização
+  // (normalizeMessage() remove @g.us do remoteJid ao extrair o telefone)
+  const rawKey = (messageData as Record<string, unknown>)?.key as Record<string, unknown> | undefined;
+  const remoteJid = (rawKey?.remoteJid as string) || '';
+  if (remoteJid.includes('@g.us')) {
     return NextResponse.json({ ignored: true, reason: 'grupo' }, { status: 200 });
   }
+
+  const normalized = normalizeMessage(messageData, normalizedPayload.instanceName);
 
   // Ignorar tipo desconhecido
   if (normalized.messageType === 'unknown') {
