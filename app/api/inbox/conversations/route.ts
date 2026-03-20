@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!leads || leads.length === 0) {
-    return NextResponse.json([]);
+    return NextResponse.json({ leads: [] });
   }
 
   // For each lead, fetch the last conversation message
@@ -100,5 +100,5 @@ export async function GET(req: NextRequest) {
     ? results.filter(r => r.lastMessageAt)
     : results;
 
-  return NextResponse.json(filtered);
+  return NextResponse.json({ leads: filtered });
 }

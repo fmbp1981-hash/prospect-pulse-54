@@ -20,7 +20,7 @@ export function ConversationList({ selectedLeadId, onSelectLead }: ConversationL
   const { user } = useAuth();
   const [leads, setLeads] = useState<InboxLead[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterTab>('transferred');
+  const [filter, setFilter] = useState<FilterTab>('all');
   const [search, setSearch] = useState('');
 
   const fetchLeads = useCallback(async () => {

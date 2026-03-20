@@ -1,14 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageSquare } from 'lucide-react';
 import { RoleGuard } from '@/components/RoleGuard';
 import { ConversationList } from '@/components/inbox/ConversationList';
 import { ConversationThread } from '@/components/inbox/ConversationThread';
+import { useUnreadConversations } from '@/hooks/useUnreadConversations';
 import type { InboxLead } from '@/components/inbox/ConversationListItem';
 
 export default function InboxPage() {
   const [selectedLead, setSelectedLead] = useState<InboxLead | null>(null);
+  const { markAsRead } = useUnreadConversations();
+
+  // Clear unread badge when the inbox page is opened
+  useEffect(() => {
+    markAsRead();
+  }, [markAsRead]);
 
   return (
     <RoleGuard

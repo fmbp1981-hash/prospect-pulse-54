@@ -12,7 +12,7 @@ import { RoleBadge } from "@/components/RoleBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useTransferredCount } from "@/hooks/useTransferredCount";
+import { useUnreadConversations } from "@/hooks/useUnreadConversations";
 
 import {
   Sidebar,
@@ -45,7 +45,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const { isPending } = useUserRole();
-  const transferredCount = useTransferredCount();
+  const { unreadCount } = useUnreadConversations();
 
   const handleLogout = async () => {
     await signOut();
@@ -91,9 +91,9 @@ export function AppSidebar() {
                         >
                           <item.icon className="h-5 w-5 transition-transform group-hover:scale-110" />
                           {!isCollapsed && <span className="font-medium">{item.title}</span>}
-                          {!isCollapsed && item.title === "Inbox" && transferredCount > 0 && (
+                          {!isCollapsed && item.title === "Inbox" && unreadCount > 0 && (
                             <Badge className="ml-auto text-xs bg-destructive hover:bg-destructive text-white px-1.5 py-0.5 min-w-[20px] text-center">
-                              {transferredCount}
+                              {unreadCount}
                             </Badge>
                           )}
                         </NavLink>
