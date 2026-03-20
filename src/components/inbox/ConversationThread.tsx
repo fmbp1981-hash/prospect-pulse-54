@@ -41,20 +41,40 @@ export function ConversationThread({ lead }: ConversationThreadProps) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('whatsapp_conversations')
-        .select('id, message_lead, message_agent, from_lead, ai_generated, timestamp')
+        .select('id, message_lead, message_agent, from_lead, ai_generated, timestamp, created_at')
         .eq('lead_id', lead.leadId)
-        .order('timestamp', { ascending: true })
-        .limit(100);
+        .order('created_at', { ascending: true })
+        .limit(200);
 
       if (error) throw error;
 
-      const mapped: Message[] = (data || []).map((row: Record<string, unknown>) => ({
-        id: row.id as string,
-        message: (row.from_lead ? row.message_lead : row.message_agent) as string || '',
-        from_lead: row.from_lead as boolean,
-        ai_generated: row.ai_generated as boolean,
-        timestamp: row.timestamp as string,
-      }));
+      // Each DB row can contain BOTH a lead message and an agent response.
+      // Split each row into up to 2 separate Message entries (same pattern as conversation.repository).
+      const mapped: Message[] = [];
+      for (const row of (data || []) as Array<Record<string, unknown>>) {
+        const ts = (row.timestamp || row.created_at) as string;
+        const msgLead = row.message_lead as string | null;
+        const msgAgent = row.message_agent as string | null;
+
+        if (msgLead) {
+          mapped.push({
+            id: `${row.id}-lead`,
+            message: msgLead,
+            from_lead: true,
+            ai_generated: false,
+            timestamp: ts,
+          });
+        }
+        if (msgAgent) {
+          mapped.push({
+            id: `${row.id}-agent`,
+            message: msgAgent,
+            from_lead: false,
+            ai_generated: (row.ai_generated as boolean) ?? false,
+            timestamp: ts,
+          });
+        }
+      }
 
       setMessages(mapped);
     } catch (err) {
@@ -75,7 +95,7 @@ export function ConversationThread({ lead }: ConversationThreadProps) {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'whatsapp_conversations',
           filter: `lead_id=eq.${lead.leadId}`,
