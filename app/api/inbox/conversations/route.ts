@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const filter = req.nextUrl.searchParams.get('filter') ?? 'transferred';
+  const filter = req.nextUrl.searchParams.get('filter') ?? 'all';
 
   // Service client for cross-table reads
   const serviceSupabase = createClient<Database>(
