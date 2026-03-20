@@ -983,19 +983,20 @@ export default function SettingsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="evolution_api_key">API Key</Label>
-                  <div className="relative max-w-2xl">
+                  <div className="flex gap-2 max-w-2xl">
                     <Input
                       id="evolution_api_key"
                       type={showApiKey ? "text" : "password"}
                       placeholder="Sua chave de API da Evolution"
                       value={evolutionApiKey}
                       onChange={(e) => setEvolutionApiKey(e.target.value)}
-                      className="pr-10"
+                      className="flex-1 [&::-ms-reveal]:hidden [&::-webkit-credentials-auto-fill-button]:hidden"
                     />
-                    <Button type="button" variant="ghost" size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowApiKey(!showApiKey)}>
-                      {showApiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                    <Button type="button" variant="outline" size="sm"
+                      className="px-3 shrink-0"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      title={showApiKey ? "Ocultar chave" : "Mostrar chave"}>
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
