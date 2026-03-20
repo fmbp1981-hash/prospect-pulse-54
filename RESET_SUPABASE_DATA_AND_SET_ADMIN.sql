@@ -32,18 +32,33 @@ BEGIN
 END $$;
 
 -- 2) Limpar dados das tabelas do sistema
--- Ajuste a lista se você tiver tabelas adicionais.
--- Usamos CASCADE para lidar com FKs (ex: whatsapp_conversations → leads_prospeccao).
-TRUNCATE TABLE
-  public.whatsapp_conversations,
-  public.lead_notes,
-  public.lead_interactions,
-  public.search_history,
-  public.audit_logs,
-  public.role_changes,
-  public.leads_prospeccao,
-  public.user_settings
-RESTART IDENTITY CASCADE;
+-- Usa DROP/TRUNCATE individual com IF EXISTS para evitar erros em tabelas ausentes.
+DO $$
+DECLARE
+  tbl TEXT;
+BEGIN
+  FOREACH tbl IN ARRAY ARRAY[
+    'whatsapp_conversations',
+    'lead_notes',
+    'lead_interactions',
+    'search_history',
+    'audit_logs',
+    'role_changes',
+    'followup_schedules',
+    'rag_document_chunks',
+    'rag_documents',
+    'agent_configs',
+    'leads_prospeccao',
+    'user_settings'
+  ] LOOP
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = tbl) THEN
+      EXECUTE format('TRUNCATE TABLE public.%I RESTART IDENTITY CASCADE', tbl);
+      RAISE NOTICE 'Truncated: %', tbl;
+    ELSE
+      RAISE NOTICE 'Skipped (not found): %', tbl;
+    END IF;
+  END LOOP;
+END $$;
 
 -- 3) Recriar/atualizar user_settings do admin com role='admin'
 INSERT INTO public.user_settings (user_id, role, created_at, updated_at)
