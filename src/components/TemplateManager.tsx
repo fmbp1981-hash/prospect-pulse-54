@@ -109,13 +109,19 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
     });
   };
 
-  const handleEdit = (template: MessageTemplate) => {
-    if (template.isDefault) {
-      toast.error("Templates padrão não podem ser editados", {
-        description: "Crie uma cópia para personalizar",
-      });
-      return;
+  const handleCopyToClipboard = async (template: MessageTemplate) => {
+    const variations = template.variations || (template.message ? [{ style: 'formal' as MessageStyle, message: template.message }] : []);
+    const validVariations = variations.filter(v => v.message && v.message.trim() !== '');
+    const textToCopy = validVariations.map(v => v.message).join('\n\n---\n\n');
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      toast.success('Template copiado!', { description: 'Texto copiado para a área de transferência' });
+    } catch {
+      toast.error('Falha ao copiar', { description: 'Seu navegador bloqueou o acesso à área de transferência' });
     }
+  };
+
+  const handleEdit = (template: MessageTemplate) => {
     setIsEditing(true);
     setCurrentTemplate(template);
     setActiveVariationTab("0");
@@ -450,8 +456,8 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDuplicate(template)}
-                            title="Duplicar"
+                            onClick={() => handleCopyToClipboard(template)}
+                            title="Copiar texto"
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -459,7 +465,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(template)}
-                            disabled={template.isDefault}
+                            title="Editar"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -468,6 +474,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                             size="icon"
                             onClick={() => handleDelete(template.id)}
                             disabled={template.isDefault}
+                            title="Excluir"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>

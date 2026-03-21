@@ -30,13 +30,24 @@ export function ConversationList({ selectedLeadId, onSelectLead }: ConversationL
       const res = await fetch(`/api/inbox/conversations?filter=${filter}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setLeads(data.leads || []);
+      const newLeads: InboxLead[] = data.leads || [];
+      setLeads(newLeads);
     } catch (err) {
       console.error('[ConversationList] fetch error:', err);
     } finally {
       setLoading(false);
     }
   }, [user, filter]);
+
+  // Keep selected lead in sync with fresh list data (e.g. after modo_atendimento changes)
+  useEffect(() => {
+    if (selectedLeadId && leads.length > 0) {
+      const updated = leads.find((l) => l.leadId === selectedLeadId);
+      if (updated) onSelectLead(updated);
+    }
+    // Only fire when leads array reference changes (after re-fetch), not on prop changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leads]);
 
   useEffect(() => {
     fetchLeads();

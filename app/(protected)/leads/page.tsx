@@ -358,6 +358,9 @@ export default function LeadsPage() {
             setCidadeFilter={setCidadeFilter}
             bairroFilter={bairroFilter}
             setBairroFilter={setBairroFilter}
+            dateRangeFilter={dateRangeFilter}
+            setDateRangeFilter={setDateRangeFilter}
+            onClearSearch={() => setSearchTerm("")}
           />
 
           {/* Bulk Actions */}
