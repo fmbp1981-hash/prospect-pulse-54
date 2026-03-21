@@ -99,7 +99,9 @@ export async function updateSession(request: NextRequest) {
       .eq('user_id', user.id)
       .single();
 
-    if (settings?.pending_setup === true) {
+    // Se não tem settings OU pending_setup é true, bloquear
+    const shouldBlock = !settings || settings.pending_setup === true;
+    if (shouldBlock) {
       const url = request.nextUrl.clone();
       url.pathname = '/pending';
       const redirectResponse = NextResponse.redirect(url);
