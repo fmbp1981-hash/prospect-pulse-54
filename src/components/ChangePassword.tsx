@@ -67,7 +67,7 @@ export function ChangePassword() {
         <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
           <div className="space-y-2">
             <Label htmlFor="new_password">Nova Senha</Label>
-            <div className="relative">
+            <div className="flex gap-2">
               <Input
                 id="new_password"
                 type={showNew ? "text" : "password"}
@@ -76,15 +76,16 @@ export function ChangePassword() {
                 onChange={(e) => setNewPassword(e.target.value)}
                 minLength={6}
                 required
+                className="flex-1"
               />
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="icon"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                 onClick={() => setShowNew(!showNew)}
+                title={showNew ? "Ocultar senha" : "Mostrar senha"}
               >
-                {showNew ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
             {newPassword.length > 0 && newPassword.length < 6 && (
@@ -94,7 +95,7 @@ export function ChangePassword() {
 
           <div className="space-y-2">
             <Label htmlFor="confirm_password">Confirmar Nova Senha</Label>
-            <div className="relative">
+            <div className="flex gap-2">
               <Input
                 id="confirm_password"
                 type={showConfirm ? "text" : "password"}
@@ -103,15 +104,16 @@ export function ChangePassword() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 minLength={6}
                 required
+                className="flex-1"
               />
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
                 size="icon"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
                 onClick={() => setShowConfirm(!showConfirm)}
+                title={showConfirm ? "Ocultar senha" : "Mostrar senha"}
               >
-                {showConfirm ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
             {confirmPassword.length > 0 && newPassword !== confirmPassword && (
