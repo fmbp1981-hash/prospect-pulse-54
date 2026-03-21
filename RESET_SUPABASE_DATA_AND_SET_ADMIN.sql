@@ -61,10 +61,11 @@ BEGIN
 END $$;
 
 -- 3) Recriar/atualizar user_settings do admin com role='admin'
-INSERT INTO public.user_settings (user_id, role, created_at, updated_at)
+INSERT INTO public.user_settings (user_id, role, pending_setup, created_at, updated_at)
 SELECT
   u.id,
   'admin'::public.user_role,
+  false,
   NOW(),
   NOW()
 FROM auth.users u
@@ -72,6 +73,7 @@ WHERE u.email = 'fmbp1981@gmail.com'
 ON CONFLICT (user_id)
 DO UPDATE SET
   role = EXCLUDED.role,
+  pending_setup = false,
   updated_at = NOW();
 
 COMMIT;
