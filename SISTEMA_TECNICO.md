@@ -1,6 +1,6 @@
 # SISTEMA_TECNICO.md — LeadFinder Pro / XPAG Brasil
 > **Arquivo vivo.** Atualizar a cada mudança significativa de código, arquitetura ou infraestrutura.
-> Última atualização: 2026-03-20
+> Última atualização: 2026-03-21
 
 ---
 
@@ -341,7 +341,8 @@ prospect-pulse-54/
 │   │   ├── leads/page.tsx            # Tabela de leads
 │   │   ├── kanban/page.tsx           # Kanban board
 │   │   ├── settings/page.tsx         # Configurações gerais
-│   │   └── integrations/page.tsx     # Status integrações + audit logs
+│   │   ├── integrations/page.tsx     # Status integrações + audit logs
+│   │   └── inbox/page.tsx            # Inbox do consultor (painel de atendimento humano)
 │   │
 │   ├── api/                          # API Routes (serverless)
 │   │   ├── agent/
@@ -376,14 +377,21 @@ prospect-pulse-54/
 │   │   ├── TemplateManager.tsx       # Gestão de templates
 │   │   ├── ProspectionForm.tsx       # Formulário de prospecção
 │   │   ├── Layout.tsx                # Layout wrapper com sidebar
-│   │   └── dashboard/                # Componentes do dashboard
+│   │   ├── dashboard/                # Componentes do dashboard
+│   │   └── inbox/                    # Componentes do Inbox
+│   │       ├── ConversationList.tsx   # Lista de conversas (3 abas + busca + Realtime)
+│   │       ├── ConversationListItem.tsx # Item com badge Humano/Bot + última msg
+│   │       ├── ConversationThread.tsx # Thread de mensagens (paired-row split + Realtime)
+│   │       ├── InboxHeader.tsx        # Cabeçalho: info lead + Assumir/Devolver
+│   │       └── MessageInput.tsx       # Campo de texto (Enter p/ enviar)
 │   │
 │   ├── contexts/
 │   │   └── AuthContext.tsx           # Contexto de autenticação global
 │   │
 │   ├── hooks/
 │   │   ├── useUserRole.ts            # Hook RBAC (role + permissões)
-│   │   └── useLeadDetails.ts         # Hook detalhes do lead
+│   │   ├── useLeadDetails.ts         # Hook detalhes do lead
+│   │   └── useUnreadConversations.ts # Hook unread badge (localStorage + Supabase Realtime)
 │   │
 │   ├── integrations/
 │   │   └── supabase/
@@ -579,6 +587,9 @@ created_at / updated_at timestamptz
 ```
 
 #### `whatsapp_conversations` — Histórico de Conversas
+
+> **Modelo paired-row:** Cada linha pode conter tanto a mensagem do lead (`message_lead`) quanto a resposta do agente (`message_agent`). O `conversation.repository.ts` salva a mensagem do lead via `INSERT` e depois faz `UPDATE` do `message_agent` na mesma linha quando o agente responde. O frontend (`ConversationThread.tsx`) faz o split: cada row gera até 2 entradas visuais separadas (uma do lead, uma do agente), usando timestamps `created_at` e `updated_at` respectivamente.
+
 ```sql
 id                uuid PRIMARY KEY
 lead_id           text                    -- ID do lead
@@ -2368,3 +2379,77 @@ Evolution API (instancia WA-Pessoal)
 - **UX:** Mensagem desabilitada até consultor assumir; auto-scroll ao receber mensagens
 - **Filtros:** Transferidos (modo humano), Meus (ação recente), Todos (qualquer conversa)
 - **WhatsApp:** Usa `getWhatsAppProvider()` (Evolution/Meta) para envio real
+
+---
+
+### fix(inbox): API response format + unread badge + default tab (2026-03-21, commit `11a5da9`)
+
+**Contexto:** Após o merge do Inbox, a lista de conversas aparecia vazia (0 conversas) apesar de haver 26+ registros no banco. O badge do sidebar mostrava contagem fixa (transferidos) e não havia rastreio de mensagens não lidas.
+
+**Bugs corrigidos:**
+
+| Bug | Causa | Fix |
+|-----|-------|-----|
+| Lista vazia (0 conversas) | API retornava array bruto `[]`, frontend esperava `{ leads: [] }` → `data.leads` era `undefined` | API agora retorna `NextResponse.json({ leads: filtered })` |
+| Aba padrão errada | Default era `'transferred'` (só humano), maioria dos leads era bot | Default agora é `'all'` |
+| Sem rastreio de não-lidos | Não existia sistema de tracking | Criado `useUnreadConversations` hook |
+
+**Arquivos criados:**
+- `src/hooks/useUnreadConversations.ts` — Hook que usa `localStorage` (`inbox_last_visit_at`) + Supabase Realtime para contar conversas não lidas (DISTINCT `lead_id` com `created_at > lastVisitAt`). Exporta `{ unreadCount, markAsRead }`.
+
+**Arquivos modificados:**
+- `app/api/inbox/conversations/route.ts` — Response wrapper `{ leads: [...] }`
+- `src/components/inbox/ConversationList.tsx` — Default tab `'all'`, parsing `data.leads || []`
+- `src/components/AppSidebar.tsx` — Badge agora usa `unreadCount` de `useUnreadConversations`
+- `app/(protected)/inbox/page.tsx` — Chama `markAsRead()` no `useEffect` do mount
+
+**Arquivos deletados:**
+- `src/hooks/useTransferredCount.ts` — Substituído por `useUnreadConversations`
+
+---
+
+### fix(inbox): split paired DB rows into separate messages (2026-03-21, commit `3febfb9`)
+
+**Contexto:** Thread de mensagens mostrava texto duplicado ou mensagens faltando. Cada row do banco tem `message_lead` + `message_agent` (modelo paired-row), mas o código antigo mapeava 1 row → 1 mensagem usando `from_lead ? message_lead : message_agent`, perdendo metade dos dados.
+
+**Arquivo:** `src/components/inbox/ConversationThread.tsx`
+
+**Fix:** Cada row agora gera até 2 entradas `Message`:
+```typescript
+for (const row of data) {
+  if (row.message_lead) mapped.push({ id: `${row.id}-lead`, text: row.message_lead, fromLead: true, ... });
+  if (row.message_agent) mapped.push({ id: `${row.id}-agent`, text: row.message_agent, fromLead: false, ... });
+}
+```
+
+**Também corrigido:** Realtime subscription agora escuta `event: '*'` (INSERT + UPDATE) em vez de apenas INSERT. Respostas do agente são gravadas via UPDATE (`message_agent` preenchido após INSERT inicial), então sem escutar UPDATE as novas respostas não apareciam em tempo real.
+
+---
+
+### fix: update reset SQL to handle missing tables (2026-03-21, commit `0b30506`)
+
+**Arquivo:** `RESET_SUPABASE_DATA_AND_SET_ADMIN.sql`
+
+**Problema:** Script falhava com erro quando tabelas como `lead_interactions` não existiam no banco de produção (criadas apenas localmente).
+
+**Fix:** Verificação dinâmica com `IF EXISTS` via bloco PL/pgSQL:
+```sql
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'lead_interactions') THEN
+    TRUNCATE TABLE public.lead_interactions CASCADE;
+  END IF;
+END $$;
+```
+
+---
+
+### Resumo: Sistema de Unread Badge do Inbox
+
+**Arquitetura:**
+1. `localStorage['inbox_last_visit_at']` — timestamp da última visita do consultor ao Inbox
+2. `useUnreadConversations` hook — query Supabase `whatsapp_conversations WHERE created_at > lastVisitAt`, conta DISTINCT `lead_id` client-side
+3. Supabase Realtime — subscription em `whatsapp_conversations` INSERT para incrementar contagem em tempo real
+4. `markAsRead()` — chamado no mount de `/inbox`, atualiza timestamp e reseta contagem
+5. `AppSidebar.tsx` — exibe badge com `unreadCount` no item "Inbox"
+
+**Trade-off:** localStorage em vez de coluna no banco — zero migration, funciona imediato, mas não sincroniza entre dispositivos. Aceitável para MVP.
