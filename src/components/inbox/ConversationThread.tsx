@@ -20,9 +20,10 @@ interface Message {
 
 interface ConversationThreadProps {
   lead: InboxLead;
+  onModeChanged?: () => void;
 }
 
-export function ConversationThread({ lead }: ConversationThreadProps) {
+export function ConversationThread({ lead, onModeChanged }: ConversationThreadProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAssumed, setIsAssumed] = useState(false);
@@ -130,6 +131,7 @@ export function ConversationThread({ lead }: ConversationThreadProps) {
       }
       setIsAssumed(true);
       toast.success('Conversa assumida com sucesso!');
+      onModeChanged?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao assumir conversa');
     } finally {
@@ -151,6 +153,7 @@ export function ConversationThread({ lead }: ConversationThreadProps) {
       }
       setIsAssumed(false);
       toast.success('Conversa devolvida ao bot!');
+      onModeChanged?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao devolver conversa');
     } finally {

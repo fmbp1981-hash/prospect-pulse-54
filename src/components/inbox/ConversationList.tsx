@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type MutableRefObject } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/input';
@@ -14,9 +14,10 @@ type FilterTab = 'transferred' | 'mine' | 'all';
 interface ConversationListProps {
   selectedLeadId: string | null;
   onSelectLead: (lead: InboxLead) => void;
+  refreshRef?: MutableRefObject<(() => void) | null>;
 }
 
-export function ConversationList({ selectedLeadId, onSelectLead }: ConversationListProps) {
+export function ConversationList({ selectedLeadId, onSelectLead, refreshRef }: ConversationListProps) {
   const { user } = useAuth();
   const [leads, setLeads] = useState<InboxLead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +49,11 @@ export function ConversationList({ selectedLeadId, onSelectLead }: ConversationL
     // Only fire when leads array reference changes (after re-fetch), not on prop changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leads]);
+
+  // Expose refresh to parent via ref
+  useEffect(() => {
+    if (refreshRef) refreshRef.current = fetchLeads;
+  }, [refreshRef, fetchLeads]);
 
   useEffect(() => {
     fetchLeads();

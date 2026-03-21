@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     .from('leads_prospeccao')
     .update({
       modo_atendimento: 'bot',
-      data_retorno_bot: new Date().toISOString(),
+      data_ultima_acao_consultor: new Date().toISOString(),
     })
     .eq('id', body.leadId);
 

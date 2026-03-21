@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageSquare } from 'lucide-react';
 import { RoleGuard } from '@/components/RoleGuard';
 import { ConversationList } from '@/components/inbox/ConversationList';
@@ -11,6 +11,12 @@ import type { InboxLead } from '@/components/inbox/ConversationListItem';
 export default function InboxPage() {
   const [selectedLead, setSelectedLead] = useState<InboxLead | null>(null);
   const { markAsRead } = useUnreadConversations();
+  const listRefreshRef = useRef<(() => void) | null>(null);
+
+  const handleModeChanged = useCallback(() => {
+    // Proactively trigger list refresh after takeover/return-to-bot
+    listRefreshRef.current?.();
+  }, []);
 
   // Clear unread badge when the inbox page is opened
   useEffect(() => {
@@ -40,13 +46,14 @@ export default function InboxPage() {
             <ConversationList
               selectedLeadId={selectedLead?.leadId ?? null}
               onSelectLead={setSelectedLead}
+              refreshRef={listRefreshRef}
             />
           </div>
 
           {/* Right panel: thread or empty */}
           <div className="flex-1 min-w-0">
             {selectedLead ? (
-              <ConversationThread lead={selectedLead} />
+              <ConversationThread lead={selectedLead} onModeChanged={handleModeChanged} />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                 <MessageSquare className="h-16 w-16 mb-4 opacity-30" />
