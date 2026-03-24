@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { MapPin, Loader2 } from "lucide-react";
-import { Combobox, ComboboxOption } from "@/components/ui/combobox";
+import { MapPin } from "lucide-react";
 
 import type { LocationData as ProspectionLocationData } from "@/types/prospection";
 
@@ -13,38 +12,17 @@ interface LocationCascadeProps {
   onChange: (location: LocationData) => void;
 }
 
-// Estados brasileiros (dados estáticos — não mudam)
-const BRAZILIAN_STATES: ComboboxOption[] = [
-  { value: "Acre", label: "Acre" },
-  { value: "Alagoas", label: "Alagoas" },
-  { value: "Amapá", label: "Amapá" },
-  { value: "Amazonas", label: "Amazonas" },
-  { value: "Bahia", label: "Bahia" },
-  { value: "Ceará", label: "Ceará" },
-  { value: "Distrito Federal", label: "Distrito Federal" },
-  { value: "Espírito Santo", label: "Espírito Santo" },
-  { value: "Goiás", label: "Goiás" },
-  { value: "Maranhão", label: "Maranhão" },
-  { value: "Mato Grosso", label: "Mato Grosso" },
-  { value: "Mato Grosso do Sul", label: "Mato Grosso do Sul" },
-  { value: "Minas Gerais", label: "Minas Gerais" },
-  { value: "Pará", label: "Pará" },
-  { value: "Paraíba", label: "Paraíba" },
-  { value: "Paraná", label: "Paraná" },
-  { value: "Pernambuco", label: "Pernambuco" },
-  { value: "Piauí", label: "Piauí" },
-  { value: "Rio de Janeiro", label: "Rio de Janeiro" },
-  { value: "Rio Grande do Norte", label: "Rio Grande do Norte" },
-  { value: "Rio Grande do Sul", label: "Rio Grande do Sul" },
-  { value: "Rondônia", label: "Rondônia" },
-  { value: "Roraima", label: "Roraima" },
-  { value: "Santa Catarina", label: "Santa Catarina" },
-  { value: "São Paulo", label: "São Paulo" },
-  { value: "Sergipe", label: "Sergipe" },
-  { value: "Tocantins", label: "Tocantins" },
+// Estados brasileiros
+const BRAZILIAN_STATES = [
+  "Acre", "Alagoas", "Amapá", "Amazonas", "Bahia", "Ceará",
+  "Distrito Federal", "Espírito Santo", "Goiás", "Maranhão",
+  "Mato Grosso", "Mato Grosso do Sul", "Minas Gerais", "Pará",
+  "Paraíba", "Paraná", "Pernambuco", "Piauí", "Rio de Janeiro",
+  "Rio Grande do Norte", "Rio Grande do Sul", "Rondônia", "Roraima",
+  "Santa Catarina", "São Paulo", "Sergipe", "Tocantins",
 ];
 
-// Mapeamento nome do estado → ID IBGE (para buscar cidades)
+// Mapeamento nome do estado → ID IBGE
 const STATE_IBGE_IDS: Record<string, number> = {
   "Acre": 12, "Alagoas": 27, "Amapá": 16, "Amazonas": 13,
   "Bahia": 29, "Ceará": 23, "Distrito Federal": 53, "Espírito Santo": 32,
@@ -55,11 +33,45 @@ const STATE_IBGE_IDS: Record<string, number> = {
   "São Paulo": 35, "Sergipe": 28, "Tocantins": 17,
 };
 
+// Componente Select nativo com busca
+function NativeSelect({
+  id,
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  loading,
+}: {
+  id: string;
+  options: string[];
+  value: string;
+  onChange: (val: string) => void;
+  placeholder: string;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled || loading}
+      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <option value="">{loading ? "Carregando..." : placeholder}</option>
+      {options.map((opt) => (
+        <option key={opt} value={opt}>{opt}</option>
+      ))}
+    </select>
+  );
+}
+
 export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
   const [cityNames, setCityNames] = useState<string[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
 
-  // Buscar cidades quando estado muda (via IBGE API)
+  // Buscar cidades quando estado muda
   useEffect(() => {
     const controller = new AbortController();
 
@@ -91,85 +103,46 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
     return () => controller.abort();
   }, [value.state, value.country]);
 
-  const handleCountryChange = (country: string) => {
-    onChange({ country, state: "", city: "", neighborhood: "" });
-  };
-
-  const handleStateChange = (state: string) => {
-    onChange({ ...value, state, city: "", neighborhood: "" });
-  };
-
-  const handleCityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange({ ...value, city: e.target.value, neighborhood: "" });
-  };
-
-  const handleNeighborhoodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange({ ...value, neighborhood: e.target.value });
-  };
-
-  const countryOptions: ComboboxOption[] = [
-    { value: "Brasil", label: "Brasil" },
-    { value: "Portugal", label: "Portugal" },
-    { value: "Estados Unidos", label: "Estados Unidos" },
-  ];
-
-  const stateOptions: ComboboxOption[] =
-    value.country === "Brasil" ? BRAZILIAN_STATES : [];
-
-  const datalistId = `cities-${value.state?.replace(/\s/g, "-") || "none"}`;
-
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* País */}
         <div className="space-y-2">
           <Label htmlFor="country">País</Label>
-          <Combobox
-            options={countryOptions}
+          <NativeSelect
+            id="country"
+            options={["Brasil", "Portugal", "Estados Unidos"]}
             value={value.country}
-            onValueChange={handleCountryChange}
+            onChange={(country) => onChange({ country, state: "", city: "", neighborhood: "" })}
             placeholder="Selecione o país"
-            searchPlaceholder="Digite para buscar país..."
-            emptyMessage="Nenhum país encontrado."
           />
         </div>
 
         {/* Estado */}
         <div className="space-y-2">
           <Label htmlFor="state">Estado</Label>
-          <Combobox
-            options={stateOptions}
+          <NativeSelect
+            id="state"
+            options={value.country === "Brasil" ? BRAZILIAN_STATES : []}
             value={value.state}
-            onValueChange={handleStateChange}
+            onChange={(state) => onChange({ ...value, state, city: "", neighborhood: "" })}
             placeholder="Selecione o estado"
-            searchPlaceholder="Digite para buscar estado..."
-            emptyMessage="Nenhum estado encontrado."
-            disabled={!value.country || stateOptions.length === 0}
+            disabled={!value.country}
           />
         </div>
 
-        {/* Cidade — Input com datalist nativo (autocomplete do browser) */}
+        {/* Cidade */}
         <div className="space-y-2">
-          <Label htmlFor="city" className="flex items-center gap-2">
-            Cidade
-            {loadingCities && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
-          </Label>
-          <Input
+          <Label htmlFor="city">Cidade</Label>
+          <NativeSelect
             id="city"
-            list={datalistId}
-            placeholder={loadingCities ? "Carregando cidades..." : "Digite a cidade"}
+            options={cityNames}
             value={value.city}
-            onChange={handleCityChange}
+            onChange={(city) => onChange({ ...value, city, neighborhood: "" })}
+            placeholder="Selecione a cidade"
             disabled={!value.state}
-            autoComplete="off"
+            loading={loadingCities}
           />
-          {cityNames.length > 0 && (
-            <datalist id={datalistId}>
-              {cityNames.map(name => (
-                <option key={name} value={name} />
-              ))}
-            </datalist>
-          )}
         </div>
 
         {/* Bairro/Região */}
@@ -179,7 +152,7 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
             id="neighborhood"
             placeholder="Ex: Centro, Zona Sul..."
             value={value.neighborhood || ""}
-            onChange={handleNeighborhoodChange}
+            onChange={(e) => onChange({ ...value, neighborhood: e.target.value })}
             disabled={!value.city}
           />
         </div>
