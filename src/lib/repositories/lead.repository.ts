@@ -97,9 +97,9 @@ export const leadRepository = {
     const supabase = getServiceClient();
     const now = new Date();
 
-    // Janelas de follow-up: 10min (count=0), 1h (count=1), 24h (count=2)
+    // Janelas de follow-up: 15min (count=0), 1h (count=1), 24h (count=2)
     const thresholds = [
-      { count: 0, minutesAgo: 10 },
+      { count: 0, minutesAgo: 15 },
       { count: 1, minutesAgo: 60 },
       { count: 2, minutesAgo: 1440 }, // 24h
     ];
