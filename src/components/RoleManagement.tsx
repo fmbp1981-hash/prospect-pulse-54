@@ -67,27 +67,23 @@ export function RoleManagement() {
   const loadUsers = async () => {
     setIsLoading(true);
     try {
-      const { data: userSettings, error } = await supabase
-        .from('user_settings')
-        .select('user_id, role, created_at, company_name, pending_setup, integration_configured, user_webhook_url, evolution_api_url, evolution_api_key, evolution_instance_name, whatsapp_webhook_url');
+      const res = await fetch('/api/admin/list-users');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { users: settingsWithEmail } = await res.json();
 
-      if (error) throw error;
-
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-
-      const usersData: UserWithSettings[] = (userSettings || []).map((setting: any) => ({
-        id: setting.user_id,
-        email: setting.user_id === currentUser?.id ? (currentUser.email || 'Você') : setting.user_id.substring(0, 8) + '...',
-        role: (setting.role as UserRole) || 'operador',
-        created_at: setting.created_at || new Date().toISOString(),
-        company_name: setting.company_name,
-        pending_setup: setting.pending_setup ?? true,
-        integration_configured: setting.integration_configured ?? false,
-        user_webhook_url: setting.user_webhook_url,
-        evolution_api_url: setting.evolution_api_url,
-        evolution_api_key: setting.evolution_api_key,
-        evolution_instance_name: setting.evolution_instance_name,
-        whatsapp_webhook_url: setting.whatsapp_webhook_url,
+      const usersData: UserWithSettings[] = (settingsWithEmail || []).map((setting: Record<string, unknown>) => ({
+        id: setting.user_id as string,
+        email: (setting.email as string) || 'Email não encontrado',
+        role: ((setting.role as UserRole) || 'operador'),
+        created_at: (setting.created_at as string) || new Date().toISOString(),
+        company_name: (setting.company_name as string) || (setting.full_name as string) || null,
+        pending_setup: (setting.pending_setup as boolean) ?? true,
+        integration_configured: (setting.integration_configured as boolean) ?? false,
+        user_webhook_url: (setting.user_webhook_url as string) || null,
+        evolution_api_url: (setting.evolution_api_url as string) || null,
+        evolution_api_key: (setting.evolution_api_key as string) || null,
+        evolution_instance_name: (setting.evolution_instance_name as string) || null,
+        whatsapp_webhook_url: (setting.whatsapp_webhook_url as string) || null,
       }));
 
       // Ordenar: pendentes primeiro, depois por data

@@ -10,7 +10,10 @@ import { useUserRole } from '@/hooks/useUserRole';
 export default function PendingPage() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { isPending, isLoading, refetch } = useUserRole();
+  const { isPending, isLoading, isAdmin, refetch } = useUserRole();
+
+  // Admin nunca deve ficar em /pending
+  const isAdminEmail = user?.email === 'fmbp1981@gmail.com';
 
   // Verificar aprovação a cada 30s
   useEffect(() => {
@@ -20,12 +23,12 @@ export default function PendingPage() {
     return () => clearInterval(interval);
   }, [refetch]);
 
-  // Redirecionar automaticamente quando aprovado
+  // Redirecionar automaticamente quando aprovado ou se admin
   useEffect(() => {
-    if (!isLoading && !isPending) {
+    if (isAdminEmail || isAdmin || (!isLoading && !isPending)) {
       router.push('/');
     }
-  }, [isPending, isLoading, router]);
+  }, [isPending, isLoading, router, isAdminEmail, isAdmin]);
 
   const handleLogout = async () => {
     await signOut();

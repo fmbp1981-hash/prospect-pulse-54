@@ -53,6 +53,12 @@ export async function runXpagWorkflow(normalized: NormalizedMessage): Promise<vo
   if (!tenant) return;
   logger.info('Tenant resolved', { userId: tenant.userId });
 
+  // ── STEP 1A: VERIFICAR SE O AGENTE ESTÁ ATIVO ────────────────────────────
+  if (!tenant.agentEnabled) {
+    logger.info('Agent disabled by tenant — skipping workflow', { userId: tenant.userId });
+    return;
+  }
+
   // ── STEP 1B: DEFINIR CHAVE OPENAI DO TENANT ──────────────────────────────
   // withOpenAIKey propaga a chave para todos os serviços OpenAI via AsyncLocalStorage
   // (whisper, vision, pdf, agent, humanizer, embeddings) sem mudar assinaturas.

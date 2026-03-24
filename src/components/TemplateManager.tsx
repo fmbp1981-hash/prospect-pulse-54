@@ -109,13 +109,19 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
     });
   };
 
-  const handleEdit = (template: MessageTemplate) => {
-    if (template.isDefault) {
-      toast.error("Templates padrão não podem ser editados", {
-        description: "Crie uma cópia para personalizar",
-      });
-      return;
+  const handleCopyToClipboard = async (template: MessageTemplate) => {
+    const variations = template.variations || (template.message ? [{ style: 'formal' as MessageStyle, message: template.message }] : []);
+    const validVariations = variations.filter(v => v.message && v.message.trim() !== '');
+    const textToCopy = validVariations.map(v => v.message).join('\n\n---\n\n');
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      toast.success('Template copiado!', { description: 'Texto copiado para a área de transferência' });
+    } catch {
+      toast.error('Falha ao copiar', { description: 'Seu navegador bloqueou o acesso à área de transferência' });
     }
+  };
+
+  const handleEdit = (template: MessageTemplate) => {
     setIsEditing(true);
     setCurrentTemplate(template);
     setActiveVariationTab("0");
@@ -359,12 +365,12 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                 </div>
 
                 {/* Opções de Geração com IA */}
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
+                <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4 space-y-3">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-purple-600" />
-                    <p className="text-sm font-medium text-purple-900">Gerar Template com IA</p>
+                    <Sparkles className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    <p className="text-sm font-medium text-purple-900 dark:text-purple-100">Gerar Template com IA</p>
                   </div>
-                  <p className="text-xs text-purple-700">
+                  <p className="text-xs text-purple-700 dark:text-purple-300">
                     Deixe a IA criar templates profissionais para você
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -376,7 +382,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                       }}
                       size="sm"
                       variant="outline"
-                      className="border-purple-200 text-purple-600 hover:bg-purple-100 justify-start"
+                      className="border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 justify-start"
                     >
                       <Sparkles className="h-4 w-4 mr-2" />
                       Primeiro Contato Formal
@@ -389,7 +395,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                       }}
                       size="sm"
                       variant="outline"
-                      className="border-purple-200 text-purple-600 hover:bg-purple-100 justify-start"
+                      className="border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 justify-start"
                     >
                       <Sparkles className="h-4 w-4 mr-2" />
                       Primeiro Contato Descontraído
@@ -402,7 +408,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                       }}
                       size="sm"
                       variant="outline"
-                      className="border-purple-200 text-purple-600 hover:bg-purple-100 justify-start"
+                      className="border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/40 justify-start"
                     >
                       <Sparkles className="h-4 w-4 mr-2" />
                       Follow-Up
@@ -450,8 +456,8 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDuplicate(template)}
-                            title="Duplicar"
+                            onClick={() => handleCopyToClipboard(template)}
+                            title="Copiar texto"
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
@@ -459,7 +465,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(template)}
-                            disabled={template.isDefault}
+                            title="Editar"
                           >
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -468,6 +474,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                             size="icon"
                             onClick={() => handleDelete(template.id)}
                             disabled={template.isDefault}
+                            title="Excluir"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -554,7 +561,7 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                       size="sm"
                       onClick={handleGenerateVariationsFromTemplate}
                       disabled={isGeneratingVariations || !formData.variations[0]?.message}
-                      className="border-purple-200 text-purple-600 hover:bg-purple-50"
+                      className="border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/40"
                     >
                       {isGeneratingVariations ? (
                         <>
@@ -626,8 +633,8 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
                         {formData.variations[index]?.message && (
                           <div className="space-y-2">
                             <Label>Preview:</Label>
-                            <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-                              <p className="text-sm whitespace-pre-wrap">
+                            <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-3 rounded-lg">
+                              <p className="text-sm whitespace-pre-wrap text-green-900 dark:text-green-100">
                                 {renderPreview(formData.variations[index].message)}
                               </p>
                             </div>

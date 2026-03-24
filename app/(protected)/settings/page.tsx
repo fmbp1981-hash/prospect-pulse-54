@@ -16,6 +16,7 @@ import { userSettingsService } from "@/lib/userSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { RoleGuard } from "@/components/RoleGuard";
 import { RoleManagement } from "@/components/RoleManagement";
+import { ChangePassword } from "@/components/ChangePassword";
 import { supabaseCRM, syncAllLeads } from "@/lib/supabaseCRM";
 import { historyService } from "@/lib/history";
 import { leadAutomation, type FollowUpConfig } from "@/lib/leadAutomation";
@@ -526,6 +527,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Alterar Senha */}
+      <ChangePassword />
 
       {/* Configurações de Follow-up Automático */}
       <Card>

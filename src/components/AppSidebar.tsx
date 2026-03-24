@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock, BookOpen } from "lucide-react";
+import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock, BookOpen, MessageSquare } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
 import { motion } from "framer-motion";
@@ -12,6 +12,7 @@ import { RoleBadge } from "@/components/RoleBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useUnreadConversations } from "@/hooks/useUnreadConversations";
 
 import {
   Sidebar,
@@ -31,6 +32,7 @@ const items = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Tabela de Leads", url: "/leads", icon: Table },
   { title: "Kanban Board", url: "/kanban", icon: LayoutGrid },
+  { title: "Inbox", url: "/inbox", icon: MessageSquare },
   { title: "Templates", url: "#", icon: FileText },
   { title: "Integrações", url: "/integrations", icon: Link2 },
   { title: "Configurações", url: "/settings", icon: Settings },
@@ -43,6 +45,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const { isPending } = useUserRole();
+  const { unreadCount } = useUnreadConversations();
 
   const handleLogout = async () => {
     await signOut();
@@ -88,6 +91,11 @@ export function AppSidebar() {
                         >
                           <item.icon className="h-5 w-5 transition-transform group-hover:scale-110" />
                           {!isCollapsed && <span className="font-medium">{item.title}</span>}
+                          {!isCollapsed && item.title === "Inbox" && unreadCount > 0 && (
+                            <Badge className="ml-auto text-xs bg-destructive hover:bg-destructive text-white px-1.5 py-0.5 min-w-[20px] text-center">
+                              {unreadCount}
+                            </Badge>
+                          )}
                         </NavLink>
                       )}
                     </SidebarMenuButton>

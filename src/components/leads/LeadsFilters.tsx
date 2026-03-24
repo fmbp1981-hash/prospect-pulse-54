@@ -21,6 +21,7 @@ interface LeadsFiltersProps {
   setBairroFilter?: (value: string) => void;
   dateRangeFilter?: { start: string; end: string };
   setDateRangeFilter?: (value: { start: string; end: string } | undefined) => void;
+  onClearSearch?: () => void;
 }
 
 export const LeadsFilters = ({
@@ -36,6 +37,7 @@ export const LeadsFilters = ({
   setBairroFilter,
   dateRangeFilter,
   setDateRangeFilter,
+  onClearSearch,
 }: LeadsFiltersProps) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -72,6 +74,7 @@ export const LeadsFilters = ({
     if (setCidadeFilter) setCidadeFilter("");
     if (setBairroFilter) setBairroFilter("");
     if (setDateRangeFilter) setDateRangeFilter(undefined);
+    if (onClearSearch) onClearSearch();
   };
 
   return (

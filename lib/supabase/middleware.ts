@@ -99,7 +99,9 @@ export async function updateSession(request: NextRequest) {
       .eq('user_id', user.id)
       .single();
 
-    if (settings?.pending_setup === true) {
+    // Se não tem settings OU pending_setup é true, bloquear
+    const shouldBlock = !settings || settings.pending_setup === true;
+    if (shouldBlock) {
       const url = request.nextUrl.clone();
       url.pathname = '/pending';
       const redirectResponse = NextResponse.redirect(url);
@@ -109,6 +111,17 @@ export async function updateSession(request: NextRequest) {
       });
       return redirectResponse;
     }
+  }
+
+  // Admin NUNCA deve ficar em /pending — redirecionar para home incondicionalmente
+  if (user && isPendingRoute && user.email === ADMIN_EMAIL) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/';
+    const redirectResponse = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach(cookie => {
+      redirectResponse.cookies.set(cookie.name, cookie.value);
+    });
+    return redirectResponse;
   }
 
   // Se usuário aprovado tenta acessar /pending, redirecionar para home
