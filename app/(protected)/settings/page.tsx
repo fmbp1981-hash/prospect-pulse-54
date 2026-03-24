@@ -926,8 +926,8 @@ export default function SettingsPage() {
         </Card>
       </RoleGuard>
 
-      {/* Integrações WhatsApp - Admin e Operador configuram suas próprias credenciais */}
-      <RoleGuard allowedRoles={['admin', 'operador']}>
+      {/* Integrações WhatsApp - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -990,16 +990,12 @@ export default function SettingsPage() {
                       placeholder="Sua chave de API da Evolution"
                       value={evolutionApiKey}
                       onChange={(e) => setEvolutionApiKey(e.target.value)}
-                      className="font-mono flex-1"
-                      autoComplete="new-password"
+                      className="flex-1 [&::-ms-reveal]:hidden [&::-webkit-credentials-auto-fill-button]:hidden"
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
+                    <Button type="button" variant="outline" size="sm"
+                      className="px-3 shrink-0"
                       onClick={() => setShowApiKey(!showApiKey)}
-                      title={showApiKey ? "Ocultar chave" : "Mostrar chave"}
-                    >
+                      title={showApiKey ? "Ocultar chave" : "Mostrar chave"}>
                       {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </Button>
                   </div>
@@ -1039,24 +1035,19 @@ export default function SettingsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="meta_access_token">Token de Acesso (System User Token)</Label>
-                  <div className="flex gap-2 max-w-2xl">
+                  <div className="relative max-w-2xl">
                     <Input
                       id="meta_access_token"
                       type={showMetaToken ? "text" : "password"}
                       placeholder="EAA..."
                       value={metaAccessToken}
                       onChange={(e) => setMetaAccessToken(e.target.value)}
-                      className="font-mono flex-1"
-                      autoComplete="new-password"
+                      className="pr-10 font-mono"
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowMetaToken(!showMetaToken)}
-                      title={showMetaToken ? "Ocultar token" : "Mostrar token"}
-                    >
-                      {showMetaToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    <Button type="button" variant="ghost" size="sm"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowMetaToken(!showMetaToken)}>
+                      {showMetaToken ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -1201,8 +1192,8 @@ export default function SettingsPage() {
         </Card>
       </RoleGuard>
 
-      {/* Mensagem para visualizadores */}
-      <RoleGuard allowedRoles={['visualizador']}>
+      {/* Mensagem para usuários não-admin */}
+      <RoleGuard allowedRoles={['operador', 'visualizador']}>
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
