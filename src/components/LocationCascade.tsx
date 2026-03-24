@@ -32,21 +32,30 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
 
   // Buscar estados quando país for Brasil
   useEffect(() => {
+    const controller = new AbortController();
+
     if (value.country === "Brasil") {
       setLoadingStates(true);
-      fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome")
+      fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome", {
+        signal: controller.signal,
+      })
         .then(res => res.json())
         .then((data: IBGEState[]) => {
           setStates(data);
           setLoadingStates(false);
         })
         .catch(error => {
-          console.error("Error fetching states:", error);
-          setLoadingStates(false);
+          if (error.name !== "AbortError") {
+            console.error("Error fetching states:", error);
+            setLoadingStates(false);
+          }
         });
     } else {
       setStates([]);
+      setLoadingStates(false);
     }
+
+    return () => controller.abort();
   }, [value.country]);
 
   // Buscar cidades quando estado muda
@@ -130,7 +139,7 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
             placeholder="Selecione o estado"
             searchPlaceholder="Digite para buscar estado..."
             emptyMessage="Nenhum estado encontrado."
-            disabled={!value.country}
+            disabled={!value.country || (value.country !== "Brasil" && stateOptions.length === 0)}
             loading={loadingStates}
           />
         </div>

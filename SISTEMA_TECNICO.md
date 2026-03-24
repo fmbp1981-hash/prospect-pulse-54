@@ -1,6 +1,6 @@
 # SISTEMA_TECNICO.md — LeadFinder Pro / XPAG Brasil
 > **Arquivo vivo.** Atualizar a cada mudança significativa de código, arquitetura ou infraestrutura.
-> Última atualização: 2026-03-21
+> Última atualização: 2026-03-20
 
 ---
 
@@ -341,8 +341,7 @@ prospect-pulse-54/
 │   │   ├── leads/page.tsx            # Tabela de leads
 │   │   ├── kanban/page.tsx           # Kanban board
 │   │   ├── settings/page.tsx         # Configurações gerais
-│   │   ├── integrations/page.tsx     # Status integrações + audit logs
-│   │   └── inbox/page.tsx            # Inbox do consultor (painel de atendimento humano)
+│   │   └── integrations/page.tsx     # Status integrações + audit logs
 │   │
 │   ├── api/                          # API Routes (serverless)
 │   │   ├── agent/
@@ -377,21 +376,14 @@ prospect-pulse-54/
 │   │   ├── TemplateManager.tsx       # Gestão de templates
 │   │   ├── ProspectionForm.tsx       # Formulário de prospecção
 │   │   ├── Layout.tsx                # Layout wrapper com sidebar
-│   │   ├── dashboard/                # Componentes do dashboard
-│   │   └── inbox/                    # Componentes do Inbox
-│   │       ├── ConversationList.tsx   # Lista de conversas (3 abas + busca + Realtime)
-│   │       ├── ConversationListItem.tsx # Item com badge Humano/Bot + última msg
-│   │       ├── ConversationThread.tsx # Thread de mensagens (paired-row split + Realtime)
-│   │       ├── InboxHeader.tsx        # Cabeçalho: info lead + Assumir/Devolver
-│   │       └── MessageInput.tsx       # Campo de texto (Enter p/ enviar)
+│   │   └── dashboard/                # Componentes do dashboard
 │   │
 │   ├── contexts/
 │   │   └── AuthContext.tsx           # Contexto de autenticação global
 │   │
 │   ├── hooks/
 │   │   ├── useUserRole.ts            # Hook RBAC (role + permissões)
-│   │   ├── useLeadDetails.ts         # Hook detalhes do lead
-│   │   └── useUnreadConversations.ts # Hook unread badge (localStorage + Supabase Realtime)
+│   │   └── useLeadDetails.ts         # Hook detalhes do lead
 │   │
 │   ├── integrations/
 │   │   └── supabase/
@@ -587,9 +579,6 @@ created_at / updated_at timestamptz
 ```
 
 #### `whatsapp_conversations` — Histórico de Conversas
-
-> **Modelo paired-row:** Cada linha pode conter tanto a mensagem do lead (`message_lead`) quanto a resposta do agente (`message_agent`). O `conversation.repository.ts` salva a mensagem do lead via `INSERT` e depois faz `UPDATE` do `message_agent` na mesma linha quando o agente responde. O frontend (`ConversationThread.tsx`) faz o split: cada row gera até 2 entradas visuais separadas (uma do lead, uma do agente), usando timestamps `created_at` e `updated_at` respectivamente.
-
 ```sql
 id                uuid PRIMARY KEY
 lead_id           text                    -- ID do lead
@@ -1930,129 +1919,7 @@ Evolution API (instância WA-Pessoal)
 
 ---
 
-### 16.6 Verificação (2026-03-19)
-
-1. ✅ `SUPABASE_SERVICE_ROLE_KEY`, `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `OPENAI_API_KEY`, `WHATSAPP_PROVIDER` — todos setados no Vercel (production)
-2. ✅ Agente processou mensagens reais — 3 conversas confirmadas no banco (`whatsapp_conversations`) com respostas do OpenAI
-3. ✅ Leads criados organicamente: Lead-001 (+558137889757) e Lead-002 (+5581988514775)
-4. ✅ Mensagens salvas em `whatsapp_conversations.message_agent` confirmam envio
-
----
-
-## 17. BUG-27 — Mensagem das 7:33 BRT não processada (2026-03-19)
-
-### 17.1 Diagnóstico
-
-**Causa raiz:** Evolution API tem timeout de ~10s para resposta do webhook. O workflow com `await runXpagWorkflow()` demorava **15-70 segundos** para retornar o HTTP 200 (devido a dois `await new Promise(setTimeout(...))` no step 8B):
-
-```
-await new Promise(resolve => setTimeout(resolve, 1000))   → +1s  (aguardar "ler" antes de digitar)
-await new Promise(resolve => setTimeout(resolve, typingMs)) → +3-12s (aguardar typing indicator)
-```
-
-**Timeline do incidente:**
-- 7:09 BRT — Novo deploy `a9c0199` em produção (cold start iminente)
-- 7:18 BRT — Instância WA-Pessoal desconectou (401 Unauthorized Baileys session)
-- 7:30 BRT — Instância WA-Pessoal reconectou
-- 7:33 BRT — Mensagem enviada → Evolution disparou webhook → Vercel em cold start demorou >10s → Evolution timeout → webhook marcado como falho → **sem resposta**
-- 7:05 BRT (antes) — Outro teste funcionou (função aquecida, sem cold start)
-
-**Confirmado via banco:** nenhum registro em `whatsapp_conversations` entre 10:05 UTC e 13:42 UTC. Os registros existentes têm respostas completas do agente.
-
-### 17.2 Fix aplicado (commit `22e622b`, 2026-03-19)
-
-**Arquivo:** `src/lib/workflows/xpag-lead-handler.workflow.ts` — step 8B
-
-`markAsRead` e `sendTyping` convertidos para **fire-and-forget** (`.catch(() => {})`). Os dois `await new Promise(setTimeout(...))` foram removidos.
-
-A Evolution API gerencia o delay do typing indicator internamente via o parâmetro `delay` do endpoint `/chat/sendPresence`. Não há necessidade de aguardar no servidor.
-
-**Resultado:** Workflow cai de 15-70s → **5-20s** de execução, dentro do timeout da Evolution API (~10s para primeiros steps, OpenAI incluído).
-
-### 17.3 Estado do banco (2026-03-19)
-
-| Tabela | Registros | Observação |
-|--------|-----------|------------|
-| `user_settings` | 7 usuários | IntelliX.AI (40bd03b1) com `agent_enabled=true`, `evolution_instance_name=WA-Pessoal` |
-| `leads_prospeccao` | 2 leads | Lead-001 (+558137889757), Lead-002 (+5581988514775) |
-| `whatsapp_conversations` | 3 conversas | Todas para Lead-001, com respostas do agente (`message_agent` preenchido) |
-| `agent_configs` | 5 configs | 1 ativa (gpt-4.1, temp 0.7) para tenant 40bd03b1 |
-
----
-
-## 18. Fixes e melhorias — 2026-03-19 (sessão tarde/noite)
-
-### 18.1 Problema raiz identificado: sessão Baileys corrompida + Evolution timeout
-
-**Diagnóstico completo:**
-- Instância WA-Pessoal tinha sessão Baileys em estado degradado: **enviava mensagens mas não sincronizava recebidas** — mensagens chegavam ao telefone físico mas não ao Evolution API, portanto nenhum webhook era disparado
-- Mensagens que chegavam geravam atrasos de horas (Evolution API retentava webhook com backoff exponencial porque Vercel demorava >10s para retornar 200)
-- Double-sends: retry + original ambos completavam → duas respostas idênticas
-
-**Solução aplicada:**
-1. Instância WA-Pessoal deletada e recriada pelo usuário
-2. Webhook reconfigurado via API (`POST /webhook/set/WA-Pessoal`)
-
-### 18.2 Fix crítico: `waitUntil` para resposta 200 imediata (commit `ce4ba7d`)
-
-**Arquivo:** `app/api/webhooks/evolution/route.ts`
-
-**Antes:**
-```typescript
-await runXpagWorkflow(normalized); // bloqueava 20-60s
-return NextResponse.json({ received: true }, { status: 200 });
-```
-
-**Depois:**
-```typescript
-import { waitUntil } from '@vercel/functions';
-waitUntil(runXpagWorkflow(normalized).catch(...)); // retorna 200 imediatamente
-return NextResponse.json({ received: true }, { status: 200 });
-```
-
-**Resultado:** Evolution API recebe 200 em <1s → sem retries → sem double-sends → sem delays de horas. `maxDuration` ajustado de 300s → 60s (limite real do Hobby).
-
-### 18.3 Fix: `shouldAutoResumeBot` com lógica correta (commits `2f9bd9a`, `247961c`)
-
-**Arquivo:** `src/lib/services/lead.service.ts`
-
-**Bug:** `data_ultima_acao_consultor = null` retornava `true` imediatamente → bot retomava logo após a transferência.
-
-**Fix final:** quando `lastAction = null`, usa `data_transferencia` como ponto de partida do timer de 10 min:
-```typescript
-if (!lastAction) {
-  const transferTime = (lead as any).data_transferencia as string | null;
-  if (!transferTime) return false;
-  return Date.now() - new Date(transferTime).getTime() >= CONSULTANT_INACTIVITY_MS;
-}
-```
-
-**Comportamento correto:**
-- Transferido → consultor não age em 10min → bot retoma
-- Consultor agiu → fica inativo 10min → bot retoma
-- Comando `#finalizado` → bot retoma imediatamente
-
-### 18.4 Configurações de acesso por role (commit `fbe04c0`)
-
-**Arquivo:** `app/(protected)/settings/page.tsx`
-
-Integração WhatsApp liberada para role `operador` (era só `admin`). Cada usuário configura suas próprias credenciais Evolution API na tela de Configurações. `visualizador` continua vendo mensagem de bloqueio.
-
-### 18.5 Fix: toggle Eye da API Key (commit `a1b1c43`)
-
-**Causa:** `type="password"` injeta ícone nativo do browser Chrome/Edge sobre o botão absoluto, bloqueando clique.
-
-**Fix:** `type="text"` + `style={{ WebkitTextSecurity: 'disc' }}` — mascaramento idêntico visualmente, sem conflito com browser. Aplicado em Evolution API Key e Meta Access Token.
-
-### 18.6 Estado final da instância WA-Pessoal
-
-| Campo | Valor |
-|---|---|
-| Instance ID | `7cb0ded4-cc80-4eb5-8af9-361de004bdbf` |
-| ownerJid | `558188514775@s.whatsapp.net` |
-| Status | `open` |
-| Webhook URL | `https://prospect-pulse-54.vercel.app/api/webhooks/evolution` |
-| Webhook events | `MESSAGES_UPSERT, MESSAGES_UPDATE, CONNECTION_UPDATE` |
+### 16.6 Próximos passos (2026-03-18)
 
 1. ✅ Confirmar que `SUPABASE_SERVICE_ROLE_KEY`, `EVOLUTION_API_URL` e `EVOLUTION_API_KEY` estão setados no Vercel
 2. ✅ Testar agente com mensagem real para a instância WA-Pessoal
@@ -2379,77 +2246,3 @@ Evolution API (instancia WA-Pessoal)
 - **UX:** Mensagem desabilitada até consultor assumir; auto-scroll ao receber mensagens
 - **Filtros:** Transferidos (modo humano), Meus (ação recente), Todos (qualquer conversa)
 - **WhatsApp:** Usa `getWhatsAppProvider()` (Evolution/Meta) para envio real
-
----
-
-### fix(inbox): API response format + unread badge + default tab (2026-03-21, commit `11a5da9`)
-
-**Contexto:** Após o merge do Inbox, a lista de conversas aparecia vazia (0 conversas) apesar de haver 26+ registros no banco. O badge do sidebar mostrava contagem fixa (transferidos) e não havia rastreio de mensagens não lidas.
-
-**Bugs corrigidos:**
-
-| Bug | Causa | Fix |
-|-----|-------|-----|
-| Lista vazia (0 conversas) | API retornava array bruto `[]`, frontend esperava `{ leads: [] }` → `data.leads` era `undefined` | API agora retorna `NextResponse.json({ leads: filtered })` |
-| Aba padrão errada | Default era `'transferred'` (só humano), maioria dos leads era bot | Default agora é `'all'` |
-| Sem rastreio de não-lidos | Não existia sistema de tracking | Criado `useUnreadConversations` hook |
-
-**Arquivos criados:**
-- `src/hooks/useUnreadConversations.ts` — Hook que usa `localStorage` (`inbox_last_visit_at`) + Supabase Realtime para contar conversas não lidas (DISTINCT `lead_id` com `created_at > lastVisitAt`). Exporta `{ unreadCount, markAsRead }`.
-
-**Arquivos modificados:**
-- `app/api/inbox/conversations/route.ts` — Response wrapper `{ leads: [...] }`
-- `src/components/inbox/ConversationList.tsx` — Default tab `'all'`, parsing `data.leads || []`
-- `src/components/AppSidebar.tsx` — Badge agora usa `unreadCount` de `useUnreadConversations`
-- `app/(protected)/inbox/page.tsx` — Chama `markAsRead()` no `useEffect` do mount
-
-**Arquivos deletados:**
-- `src/hooks/useTransferredCount.ts` — Substituído por `useUnreadConversations`
-
----
-
-### fix(inbox): split paired DB rows into separate messages (2026-03-21, commit `3febfb9`)
-
-**Contexto:** Thread de mensagens mostrava texto duplicado ou mensagens faltando. Cada row do banco tem `message_lead` + `message_agent` (modelo paired-row), mas o código antigo mapeava 1 row → 1 mensagem usando `from_lead ? message_lead : message_agent`, perdendo metade dos dados.
-
-**Arquivo:** `src/components/inbox/ConversationThread.tsx`
-
-**Fix:** Cada row agora gera até 2 entradas `Message`:
-```typescript
-for (const row of data) {
-  if (row.message_lead) mapped.push({ id: `${row.id}-lead`, text: row.message_lead, fromLead: true, ... });
-  if (row.message_agent) mapped.push({ id: `${row.id}-agent`, text: row.message_agent, fromLead: false, ... });
-}
-```
-
-**Também corrigido:** Realtime subscription agora escuta `event: '*'` (INSERT + UPDATE) em vez de apenas INSERT. Respostas do agente são gravadas via UPDATE (`message_agent` preenchido após INSERT inicial), então sem escutar UPDATE as novas respostas não apareciam em tempo real.
-
----
-
-### fix: update reset SQL to handle missing tables (2026-03-21, commit `0b30506`)
-
-**Arquivo:** `RESET_SUPABASE_DATA_AND_SET_ADMIN.sql`
-
-**Problema:** Script falhava com erro quando tabelas como `lead_interactions` não existiam no banco de produção (criadas apenas localmente).
-
-**Fix:** Verificação dinâmica com `IF EXISTS` via bloco PL/pgSQL:
-```sql
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'lead_interactions') THEN
-    TRUNCATE TABLE public.lead_interactions CASCADE;
-  END IF;
-END $$;
-```
-
----
-
-### Resumo: Sistema de Unread Badge do Inbox
-
-**Arquitetura:**
-1. `localStorage['inbox_last_visit_at']` — timestamp da última visita do consultor ao Inbox
-2. `useUnreadConversations` hook — query Supabase `whatsapp_conversations WHERE created_at > lastVisitAt`, conta DISTINCT `lead_id` client-side
-3. Supabase Realtime — subscription em `whatsapp_conversations` INSERT para incrementar contagem em tempo real
-4. `markAsRead()` — chamado no mount de `/inbox`, atualiza timestamp e reseta contagem
-5. `AppSidebar.tsx` — exibe badge com `unreadCount` no item "Inbox"
-
-**Trade-off:** localStorage em vez de coluna no banco — zero migration, funciona imediato, mas não sincroniza entre dispositivos. Aceitável para MVP.
