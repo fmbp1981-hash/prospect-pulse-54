@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { MapPin } from "lucide-react";
+import { MapPin, Loader2 } from "lucide-react";
 import { Combobox, ComboboxOption } from "@/components/ui/combobox";
 
 import type { LocationData as ProspectionLocationData } from "@/types/prospection";
@@ -11,11 +11,6 @@ export type LocationData = ProspectionLocationData;
 interface LocationCascadeProps {
   value: LocationData;
   onChange: (location: LocationData) => void;
-}
-
-interface IBGECity {
-  id: number;
-  nome: string;
 }
 
 // Estados brasileiros (dados estáticos — não mudam)
@@ -61,7 +56,7 @@ const STATE_IBGE_IDS: Record<string, number> = {
 };
 
 export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
-  const [cities, setCities] = useState<IBGECity[]>([]);
+  const [cityNames, setCityNames] = useState<string[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
 
   // Buscar cidades quando estado muda (via IBGE API)
@@ -77,8 +72,8 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
           { signal: controller.signal }
         )
           .then(res => res.json())
-          .then((data: IBGECity[]) => {
-            setCities(data);
+          .then((data: Array<{ nome: string }>) => {
+            setCityNames(data.map(c => c.nome));
             setLoadingCities(false);
           })
           .catch(error => {
@@ -89,7 +84,7 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
           });
       }
     } else {
-      setCities([]);
+      setCityNames([]);
       setLoadingCities(false);
     }
 
@@ -104,15 +99,14 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
     onChange({ ...value, state, city: "", neighborhood: "" });
   };
 
-  const handleCityChange = (city: string) => {
-    onChange({ ...value, city, neighborhood: "" });
+  const handleCityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...value, city: e.target.value, neighborhood: "" });
   };
 
   const handleNeighborhoodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onChange({ ...value, neighborhood: e.target.value });
   };
 
-  // Opcoes
   const countryOptions: ComboboxOption[] = [
     { value: "Brasil", label: "Brasil" },
     { value: "Portugal", label: "Portugal" },
@@ -122,24 +116,21 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
   const stateOptions: ComboboxOption[] =
     value.country === "Brasil" ? BRAZILIAN_STATES : [];
 
-  const cityOptions: ComboboxOption[] = cities.map(city => ({
-    value: city.nome,
-    label: city.nome,
-  }));
+  const datalistId = `cities-${value.state?.replace(/\s/g, "-") || "none"}`;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Pais */}
+        {/* País */}
         <div className="space-y-2">
-          <Label htmlFor="country">Pais</Label>
+          <Label htmlFor="country">País</Label>
           <Combobox
             options={countryOptions}
             value={value.country}
             onValueChange={handleCountryChange}
-            placeholder="Selecione o pais"
-            searchPlaceholder="Digite para buscar pais..."
-            emptyMessage="Nenhum pais encontrado."
+            placeholder="Selecione o país"
+            searchPlaceholder="Digite para buscar país..."
+            emptyMessage="Nenhum país encontrado."
           />
         </div>
 
@@ -157,24 +148,33 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
           />
         </div>
 
-        {/* Cidade */}
+        {/* Cidade — Input com datalist nativo (autocomplete do browser) */}
         <div className="space-y-2">
-          <Label htmlFor="city">Cidade</Label>
-          <Combobox
-            options={cityOptions}
+          <Label htmlFor="city" className="flex items-center gap-2">
+            Cidade
+            {loadingCities && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+          </Label>
+          <Input
+            id="city"
+            list={datalistId}
+            placeholder={loadingCities ? "Carregando cidades..." : "Digite a cidade"}
             value={value.city}
-            onValueChange={handleCityChange}
-            placeholder="Selecione a cidade"
-            searchPlaceholder="Digite para buscar cidade..."
-            emptyMessage="Nenhuma cidade encontrada."
+            onChange={handleCityChange}
             disabled={!value.state}
-            loading={loadingCities}
+            autoComplete="off"
           />
+          {cityNames.length > 0 && (
+            <datalist id={datalistId}>
+              {cityNames.map(name => (
+                <option key={name} value={name} />
+              ))}
+            </datalist>
+          )}
         </div>
 
-        {/* Bairro/Regiao */}
+        {/* Bairro/Região */}
         <div className="space-y-2">
-          <Label htmlFor="neighborhood">Bairro/Regiao (opcional)</Label>
+          <Label htmlFor="neighborhood">Bairro/Região (opcional)</Label>
           <Input
             id="neighborhood"
             placeholder="Ex: Centro, Zona Sul..."
@@ -185,7 +185,7 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
         </div>
       </div>
 
-      {/* Preview da localizacao */}
+      {/* Preview da localização */}
       {value.city && (
         <div className="flex items-center gap-2 p-3 bg-muted rounded-lg text-sm">
           <MapPin className="h-4 w-4 text-primary" />

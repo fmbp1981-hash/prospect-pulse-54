@@ -66,7 +66,8 @@ export const QuickSelectLocations = ({ selectedLocation, onSelect }: QuickSelect
   };
 
   const isLocationSelected = (city: string, state: string) => {
-    return selectedLocation?.city === city && selectedLocation?.state === state;
+    const fullStateName = STATE_NAMES[state] || state;
+    return selectedLocation?.city === city && selectedLocation?.state === fullStateName;
   };
 
   const selectedLocationLabel = selectedLocation?.city && selectedLocation?.state
