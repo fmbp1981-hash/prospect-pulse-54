@@ -2,7 +2,13 @@ import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
-import { Combobox, ComboboxOption } from "@/components/ui/combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import type { LocationData as ProspectionLocationData } from "@/types/prospection";
 
@@ -13,11 +19,19 @@ interface LocationCascadeProps {
   onChange: (location: LocationData) => void;
 }
 
-interface IBGEState {
-  id: number;
-  sigla: string;
-  nome: string;
-}
+// Estados brasileiros com IDs IBGE
+const BRAZILIAN_STATES = [
+  { id: 12, nome: "Acre" }, { id: 27, nome: "Alagoas" }, { id: 16, nome: "Amapá" },
+  { id: 13, nome: "Amazonas" }, { id: 29, nome: "Bahia" }, { id: 23, nome: "Ceará" },
+  { id: 53, nome: "Distrito Federal" }, { id: 32, nome: "Espírito Santo" },
+  { id: 52, nome: "Goiás" }, { id: 21, nome: "Maranhão" }, { id: 51, nome: "Mato Grosso" },
+  { id: 50, nome: "Mato Grosso do Sul" }, { id: 31, nome: "Minas Gerais" },
+  { id: 15, nome: "Pará" }, { id: 25, nome: "Paraíba" }, { id: 41, nome: "Paraná" },
+  { id: 26, nome: "Pernambuco" }, { id: 22, nome: "Piauí" }, { id: 33, nome: "Rio de Janeiro" },
+  { id: 24, nome: "Rio Grande do Norte" }, { id: 43, nome: "Rio Grande do Sul" },
+  { id: 11, nome: "Rondônia" }, { id: 14, nome: "Roraima" }, { id: 42, nome: "Santa Catarina" },
+  { id: 35, nome: "São Paulo" }, { id: 28, nome: "Sergipe" }, { id: 17, nome: "Tocantins" },
+];
 
 interface IBGECity {
   id: number;
@@ -25,131 +39,139 @@ interface IBGECity {
 }
 
 export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
-  const [states, setStates] = useState<IBGEState[]>([]);
   const [cities, setCities] = useState<IBGECity[]>([]);
-  const [loadingStates, setLoadingStates] = useState(false);
   const [loadingCities, setLoadingCities] = useState(false);
-
-  // Buscar estados quando país for Brasil
-  useEffect(() => {
-    if (value.country === "Brasil") {
-      setLoadingStates(true);
-      fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome")
-        .then(res => res.json())
-        .then((data: IBGEState[]) => {
-          setStates(data);
-          setLoadingStates(false);
-        })
-        .catch(error => {
-          console.error("Error fetching states:", error);
-          setLoadingStates(false);
-        });
-    } else {
-      setStates([]);
-      setLoadingStates(false);
-    }
-  }, [value.country]);
+  const [citySearch, setCitySearch] = useState("");
 
   // Buscar cidades quando estado muda
   useEffect(() => {
+    const controller = new AbortController();
+
     if (value.state && value.country === "Brasil") {
-      const selectedState = states.find(s => s.nome === value.state);
+      const selectedState = BRAZILIAN_STATES.find(s => s.nome === value.state);
       if (selectedState) {
         setLoadingCities(true);
-        fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState.id}/municipios?orderBy=nome`)
+        setCities([]);
+        fetch(
+          `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState.id}/municipios?orderBy=nome`,
+          { signal: controller.signal }
+        )
           .then(res => res.json())
           .then((data: IBGECity[]) => {
             setCities(data);
             setLoadingCities(false);
           })
           .catch(error => {
-            console.error("Error fetching cities:", error);
-            setLoadingCities(false);
+            if (error.name !== "AbortError") {
+              console.error("Error fetching cities:", error);
+              setLoadingCities(false);
+            }
           });
       }
     } else {
       setCities([]);
       setLoadingCities(false);
     }
-  }, [value.state, value.country, states]);
 
-  const handleCountryChange = (country: string) => {
-    onChange({ country, state: "", city: "", neighborhood: "" });
-  };
+    return () => controller.abort();
+  }, [value.state, value.country]);
 
-  const handleStateChange = (state: string) => {
-    onChange({ ...value, state, city: "", neighborhood: "" });
-  };
+  // Reset city search when state changes
+  useEffect(() => {
+    setCitySearch("");
+  }, [value.state]);
 
-  const handleCityChange = (city: string) => {
-    onChange({ ...value, city, neighborhood: "" });
-  };
-
-  const handleNeighborhoodChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange({ ...value, neighborhood: e.target.value });
-  };
-
-  // Preparar opções para os Combobox
-  const countryOptions: ComboboxOption[] = [
-    { value: "Brasil", label: "Brasil" },
-    { value: "Portugal", label: "Portugal" },
-    { value: "Estados Unidos", label: "Estados Unidos" },
-  ];
-
-  const stateOptions: ComboboxOption[] = states.map(state => ({
-    value: state.nome,
-    label: state.nome,
-  }));
-
-  const cityOptions: ComboboxOption[] = cities.map(city => ({
-    value: city.nome,
-    label: city.nome,
-  }));
+  const filteredCities = citySearch
+    ? cities.filter(c => c.nome.toLowerCase().includes(citySearch.toLowerCase()))
+    : cities;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* País */}
         <div className="space-y-2">
-          <Label htmlFor="country">País</Label>
-          <Combobox
-            options={countryOptions}
-            value={value.country}
-            onValueChange={handleCountryChange}
-            placeholder="Selecione o país"
-            searchPlaceholder="Digite para buscar país..."
-            emptyMessage="Nenhum país encontrado."
-          />
+          <Label>País</Label>
+          <Select
+            value={value.country || undefined}
+            onValueChange={(country) => onChange({ country, state: "", city: "", neighborhood: "" })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o país" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Brasil">Brasil</SelectItem>
+              <SelectItem value="Portugal">Portugal</SelectItem>
+              <SelectItem value="Estados Unidos">Estados Unidos</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Estado */}
         <div className="space-y-2">
-          <Label htmlFor="state">Estado</Label>
-          <Combobox
-            options={stateOptions}
-            value={value.state}
-            onValueChange={handleStateChange}
-            placeholder="Selecione o estado"
-            searchPlaceholder="Digite para buscar estado..."
-            emptyMessage="Nenhum estado encontrado."
+          <Label>Estado</Label>
+          <Select
+            value={value.state || undefined}
+            onValueChange={(state) => onChange({ ...value, state, city: "", neighborhood: "" })}
             disabled={!value.country}
-            loading={loadingStates}
-          />
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o estado" />
+            </SelectTrigger>
+            <SelectContent>
+              {value.country === "Brasil" &&
+                BRAZILIAN_STATES.map((state) => (
+                  <SelectItem key={state.id} value={state.nome}>
+                    {state.nome}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Cidade */}
         <div className="space-y-2">
-          <Label htmlFor="city">Cidade</Label>
-          <Combobox
-            options={cityOptions}
-            value={value.city}
-            onValueChange={handleCityChange}
-            placeholder="Selecione a cidade"
-            searchPlaceholder="Digite para buscar cidade..."
-            emptyMessage="Nenhuma cidade encontrada."
-            disabled={!value.state}
-            loading={loadingCities}
-          />
+          <Label>Cidade</Label>
+          {loadingCities ? (
+            <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
+              Carregando cidades...
+            </div>
+          ) : (
+            <Select
+              value={value.city || undefined}
+              onValueChange={(city) => {
+                onChange({ ...value, city, neighborhood: "" });
+                setCitySearch("");
+              }}
+              disabled={!value.state || loadingCities}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a cidade" />
+              </SelectTrigger>
+              <SelectContent>
+                {cities.length > 20 && (
+                  <div className="px-2 pb-2">
+                    <Input
+                      placeholder="Buscar cidade..."
+                      value={citySearch}
+                      onChange={(e) => setCitySearch(e.target.value)}
+                      className="h-8 text-sm"
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                )}
+                {filteredCities.map((city) => (
+                  <SelectItem key={city.id} value={city.nome}>
+                    {city.nome}
+                  </SelectItem>
+                ))}
+                {filteredCities.length === 0 && citySearch && (
+                  <div className="py-2 text-center text-sm text-muted-foreground">
+                    Nenhuma cidade encontrada.
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {/* Bairro/Região */}
@@ -159,7 +181,7 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
             id="neighborhood"
             placeholder="Ex: Centro, Zona Sul..."
             value={value.neighborhood || ""}
-            onChange={handleNeighborhoodChange}
+            onChange={(e) => onChange({ ...value, neighborhood: e.target.value })}
             disabled={!value.city}
           />
         </div>
