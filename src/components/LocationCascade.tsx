@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { MapPin } from "lucide-react";
+import { MapPin, Search } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -41,6 +41,8 @@ interface IBGECity {
 export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
   const [cities, setCities] = useState<IBGECity[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
+  const [stateSearch, setStateSearch] = useState("");
+  const [citySearch, setCitySearch] = useState("");
 
   // Buscar cidades quando estado muda
   useEffect(() => {
@@ -51,6 +53,7 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
       if (selectedState) {
         setLoadingCities(true);
         setCities([]);
+        setCitySearch("");
         fetch(
           `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState.id}/municipios?orderBy=nome`,
           { signal: controller.signal }
@@ -74,6 +77,14 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
 
     return () => controller.abort();
   }, [value.state, value.country]);
+
+  const filteredStates = stateSearch
+    ? BRAZILIAN_STATES.filter(s => s.nome.toLowerCase().includes(stateSearch.toLowerCase()))
+    : BRAZILIAN_STATES;
+
+  const filteredCities = citySearch
+    ? cities.filter(c => c.nome.toLowerCase().includes(citySearch.toLowerCase()))
+    : cities;
 
   return (
     <div className="space-y-4">
@@ -101,19 +112,37 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
           <Label>Estado</Label>
           <Select
             value={value.state || undefined}
-            onValueChange={(state) => onChange({ ...value, state, city: "", neighborhood: "" })}
+            onValueChange={(state) => {
+              onChange({ ...value, state, city: "", neighborhood: "" });
+              setStateSearch("");
+            }}
             disabled={!value.country}
           >
             <SelectTrigger>
               <SelectValue placeholder="Selecione o estado" />
             </SelectTrigger>
             <SelectContent>
+              <div className="flex items-center border-b px-2 pb-2 mb-1">
+                <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
+                <input
+                  placeholder="Filtrar estado..."
+                  value={stateSearch}
+                  onChange={(e) => setStateSearch(e.target.value)}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  className="flex h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                />
+              </div>
               {value.country === "Brasil" &&
-                BRAZILIAN_STATES.map((state) => (
+                filteredStates.map((state) => (
                   <SelectItem key={state.id} value={state.nome}>
                     {state.nome}
                   </SelectItem>
                 ))}
+              {value.country === "Brasil" && filteredStates.length === 0 && (
+                <div className="py-2 text-center text-sm text-muted-foreground">
+                  Nenhum estado encontrado.
+                </div>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -128,18 +157,36 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
           ) : (
             <Select
               value={value.city || undefined}
-              onValueChange={(city) => onChange({ ...value, city, neighborhood: "" })}
+              onValueChange={(city) => {
+                onChange({ ...value, city, neighborhood: "" });
+                setCitySearch("");
+              }}
               disabled={!value.state || loadingCities}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a cidade" />
               </SelectTrigger>
               <SelectContent>
-                {cities.map((city) => (
+                <div className="flex items-center border-b px-2 pb-2 mb-1">
+                  <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
+                  <input
+                    placeholder="Filtrar cidade..."
+                    value={citySearch}
+                    onChange={(e) => setCitySearch(e.target.value)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    className="flex h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
+                {filteredCities.map((city) => (
                   <SelectItem key={city.id} value={city.nome}>
                     {city.nome}
                   </SelectItem>
                 ))}
+                {filteredCities.length === 0 && citySearch && (
+                  <div className="py-2 text-center text-sm text-muted-foreground">
+                    Nenhuma cidade encontrada.
+                  </div>
+                )}
               </SelectContent>
             </Select>
           )}
