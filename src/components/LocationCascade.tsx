@@ -41,7 +41,6 @@ interface IBGECity {
 export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
   const [cities, setCities] = useState<IBGECity[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
-  const [citySearch, setCitySearch] = useState("");
 
   // Buscar cidades quando estado muda
   useEffect(() => {
@@ -75,15 +74,6 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
 
     return () => controller.abort();
   }, [value.state, value.country]);
-
-  // Reset city search when state changes
-  useEffect(() => {
-    setCitySearch("");
-  }, [value.state]);
-
-  const filteredCities = citySearch
-    ? cities.filter(c => c.nome.toLowerCase().includes(citySearch.toLowerCase()))
-    : cities;
 
   return (
     <div className="space-y-4">
@@ -138,37 +128,18 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
           ) : (
             <Select
               value={value.city || undefined}
-              onValueChange={(city) => {
-                onChange({ ...value, city, neighborhood: "" });
-                setCitySearch("");
-              }}
+              onValueChange={(city) => onChange({ ...value, city, neighborhood: "" })}
               disabled={!value.state || loadingCities}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a cidade" />
               </SelectTrigger>
               <SelectContent>
-                {cities.length > 20 && (
-                  <div className="px-2 pb-2">
-                    <Input
-                      placeholder="Buscar cidade..."
-                      value={citySearch}
-                      onChange={(e) => setCitySearch(e.target.value)}
-                      className="h-8 text-sm"
-                      onKeyDown={(e) => e.stopPropagation()}
-                    />
-                  </div>
-                )}
-                {filteredCities.map((city) => (
+                {cities.map((city) => (
                   <SelectItem key={city.id} value={city.nome}>
                     {city.nome}
                   </SelectItem>
                 ))}
-                {filteredCities.length === 0 && citySearch && (
-                  <div className="py-2 text-center text-sm text-muted-foreground">
-                    Nenhuma cidade encontrada.
-                  </div>
-                )}
               </SelectContent>
             </Select>
           )}
