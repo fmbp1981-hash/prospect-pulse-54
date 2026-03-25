@@ -151,7 +151,7 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
             ))}
           </select>
           {cityFilter && filteredCities.length === 0 && (
-            <p className="text-xs text-muted-foreground">Nenhuma cidade encontrada para "{cityFilter}"</p>
+            <p className="text-xs text-muted-foreground">Nenhuma cidade encontrada para &ldquo;{cityFilter}&rdquo;</p>
           )}
         </div>
 
