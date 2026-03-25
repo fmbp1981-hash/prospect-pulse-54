@@ -33,16 +33,10 @@ const BRAZILIAN_STATES = [
   { id: 35, nome: "São Paulo" }, { id: 28, nome: "Sergipe" }, { id: 17, nome: "Tocantins" },
 ];
 
-interface IBGECity {
-  id: number;
-  nome: string;
-}
-
 export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
-  const [cities, setCities] = useState<IBGECity[]>([]);
+  const [cityNames, setCityNames] = useState<string[]>([]);
   const [loadingCities, setLoadingCities] = useState(false);
-  const [stateSearch, setStateSearch] = useState("");
-  const [citySearch, setCitySearch] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
 
   // Buscar cidades quando estado muda
   useEffect(() => {
@@ -52,15 +46,15 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
       const selectedState = BRAZILIAN_STATES.find(s => s.nome === value.state);
       if (selectedState) {
         setLoadingCities(true);
-        setCities([]);
-        setCitySearch("");
+        setCityNames([]);
+        setCityFilter("");
         fetch(
           `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedState.id}/municipios?orderBy=nome`,
           { signal: controller.signal }
         )
           .then(res => res.json())
-          .then((data: IBGECity[]) => {
-            setCities(data);
+          .then((data: Array<{ nome: string }>) => {
+            setCityNames(data.map(c => c.nome));
             setLoadingCities(false);
           })
           .catch(error => {
@@ -71,20 +65,16 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
           });
       }
     } else {
-      setCities([]);
+      setCityNames([]);
       setLoadingCities(false);
     }
 
     return () => controller.abort();
   }, [value.state, value.country]);
 
-  const filteredStates = stateSearch
-    ? BRAZILIAN_STATES.filter(s => s.nome.toLowerCase().includes(stateSearch.toLowerCase()))
-    : BRAZILIAN_STATES;
-
-  const filteredCities = citySearch
-    ? cities.filter(c => c.nome.toLowerCase().includes(citySearch.toLowerCase()))
-    : cities;
+  const filteredCities = cityFilter
+    ? cityNames.filter(name => name.toLowerCase().includes(cityFilter.toLowerCase()))
+    : cityNames;
 
   return (
     <div className="space-y-4">
@@ -112,83 +102,56 @@ export const LocationCascade = ({ value, onChange }: LocationCascadeProps) => {
           <Label>Estado</Label>
           <Select
             value={value.state || undefined}
-            onValueChange={(state) => {
-              onChange({ ...value, state, city: "", neighborhood: "" });
-              setStateSearch("");
-            }}
+            onValueChange={(state) => onChange({ ...value, state, city: "", neighborhood: "" })}
             disabled={!value.country}
           >
             <SelectTrigger>
               <SelectValue placeholder="Selecione o estado" />
             </SelectTrigger>
             <SelectContent>
-              <div className="flex items-center border-b px-2 pb-2 mb-1">
-                <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
-                <input
-                  placeholder="Filtrar estado..."
-                  value={stateSearch}
-                  onChange={(e) => setStateSearch(e.target.value)}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  className="flex h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                />
-              </div>
               {value.country === "Brasil" &&
-                filteredStates.map((state) => (
+                BRAZILIAN_STATES.map((state) => (
                   <SelectItem key={state.id} value={state.nome}>
                     {state.nome}
                   </SelectItem>
                 ))}
-              {value.country === "Brasil" && filteredStates.length === 0 && (
-                <div className="py-2 text-center text-sm text-muted-foreground">
-                  Nenhum estado encontrado.
-                </div>
-              )}
             </SelectContent>
           </Select>
         </div>
 
         {/* Cidade */}
         <div className="space-y-2">
-          <Label>Cidade</Label>
-          {loadingCities ? (
-            <div className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
-              Carregando cidades...
+          <Label>Cidade {loadingCities && <span className="text-muted-foreground text-xs">(carregando...)</span>}</Label>
+          {/* Filtro de busca acima do dropdown */}
+          {cityNames.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Filtrar cidade..."
+                value={cityFilter}
+                onChange={(e) => setCityFilter(e.target.value)}
+                className="h-9 pl-8 text-sm"
+              />
             </div>
-          ) : (
-            <Select
-              value={value.city || undefined}
-              onValueChange={(city) => {
-                onChange({ ...value, city, neighborhood: "" });
-                setCitySearch("");
-              }}
-              disabled={!value.state || loadingCities}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a cidade" />
-              </SelectTrigger>
-              <SelectContent>
-                <div className="flex items-center border-b px-2 pb-2 mb-1">
-                  <Search className="h-4 w-4 shrink-0 opacity-50 mr-2" />
-                  <input
-                    placeholder="Filtrar cidade..."
-                    value={citySearch}
-                    onChange={(e) => setCitySearch(e.target.value)}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    className="flex h-8 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                  />
-                </div>
-                {filteredCities.map((city) => (
-                  <SelectItem key={city.id} value={city.nome}>
-                    {city.nome}
-                  </SelectItem>
-                ))}
-                {filteredCities.length === 0 && citySearch && (
-                  <div className="py-2 text-center text-sm text-muted-foreground">
-                    Nenhuma cidade encontrada.
-                  </div>
-                )}
-              </SelectContent>
-            </Select>
+          )}
+          <select
+            value={value.city}
+            onChange={(e) => {
+              onChange({ ...value, city: e.target.value, neighborhood: "" });
+              setCityFilter("");
+            }}
+            disabled={!value.state || loadingCities}
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">
+              {loadingCities ? "Carregando cidades..." : "Selecione a cidade"}
+            </option>
+            {filteredCities.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+          {cityFilter && filteredCities.length === 0 && (
+            <p className="text-xs text-muted-foreground">Nenhuma cidade encontrada para "{cityFilter}"</p>
           )}
         </div>
 
