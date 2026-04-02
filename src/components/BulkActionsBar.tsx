@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Download, Trash2, X, FileText } from "lucide-react";
+import { MessageCircle, Download, Trash2, X, FileText, Mail } from "lucide-react";
 
 interface BulkActionsBarProps {
   selectedCount: number;
@@ -10,6 +10,7 @@ interface BulkActionsBarProps {
   onExport: () => void;
   onWhatsApp: () => void;
   onApplyTemplate?: () => void;
+  onEmail?: () => void;
   onDelete: () => void;
   // Permissões opcionais (padrão: todas habilitadas)
   canExport?: boolean;
@@ -24,6 +25,7 @@ export const BulkActionsBar = ({
   onExport,
   onWhatsApp,
   onApplyTemplate,
+  onEmail,
   onDelete,
   canExport = true,
   canSendWhatsApp = true,
@@ -77,6 +79,18 @@ export const BulkActionsBar = ({
                 >
                   <MessageCircle className="h-4 w-4 mr-2" />
                   WhatsApp
+                </Button>
+              )}
+
+              {onEmail && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-primary-foreground hover:bg-primary-foreground/20"
+                  onClick={onEmail}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Email
                 </Button>
               )}
 

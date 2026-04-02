@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink, LayoutGrid, List, TableIcon } from "lucide-react";
+import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink, LayoutGrid, List, TableIcon, Mail, Phone, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { LeadsFilters } from "@/components/leads/LeadsFilters";
 import { toTitleCase, searchMatch } from "@/lib/utils";
@@ -18,6 +18,7 @@ import { WhatsAppDispatchModal } from "@/components/WhatsAppDispatchModal";
 import { ExportModal } from "@/components/ExportModal";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { ApplyTemplateModal } from "@/components/ApplyTemplateModal";
+import { EmailCampaignModal } from "@/components/leads/EmailCampaignModal";
 import { exportToCSV, exportToExcel } from "@/lib/export";
 import { auditExport, auditBulkDelete } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -62,6 +63,7 @@ export default function LeadsPage() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isApplyTemplateModalOpen, setIsApplyTemplateModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
 
@@ -371,6 +373,7 @@ export default function LeadsPage() {
               onWhatsApp={() => setIsWhatsAppModalOpen(true)}
               onApplyTemplate={() => setIsApplyTemplateModalOpen(true)}
               onDelete={() => setIsDeleteDialogOpen(true)}
+              onEmail={() => setIsEmailModalOpen(true)}
               onClearSelection={() => setSelectedLeads(new Set())}
               canExport={permissions.canExport}
               canSendWhatsApp={permissions.canSendWhatsApp}
@@ -399,8 +402,11 @@ export default function LeadsPage() {
                     </TableHead>
                     <TableHead>Categoria</TableHead>
                     <TableHead>WhatsApp</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Email</TableHead>
                     <TableHead>Cidade</TableHead>
                     <TableHead>Links</TableHead>
+                    <TableHead>Resumo</TableHead>
                     <TableHead className="cursor-pointer" onClick={() => handleSort('status')}>
                       Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
                     </TableHead>
@@ -429,6 +435,29 @@ export default function LeadsPage() {
                           >
                             <MessageCircle className="h-4 w-4" />
                             {lead.whatsapp}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {lead.telefone && lead.telefone !== lead.whatsapp ? (
+                          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            {lead.telefone}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {lead.email ? (
+                          <a
+                            href={`mailto:${lead.email}`}
+                            className="text-blue-600 hover:underline flex items-center gap-1 text-sm"
+                          >
+                            <Mail className="h-3 w-3" />
+                            {lead.email}
                           </a>
                         ) : (
                           <span className="text-muted-foreground">-</span>
@@ -465,6 +494,18 @@ export default function LeadsPage() {
                             <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell className="max-w-[200px]">
+                        {lead.resumoAnalitico ? (
+                          <span
+                            title={lead.resumoAnalitico}
+                            className="text-xs text-muted-foreground line-clamp-2 cursor-help"
+                          >
+                            {lead.resumoAnalitico}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge className={`${getStatusColor(lead.status || "Novo")} text-white`}>
@@ -587,6 +628,12 @@ export default function LeadsPage() {
           setIsEditModalOpen(false);
           setLeadToEdit(null);
         }}
+      />
+
+      <EmailCampaignModal
+        open={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        selectedLeads={leads.filter(l => selectedLeads.has(l.id))}
       />
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

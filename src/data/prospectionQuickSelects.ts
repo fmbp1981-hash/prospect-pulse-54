@@ -408,3 +408,81 @@ export const QUICK_LOCATIONS: LocationRegion[] = [
     ]
   }
 ];
+
+// Quick selects para modo "Produto/Serviço" — o usuário busca pelo produto, não pela categoria do negócio
+export interface ProductCategory {
+  category: string;
+  products: string[];
+}
+
+export const QUICK_PRODUCTS: ProductCategory[] = [
+  {
+    category: "Bebidas e Alimentos",
+    products: [
+      "Vinhos",
+      "Cervejas artesanais",
+      "Cachaças",
+      "Queijos finos",
+      "Chocolates",
+      "Café especial",
+      "Orgânicos",
+      "Frutos do mar",
+      "Sorvetes artesanais",
+    ]
+  },
+  {
+    category: "Moda e Acessórios",
+    products: [
+      "Roupas femininas",
+      "Roupas masculinas",
+      "Calçados",
+      "Bolsas e carteiras",
+      "Joias e bijuterias",
+      "Óculos de sol",
+      "Relógios",
+    ]
+  },
+  {
+    category: "Casa e Decoração",
+    products: [
+      "Móveis planejados",
+      "Tapetes e carpetes",
+      "Lustres e luminárias",
+      "Quadros e arte",
+      "Plantas e flores",
+      "Cortinas",
+    ]
+  },
+  {
+    category: "Tecnologia",
+    products: [
+      "Celulares",
+      "Notebooks",
+      "Games e consoles",
+      "Câmeras fotográficas",
+      "Drones",
+      "Impressoras",
+    ]
+  },
+  {
+    category: "Saúde e Bem-estar",
+    products: [
+      "Suplementos",
+      "Produtos naturais",
+      "Equipamentos fitness",
+      "Colchões e travesseiros",
+      "Skincare",
+    ]
+  },
+  {
+    category: "Serviços e B2B",
+    products: [
+      "Software de gestão",
+      "Maquininha de cartão",
+      "Energia solar",
+      "Climatização",
+      "Segurança eletrônica",
+      "Uniformes corporativos",
+    ]
+  }
+];
