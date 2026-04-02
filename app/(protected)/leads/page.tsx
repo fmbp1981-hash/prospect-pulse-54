@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink, LayoutGrid, List, TableIcon, Mail, Phone, FileText } from "lucide-react";
+import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink, LayoutGrid, List, TableIcon, Mail, Phone, FileText, UploadCloud, Users } from "lucide-react";
 import { toast } from "sonner";
 import { LeadsFilters } from "@/components/leads/LeadsFilters";
 import { toTitleCase, searchMatch } from "@/lib/utils";
@@ -19,6 +19,7 @@ import { ExportModal } from "@/components/ExportModal";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { ApplyTemplateModal } from "@/components/ApplyTemplateModal";
 import { EmailCampaignModal } from "@/components/leads/EmailCampaignModal";
+import { ImportLeadsModal } from "@/components/leads/ImportLeadsModal";
 import { exportToCSV, exportToExcel } from "@/lib/export";
 import { auditExport, auditBulkDelete } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -66,6 +67,8 @@ export default function LeadsPage() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isConvertingLead, setIsConvertingLead] = useState<string | null>(null);
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -111,6 +114,26 @@ export default function LeadsPage() {
       if (!silent) setIsLoading(false);
     }
   }, []);
+
+  const handleConvertToClient = async (lead: Lead) => {
+    if (!confirm(`Converter "${lead.empresa}" em cliente?`)) return;
+    setIsConvertingLead(lead.id);
+    try {
+      const res = await fetch('/api/clientes/converter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao converter');
+      toast.success(`${lead.empresa} convertido em cliente!`);
+      loadLeads();
+    } catch (err) {
+      toast.error('Erro ao converter', { description: String(err) });
+    } finally {
+      setIsConvertingLead(null);
+    }
+  };
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -334,6 +357,16 @@ export default function LeadsPage() {
 
           <Button
             variant="outline"
+            size="sm"
+            onClick={() => setIsImportModalOpen(true)}
+            className="gap-2"
+          >
+            <UploadCloud className="h-4 w-4" />
+            Importar
+          </Button>
+
+          <Button
+            variant="outline"
             onClick={handleSync}
             disabled={isSyncing}
             className="gap-2"
@@ -523,6 +556,19 @@ export default function LeadsPage() {
                               <Edit className="h-4 w-4" />
                             </Button>
                           </RoleGuard>
+                          <RoleGuard requiredPermission="canUpdate">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Converter em Cliente"
+                              disabled={isConvertingLead === lead.id}
+                              onClick={() => handleConvertToClient(lead)}
+                            >
+                              {isConvertingLead === lead.id
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <Users className="h-4 w-4 text-green-600" />}
+                            </Button>
+                          </RoleGuard>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -634,6 +680,12 @@ export default function LeadsPage() {
         open={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
         selectedLeads={leads.filter(l => selectedLeads.has(l.id))}
+      />
+
+      <ImportLeadsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImported={() => loadLeads()}
       />
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

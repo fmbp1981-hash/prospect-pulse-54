@@ -43,8 +43,7 @@ export const WhatsAppDispatchModal = ({
     lead.whatsapp &&
     lead.whatsapp.trim() !== "" &&
     lead.mensagemWhatsApp &&
-    lead.mensagemWhatsApp.trim() !== "" &&
-    lead.statusMsgWA !== 'sent'
+    lead.mensagemWhatsApp.trim() !== ""
   ), [selectedLeads]);
 
   const leadsWithoutWhatsApp = useMemo(() => selectedLeads.filter(lead =>
@@ -290,16 +289,28 @@ export const WhatsAppDispatchModal = ({
               </div>
             )}
             {alreadySent.length > 0 && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-amber-600 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-blue-900">
+                    <p className="text-sm font-medium text-amber-900">
                       {alreadySent.length} lead(s) já receberam mensagem anteriormente
                     </p>
-                    <p className="text-xs text-blue-700 mt-1">
-                      Estes leads serão ignorados para evitar envio duplicado
+                    <p className="text-xs text-amber-700 mt-1">
+                      O reenvio será realizado mesmo assim. Verifique se é intencional.
                     </p>
+                    <ul className="text-xs text-amber-600 mt-2 space-y-1 max-h-24 overflow-y-auto">
+                      {alreadySent.map(lead => (
+                        <li key={lead.id}>
+                          • {lead.lead}
+                          {lead.dataEnvioWA ? (
+                            <span className="ml-1 text-amber-500">
+                              (enviado em {new Date(lead.dataEnvioWA).toLocaleDateString('pt-BR')})
+                            </span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
               </div>

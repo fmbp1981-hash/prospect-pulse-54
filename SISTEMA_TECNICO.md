@@ -1,6 +1,6 @@
 # SISTEMA_TECNICO.md — LeadFinder Pro / XPAG Brasil
 > **Arquivo vivo.** Atualizar a cada mudança significativa de código, arquitetura ou infraestrutura.
-> Última atualização: 2026-03-20
+> Última atualização: 2026-04-02
 
 ---
 
@@ -156,6 +156,44 @@ A **XPAG Brasil** é uma empresa de meios de pagamento e soluções financeiras 
 - **Tela:** `/integrations`
 
 #### F11 — Multi-tenancy e RBAC
+
+#### F12 — Email Marketing de Leads (implementado 2026-04-02)
+- **Descrição:** Disparo em massa de emails para leads via Resend API.
+- **Entradas:** Selecionar leads, assunto e corpo do email
+- **Saída:** Envio em batch, rastreamento de status (`status_email`, `data_envio_email`)
+- **API Route:** `POST /api/email/send`
+- **Componente:** `EmailCampaignModal` em `/leads`
+- **BulkAction:** "Enviar E-mail" na barra de ações em massa
+- **Variáveis:** `RESEND_API_KEY`, `FROM_EMAIL`
+
+#### F13 — Prospecção Modo Produto (implementado 2026-04-02)
+- **Descrição:** Toggle no formulário de prospecção para buscar por "Produto" além de "Nicho" (ex: "lâmpadas LED", "pisos vinílicos").
+- **Componente:** `ProspectionForm` — toggle `Nicho | Produto` + novos quick-selects de produtos
+- **Edge Function:** campo `searchMode: 'niche' | 'product'` passado para `supabase/functions/prospection`
+- **DB:** campo `resumo_analitico` → `editorial_summary` no modo produto
+
+#### F14 — Base de Clientes Permanente (planejado, a implementar)
+- **Descrição:** Repositório permanente de clientes convertidos, separado do funil de leads (`leads_prospeccao` é temporário; `clientes` é definitivo).
+- **Conversão:** Automática quando `estagio_pipeline='Fechado Ganho'` + botão manual em qualquer estágio
+- **Ao converter:** Lead removido de `leads_prospeccao`, com opção de devolver para reprospecção
+- **Timeline:** Tabela `cliente_historico` registra toda a jornada (WhatsApp, campanhas, follow-ups, notas)
+- **Tela:** `/clientes` (lista + card com timeline)
+- **APIs:** `/api/clientes`, `/api/clientes/converter`, `/api/clientes/[id]`, `/api/clientes/[id]/devolver`
+
+#### F15 — Sistema de Campanhas (planejado, a implementar)
+- **Descrição:** Criação e disparo de campanhas de WhatsApp ou email para segmentos de leads/clientes.
+- **Audience Builder:** Filtragem por categoria, cidade, estágio, status, tags
+- **Canais:** WhatsApp (Evolution API) e/ou Email (Resend)
+- **Rastreamento:** `campaign_sends` com status individual por destinatário
+- **Tela:** `/campanhas` (lista + composer + resultados)
+- **APIs:** `/api/campaigns` (CRUD + envio)
+
+#### F16 — Importação de Leads (planejado, a implementar)
+- **Descrição:** Importar leads em massa a partir de CSV, XLSX, VCF (contatos WhatsApp) ou TXT (lista de telefones).
+- **Parseamento:** papaparse (CSV/TXT), xlsx (XLSX), parser vCard customizado (VCF)
+- **Normalização:** qualquer formato BR de telefone → `+55XXXXXXXXXXX`
+- **Componente:** `ImportLeadsModal` com preview + mapeamento de colunas
+- **API Route:** `POST /api/leads/import`
 - **Descrição:** Cada usuário opera em namespace isolado. Roles controlam o que cada um pode fazer.
 - **Isolamento:** RLS no PostgreSQL por `user_id`, configurações por `user_id` em `user_settings`
 - **Roles:** `admin`, `operador`, `visualizador` — com matriz de permissões granular
@@ -256,7 +294,7 @@ Com o sistema nativo em produção em `alpha.dualite.dev`, foram feitas melhoria
 
 ### 0.8 Fora do Escopo (Out of Scope)
 
-- **CRM completo com negociações e propostas:** o sistema é focado em prospecção e qualificação inicial. Não inclui módulo de negociação, contratos ou assinaturas.
+- **CRM completo com negociações e propostas:** o sistema é focado em prospecção e qualificação inicial. Não inclui módulo de negociação, contratos ou assinaturas (Base de Clientes é repositório simples, não pipeline de vendas avançado).
 - **Agendamento de reuniões:** o consultor recebe o lead qualificado e agenda manualmente.
 - **Analytics avançado / BI:** o dashboard atual é básico. Não há integração com ferramentas de BI.
 - **App mobile:** somente web responsivo.
@@ -713,6 +751,84 @@ metodo              text
 timestamp timestamptz
 ```
 
+#### `clientes` — Base de Clientes Permanente *(a criar via SQL — Fase 2)*
+```sql
+id                    uuid PRIMARY KEY DEFAULT gen_random_uuid()
+user_id               uuid FK auth.users (RLS: user_id = auth.uid())
+lead_id_original      text                   -- ID do lead de origem em leads_prospeccao
+empresa               text NOT NULL
+contato               text
+whatsapp              text
+telefone              text
+email                 text
+website               text
+instagram             text
+cnpj                  text
+cidade                text
+endereco              text
+bairro                text
+categoria             text
+tags                  text[]
+aceita_cartao         text
+faturamento_declarado numeric
+usa_meios_pagamento   text
+status                text DEFAULT 'Ativo'   -- Ativo | Inativo | Reprospectar
+origem                text                   -- 'Prospecção Google' | 'Lead Orgânico' | 'Importação Manual'
+estagio_origem        text                   -- estagio_pipeline no momento da conversão
+data_primeiro_contato timestamptz
+data_conversao        timestamptz DEFAULT NOW()
+consultor_responsavel text
+observacoes           text
+created_at / updated_at timestamptz
+```
+
+#### `cliente_historico` — Timeline de Eventos *(a criar — Fase 2)*
+```sql
+id          uuid PRIMARY KEY DEFAULT gen_random_uuid()
+cliente_id  uuid FK clientes
+user_id     uuid FK auth.users
+tipo        text NOT NULL
+  -- prospeccao | whatsapp_enviado | whatsapp_recebido | qualificacao |
+  -- transferencia | campanha_email | campanha_whatsapp | follow_up |
+  -- conversao | nota | status_change
+descricao   text NOT NULL
+metadata    jsonb          -- dados extras (campaign_id, msg content, etc.)
+created_at  timestamptz DEFAULT NOW()
+-- INDEX: (cliente_id, created_at DESC)
+```
+
+#### `campaigns` — Campanhas de Outreach *(a criar — Fase 3)*
+```sql
+id           uuid PRIMARY KEY DEFAULT gen_random_uuid()
+user_id      uuid FK auth.users
+name         text NOT NULL
+description  text
+channel      text NOT NULL       -- 'whatsapp' | 'email'
+status       text DEFAULT 'draft'-- draft | scheduled | running | completed | paused
+subject      text                -- só para email
+body         text NOT NULL       -- texto ou template da mensagem
+audience_filter jsonb            -- critérios de filtragem do público
+scheduled_at timestamptz
+started_at   timestamptz
+completed_at timestamptz
+total_sent   int DEFAULT 0
+total_failed int DEFAULT 0
+created_at / updated_at timestamptz
+```
+
+#### `campaign_sends` — Rastreamento Individual *(a criar — Fase 3)*
+```sql
+id           uuid PRIMARY KEY DEFAULT gen_random_uuid()
+campaign_id  uuid FK campaigns
+user_id      uuid FK auth.users
+lead_id      text               -- FK leads_prospeccao (ou cliente_id)
+recipient    text NOT NULL      -- whatsapp ou email do destinatário
+status       text DEFAULT 'pending'  -- pending | sent | failed | bounced
+sent_at      timestamptz
+error        text
+created_at   timestamptz DEFAULT NOW()
+```
+
 #### Outras tabelas
 - `atendimento_bot` — Controle de modo (bot/humano) por WhatsApp
 - `message_templates` — Templates de mensagens
@@ -869,6 +985,98 @@ Devolve a conversa ao bot.
 **Auth:** Sessão Supabase obrigatória
 **Body:** `{ leadId: string }`
 **Ação:** Atualiza `modo_atendimento='bot'`, `data_retorno_bot=now()`
+
+---
+
+### `POST /api/email/send` *(implementado 2026-04-02)*
+Disparo em massa de emails para leads via Resend API.
+
+**Auth:** Sessão Supabase obrigatória
+**Body:** `{ leadIds: string[], subject: string, body: string }`
+**Ação:**
+1. Carrega leads por IDs (filtra apenas leads com email)
+2. Envia batch via Resend `POST /emails/batch`
+3. Atualiza `status_email='sent'`, `data_envio_email=now()` nos leads
+4. Retorna `{ sent, failed, errors }`
+
+**Env vars:** `RESEND_API_KEY`, `FROM_EMAIL`
+
+---
+
+### `POST /api/clientes/converter` *(a implementar — Fase 2)*
+Converte um lead em cliente de forma manual.
+
+**Auth:** Sessão Supabase obrigatória
+**Body:** `{ leadId: string }`
+**Ação:**
+1. Copia dados do lead para tabela `clientes`
+2. Cria entrada inicial em `cliente_historico` (tipo: 'conversao')
+3. Remove lead de `leads_prospeccao`
+4. Retorna `{ clienteId }`
+
+---
+
+### `GET /api/clientes` *(a implementar — Fase 2)*
+Lista clientes com busca e filtro.
+
+**Auth:** Sessão Supabase obrigatória
+**Query:** `?q=busca&status=Ativo&categoria=X`
+**Retorna:** `{ clientes: Cliente[], total: number }`
+
+---
+
+### `GET|PATCH|DELETE /api/clientes/[id]` *(a implementar — Fase 2)*
+Detalhes, edição e remoção de cliente.
+
+**GET** → dados completos + histórico (`cliente_historico` ordered by `created_at DESC`)
+**PATCH** → atualiza campos do cliente
+**DELETE** → soft-delete (`status='Inativo'`) ou hard delete
+
+---
+
+### `POST /api/clientes/[id]/devolver` *(a implementar — Fase 2)*
+Devolve cliente para funil de leads (reprospecção).
+
+**Auth:** Sessão Supabase obrigatória
+**Ação:**
+1. Cria novo lead em `leads_prospeccao` com dados do cliente
+2. Atualiza `clientes.status = 'Reprospectar'`
+3. Registra em `cliente_historico` (tipo: 'status_change')
+
+---
+
+### `GET|POST /api/campaigns` *(a implementar — Fase 4)*
+Listagem e criação de campanhas.
+
+**GET** → lista campanhas do tenant com status e métricas
+**POST** → cria nova campanha (`{ name, channel, subject, body, audienceFilter }`)
+
+---
+
+### `POST /api/campaigns/[id]/send` *(a implementar — Fase 4)*
+Dispara uma campanha para o público selecionado.
+
+**Ação:**
+1. Resolve leads/clientes com base em `audienceFilter`
+2. Para `channel='whatsapp'`: disparo via Evolution API com delay
+3. Para `channel='email'`: disparo via Resend batch
+4. Registra cada envio em `campaign_sends`
+5. Atualiza métricas da campanha (`total_sent`, `total_failed`)
+
+---
+
+### `POST /api/leads/import` *(a implementar — Fase 5)*
+Importa leads em massa a partir de arquivo.
+
+**Auth:** Sessão Supabase obrigatória
+**Body:** `multipart/form-data` com arquivo (CSV/XLSX/VCF/TXT)
+**Ação:**
+1. Detecta tipo pelo mime/extensão
+2. Parseia com papaparse (CSV), xlsx (XLSX), parser vCard (VCF) ou split por linha (TXT)
+3. Normaliza telefones: qualquer formato BR → `+55XXXXXXXXXXX`
+4. Remove duplicatas (por whatsapp ou email)
+5. Insere em `leads_prospeccao` com `origem='Importação Manual'`
+6. Retorna `{ imported, skipped, errors }`
 
 ---
 
@@ -1595,6 +1803,70 @@ Webhook configurado com `webhookBase64: false` (base64 não vem no payload). O f
 ```
 
 ---
+
+---
+
+### feat: Toggle Nicho/Produto + Email Marketing + Novas colunas na tabela Leads (2026-04-02)
+
+**Contexto:** Sprint de melhorias de CRM — 4 features implementadas em série.
+
+**1. Toggle Nicho/Produto em ProspectionForm**
+- `src/components/ProspectionForm.tsx` — adicionado toggle `Nicho | Produto`
+- `src/data/prospectionQuickSelects.ts` — adicionados `QUICK_PRODUCTS` (40+ produtos genéricos)
+- `supabase/functions/prospection/index.ts` — suporte a `searchMode: 'niche' | 'product'` + geração de `editorial_summary`
+- `src/types/prospection.ts` — campos `searchMode`, `editorial_summary` adicionados
+
+**2. Novas colunas na tabela de Leads**
+- `app/(protected)/leads/page.tsx` — colunas **Telefone**, **Email**, **Resumo** adicionadas
+- Resumo exibe `editorial_summary` (modo produto) ou `resumo_analitico` (modo nicho), truncado a 120 chars
+
+**3. Email Marketing via Resend**
+- `app/api/email/send/route.ts` — novo endpoint batch de emails
+- `src/components/EmailCampaignModal.tsx` — modal de composição e disparo
+- `src/components/BulkActionsBar.tsx` — botão "Enviar E-mail" adicionado à barra de ações em massa
+- `app/(protected)/leads/page.tsx` — `EmailCampaignModal` importado e conectado
+- `.env.example` — documentados `RESEND_API_KEY` e `FROM_EMAIL`
+- **Migration SQL executada:** `ALTER TABLE leads_prospeccao ADD COLUMN IF NOT EXISTS status_email text DEFAULT 'not_sent'`, `ADD COLUMN IF NOT EXISTS data_envio_email timestamptz`
+
+**4. Fix — Inbox badge de não lidos**
+- `src/hooks/useUnreadConversations.ts` — default de `new Date(0)` (epoch 1970) alterado para `new Date()` (agora)
+- Impacto: histórico antigo não é mais contado como não lido ao fazer login
+
+**Build:** Verificado com `npx next build` — exit 0. Commit `38304c3` na branch `feature/atualizacoes-sistema`.
+
+---
+
+### feat: Base de Clientes, Campanhas e Importação — PLANEJADO (2026-04-02)
+
+**Contexto:** Usuário identificou 4 gaps críticos no CRM:
+1. WhatsApp não permite reenvio após `statusMsgWA='sent'` (filtro no `WhatsAppDispatchModal`)
+2. Não há sistema de campanhas bulk para re-engajamento
+3. Não há base permanente de clientes — leads são removidos após fechar
+4. Não há importação de contatos externos
+
+**Decisão de Produto:**
+- `leads_prospeccao` = funil de trabalho temporário
+- `clientes` = repositório permanente de clientes convertidos
+- Conversão automática em `estagio_pipeline='Fechado Ganho'` + botão manual
+- Tudo GENÉRICO / WHITE-LABEL — nenhuma referência a negócio específico no código
+
+**Tabelas a criar (SQL via Supabase Dashboard):**
+- `clientes` — repositório permanente (schema em seção 5)
+- `cliente_historico` — timeline de eventos por cliente
+- `campaigns` — campanhas de outreach WhatsApp/email
+- `campaign_sends` — rastreamento individual por destinatário
+
+**Componentes a criar:**
+- `app/(protected)/clientes/page.tsx` — lista de clientes
+- `app/(protected)/clientes/[id]/page.tsx` — detalhes + timeline
+- `app/(protected)/campanhas/page.tsx` — lista + composer
+- `src/components/campaigns/CampaignComposer.tsx`
+- `src/components/campaigns/AudienceBuilder.tsx`
+- `src/components/leads/ImportLeadsModal.tsx`
+- `src/components/leads/AddLeadModal.tsx`
+- `src/lib/normalizePhone.ts` — normalização BR de telefone
+
+**Sidebar:** Links para Clientes e Campanhas a adicionar em `src/components/AppSidebar.tsx`
 
 *Próxima atualização: registrar aqui ao fazer qualquer mudança significativa.*
 
