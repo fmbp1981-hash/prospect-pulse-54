@@ -304,11 +304,6 @@ export default function SettingsPage() {
   };
 
   const handleSave = async () => {
-    if (!companyName.trim()) {
-      toast.error("Por favor, preencha o nome da sua empresa");
-      return;
-    }
-
     setIsSaving(true);
     try {
       await userSettingsService.saveUserSettings({
@@ -508,7 +503,7 @@ export default function SettingsPage() {
           <div className="flex gap-3">
             <Button
               onClick={handleSave}
-              disabled={isSaving || !companyName.trim()}
+              disabled={isSaving}
               className="min-w-32"
             >
               {isSaving ? (
@@ -1082,7 +1077,7 @@ export default function SettingsPage() {
             )}
 
             <div className="flex gap-3">
-              <Button onClick={handleSave} disabled={isSaving || !companyName.trim()}>
+              <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
               </Button>
             </div>
@@ -1184,7 +1179,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex gap-3">
-              <Button onClick={handleSave} disabled={isSaving || !companyName.trim()}>
+              <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
               </Button>
             </div>

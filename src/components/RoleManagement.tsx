@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, UserCog, Eye, Shield, Settings, AlertCircle, CheckCircle, Copy, CheckSquare } from "lucide-react";
+import { Loader2, ShieldCheck, UserCog, Eye, EyeOff, Shield, Settings, AlertCircle, CheckCircle, Copy, CheckSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { UserRole, ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS } from "@/types/roles";
 
@@ -59,6 +59,7 @@ export function RoleManagement() {
   const [approveTargetUser, setApproveTargetUser] = useState<UserWithSettings | null>(null);
   const [approveRole, setApproveRole] = useState<UserRole>('operador');
   const [isApproving, setIsApproving] = useState(false);
+  const [showEvolutionApiKey, setShowEvolutionApiKey] = useState(false);
 
   useEffect(() => {
     loadUsers();
@@ -125,6 +126,7 @@ export function RoleManagement() {
 
   const openConfigDialog = (user: UserWithSettings) => {
     setSelectedUser(user);
+    setShowEvolutionApiKey(false);
     setFormData({
       evolution_api_url: user.evolution_api_url || "",
       evolution_api_key: user.evolution_api_key || "",
@@ -570,13 +572,25 @@ export function RoleManagement() {
 
                 <div className="space-y-2">
                   <Label htmlFor="evolution_api_key">API Key</Label>
-                  <Input
-                    id="evolution_api_key"
-                    type="password"
-                    placeholder="Sua API Key"
-                    value={formData.evolution_api_key}
-                    onChange={(e) => setFormData(prev => ({ ...prev, evolution_api_key: e.target.value }))}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="evolution_api_key"
+                      type={showEvolutionApiKey ? "text" : "password"}
+                      placeholder="Sua API Key"
+                      value={formData.evolution_api_key}
+                      onChange={(e) => setFormData(prev => ({ ...prev, evolution_api_key: e.target.value }))}
+                      className="flex-1"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      type="button"
+                      onClick={() => setShowEvolutionApiKey(!showEvolutionApiKey)}
+                      title={showEvolutionApiKey ? "Ocultar chave" : "Mostrar chave"}
+                    >
+                      {showEvolutionApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

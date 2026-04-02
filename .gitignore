@@ -46,3 +46,8 @@ git-branch-check.txt
 # Mantido localmente, mas não deve ser versionado nem afetar deploy/lint.
 prospect-pulse-54/
 .env*.local
+
+# Generated files
+.superpowers/
+__pycache__/
+nul
