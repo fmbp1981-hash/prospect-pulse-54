@@ -6,7 +6,7 @@ import {
   MessageSquare, Download, CheckCircle2, AlertCircle, Info,
   ArrowRight, Star, Phone, Globe, Brain, RefreshCw, Bell,
   Shield, Key, Rocket, ChevronRight, Play, FileText,
-  BarChart3, Clock, UserCheck, Wrench
+  BarChart3, Clock, UserCheck, Wrench, Megaphone, Upload, Mail
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -145,6 +145,24 @@ function TabOverview() {
             title="Exportação de Dados"
             description="Exporte seus leads em CSV ou Excel com seleção de colunas. Auditoria automática de cada exportação."
           />
+          <FeatureCard
+            icon={Users}
+            title="Base de Clientes"
+            description="Converta leads qualificados em clientes. Acompanhe histórico de interações, status e todas as ações realizadas com cada cliente."
+            badge="Novo"
+          />
+          <FeatureCard
+            icon={Megaphone}
+            title="Campanhas de Email e WhatsApp"
+            description="Crie e dispare campanhas em massa para leads ou clientes via email (Resend) ou WhatsApp. Rastreio de enviados e falhas em tempo real."
+            badge="Novo"
+          />
+          <FeatureCard
+            icon={Upload}
+            title="Importação de Leads"
+            description="Importe leads em massa a partir de arquivos CSV ou Excel. Os dados são normalizados automaticamente antes de salvar."
+            badge="Novo"
+          />
         </CardContent>
       </Card>
 
@@ -201,8 +219,8 @@ function TabOverview() {
               "Enviar WhatsApp",
               "Agente responde",
               "Lead qualificado",
-              "Consultor notificado",
-              "Pipeline atualizado",
+              "Converter para Cliente",
+              "Campanhas de follow-up",
             ].map((step, i, arr) => (
               <div key={step} className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full">
@@ -420,6 +438,12 @@ function TabLeads() {
               title="Exportação"
               description="Exporte para CSV ou Excel (.xlsx) com seleção personalizada de colunas e timestamp no nome do arquivo."
             />
+            <FeatureCard
+              icon={Upload}
+              title="Importação de Leads"
+              description="Importe leads de um CSV ou Excel clicando em 'Importar'. O sistema normaliza telefones e evita duplicatas."
+              badge="Novo"
+            />
           </div>
         </CardContent>
       </Card>
@@ -636,6 +660,14 @@ function TabIntegrations() {
               where: "console.cloud.google.com",
             },
             {
+              name: "Resend (Email)",
+              badge: "Para Campanhas",
+              badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+              desc: "Usado para disparar campanhas de email em massa. Configure a variável RESEND_API_KEY no Vercel para ativar campanhas de email.",
+              key: "re_...",
+              where: "resend.com/api-keys",
+            },
+            {
               name: "Firecrawl (opcional)",
               badge: "Opcional",
               badgeColor: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
@@ -681,6 +713,7 @@ function TabIntegrations() {
               ["EVOLUTION_API_URL", "URL do servidor Evolution API"],
               ["EVOLUTION_API_KEY", "API Key da instância Evolution"],
               ["EVOLUTION_DEFAULT_INSTANCE", "Nome da instância WhatsApp"],
+              ["RESEND_API_KEY", "Chave Resend para campanhas de email"],
               ["CRON_SECRET", "Segredo para autenticar chamadas do cron"],
               ["XPAG_CONSULTANT_WHATSAPP", "Número do consultor para notificações"],
             ].map(([key, desc]) => (
@@ -696,6 +729,172 @@ function TabIntegrations() {
   );
 }
 
+function TabClientes() {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="h-5 w-5 text-primary" />
+            Base de Clientes
+          </CardTitle>
+          <CardDescription>Gerencie leads que foram convertidos em clientes</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <TipBox>
+            Um lead vira cliente quando o agente ou o consultor clica em <strong>&quot;Converter para Cliente&quot;</strong> na tabela de leads. Após a conversão, ele aparece na página <strong>Clientes</strong>.
+          </TipBox>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <FeatureCard
+              icon={CheckCircle2}
+              title="Status do Cliente"
+              description="Cada cliente pode estar como Ativo, Inativo ou Reprospectar — para quando a empresa volta a ser um lead potencial."
+            />
+            <FeatureCard
+              icon={Clock}
+              title="Histórico Completo"
+              description="Veja toda a linha do tempo: conversão, mensagens WhatsApp enviadas/recebidas, campanhas, follow-ups e notas manuais."
+            />
+            <FeatureCard
+              icon={RefreshCw}
+              title="Devolver para Leads"
+              description="Se o relacionamento não evoluir, você pode devolver o cliente para a tabela de leads com um clique, mantendo o histórico."
+            />
+            <FeatureCard
+              icon={Megaphone}
+              title="Campanhas para Clientes"
+              description="Selecione clientes e dispare campanhas de email ou WhatsApp diretamente a partir da base de clientes."
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ArrowRight className="h-5 w-5 text-primary" />
+            Fluxo Lead → Cliente
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2 items-center text-sm">
+            {[
+              "Lead qualificado pelo agente",
+              "Consultor notificado",
+              "Negociação iniciada",
+              "Converter para Cliente",
+              "Aparece na Base de Clientes",
+              "Campanhas e follow-ups",
+            ].map((step, i, arr) => (
+              <div key={step} className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full">
+                  <span className="text-xs font-medium text-primary">{i + 1}</span>
+                  <span className="text-xs font-medium">{step}</span>
+                </div>
+                {i < arr.length - 1 && (
+                  <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function TabCampanhas() {
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Megaphone className="h-5 w-5 text-primary" />
+            Campanhas de Email e WhatsApp
+          </CardTitle>
+          <CardDescription>Dispare mensagens em massa para leads ou clientes</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-3 rounded-lg border space-y-2">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Campanhas de Email</span>
+                <Badge variant="secondary" className="text-xs">Resend</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Envie emails personalizados em massa via Resend. Configure assunto, corpo e
+                destinatários. Rastreio de entregues e falhas em tempo real.
+              </p>
+            </div>
+            <div className="p-3 rounded-lg border space-y-2">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Campanhas de WhatsApp</span>
+                <Badge variant="secondary" className="text-xs">Evolution API</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Dispare mensagens WhatsApp em lote para leads ou clientes. O sistema usa a
+                Evolution API configurada nas suas integrações.
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-foreground">Status de uma campanha:</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[
+                { label: "Rascunho", color: "bg-muted text-muted-foreground", desc: "Criada, não enviada" },
+                { label: "Enviando", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300", desc: "Disparando agora" },
+                { label: "Concluída", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300", desc: "Envio finalizado" },
+                { label: "Pausada", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300", desc: "Interrompida" },
+              ].map((s) => (
+                <div key={s.label} className="p-2 rounded-lg border text-center space-y-1">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.color}`}>{s.label}</span>
+                  <p className="text-xs text-muted-foreground">{s.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Play className="h-5 w-5 text-primary" />
+            Como criar uma campanha
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-0">
+          <Step n={1} title="Acesse o menu Campanhas no sidebar">
+            <p>Clique em <strong>Campanhas</strong> no menu lateral para abrir a lista de campanhas existentes.</p>
+          </Step>
+          <Separator />
+          <Step n={2} title="Clique em Nova Campanha">
+            <p>Preencha: nome da campanha, descrição, canal (<strong>Email</strong> ou <strong>WhatsApp</strong>) e, se for email, o assunto e o corpo da mensagem.</p>
+          </Step>
+          <Separator />
+          <Step n={3} title="Selecione os destinatários">
+            <p>Escolha os leads ou clientes que receberão a campanha. Use filtros de status, categoria ou cidade para segmentar o público.</p>
+          </Step>
+          <Separator />
+          <Step n={4} title="Dispare e acompanhe">
+            <p>Clique em <strong>Enviar Campanha</strong>. A coluna de status muda para <em>Enviando</em> e você acompanha enviados e falhas em tempo real.</p>
+          </Step>
+        </CardContent>
+      </Card>
+
+      <WarningBox>
+        Para campanhas de email, configure a variável <code className="bg-muted px-1 rounded text-xs">RESEND_API_KEY</code> no Vercel.
+        Para campanhas de WhatsApp, a Evolution API deve estar conectada e o número ativo.
+      </WarningBox>
+    </div>
+  );
+}
+
 // ─── main page ─────────────────────────────────────────────────────────────
 
 export default function TutorialPage() {
@@ -707,6 +906,8 @@ export default function TutorialPage() {
     { id: "prospection", label: "Prospecção", icon: Search },
     { id: "leads", label: "Leads & Kanban", icon: Users },
     { id: "agent", label: "Agente de IA", icon: Bot },
+    { id: "clientes", label: "Clientes", icon: Users },
+    { id: "campanhas", label: "Campanhas", icon: Megaphone },
     { id: "integrations", label: "Integrações", icon: Zap },
   ];
 
@@ -743,6 +944,8 @@ export default function TutorialPage() {
         <TabsContent value="prospection" className="mt-6"><TabProspection /></TabsContent>
         <TabsContent value="leads" className="mt-6"><TabLeads /></TabsContent>
         <TabsContent value="agent" className="mt-6"><TabAgent /></TabsContent>
+        <TabsContent value="clientes" className="mt-6"><TabClientes /></TabsContent>
+        <TabsContent value="campanhas" className="mt-6"><TabCampanhas /></TabsContent>
         <TabsContent value="integrations" className="mt-6"><TabIntegrations /></TabsContent>
       </Tabs>
 
