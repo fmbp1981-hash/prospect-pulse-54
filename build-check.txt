@@ -1,8 +1,230 @@
-
-> leadfinder-pro@2.0.0 build
-> next build
-
   Ôû▓ Next.js 14.2.35
   - Environments: .env.local
 
    Creating an optimized production build ...
+ Ô£ô Compiled successfully
+   Linting and checking validity of types ...
+
+./app/(protected)/dashboard/page.tsx
+24:11  Warning: 'role' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+24:17  Warning: 'isAdmin' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./app/(protected)/integrations/page.tsx
+28:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+60:60  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/(protected)/leads/page.tsx
+8:10  Warning: 'Input' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:19  Warning: 'Search' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:72  Warning: 'Download' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:138  Warning: 'FileText' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+40:3  Warning: 'PaginationEllipsis' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+58:24  Warning: 'hasPermission' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./app/(protected)/settings/page.tsx
+61:10  Warning: 'agentConfigId' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+82:6  Warning: React Hook useEffect has a missing dependency: 'loadSettings'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+113:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+114:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+130:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./app/api/cron/rescue-human-mode/route.ts
+44:90  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./lib/supabaseCRM.ts
+3:68  Warning: 'CONVERSATION_STATUS' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+3:89  Warning: 'mapAgentStatusToPipeline' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/AppSidebar.tsx
+157:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+./src/components/dashboard/AdvancedMetrics.tsx
+2:80  Warning: 'XCircle' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+76:3  Warning: 'conversionRate' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/dashboard/ConversionMetrics.tsx
+5:3  Warning: 'TrendingUp' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+6:3  Warning: 'TrendingDown' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+14:3  Warning: 'Percent' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+26:3  Warning: 'FunnelChart' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+27:3  Warning: 'Funnel' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/dashboard/InsightsCharts.tsx
+13:3  Warning: 'Legend' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+51:9  Warning: 'cityData' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/dashboard/PerformanceOverview.tsx
+14:18  Warning: 'parseISO' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+14:28  Warning: 'startOfWeek' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+151:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/KanbanBoard.tsx
+3:31  Warning: 'useCallback' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+8:10  Warning: 'Building2' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:15  Warning: 'Database' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/LeadDetailDrawer.tsx
+5:93  Warning: 'Trash2' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+33:38  Warning: 'isLoading' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+80:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+
+./src/components/LeadEditModal.tsx
+7:28  Warning: 'LeadPriority' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+7:42  Warning: 'WhatsAppStatus' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+37:15  Warning: 'Database' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+116:6  Warning: React Hook useEffect has a missing dependency: 'lead'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/leads/LeadsFilters.tsx
+7:10  Warning: 'Calendar' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/ProspectionForm.tsx
+1:20  Warning: 'useEffect' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+183:12  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/components/ProtectedRoute.tsx
+3:10  Warning: 'redirect' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/QuickStats.tsx
+3:25  Warning: 'TrendingUp' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/RoleManagement.tsx
+196:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+238:9  Warning: 'configuredUsers' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/SearchHistory.tsx
+54:10  Warning: 'isLoadingStatuses' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+54:29  Warning: 'setIsLoadingStatuses' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+55:21  Warning: 'setIsSending' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/TemplateManager.tsx
+62:10  Warning: 'aiGeneratorMode' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+143:9  Warning: 'handleDuplicate' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+174:9  Warning: 'handleResetTemplates' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+325:9  Warning: 'openAIGenerator' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/components/WhatsAppConversationDrawer.tsx
+12:15  Warning: 'Database' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+47:6  Warning: React Hook useEffect has a missing dependency: 'loadConversations'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/WhatsAppDispatchModal.tsx
+67:6  Warning: React Hook useEffect has a missing dependency: 'validLeads'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/data/prospectionQuickSelects.ts
+1:10  Warning: 'LocationData' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/hooks/use-toast.ts
+15:7  Warning: 'actionTypes' is assigned a value but only used as a type. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/hooks/useLeadDetails.ts
+16:15  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+31:8  Warning: React Hook useEffect has a missing dependency: 'loadDetails'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+57:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+98:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+117:46  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/hooks/useUserRole.ts
+54:35  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+64:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/ai/tools/update-lead.tool.ts
+9:26  Warning: 'ToolExecutionContext' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/lib/audit.ts
+2:15  Warning: 'Database' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+8:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+95:59  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/export.ts
+118:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/exportLeads.ts
+26:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/history.ts
+3:15  Warning: 'Database' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+30:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+36:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+62:29  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+70:35  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/integrations/whatsapp/providers/evolution.provider.ts
+171:9  Warning: 'mediaId' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+./src/lib/repositories/lead.repository.ts
+46:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/supabaseCRM.ts
+64:100  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+80:71  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+
+./src/lib/userSettings.ts
+2:15  Warning: 'Database' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+   Collecting page data ...
+   Generating static pages (0/33) ...
+   Generating static pages (8/33) 
+[list-users] Erro: n [Error]: Dynamic server usage: Route /api/admin/list-users couldn't be rendered statically because it used `cookies`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at l (C:\Projects\prospect-pulse-54\.next\server\chunks\8948.js:1:37220)
+    at f (C:\Projects\prospect-pulse-54\.next\server\chunks\9702.js:5:9237)
+    at c (C:\Projects\prospect-pulse-54\.next\server\app\api\admin\list-users\route.js:1:858)
+    at C:\Projects\prospect-pulse-54\node_modules\next\dist\compiled\next-server\app-route.runtime.prod.js:6:38417
+    at C:\Projects\prospect-pulse-54\node_modules\next\dist\server\lib\trace\tracer.js:140:36
+    at NoopContextManager.with (C:\Projects\prospect-pulse-54\node_modules\next\dist\compiled\@opentelemetry\api\index.js:1:7062)
+    at ContextAPI.with (C:\Projects\prospect-pulse-54\node_modules\next\dist\compiled\@opentelemetry\api\index.js:1:518)
+    at NoopTracer.startActiveSpan (C:\Projects\prospect-pulse-54\node_modules\next\dist\compiled\@opentelemetry\api\index.js:1:18093)
+    at ProxyTracer.startActiveSpan (C:\Projects\prospect-pulse-54\node_modules\next\dist\compiled\@opentelemetry\api\index.js:1:18854)
+    at C:\Projects\prospect-pulse-54\node_modules\next\dist\server\lib\trace\tracer.js:122:103 {
+  description: "Route /api/admin/list-users couldn't be rendered statically because it used `cookies`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+   Generating static pages (16/33) 
+   Generating static pages (24/33) 
+ Ô£ô Generating static pages (33/33)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+Ôöî Ôùï /                                    48.8 kB         288 kB
+Ôö£ Ôùï /_not-found                          148 B          87.7 kB
+Ôö£ ãÆ /api/admin/approve-user              0 B                0 B
+Ôö£ ãÆ /api/admin/init-user-settings        0 B                0 B
+Ôö£ ãÆ /api/admin/list-users                0 B                0 B
+Ôö£ ãÆ /api/agent/config                    0 B                0 B
+Ôö£ ãÆ /api/agent/config/[id]/activate      0 B                0 B
+Ôö£ ãÆ /api/agent/rag                       0 B                0 B
+Ôö£ ãÆ /api/cron/follow-up                  0 B                0 B
+Ôö£ ãÆ /api/cron/keepalive                  0 B                0 B
+Ôö£ ãÆ /api/cron/long-followup              0 B                0 B
+Ôö£ ãÆ /api/cron/rescue-human-mode          0 B                0 B
+Ôö£ ãÆ /api/email/send-bulk                 0 B                0 B
+Ôö£ ãÆ /api/inbox/conversations             0 B                0 B
+Ôö£ ãÆ /api/inbox/return-to-bot             0 B                0 B
+Ôö£ ãÆ /api/inbox/send-message              0 B                0 B
+Ôö£ ãÆ /api/inbox/takeover                  0 B                0 B
+Ôö£ ãÆ /api/webhooks/bulk-message           0 B                0 B
+Ôö£ ãÆ /api/webhooks/evolution              0 B                0 B
+Ôö£ ãÆ /api/whatsapp/send                   0 B                0 B
+Ôö£ Ôùï /dashboard                           128 kB          365 kB
+Ôö£ Ôùï /forgot-password                     4.7 kB          209 kB
+Ôö£ Ôùï /icon.svg                            0 B                0 B
+Ôö£ Ôùï /inbox                               7.54 kB         223 kB
+Ôö£ Ôùï /integrations                        8.99 kB         220 kB
+Ôö£ Ôùï /kanban                              930 B           285 kB
+Ôö£ Ôùï /leads                               117 kB          420 kB
+Ôö£ Ôùï /login                               5.28 kB         209 kB
+Ôö£ Ôùï /pending                             4.67 kB         208 kB
+Ôö£ Ôùï /settings                            18.6 kB         267 kB
+Ôö£ Ôùï /signup                              5.37 kB         209 kB
+Ôöö Ôùï /tutorial                            14.3 kB         114 kB
++ First Load JS shared by all            87.6 kB
+  Ôö£ chunks/2117-585c75f1324e9d50.js      31.9 kB
+  Ôö£ chunks/fd9d1056-7ef211a81d09af37.js  53.6 kB
+  Ôöö other shared chunks (total)          2.02 kB
+
+
+ãÆ Middleware                             72.9 kB
+
+Ôùï  (Static)   prerendered as static content
+ãÆ  (Dynamic)  server-rendered on demand
+

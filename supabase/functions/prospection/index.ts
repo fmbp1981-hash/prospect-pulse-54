@@ -17,7 +17,8 @@ interface ProspectionRequest {
   quantity: number;
   user_id?: string; // ID do usuário autenticado (multi-tenant)
   businessName?: string; // Nome específico do estabelecimento (opcional)
-  bairros?: string[]; // NOVO: array de bairros para filtro
+  bairros?: string[]; // Array de bairros para filtro
+  searchMode?: 'niche' | 'product'; // Modo de busca: nicho/categoria ou produto/serviço
 }
 
 interface GooglePlacesResult {
@@ -327,7 +328,7 @@ serve(async (req) => {
       );
     }
 
-    const { niche, location, quantity, user_id, businessName, bairros } = await req.json() as ProspectionRequest;
+    const { niche, location, quantity, user_id, businessName, bairros, searchMode } = await req.json() as ProspectionRequest;
 
     console.log('📍 Prospecção iniciada:', { niche, location, quantity, user_id, businessName, bairros });
 
@@ -544,7 +545,7 @@ serve(async (req) => {
         }
 
         console.log(`🏢 Buscando: ${place.name}`);
-        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status,types,geometry&key=${GOOGLE_API_KEY}`;
+        const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website,rating,user_ratings_total,business_status,types,geometry,editorial_summary&key=${GOOGLE_API_KEY}`;
 
         const detailsResponse = await fetch(detailsUrl);
         const detailsData = await detailsResponse.json();
@@ -777,10 +778,17 @@ serve(async (req) => {
         googleMapsLink = `https://www.google.com/maps/search/?api=1&query=${place.geometry.location.lat},${place.geometry.location.lng}`;
       }
 
+      // Resumo do lugar: preferir editorial_summary do Google Places (quando disponível)
+      const editorialSummary = (place as any).editorial_summary?.overview || null;
+
+      // Categoria: em modo produto o niche já é o termo do produto (ex: "Vinhos")
+      // Em modo nicho usa o niche digitado ou tradução do tipo do Google como fallback
+      const categoria = niche || translateGoogleType(place.types);
+
       return {
         id: place.place_id || generateUniqueId(place.name || 'empresa', place.formatted_address || ''),
         empresa: place.name || 'Empresa não identificada',
-        categoria: niche || translateGoogleType(place.types),
+        categoria,
         telefone: phone || null,
         whatsapp: hasWhatsApp ? phone : null,
         endereco: place.formatted_address || '',
@@ -793,7 +801,7 @@ serve(async (req) => {
         status: 'Novo',
         estagio_pipeline: 'Novo Lead',
         data: new Date().toLocaleDateString('pt-BR'),
-        resumo_analitico: place.enrichedSummary || null,
+        resumo_analitico: editorialSummary || place.enrichedSummary || null,
         user_id: effectiveUserId,
       };
     }));

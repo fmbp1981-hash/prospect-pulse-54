@@ -4,7 +4,20 @@
       "Bash(grep:*)",
       "Bash(npm run build:*)",
       "Bash(npx tsc:*)",
-      "WebFetch(domain:xpagbrasil-one-page.vercel.app)"
+      "WebFetch(domain:xpagbrasil-one-page.vercel.app)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm install:*)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(f''''SP: {len\\(data\\)} cidades''''\\); print\\(''''Primeiras 5:'''', [d[''''nome''''] for d in data[:5]]\\)\")",
+      "Bash(node -e \":*)"
     ]
   }
 }

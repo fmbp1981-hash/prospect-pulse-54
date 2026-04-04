@@ -25,6 +25,7 @@ export interface ProspectionFormData {
   quantity: number;
   webhookUrl?: string;
   businessName?: string; // Nome específico do estabelecimento (opcional)
+  searchMode?: 'niche' | 'product'; // Modo de busca: nicho/categoria ou produto/serviço
 }
 
 // Tipos completos do CRM - Novo Pipeline (7 estágios)
@@ -94,6 +95,10 @@ export interface Lead {
   resumoAnalitico?: string; // Mapeado de resumo_analitico
   createdAt?: string; // created_at
   updatedAt?: string; // updated_at
+
+  // Email marketing
+  statusEmail?: 'not_sent' | 'sent' | 'failed'; // Mapeado de status_email
+  dataEnvioEmail?: string | null; // Mapeado de data_envio_email
 
   // ❌ Campos VIRTUAIS (calculados, não salvam no banco)
   origem?: LeadOrigin; // Derivado de categoria

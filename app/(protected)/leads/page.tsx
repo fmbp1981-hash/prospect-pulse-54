@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink, LayoutGrid, List, TableIcon } from "lucide-react";
+import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink, LayoutGrid, List, TableIcon, Mail, Phone, FileText, UploadCloud, Users } from "lucide-react";
 import { toast } from "sonner";
 import { LeadsFilters } from "@/components/leads/LeadsFilters";
 import { toTitleCase, searchMatch } from "@/lib/utils";
@@ -18,6 +18,8 @@ import { WhatsAppDispatchModal } from "@/components/WhatsAppDispatchModal";
 import { ExportModal } from "@/components/ExportModal";
 import { LeadEditModal } from "@/components/LeadEditModal";
 import { ApplyTemplateModal } from "@/components/ApplyTemplateModal";
+import { EmailCampaignModal } from "@/components/leads/EmailCampaignModal";
+import { ImportLeadsModal } from "@/components/leads/ImportLeadsModal";
 import { exportToCSV, exportToExcel } from "@/lib/export";
 import { auditExport, auditBulkDelete } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -62,8 +64,11 @@ export default function LeadsPage() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isApplyTemplateModalOpen, setIsApplyTemplateModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isConvertingLead, setIsConvertingLead] = useState<string | null>(null);
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -109,6 +114,26 @@ export default function LeadsPage() {
       if (!silent) setIsLoading(false);
     }
   }, []);
+
+  const handleConvertToClient = async (lead: Lead) => {
+    if (!confirm(`Converter "${lead.empresa}" em cliente?`)) return;
+    setIsConvertingLead(lead.id);
+    try {
+      const res = await fetch('/api/clientes/converter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Erro ao converter');
+      toast.success(`${lead.empresa} convertido em cliente!`);
+      loadLeads();
+    } catch (err) {
+      toast.error('Erro ao converter', { description: String(err) });
+    } finally {
+      setIsConvertingLead(null);
+    }
+  };
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -332,6 +357,16 @@ export default function LeadsPage() {
 
           <Button
             variant="outline"
+            size="sm"
+            onClick={() => setIsImportModalOpen(true)}
+            className="gap-2"
+          >
+            <UploadCloud className="h-4 w-4" />
+            Importar
+          </Button>
+
+          <Button
+            variant="outline"
             onClick={handleSync}
             disabled={isSyncing}
             className="gap-2"
@@ -371,6 +406,7 @@ export default function LeadsPage() {
               onWhatsApp={() => setIsWhatsAppModalOpen(true)}
               onApplyTemplate={() => setIsApplyTemplateModalOpen(true)}
               onDelete={() => setIsDeleteDialogOpen(true)}
+              onEmail={() => setIsEmailModalOpen(true)}
               onClearSelection={() => setSelectedLeads(new Set())}
               canExport={permissions.canExport}
               canSendWhatsApp={permissions.canSendWhatsApp}
@@ -399,8 +435,11 @@ export default function LeadsPage() {
                     </TableHead>
                     <TableHead>Categoria</TableHead>
                     <TableHead>WhatsApp</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Email</TableHead>
                     <TableHead>Cidade</TableHead>
                     <TableHead>Links</TableHead>
+                    <TableHead>Resumo</TableHead>
                     <TableHead className="cursor-pointer" onClick={() => handleSort('status')}>
                       Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
                     </TableHead>
@@ -429,6 +468,29 @@ export default function LeadsPage() {
                           >
                             <MessageCircle className="h-4 w-4" />
                             {lead.whatsapp}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {lead.telefone && lead.telefone !== lead.whatsapp ? (
+                          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Phone className="h-3 w-3" />
+                            {lead.telefone}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {lead.email ? (
+                          <a
+                            href={`mailto:${lead.email}`}
+                            className="text-blue-600 hover:underline flex items-center gap-1 text-sm"
+                          >
+                            <Mail className="h-3 w-3" />
+                            {lead.email}
                           </a>
                         ) : (
                           <span className="text-muted-foreground">-</span>
@@ -466,6 +528,18 @@ export default function LeadsPage() {
                           )}
                         </div>
                       </TableCell>
+                      <TableCell className="max-w-[200px]">
+                        {lead.resumoAnalitico ? (
+                          <span
+                            title={lead.resumoAnalitico}
+                            className="text-xs text-muted-foreground line-clamp-2 cursor-help"
+                          >
+                            {lead.resumoAnalitico}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge className={`${getStatusColor(lead.status || "Novo")} text-white`}>
                           {lead.status || "Novo"}
@@ -480,6 +554,19 @@ export default function LeadsPage() {
                               onClick={() => handleEdit(lead)}
                             >
                               <Edit className="h-4 w-4" />
+                            </Button>
+                          </RoleGuard>
+                          <RoleGuard requiredPermission="canUpdate">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Converter em Cliente"
+                              disabled={isConvertingLead === lead.id}
+                              onClick={() => handleConvertToClient(lead)}
+                            >
+                              {isConvertingLead === lead.id
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <Users className="h-4 w-4 text-green-600" />}
                             </Button>
                           </RoleGuard>
                         </div>
@@ -587,6 +674,18 @@ export default function LeadsPage() {
           setIsEditModalOpen(false);
           setLeadToEdit(null);
         }}
+      />
+
+      <EmailCampaignModal
+        open={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        selectedLeads={leads.filter(l => selectedLeads.has(l.id))}
+      />
+
+      <ImportLeadsModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImported={() => loadLeads()}
       />
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

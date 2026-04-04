@@ -8,7 +8,8 @@ const STORAGE_KEY = 'inbox_last_visit_at';
 
 function getLastVisit(): string {
   if (typeof window === 'undefined') return new Date().toISOString();
-  return localStorage.getItem(STORAGE_KEY) || new Date(0).toISOString();
+  // Default to "now" for first-time visitors so historical records don't show as unread
+  return localStorage.getItem(STORAGE_KEY) || new Date().toISOString();
 }
 
 /**

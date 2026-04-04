@@ -5,13 +5,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LocationCascade, LocationData } from "@/components/LocationCascade";
 import { toast } from "sonner";
-import { Search, Loader2, Target, MapPin, Hash, RotateCcw, X } from "lucide-react";
+import { Search, Loader2, Target, MapPin, Hash, RotateCcw, X, Package } from "lucide-react";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
 import { QuickSelectNiches } from "@/components/QuickSelectNiches";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { QUICK_PRODUCTS } from "@/data/prospectionQuickSelects";
 
 interface ProspectionFormProps {
   onSearch: (data: ProspectionFormData) => void;
@@ -21,6 +22,7 @@ interface ProspectionFormProps {
 export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuth();
+  const [searchMode, setSearchMode] = useState<'niche' | 'product'>('niche');
 
   const [formData, setFormData] = useState<ProspectionFormData>({
     niche: "",
@@ -120,6 +122,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
           ...formData,
           bairros, // array de bairros
           user_id: user?.id, // Passar ID do usuário autenticado
+          searchMode, // Modo de busca: nicho ou produto
         }
       });
 
@@ -273,24 +276,81 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
         )}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-4">
+
+            {/* Toggle Modo de Busca */}
+            <div className="flex rounded-lg border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSearchMode('niche')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  searchMode === 'niche'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Target className="h-4 w-4" />
+                Nicho / Categoria
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchMode('product')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                  searchMode === 'product'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <Package className="h-4 w-4" />
+                Produto / Serviço
+              </button>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="niche" className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-muted-foreground" />
-                Nicho de Negócios
+                {searchMode === 'niche' ? (
+                  <Target className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                )}
+                {searchMode === 'niche' ? 'Nicho de Negócios' : 'Produto ou Serviço'}
               </Label>
 
-              <QuickSelectNiches
-                selectedNiche={formData.niche}
-                onSelect={(niche) => setFormData({ ...formData, niche })}
-              />
+              {searchMode === 'niche' ? (
+                <QuickSelectNiches
+                  selectedNiche={formData.niche}
+                  onSelect={(niche) => setFormData({ ...formData, niche })}
+                />
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_PRODUCTS.flatMap(cat => cat.products.slice(0, 3)).map(product => (
+                    <button
+                      key={product}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, niche: product })}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        formData.niche === product
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background text-muted-foreground border-border hover:bg-muted'
+                      }`}
+                    >
+                      {product}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <Input
                 id="niche"
-                placeholder="Ou digite manualmente..."
+                placeholder={searchMode === 'niche' ? 'Ex: Restaurantes, Clínicas, Academias...' : 'Ex: Vinhos, Chocolates finos, Móveis planejados...'}
                 value={formData.niche}
                 onChange={(e) => setFormData({ ...formData, niche: e.target.value })}
                 className="transition-all focus:shadow-card"
               />
+              {searchMode === 'product' && (
+                <p className="text-xs text-muted-foreground">
+                  💡 Digite o produto que o negócio vende. Ex: &quot;Vinhos&quot; encontra adegas, distribuidoras e lojas de vinho.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
