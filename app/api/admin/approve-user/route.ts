@@ -4,55 +4,47 @@
  * POST /api/admin/approve-user
  * Body: { userId: string, newRole: 'operador' | 'visualizador' | 'admin' }
  *
- * - Valida que o solicitante é admin (role=admin + email fmbp1981@gmail.com)
+ * - Valida que o solicitante tem role='admin' no banco (não usa email hardcoded)
  * - Atualiza user_settings: role=newRole, pending_setup=false, approved_by=adminId
  * - Envia email de aprovação via Resend
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-
-const ADMIN_EMAIL = 'fmbp1981@gmail.com';
-
-async function getCallerUser() {
-  const cookieStore = cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => cookieStore.getAll() } }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
+import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Verificar autenticação do admin
-    const caller = await getCallerUser();
-    if (!caller || caller.email !== ADMIN_EMAIL) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    // 1. Autenticar via helper compartilhado (trata refresh de sessão corretamente)
+    const supabase = await createClient();
+    const { data: { user: caller } } = await supabase.auth.getUser();
+    if (!caller) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verificar role=admin no banco
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+
+    if (!serviceRoleKey) {
+      return NextResponse.json({ error: 'Service role not configured' }, { status: 500 });
+    }
+
+    const adminClient = createServiceClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: adminSettings } = await adminClient
+    // 2. Verificar role='admin' no banco
+    const { data: callerSettings } = await adminClient
       .from('user_settings')
       .select('role')
       .eq('user_id', caller.id)
       .single();
 
-    if (adminSettings?.role !== 'admin') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    if (callerSettings?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 2. Ler body
+    // 3. Ler body
     const body = await req.json() as { userId?: string; newRole?: string };
     const { userId, newRole } = body;
 
@@ -65,13 +57,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
 
-    // 3. Buscar email do usuário a ser aprovado
+    // 4. Buscar email do usuário a ser aprovado
     const { data: { user: targetUser }, error: userError } = await adminClient.auth.admin.getUserById(userId);
     if (userError || !targetUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // 4. Atualizar user_settings
+    // 5. Atualizar user_settings
     const { error: updateError } = await adminClient
       .from('user_settings')
       .update({
@@ -87,7 +79,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    // 5. Enviar email via Resend
+    // 6. Enviar email via Resend
     const resendApiKey = process.env.RESEND_API_KEY;
     const fromEmail = process.env.FROM_EMAIL || 'noreply@xpag.com.br';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://alpha.dualite.dev';
