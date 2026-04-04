@@ -5,10 +5,15 @@
  * Chamado durante o signUp para criar user_settings com role=visualizador e pending_setup=true.
  * Usa service role para contornar RLS (o usuário ainda não está autenticado no momento do signup).
  * Esta rota é pública mas só faz upsert com dados mínimos — sem risco de escalada de privilégios.
+ *
+ * Exceção: o email designado como admin recebe role='admin' e pending_setup=false automaticamente,
+ * garantindo que o administrador principal sempre tenha acesso completo ao sistema.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+
+const ADMIN_EMAIL = 'fmbp1981@gmail.com';
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,17 +37,36 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Upsert: cria apenas se não existir — não sobrescreve settings existentes
-    const { error } = await supabase
-      .from('user_settings')
-      .upsert(
-        { user_id: userId, role: 'visualizador', pending_setup: true },
-        { onConflict: 'user_id', ignoreDuplicates: true }
-      );
+    // Verificar se este userId corresponde ao email do admin
+    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
+    const isAdminUser = authUser?.email === ADMIN_EMAIL;
 
-    if (error) {
-      console.error('[init-user-settings] Erro ao criar user_settings:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (isAdminUser) {
+      // Admin: forçar role='admin' e pending_setup=false, mesmo que o registro já exista
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert(
+          { user_id: userId, role: 'admin', pending_setup: false },
+          { onConflict: 'user_id', ignoreDuplicates: false }
+        );
+
+      if (error) {
+        console.error('[init-user-settings] Erro ao criar/atualizar settings do admin:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+    } else {
+      // Usuário comum: criar apenas se não existir — não sobrescreve settings existentes
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert(
+          { user_id: userId, role: 'visualizador', pending_setup: true },
+          { onConflict: 'user_id', ignoreDuplicates: true }
+        );
+
+      if (error) {
+        console.error('[init-user-settings] Erro ao criar user_settings:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json({ success: true });

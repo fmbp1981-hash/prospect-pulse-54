@@ -12,6 +12,7 @@
         "varsIgnorePattern": "^_"
       }
     ],
-    "react-hooks/exhaustive-deps": "warn"
+    "react-hooks/exhaustive-deps": "warn",
+    "@typescript-eslint/no-require-imports": "warn"
   }
 }
