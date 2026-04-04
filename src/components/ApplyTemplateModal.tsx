@@ -150,14 +150,14 @@ export function ApplyTemplateModal({
 
         <div className="flex-1 overflow-y-auto space-y-4">
           {/* Info sobre leads selecionados */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
             <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-blue-600" />
-              <p className="text-sm font-medium text-blue-900">
+              <CheckCircle className="h-4 w-4 text-primary" />
+              <p className="text-sm font-medium text-foreground">
                 {selectedLeads.length} lead(s) selecionado(s)
               </p>
             </div>
-            <p className="text-xs text-blue-700 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               O template será aplicado com variações aleatórias para evitar mensagens idênticas
             </p>
           </div>

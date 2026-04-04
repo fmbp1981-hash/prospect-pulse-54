@@ -204,7 +204,7 @@ export function AITemplateGenerator({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-purple-500" />
+            <Sparkles className="h-5 w-5 text-primary" />
             Gerar Template com IA - {currentPreset?.name || 'Personalizado'}
           </DialogTitle>
         </DialogHeader>
@@ -214,14 +214,14 @@ export function AITemplateGenerator({
             <>
               {/* Formulário de Input */}
               <div className="space-y-4">
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
                   <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-purple-600 mt-0.5" />
+                    <Sparkles className="h-5 w-5 text-primary mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium text-purple-900">
+                      <p className="text-sm font-medium text-foreground">
                         {currentPreset?.name || 'Template Personalizado'}
                       </p>
-                      <p className="text-xs text-purple-700 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         A IA criará automaticamente 3 variações com estilos diferentes 
                         (Formal, Casual e Direto). Você poderá revisar e editar antes de salvar.
                       </p>
@@ -257,24 +257,24 @@ export function AITemplateGenerator({
                   </p>
                 </div>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                  <p className="text-xs font-medium text-yellow-900 mb-2">
+                <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
+                  <p className="text-xs font-medium text-foreground mb-2">
                     ⚡ Variáveis que serão usadas automaticamente:
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <code className="text-xs bg-yellow-100 px-2 py-0.5 rounded">
+                    <code className="text-xs bg-warning/20 text-foreground px-2 py-0.5 rounded font-mono">
                       {"{{minha_empresa}}"}
                     </code>
-                    <code className="text-xs bg-yellow-100 px-2 py-0.5 rounded">
+                    <code className="text-xs bg-warning/20 text-foreground px-2 py-0.5 rounded font-mono">
                       {"{{empresa}}"}
                     </code>
-                    <code className="text-xs bg-yellow-100 px-2 py-0.5 rounded">
+                    <code className="text-xs bg-warning/20 text-foreground px-2 py-0.5 rounded font-mono">
                       {"{{categoria}}"}
                     </code>
-                    <code className="text-xs bg-yellow-100 px-2 py-0.5 rounded">
+                    <code className="text-xs bg-warning/20 text-foreground px-2 py-0.5 rounded font-mono">
                       {"{{cidade}}"}
                     </code>
-                    <code className="text-xs bg-yellow-100 px-2 py-0.5 rounded">
+                    <code className="text-xs bg-warning/20 text-foreground px-2 py-0.5 rounded font-mono">
                       {"{{contato}}"}
                     </code>
                   </div>
@@ -285,14 +285,14 @@ export function AITemplateGenerator({
             <>
               {/* Preview das Variações Geradas */}
               <div className="space-y-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="bg-accent/10 border border-accent/20 rounded-lg p-4">
                   <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-green-600 mt-0.5" />
+                    <Sparkles className="h-5 w-5 text-accent mt-0.5" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-green-900">
+                      <p className="text-sm font-medium text-foreground">
                         ✨ Template Gerado: {generatedName}
                       </p>
-                      <p className="text-xs text-green-700 mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         3 variações criadas automaticamente. Revise abaixo e clique em &quot;Usar Template&quot;
                         para editar no Template Manager antes de salvar.
                       </p>
@@ -320,7 +320,7 @@ export function AITemplateGenerator({
                       </div>
                       <div>
                         <p className="text-xs font-medium mb-2">Preview:</p>
-                        <div className="bg-blue-50 border border-blue-200 p-3 rounded text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
+                        <div className="bg-muted border border-border p-3 rounded text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
                           {renderPreview(variation.message)}
                         </div>
                       </div>
@@ -341,7 +341,7 @@ export function AITemplateGenerator({
               <Button
                 onClick={handleGenerate}
                 disabled={!currentPreset || isGenerating}
-                className="bg-purple-600 hover:bg-purple-700"
+                className=""
               >
                 {isGenerating ? (
                   <>
@@ -368,7 +368,7 @@ export function AITemplateGenerator({
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Gerar Novamente
               </Button>
-              <Button onClick={handleUseTemplate} className="bg-green-600 hover:bg-green-700">
+              <Button onClick={handleUseTemplate}>
                 Usar Template
               </Button>
             </>
