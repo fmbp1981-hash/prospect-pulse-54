@@ -384,7 +384,7 @@ export default function SettingsPage() {
     setIsDeletingLeads(true);
     try {
       // Buscar todos os leads
-      const { leads } = await syncAllLeads();
+      const { leads } = await syncAllLeads(user?.id ?? '');
 
       if (leads.length === 0) {
         toast.info("Não há leads para excluir");

@@ -24,6 +24,7 @@ import { exportToCSV, exportToExcel } from "@/lib/export";
 import { auditExport, auditBulkDelete } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
 import { RoleGuard } from "@/components/shared/RoleGuard";
+import { useAuth } from "@/contexts/AuthContext";
 import { KanbanBoard } from "@/components/shared/KanbanBoard";
 import {
   AlertDialog,
@@ -57,6 +58,7 @@ export default function LeadsPage() {
 
   // Permissões e roles
   const { permissions, hasPermission } = useUserRole();
+  const { user } = useAuth();
 
   // Seleção em massa
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set());
@@ -92,7 +94,7 @@ export default function LeadsPage() {
   const loadLeads = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
     try {
-      const result = await supabaseCRM.syncAllLeads();
+      const result = await supabaseCRM.syncAllLeads(user?.id ?? '');
 
       if (result.success) {
         setLeads(Array.isArray(result.leads) ? result.leads : []);
@@ -113,7 +115,7 @@ export default function LeadsPage() {
     } finally {
       if (!silent) setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   const handleConvertToClient = async (lead: Lead) => {
     if (!confirm(`Converter "${lead.empresa}" em cliente?`)) return;

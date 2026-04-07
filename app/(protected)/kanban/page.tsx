@@ -7,15 +7,17 @@ import { supabaseCRM } from "@/lib/supabaseCRM";
 import { supabase } from "@/integrations/supabase/client";
 import type { Lead } from "@/types/prospection";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function KanbanPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
   const loadLeads = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await supabaseCRM.syncAllLeads();
+      const result = await supabaseCRM.syncAllLeads(user?.id ?? '');
       if (result.success) {
         setLeads(Array.isArray(result.leads) ? result.leads : []);
       } else {
@@ -27,7 +29,7 @@ export default function KanbanPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadLeads();

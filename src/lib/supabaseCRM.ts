@@ -90,11 +90,12 @@ function resolveWhatsAppStatus(row: SupabaseLeadRow): WhatsAppStatus {
 }
 
 // ============= SYNC LEADS =============
-export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[]; message?: string }> {
+export async function syncAllLeads(userId: string): Promise<{ success: boolean; leads: Lead[]; message?: string }> {
   try {
     const { data, error } = await supabase
       .from("leads_prospeccao")
       .select("*")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -514,7 +515,7 @@ export async function createLead(
 }
 
 // ============= GET METRICS =============
-export async function getMetrics(): Promise<{
+export async function getMetrics(userId: string): Promise<{
   success: boolean;
   metrics?: DashboardMetrics;
   message?: string
@@ -522,7 +523,8 @@ export async function getMetrics(): Promise<{
   try {
     const { data: leads, error } = await supabase
       .from("leads_prospeccao")
-      .select("*");
+      .select("*")
+      .eq("user_id", userId);
 
     if (error) throw error;
 
@@ -593,12 +595,14 @@ export async function getMetrics(): Promise<{
 
 // ============= WHATSAPP OPERATIONS =============
 export async function getLeadsForWhatsApp(
+  userId: string,
   leadIds: string[]
 ): Promise<{ success: boolean; leads: Lead[]; message?: string }> {
   try {
     const { data, error } = await supabase
       .from("leads_prospeccao")
       .select("*")
+      .eq("user_id", userId)
       .in("id", leadIds);
 
     if (error) throw error;

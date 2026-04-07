@@ -14,6 +14,7 @@ import { PeriodFilter, PeriodType, getDateRangeFromPeriod, isLeadInPeriod } from
 import { DateRange } from "react-day-picker";
 import { useUserRole } from "@/hooks/useUserRole";
 import { RoleBadge } from "@/components/shared/RoleBadge";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function DashboardPage() {
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
@@ -22,11 +23,12 @@ export default function DashboardPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType>("30d");
   const [customRange, setCustomRange] = useState<DateRange | undefined>();
   const { role, isAdmin } = useUserRole();
+  const { user } = useAuth();
 
   const loadLeads = async () => {
     setIsLoading(true);
     try {
-      const result = await supabaseCRM.syncAllLeads();
+      const result = await supabaseCRM.syncAllLeads(user?.id ?? '');
       if (result.success) {
         setAllLeads(result.leads);
         toast.success("Dashboard atualizado!");
