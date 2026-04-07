@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from "react";
-import { ProspectionForm } from "@/components/ProspectionForm";
-import { SearchHistory } from "@/components/SearchHistory";
-import { QuickStats } from "@/components/QuickStats";
+import { ProspectionForm } from "@/components/shared/ProspectionForm";
+import { SearchHistory } from "@/components/shared/SearchHistory";
+import { QuickStats } from "@/components/shared/QuickStats";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
 import { Rocket, TrendingUp, Database, Sparkles, Zap } from "lucide-react";
 import { toast } from "sonner";

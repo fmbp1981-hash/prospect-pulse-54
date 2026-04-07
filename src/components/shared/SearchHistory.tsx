@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2, Trash2, RefreshCw, Database, ExternalLink } from "lucide-react";
 import { ProspectionSearch } from "@/types/prospection";
-import { LocationData } from "@/components/LocationCascade";
+import { LocationData } from "@/components/shared/LocationCascade";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";

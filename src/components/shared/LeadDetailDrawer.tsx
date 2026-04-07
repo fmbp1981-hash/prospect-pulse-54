@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LeadEditModal } from "@/components/LeadEditModal";
+import { LeadEditModal } from "@/components/shared/LeadEditModal";
 import { useLeadDetails } from "@/hooks/useLeadDetails";
 import { leadAutomation, FOLLOWUP_REASONS } from "@/lib/leadAutomation";
 import { toast } from "sonner";

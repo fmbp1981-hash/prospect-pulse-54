@@ -9,7 +9,7 @@ import { Building2, Phone, MapPin, GripVertical, RefreshCw } from "lucide-react"
 import { Lead, LeadStatus } from "@/types/prospection";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { LeadDetailDrawer } from "@/components/LeadDetailDrawer";
+import { LeadDetailDrawer } from "@/components/shared/LeadDetailDrawer";
 import type { Database } from "@/integrations/supabase/types";
 
 interface KanbanBoardProps {

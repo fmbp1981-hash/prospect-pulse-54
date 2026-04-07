@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from "react";
-import { KanbanBoard } from "@/components/KanbanBoard";
+import { KanbanBoard } from "@/components/shared/KanbanBoard";
 import { LayoutGrid, Loader2 } from "lucide-react";
 import { supabaseCRM } from "@/lib/supabaseCRM";
 import { supabase } from "@/integrations/supabase/client";

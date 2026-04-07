@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { RoleGuard } from '@/components/RoleGuard';
+import { RoleGuard } from '@/components/shared/RoleGuard';
 import { ConversationList } from '@/components/inbox/ConversationList';
 import { ConversationThread } from '@/components/inbox/ConversationThread';
 import { useUnreadConversations } from '@/hooks/useUnreadConversations';

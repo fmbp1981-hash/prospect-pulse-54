@@ -13,7 +13,7 @@ import { InsightsCharts } from "@/components/dashboard/InsightsCharts";
 import { PeriodFilter, PeriodType, getDateRangeFromPeriod, isLeadInPeriod } from "@/components/dashboard/PeriodFilter";
 import { DateRange } from "react-day-picker";
 import { useUserRole } from "@/hooks/useUserRole";
-import { RoleBadge } from "@/components/RoleBadge";
+import { RoleBadge } from "@/components/shared/RoleBadge";
 
 export default function DashboardPage() {
   const [allLeads, setAllLeads] = useState<Lead[]>([]);

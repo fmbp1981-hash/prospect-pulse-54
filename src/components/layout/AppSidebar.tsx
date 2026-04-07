@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock, BookOpen, MessageSquare, Users, Megaphone } from "lucide-react";
-import { NavLink } from "@/components/NavLink";
-import { Logo } from "@/components/Logo";
+import { NavLink } from "@/components/layout/NavLink";
+import { Logo } from "@/components/layout/Logo";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { TemplateManager } from "@/components/TemplateManager";
-import { RoleBadge } from "@/components/RoleBadge";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { TemplateManager } from "@/components/shared/TemplateManager";
+import { RoleBadge } from "@/components/shared/RoleBadge";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUnreadConversations } from "@/hooks/useUnreadConversations";

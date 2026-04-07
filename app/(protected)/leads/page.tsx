@@ -13,18 +13,18 @@ import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download,
 import { toast } from "sonner";
 import { LeadsFilters } from "@/components/leads/LeadsFilters";
 import { toTitleCase, searchMatch } from "@/lib/utils";
-import { BulkActionsBar } from "@/components/BulkActionsBar";
-import { WhatsAppDispatchModal } from "@/components/WhatsAppDispatchModal";
-import { ExportModal } from "@/components/ExportModal";
-import { LeadEditModal } from "@/components/LeadEditModal";
-import { ApplyTemplateModal } from "@/components/ApplyTemplateModal";
+import { BulkActionsBar } from "@/components/shared/BulkActionsBar";
+import { WhatsAppDispatchModal } from "@/components/shared/WhatsAppDispatchModal";
+import { ExportModal } from "@/components/shared/ExportModal";
+import { LeadEditModal } from "@/components/shared/LeadEditModal";
+import { ApplyTemplateModal } from "@/components/shared/ApplyTemplateModal";
 import { EmailCampaignModal } from "@/components/leads/EmailCampaignModal";
 import { ImportLeadsModal } from "@/components/leads/ImportLeadsModal";
 import { exportToCSV, exportToExcel } from "@/lib/export";
 import { auditExport, auditBulkDelete } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
-import { RoleGuard } from "@/components/RoleGuard";
-import { KanbanBoard } from "@/components/KanbanBoard";
+import { RoleGuard } from "@/components/shared/RoleGuard";
+import { KanbanBoard } from "@/components/shared/KanbanBoard";
 import {
   AlertDialog,
   AlertDialogAction,
