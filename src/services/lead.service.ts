@@ -5,7 +5,6 @@
  */
 
 import { leadRepository } from '@/repositories/lead.repository';
-import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
 
 type LeadRow = Database['public']['Tables']['leads_prospeccao']['Row'];
@@ -25,22 +24,14 @@ function generateOrganicId(): string {
 }
 
 /**
- * Gera o próximo número sequencial unificado para todos os leads.
- * Formato: Lead-001, Lead-002, etc. (mesma sequência para orgânicos e prospectados).
- * A distinção orgânico vs prospectado fica no campo categoria/origem.
+ * Gera uma referência única para o lead.
+ * Formato: Lead-{timestamp-base36}-{random-4chars}
+ * Sem query ao banco — sem race condition.
  */
-async function generateNextLeadRef(userId: string): Promise<string> {
-  const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-  const { count } = await supabase
-    .from('leads_prospeccao')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId);
-
-  const next = ((count ?? 0) + 1).toString().padStart(3, '0');
-  return `Lead-${next}`;
+function generateLeadRef(): string {
+  const ts = Date.now().toString(36).toUpperCase();
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `Lead-${ts}-${rand}`;
 }
 
 export const leadService = {
@@ -60,7 +51,7 @@ export const leadService = {
       return { lead: existing, isNew: false };
     }
 
-    const leadRef = await generateNextLeadRef(input.userId);
+    const leadRef = generateLeadRef();
 
     // Normaliza para formato compacto "+55XXXXXXXXXX" — garante consistência no banco
     const normalizePhone = (p: string) => {
