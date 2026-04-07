@@ -51,3 +51,6 @@ prospect-pulse-54/
 .superpowers/
 __pycache__/
 nul
+
+# Build logs arquivados
+archive/build-logs/
