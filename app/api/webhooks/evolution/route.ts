@@ -15,9 +15,9 @@ import { normalizeMessage } from '@/lib/services/message-normalizer.service';
 import { runXpagWorkflow } from '@/lib/workflows/xpag-lead-handler.workflow';
 import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
 import { resolveTenantByInstance } from '@/lib/services/tenant-resolver.service';
-import { leadRepository } from '@/lib/repositories/lead.repository';
+import { leadRepository } from '@/repositories/lead.repository';
 import { leadService } from '@/lib/services/lead.service';
-import { conversationRepository } from '@/lib/repositories/conversation.repository';
+import { conversationRepository } from '@/repositories/conversation.repository';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;

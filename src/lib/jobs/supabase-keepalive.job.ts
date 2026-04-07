@@ -4,7 +4,7 @@
  * Mantém o projeto Supabase ativo em planos gratuitos.
  */
 
-import { leadRepository } from '../repositories/lead.repository';
+import { leadRepository } from '@/repositories/lead.repository';
 
 export async function runSupabaseKeepAlive(): Promise<void> {
   try {

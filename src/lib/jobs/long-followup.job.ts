@@ -18,7 +18,7 @@ import type { FollowUpScenario } from '../services/long-followup-rules.service';
 import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
 import { humanizeResponse } from '../services/message-humanizer.service';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
-import { leadRepository } from '../repositories/lead.repository';
+import { leadRepository } from '@/repositories/lead.repository';
 import { delay } from '../utils/delay';
 import { randomUUID } from 'crypto';
 

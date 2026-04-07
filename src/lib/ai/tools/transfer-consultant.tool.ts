@@ -6,7 +6,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { sendWhatsAppText } from '../../integrations/evolution/messaging.client';
-import { leadRepository } from '../../repositories/lead.repository';
+import { leadRepository } from '@/repositories/lead.repository';
 import type { AgentTool, ToolExecutionContext } from './tool.interface';
 
 function getServiceClient() {

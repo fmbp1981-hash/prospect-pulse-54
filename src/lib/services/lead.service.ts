@@ -4,7 +4,7 @@
  * Equivalente à lógica dos nodes "Existe?" + "Criar_lead" do n8n.
  */
 
-import { leadRepository } from '../repositories/lead.repository';
+import { leadRepository } from '@/repositories/lead.repository';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
 

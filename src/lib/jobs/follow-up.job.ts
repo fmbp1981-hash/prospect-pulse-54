@@ -9,7 +9,7 @@
  * - Após 3 follow-ups → status = "Follow-up", não envia mais
  */
 
-import { leadRepository } from '../repositories/lead.repository';
+import { leadRepository } from '@/repositories/lead.repository';
 import { sendWhatsAppText } from '../integrations/evolution/messaging.client';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { randomUUID } from 'crypto';
