@@ -4,11 +4,11 @@
  * Roteia o processamento de acordo com o tipo de mídia.
  */
 
-import type { NormalizedMessage } from '../services/message-normalizer.service';
+import type { NormalizedMessage } from '@/services/message-normalizer.service';
 import { evolutionMediaClient } from '../integrations/evolution/media.client';
 import { transcribeAudio } from '../integrations/openai/whisper.service';
 import { analyzeImage } from '../integrations/openai/vision.service';
-import { analyzePdf } from '../services/pdf-analyzer.service';
+import { analyzePdf } from '@/services/pdf-analyzer.service';
 
 export interface ProcessedMessage {
   content: string;

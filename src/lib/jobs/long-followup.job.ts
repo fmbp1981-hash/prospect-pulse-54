@@ -13,10 +13,10 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { FOLLOW_UP_SEQUENCES, detectFollowUpScenario } from '../services/long-followup-rules.service';
-import type { FollowUpScenario } from '../services/long-followup-rules.service';
+import { FOLLOW_UP_SEQUENCES, detectFollowUpScenario } from '@/services/long-followup-rules.service';
+import type { FollowUpScenario } from '@/services/long-followup-rules.service';
 import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
-import { humanizeResponse } from '../services/message-humanizer.service';
+import { humanizeResponse } from '@/services/message-humanizer.service';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { leadRepository } from '@/repositories/lead.repository';
 import { delay } from '../utils/delay';

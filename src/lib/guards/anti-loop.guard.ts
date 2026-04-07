@@ -4,7 +4,7 @@
  * Bloqueia mensagens enviadas pelo próprio bot para evitar loop infinito.
  */
 
-import type { NormalizedMessage } from '../services/message-normalizer.service';
+import type { NormalizedMessage } from '@/services/message-normalizer.service';
 
 export interface AntiLoopResult {
   shouldProcess: boolean;

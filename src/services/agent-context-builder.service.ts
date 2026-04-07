@@ -5,7 +5,7 @@
  */
 
 import type { NormalizedMessage } from './message-normalizer.service';
-import type { ProcessedMessage } from '../handlers/message-type.handler';
+import type { ProcessedMessage } from '@/lib/handlers/message-type.handler';
 import { conversationRepository } from '@/repositories/conversation.repository';
 import { formatConversationHistory } from './history-formatter.service';
 import type { Database } from '@/integrations/supabase/types';

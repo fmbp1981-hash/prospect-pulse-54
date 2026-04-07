@@ -3,8 +3,8 @@
  * Atualiza campos do lead + agenda follow-up de longo prazo quando aplicável.
  */
 
-import { leadService } from '../../services/lead.service';
-import { detectFollowUpScenario } from '../../services/long-followup-rules.service';
+import { leadService } from '@/services/lead.service';
+import { detectFollowUpScenario } from '@/services/long-followup-rules.service';
 import { scheduleFirstFollowUp } from '../../jobs/long-followup.job';
 import type { AgentTool, ToolExecutionContext } from './tool.interface';
 

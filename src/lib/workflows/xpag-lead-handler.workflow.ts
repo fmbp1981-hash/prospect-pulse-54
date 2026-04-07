@@ -5,15 +5,15 @@
  * Substitui integralmente o workflow n8n "Xpag_Buscar_ou_Criar_Lead" v3.4.
  */
 
-import type { NormalizedMessage } from '../services/message-normalizer.service';
-import { resolveTenantByInstance, isFinalizationCommand } from '../services/tenant-resolver.service';
-import type { TenantContext } from '../services/tenant-resolver.service';
-import { leadService } from '../services/lead.service';
+import type { NormalizedMessage } from '@/services/message-normalizer.service';
+import { resolveTenantByInstance, isFinalizationCommand } from '@/services/tenant-resolver.service';
+import type { TenantContext } from '@/services/tenant-resolver.service';
+import { leadService } from '@/services/lead.service';
 import { processMessageByType } from '../handlers/message-type.handler';
-import { buildAgentContext } from '../services/agent-context-builder.service';
+import { buildAgentContext } from '@/services/agent-context-builder.service';
 import { conversationRepository } from '@/repositories/conversation.repository';
 import { executeAIAgent } from '../ai/ai-agent.service';
-import { humanizeResponse } from '../services/message-humanizer.service';
+import { humanizeResponse } from '@/services/message-humanizer.service';
 import { leadRepository } from '@/repositories/lead.repository';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
