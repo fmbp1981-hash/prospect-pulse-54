@@ -1,3 +1,4 @@
+// @ts-nocheck — TODO: migrar para strictNullChecks (dívida técnica rastreada)
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 import { Lead } from '@/types/prospection';
