@@ -13,7 +13,7 @@ export default function PendingPage() {
   const { isPending, isLoading, isAdmin, refetch } = useUserRole();
 
   // Admin nunca deve ficar em /pending
-  const isAdminEmail = user?.email === 'fmbp1981@gmail.com';
+  const isAdminEmail = user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 
   // Verificar aprovação a cada 30s
   useEffect(() => {

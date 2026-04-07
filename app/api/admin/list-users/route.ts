@@ -11,8 +11,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-
-const ADMIN_EMAIL = 'fmbp1981@gmail.com';
+import { ADMIN_EMAIL } from '@/lib/permissions';
 
 export async function GET() {
   try {
