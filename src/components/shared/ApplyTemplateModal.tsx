@@ -12,6 +12,7 @@ import { Lead } from "@/types/prospection";
 import { MessageTemplate, MessageVariation, MESSAGE_STYLES } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
 import { userSettingsService } from "@/lib/userSettings";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ApplyTemplateModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function ApplyTemplateModal({
   selectedLeads,
   onTemplateApplied,
 }: ApplyTemplateModalProps) {
+  const { user } = useAuth();
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
   const [isApplying, setIsApplying] = useState(false);
@@ -108,6 +110,7 @@ export function ApplyTemplateModal({
 
     try {
       // Aplicar template a cada lead com variação aleatória
+      if (!user?.id) return;
       const updates = selectedLeads.map(lead => {
         const variation = getRandomVariation(selectedTemplate);
         const messageTemplate = typeof variation === 'string' ? variation : variation.message;
@@ -115,7 +118,7 @@ export function ApplyTemplateModal({
 
         return supabaseCRM.updateLead(lead.id, {
           mensagemWhatsApp: personalizedMessage,
-        });
+        }, user.id);
       });
 
       await Promise.all(updates);

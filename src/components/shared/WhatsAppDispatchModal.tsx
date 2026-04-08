@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Lead } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
+import { useAuth } from "@/contexts/AuthContext";
 import { auditWhatsAppDispatch } from "@/lib/audit";
 import { leadAutomation } from "@/lib/leadAutomation";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ export const WhatsAppDispatchModal = ({
   onClose,
   selectedLeads
 }: WhatsAppDispatchModalProps) => {
+  const { user } = useAuth();
   const [statuses, setStatuses] = useState<DispatchStatus[]>([]);
   const [isDispatching, setIsDispatching] = useState(false);
   const [testMode, setTestMode] = useState(false);
@@ -191,11 +193,12 @@ export const WhatsAppDispatchModal = ({
 
         if (isSuccess) {
           // Atualiza status de envio no banco
+          if (!user?.id) continue;
           await supabaseCRM.updateLead(lead.id, {
             statusMsgWA: "sent",
             dataEnvioWA: new Date().toISOString(),
             ...(isEditing && validLeads.length === 1 ? { mensagemWhatsApp: messageToSend } : {})
-          });
+          }, user.id);
 
           // Move lead para "Contato Inicial" se ainda era Novo
           if ((lead.status as string) === "Novo Lead" || (lead.status as string) === "Novo") {

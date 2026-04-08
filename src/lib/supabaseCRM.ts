@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, DashboardMetrics, LeadStatus, WhatsAppStatus } from "@/types/prospection";
 import { LEAD_STATUS, LEAD_ORIGIN, LEAD_PRIORITY, WHATSAPP_STATUS, CONVERSATION_STATUS, mapAgentStatusToPipeline, migrateLeadStatus } from "@/lib/constants";
+import type { Database } from "@/integrations/supabase/types";
+type LeadUpdate = Database['public']['Tables']['leads_prospeccao']['Update'];
 
 /**
  * Integração direta com Supabase para operações de CRM
@@ -154,9 +156,13 @@ export async function syncAllLeads(userId: string): Promise<{ success: boolean; 
 // ============= UPDATE LEAD =============
 export async function updateLead(
   leadId: string,
-  updates: Partial<Lead>
+  updates: Partial<Lead>,
+  userId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
+    if (!userId) {
+      return { success: false, message: "Sessão inválida. Faça login novamente." };
+    }
     const dbUpdates: Record<string, unknown> = {};
 
     if (updates.lead !== undefined) dbUpdates.lead = updates.lead;
@@ -185,11 +191,12 @@ export async function updateLead(
     // Sempre atualizar updated_at
     dbUpdates.updated_at = new Date().toISOString();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Update type resolves as never in this version
     const { error } = await (supabase as any)
       .from("leads_prospeccao")
       .update(dbUpdates)
-      .eq("id", leadId);
+      .eq("id", leadId)
+      .eq("user_id", userId);
 
     if (error) throw error;
 
