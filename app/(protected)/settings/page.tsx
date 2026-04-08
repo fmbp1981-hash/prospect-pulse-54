@@ -393,7 +393,7 @@ export default function SettingsPage() {
 
       // Excluir todos os leads
       const leadIds = leads.map(l => l.id);
-      const result = await supabaseCRM.deleteLeads(leadIds);
+      const result = await supabaseCRM.deleteLeads(user?.id ?? '', leadIds);
 
       if (result.success) {
         toast.success(`${leads.length} leads excluídos com sucesso!`);

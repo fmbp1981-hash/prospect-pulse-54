@@ -656,6 +656,7 @@ export async function getLeadsForWhatsApp(
 
 // ============= DELETE LEADS =============
 export async function deleteLeads(
+  userId: string,
   leadIds: string[]
 ): Promise<{ success: boolean; message: string }> {
   try {
@@ -666,6 +667,7 @@ export async function deleteLeads(
     const { error } = await supabase
       .from("leads_prospeccao")
       .delete()
+      .eq("user_id", userId)
       .in("id", leadIds);
 
     if (error) throw error;
