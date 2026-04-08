@@ -8,5 +8,5 @@ Importar leads em massa via CSV, XLSX, VCF ou TXT.
 - `app/api/leads/import/route.ts`
 
 ## Pendências
-- [ ] Confirmar componente ImportLeadsModal implementado no frontend
-- [ ] Validar normalização de telefone BR → +55XXXXXXXXXXX
+- [x] Confirmar componente ImportLeadsModal implementado no frontend — `src/components/leads/ImportLeadsModal.tsx`
+- [x] Validar normalização de telefone BR → +55XXXXXXXXXXX — `src/lib/normalizePhone.ts` existe

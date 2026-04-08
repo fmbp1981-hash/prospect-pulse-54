@@ -18,5 +18,5 @@ Repositório permanente de clientes convertidos, separado do funil `leads_prospe
 - `app/api/clientes/[id]/devolver/route.ts`
 
 ## Pendências
-- [ ] Criar `supabase/migrations/` para tabelas `clientes` e `cliente_historico`
-- [ ] Validar que RLS está ativo nessas tabelas
+- [x] Criar `supabase/migrations/` para tabelas `clientes` e `cliente_historico` — `20260402_f14_clientes.sql`
+- [x] Validar que RLS está ativo nessas tabelas — confirmado via pg_class (2026-04-08)

@@ -11,5 +11,5 @@ Criação e disparo de campanhas WhatsApp/email para segmentos de leads/clientes
 - `app/api/campaigns/[id]/send/route.ts`
 
 ## Pendências
-- [ ] Tabela `campaigns` e `campaign_sends` no Supabase
-- [ ] Validar RLS nas tabelas de campanha
+- [x] Tabela `campaigns` e `campaign_sends` no Supabase — `20260402_f15_campaigns.sql`
+- [x] Validar RLS nas tabelas de campanha — confirmado via pg_class (2026-04-08)

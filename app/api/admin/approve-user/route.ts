@@ -4,7 +4,7 @@
  * POST /api/admin/approve-user
  * Body: { userId: string, newRole: 'operador' | 'visualizador' | 'admin' }
  *
- * - Valida que o solicitante é admin (role=admin + email fmbp1981@gmail.com)
+ * - Valida que o solicitante é admin (role=admin + email definido em ADMIN_EMAIL env var)
  * - Atualiza user_settings: role=newRole, pending_setup=false, approved_by=adminId
  * - Envia email de aprovação via Resend
  */

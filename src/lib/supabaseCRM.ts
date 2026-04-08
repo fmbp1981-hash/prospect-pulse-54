@@ -210,10 +210,11 @@ export async function updateLead(
 // ============= UPDATE LEAD STATUS =============
 export async function updateLeadStatus(
   leadId: string,
-  status: LeadStatus
+  status: LeadStatus,
+  userId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Update type resolves as never in this version
     const { error } = await (supabase as any)
       .from("leads_prospeccao")
       .update({
@@ -221,7 +222,8 @@ export async function updateLeadStatus(
         estagio_pipeline: status,
         updated_at: new Date().toISOString()
       })
-      .eq("id", leadId);
+      .eq("id", leadId)
+      .eq("user_id", userId);
 
     if (error) throw error;
 
@@ -244,6 +246,7 @@ function normalizeText(text: string): string {
 
 // ============= VERIFICAR DUPLICATA =============
 export async function checkDuplicateLead(
+  userId: string,
   nome: string,
   whatsapp?: string,
   website?: string
@@ -254,10 +257,11 @@ export async function checkDuplicateLead(
     // Buscar por WhatsApp (chave primária de unicidade)
     if (whatsapp && whatsapp.trim()) {
       const cleanPhone = whatsapp.replace(/\D/g, "");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Select type resolves as never in this version
       const { data: whatsappMatches } = await (supabase as any)
         .from("leads_prospeccao")
         .select("*")
+        .eq("user_id", userId)
         .or(`whatsapp.ilike.%${cleanPhone}%,telefone.ilike.%${cleanPhone}%`)
         .limit(1);
 
@@ -273,10 +277,11 @@ export async function checkDuplicateLead(
     // Buscar por website/domínio
     if (website && website.trim()) {
       const domain = website.replace(/^https?:\/\//, "").replace(/\/$/, "").toLowerCase();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Select type resolves as never in this version
       const { data: websiteMatches } = await (supabase as any)
         .from("leads_prospeccao")
         .select("*")
+        .eq("user_id", userId)
         .ilike("website", `%${domain}%`)
         .limit(1);
 
@@ -290,10 +295,11 @@ export async function checkDuplicateLead(
     }
 
     // Buscar por nome similar (usando busca textual normalizada)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Select type resolves as never in this version
     const { data: nameMatches } = await (supabase as any)
       .from("leads_prospeccao")
       .select("*")
+      .eq("user_id", userId)
       .or(`lead.ilike.%${normalizedNome}%,empresa.ilike.%${normalizedNome}%`)
       .limit(5);
 
@@ -322,15 +328,17 @@ export async function checkDuplicateLead(
 
 // ============= MESCLAR LEADS =============
 export async function mergeLeads(
+  userId: string,
   keepLeadId: string,
   mergeLeadId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
     // Buscar dados dos dois leads
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Select type resolves as never in this version
     const { data: leads, error: fetchError } = await (supabase as any)
       .from("leads_prospeccao")
       .select("*")
+      .eq("user_id", userId)
       .in("id", [keepLeadId, mergeLeadId]);
 
     if (fetchError || !leads || leads.length !== 2) {
@@ -364,20 +372,21 @@ export async function mergeLeads(
     };
 
     // Atualizar lead principal
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Update type resolves as never in this version
     const { error: updateError } = await (supabase as any)
       .from("leads_prospeccao")
       .update(mergedData)
-      .eq("id", keepLeadId);
+      .eq("id", keepLeadId)
+      .eq("user_id", userId);
 
     if (updateError) throw updateError;
 
     // Deletar lead mesclado
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: deleteError } = await (supabase as any)
+    const { error: deleteError } = await supabase
       .from("leads_prospeccao")
       .delete()
-      .eq("id", mergeLeadId);
+      .eq("id", mergeLeadId)
+      .eq("user_id", userId);
 
     if (deleteError) throw deleteError;
 
@@ -390,10 +399,11 @@ export async function mergeLeads(
 
 // ============= LIMPAR HISTÓRICO DO LEAD =============
 export async function clearLeadHistory(
+  userId: string,
   leadId: string
 ): Promise<{ success: boolean; message: string }> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Update type resolves as never in this version
     const { error } = await (supabase as any)
       .from("leads_prospeccao")
       .update({
@@ -403,7 +413,8 @@ export async function clearLeadHistory(
         resumo_analitico: null,
         updated_at: new Date().toISOString()
       })
-      .eq("id", leadId);
+      .eq("id", leadId)
+      .eq("user_id", userId);
 
     if (error) throw error;
 
@@ -455,11 +466,13 @@ function mapRowToLead(row: SupabaseLeadRow): Lead {
 
 // ============= CREATE LEAD =============
 export async function createLead(
+  userId: string,
   leadData: Omit<Lead, "id">
 ): Promise<{ success: boolean; leadId?: string; message: string }> {
   try {
-    // Verificar duplicata antes de criar
+    // Verificar duplicata antes de criar (scoped por tenant)
     const duplicateCheck = await checkDuplicateLead(
+      userId,
       leadData.lead || leadData.empresa || "",
       leadData.whatsapp,
       leadData.website
@@ -474,11 +487,12 @@ export async function createLead(
 
     const initialStatus = leadData.status || LEAD_STATUS.NOVO_LEAD;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase Insert type resolves as never in this version
     const { data, error } = await (supabase as any)
       .from("leads_prospeccao")
       .insert({
         id: crypto.randomUUID(),
+        user_id: userId,
         lead: leadData.lead || "Lead-000",
         status: initialStatus,
         estagio_pipeline: initialStatus, // Sincronizar com Kanban
