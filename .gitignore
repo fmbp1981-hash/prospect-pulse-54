@@ -54,3 +54,20 @@ nul
 
 # Build logs arquivados
 archive/build-logs/
+build.log
+full-build.log
+
+# Vite artifacts residuais
+vite.config.ts.timestamp-*.mjs
+index.html
+dist/
+
+# Ferramentas de análise de código
+repomix-output.xml
+
+# Scripts operacionais sensíveis (usam PAT/tokens)
+scripts/add-gh-secrets.mjs
+
+# Arquivos de teste ad-hoc
+test_*.ps1
+test_*.sh
