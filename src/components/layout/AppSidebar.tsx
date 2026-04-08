@@ -174,7 +174,7 @@ export function AppSidebar() {
         <div className="border-t border-sidebar-border px-3 py-3 space-y-2">
           <div className="flex items-center gap-2">
             {/* Avatar */}
-            <div className="w-7 h-7 rounded border border-sidebar-border bg-sidebar-accent flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 rounded border border-sidebar-border bg-raised flex items-center justify-center flex-shrink-0">
               <span className="font-mono text-2xs font-medium text-muted-foreground">
                 {initials}
               </span>
@@ -184,7 +184,7 @@ export function AppSidebar() {
                 <p className="text-xs font-medium text-sidebar-foreground truncate leading-tight">
                   {emailDisplay}
                 </p>
-                <p className="font-mono text-[10px] text-sidebar-foreground/40 tracking-wider uppercase leading-tight mt-px">
+                <p className="font-mono text-[10px] text-muted-foreground tracking-wider uppercase leading-tight mt-px">
                   {role ?? "—"}
                 </p>
               </div>
@@ -197,7 +197,7 @@ export function AppSidebar() {
             size="sm"
             onClick={handleLogout}
             className={cn(
-              "w-full h-7 text-xs text-sidebar-foreground/50",
+              "w-full h-7 text-xs text-muted-foreground",
               "hover:text-destructive hover:bg-destructive/10",
               "border border-transparent hover:border-destructive/20",
               "transition-colors duration-100",
@@ -228,7 +228,7 @@ export function AppSidebar() {
               "opacity-60 hover:opacity-90",
               isCollapsed ? "h-8 w-8" : "h-20 w-auto"
             )}
-            style={{ filter: "brightness(0) invert(1)" }}
+            
           />
         </div>
 

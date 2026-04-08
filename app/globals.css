@@ -190,14 +190,4 @@
   @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
   @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-  [data-sidebar] {
-    --sidebar-background: hsl(var(--sidebar-background));
-    --sidebar-foreground: hsl(var(--sidebar-foreground));
-    --sidebar-primary: hsl(var(--sidebar-primary));
-    --sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-    --sidebar-accent: hsl(var(--sidebar-accent));
-    --sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-    --sidebar-border: hsl(var(--sidebar-border));
-    --sidebar-ring: hsl(var(--sidebar-ring));
-  }
 }
