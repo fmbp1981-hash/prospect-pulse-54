@@ -2,171 +2,213 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock, BookOpen, MessageSquare, Users, Megaphone } from "lucide-react";
+import {
+  Search, LayoutDashboard, Table2, LayoutGrid,
+  MessageSquare, Users, Megaphone, FileText,
+  Link2, Settings, BookOpen, LogOut, ChevronRight,
+} from "lucide-react";
 import { NavLink } from "@/components/layout/NavLink";
-import { Logo } from "@/components/layout/Logo";
-import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { TemplateManager } from "@/components/shared/TemplateManager";
-import { RoleBadge } from "@/components/shared/RoleBadge";
-import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { Badge } from "@/components/ui/badge";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useUnreadConversations } from "@/hooks/useUnreadConversations";
-
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuButton,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-const items = [
-  { title: "Prospecção", url: "/", icon: Search },
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Tabela de Leads", url: "/leads", icon: Table },
-  { title: "Kanban Board", url: "/kanban", icon: LayoutGrid },
-  { title: "Inbox", url: "/inbox", icon: MessageSquare },
-  { title: "Clientes", url: "/clientes", icon: Users },
-  { title: "Campanhas", url: "/campanhas", icon: Megaphone },
-  { title: "Templates", url: "#", icon: FileText },
-  { title: "Integrações", url: "/integrations", icon: Link2 },
-  { title: "Configurações", url: "/settings", icon: Settings },
-  { title: "Tutorial", url: "/tutorial", icon: BookOpen },
-];
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ElementType;
+  badge?: number | null;
+}
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
 
 export function AppSidebar() {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const { isPending } = useUserRole();
+  const { role } = useUserRole();
   const { unreadCount } = useUnreadConversations();
+  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
+
+  const sections: NavSection[] = [
+    {
+      label: "Prospecção",
+      items: [
+        { title: "Prospectar", url: "/", icon: Search },
+        { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+        { title: "Leads", url: "/leads", icon: Table2 },
+        { title: "Kanban", url: "/kanban", icon: LayoutGrid },
+      ],
+    },
+    {
+      label: "Comunicação",
+      items: [
+        { title: "Inbox", url: "/inbox", icon: MessageSquare, badge: unreadCount || null },
+        { title: "Clientes", url: "/clientes", icon: Users },
+        { title: "Campanhas", url: "/campanhas", icon: Megaphone },
+      ],
+    },
+    {
+      label: "Sistema",
+      items: [
+        { title: "Integrações", url: "/integrations", icon: Link2 },
+        { title: "Configurações", url: "/settings", icon: Settings },
+        { title: "Tutorial", url: "/tutorial", icon: BookOpen },
+      ],
+    },
+  ];
 
   const handleLogout = async () => {
     await signOut();
     router.push("/login");
   };
 
-  const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
+  const initials = user?.email
+    ? user.email.slice(0, 2).toUpperCase()
+    : "??";
+
+  const emailDisplay = user?.email ?? "Usuário";
 
   return (
-    <Sidebar collapsible="icon" className="bg-sidebar border-r border-sidebar-border">
-      <SidebarContent>
-        {/* Logo no topo */}
-        <div className="px-4 py-5 border-b border-sidebar-border">
-          <Logo size={isCollapsed ? "sm" : "md"} showText={!isCollapsed} />
+    <Sidebar
+      collapsible="icon"
+      className="border-r border-sidebar-border bg-sidebar"
+    >
+      <SidebarContent className="flex flex-col h-full">
+
+        {/* ── Logo */}
+        <div className={cn(
+          "flex items-center gap-2.5 border-b border-sidebar-border",
+          isCollapsed ? "px-3 py-4 justify-center" : "px-4 py-4"
+        )}>
+          <div className="w-6 h-6 bg-primary rounded flex items-center justify-center flex-shrink-0">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M1 6L6 1L11 6L6 11L1 6Z" fill="hsl(var(--primary-foreground))"/>
+            </svg>
+          </div>
+          {!isCollapsed && (
+            <span className="text-sm font-semibold text-foreground tracking-tight">
+              LeadFinder <span className="text-primary">Pro</span>
+            </span>
+          )}
         </div>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item, index) => (
-                <motion.div
-                  key={item.title}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1, duration: 0.2 }}
-                >
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip={item.title}>
-                      {item.title === "Templates" ? (
-                        <button
-                          onClick={() => setIsTemplateManagerOpen(true)}
-                          className="group relative overflow-hidden rounded-lg transition-all duration-200 hover:scale-[1.02] hover:bg-primary hover:text-primary-foreground hover:shadow-lg my-1 flex w-full items-center gap-2 p-2"
-                        >
-                          <item.icon className="h-5 w-5 transition-transform group-hover:scale-110" />
-                          {!isCollapsed && <span className="font-medium">{item.title}</span>}
-                        </button>
-                      ) : (
-                        <NavLink
-                          href={item.url}
-                          className="group relative overflow-hidden rounded-lg transition-all duration-200 hover:scale-[1.02] hover:bg-primary hover:text-primary-foreground hover:shadow-lg my-1"
-                          activeClassName="bg-primary text-primary-foreground shadow-md before:absolute before:left-0 before:top-0 before:bottom-0 before:w-1 before:bg-success before:rounded-l-lg"
-                        >
-                          <item.icon className="h-5 w-5 transition-transform group-hover:scale-110" />
-                          {!isCollapsed && <span className="font-medium">{item.title}</span>}
-                          {!isCollapsed && item.title === "Inbox" && unreadCount > 0 && (
-                            <Badge className="ml-auto text-xs bg-destructive hover:bg-destructive text-white px-1.5 py-0.5 min-w-[20px] text-center">
-                              {unreadCount}
-                            </Badge>
-                          )}
-                        </NavLink>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </motion.div>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* User Section */}
-        <SidebarGroup className="mt-auto border-t border-border/40 pt-4">
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <div className="px-3 py-2 space-y-2">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        {!isCollapsed && (
-                          <span className="text-muted-foreground truncate">
-                            {user?.email || "Usuário"}
-                          </span>
-                        )}
-                      </div>
-                      <ThemeToggle />
-                    </div>
-                    {!isCollapsed && (
-                      isPending ? (
-                        <Badge className="text-xs bg-yellow-500 hover:bg-yellow-500 text-white gap-1">
-                          <Clock className="h-3 w-3" />
-                          Pendente
-                        </Badge>
-                      ) : (
-                        <RoleBadge showIcon className="text-xs" />
-                      )
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="w-full justify-start text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    {!isCollapsed && "Sair"}
-                  </Button>
+        {/* ── Nav sections */}
+        <div className="flex-1 overflow-y-auto py-3">
+          {sections.map((section) => (
+            <SidebarGroup key={section.label} className="mb-1 px-0">
+              {!isCollapsed && (
+                <div className="px-4 pb-1 pt-2">
+                  <span className="font-mono text-2xs font-medium text-muted-foreground tracking-widest uppercase">
+                    {section.label}
+                  </span>
                 </div>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+              )}
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {section.items.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild tooltip={item.title}>
+                        {item.title === "Templates" ? (
+                          <button
+                            onClick={() => setIsTemplateManagerOpen(true)}
+                            className={cn(
+                              "flex w-full items-center gap-2.5 px-4 py-1.5",
+                              "text-sm text-muted-foreground",
+                              "border-l-2 border-transparent",
+                              "transition-colors duration-100",
+                              "hover:text-foreground hover:bg-hover hover:border-l-border-strong"
+                            )}
+                          >
+                            <item.icon className="h-[15px] w-[15px] flex-shrink-0" />
+                            {!isCollapsed && <span>{item.title}</span>}
+                          </button>
+                        ) : (
+                          <NavLink
+                            href={item.url}
+                            className={cn(
+                              "flex w-full items-center gap-2.5 px-4 py-1.5",
+                              "text-sm text-muted-foreground",
+                              "border-l-2 border-transparent",
+                              "transition-colors duration-100",
+                              "hover:text-foreground hover:bg-hover hover:border-l-border-strong"
+                            )}
+                            activeClassName="text-foreground bg-raised border-l-primary font-medium"
+                          >
+                            <item.icon className="h-[15px] w-[15px] flex-shrink-0" />
+                            {!isCollapsed && <span>{item.title}</span>}
+                            {!isCollapsed && item.badge != null && item.badge > 0 && (
+                              <span className="ml-auto font-mono text-2xs font-medium bg-destructive text-destructive-foreground px-1.5 py-px rounded-sm min-w-[18px] text-center">
+                                {item.badge}
+                              </span>
+                            )}
+                          </NavLink>
+                        )}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
+        </div>
 
-        {/* IntelliX.AI Footer - Logo only */}
-        <SidebarGroup className="border-t border-border/40 pt-3 pb-3">
-          <SidebarGroupContent>
-            <div className="px-3 py-2 flex justify-center bg-gradient-to-t from-slate-700/80 via-slate-600/40 to-transparent dark:from-slate-800/90 dark:via-slate-700/50 dark:to-transparent rounded-lg">
-              <img
-                src="/Logotipo-removebg-preview.png.png"
-                alt="IntelliX.AI"
-                className="h-24 w-24 object-contain"
-              />
+        {/* ── User footer */}
+        <div className="border-t border-sidebar-border px-3 py-3 space-y-2">
+          <div className="flex items-center gap-2">
+            {/* Avatar */}
+            <div className="w-7 h-7 rounded border border-border-default bg-raised flex items-center justify-center flex-shrink-0">
+              <span className="font-mono text-2xs font-medium text-muted-foreground">
+                {initials}
+              </span>
             </div>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-foreground truncate leading-tight">
+                  {emailDisplay}
+                </p>
+                <p className="font-mono text-2xs text-muted-foreground tracking-wider uppercase leading-tight mt-px">
+                  {role ?? "—"}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className={cn(
+              "w-full h-7 text-xs text-muted-foreground",
+              "hover:text-destructive hover:bg-destructive/10",
+              "border border-transparent hover:border-destructive/20",
+              "transition-colors duration-100",
+              isCollapsed ? "justify-center px-0" : "justify-start gap-2"
+            )}
+          >
+            <LogOut className="h-3.5 w-3.5 flex-shrink-0" />
+            {!isCollapsed && "Sair"}
+          </Button>
+        </div>
+
       </SidebarContent>
 
-      {/* Template Manager Modal */}
       <TemplateManager
         isOpen={isTemplateManagerOpen}
         onClose={() => setIsTemplateManagerOpen(false)}
