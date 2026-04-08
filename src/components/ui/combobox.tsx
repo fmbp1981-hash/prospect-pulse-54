@@ -56,7 +56,6 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          animated={false}
           disabled={disabled || loading}
           className={cn(
             "w-full justify-between",
