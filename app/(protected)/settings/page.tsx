@@ -393,7 +393,11 @@ export default function SettingsPage() {
 
       // Excluir todos os leads
       const leadIds = leads.map(l => l.id);
-      const result = await supabaseCRM.deleteLeads(user?.id ?? '', leadIds);
+      if (!user?.id) {
+        toast.error("Sessão inválida. Faça login novamente.");
+        return;
+      }
+      const result = await supabaseCRM.deleteLeads(user.id, leadIds);
 
       if (result.success) {
         toast.success(`${leads.length} leads excluídos com sucesso!`);

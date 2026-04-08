@@ -660,6 +660,9 @@ export async function deleteLeads(
   leadIds: string[]
 ): Promise<{ success: boolean; message: string }> {
   try {
+    if (!userId) {
+      return { success: false, message: "Sessão inválida. Faça login novamente." };
+    }
     if (!leadIds || leadIds.length === 0) {
       return { success: false, message: "Nenhum lead selecionado" };
     }

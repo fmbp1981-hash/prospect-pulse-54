@@ -266,7 +266,11 @@ export default function LeadsPage() {
 
     try {
       const leadIdsArray = Array.from(selectedLeads);
-      const result = await supabaseCRM.deleteLeads(user?.id ?? '', leadIdsArray);
+      if (!user?.id) {
+        toast.error("Sessão inválida. Faça login novamente.");
+        return;
+      }
+      const result = await supabaseCRM.deleteLeads(user.id, leadIdsArray);
       if (result.success) {
         await auditBulkDelete(leadIdsArray);
         toast.success(`${selectedLeads.size} leads excluídos com sucesso`);
