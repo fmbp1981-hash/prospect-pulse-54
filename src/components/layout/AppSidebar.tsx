@@ -104,8 +104,8 @@ export function AppSidebar() {
             </svg>
           </div>
           {!isCollapsed && (
-            <span className="text-sm font-semibold text-foreground tracking-tight">
-              LeadFinder <span className="text-primary">Pro</span>
+            <span className="text-sm font-semibold text-sidebar-foreground tracking-tight">
+              LeadFinder <span style={{color: "hsl(var(--sidebar-primary))"}}>Pro</span>
             </span>
           )}
         </div>
@@ -214,7 +214,7 @@ export function AppSidebar() {
         <div
           className={cn(
             "relative flex items-center justify-center overflow-hidden border-t border-sidebar-border",
-            isCollapsed ? "py-3 px-2" : "py-5 px-4"
+            isCollapsed ? "py-3 px-2" : "py-6 px-4"
           )}
           style={{
             background: "linear-gradient(to top, hsl(var(--sidebar-background)) 0%, hsl(var(--sidebar-background) / 0.5) 70%, transparent 100%)",
@@ -226,7 +226,7 @@ export function AppSidebar() {
             className={cn(
               "object-contain transition-opacity duration-150",
               "opacity-60 hover:opacity-90",
-              isCollapsed ? "h-8 w-8" : "h-20 w-auto"
+              isCollapsed ? "h-8 w-8" : "h-24 w-auto mx-auto"
             )}
             
           />
