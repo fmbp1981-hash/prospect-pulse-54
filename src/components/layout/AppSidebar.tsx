@@ -38,6 +38,8 @@ interface NavSection {
   items: NavItem[];
 }
 
+const LOGO_SRC = "/Logotipo-removebg-preview.png.png";
+
 export function AppSidebar() {
   const router = useRouter();
   const { user, signOut } = useAuth();
@@ -80,11 +82,9 @@ export function AppSidebar() {
     router.push("/login");
   };
 
-  const initials = user?.email
-    ? user.email.slice(0, 2).toUpperCase()
-    : "??";
-
-  const emailDisplay = user?.email ?? "Usuário";
+  const email = user?.email ?? "";
+  const initials = email.length >= 2 ? email.slice(0, 2).toUpperCase() : "??";
+  const emailDisplay = email || "Usuário";
 
   return (
     <Sidebar
@@ -170,36 +170,21 @@ export function AppSidebar() {
           ))}
         </div>
 
-        {/* ── IntelliX.AI logo */}
-        <div className={cn(
-          'border-t border-sidebar-border flex items-center justify-center',
-          isCollapsed ? 'py-2 px-2' : 'py-3 px-4'
-        )}>
-          <img
-            src='/Logotipo-removebg-preview.png.png'
-            alt='IntelliX.AI'
-            className={cn(
-              'object-contain opacity-70 hover:opacity-100 transition-opacity duration-150',
-              isCollapsed ? 'h-8 w-8' : 'h-14 w-auto'
-            )}
-          />
-        </div>
-
         {/* ── User footer */}
         <div className="border-t border-sidebar-border px-3 py-3 space-y-2">
           <div className="flex items-center gap-2">
             {/* Avatar */}
-            <div className="w-7 h-7 rounded border border-border-default bg-raised flex items-center justify-center flex-shrink-0">
+            <div className="w-7 h-7 rounded border border-sidebar-border bg-sidebar-accent flex items-center justify-center flex-shrink-0">
               <span className="font-mono text-2xs font-medium text-muted-foreground">
                 {initials}
               </span>
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-foreground truncate leading-tight">
+                <p className="text-xs font-medium text-sidebar-foreground truncate leading-tight">
                   {emailDisplay}
                 </p>
-                <p className="font-mono text-2xs text-muted-foreground tracking-wider uppercase leading-tight mt-px">
+                <p className="font-mono text-[10px] text-sidebar-foreground/40 tracking-wider uppercase leading-tight mt-px">
                   {role ?? "—"}
                 </p>
               </div>
@@ -212,7 +197,7 @@ export function AppSidebar() {
             size="sm"
             onClick={handleLogout}
             className={cn(
-              "w-full h-7 text-xs text-muted-foreground",
+              "w-full h-7 text-xs text-sidebar-foreground/50",
               "hover:text-destructive hover:bg-destructive/10",
               "border border-transparent hover:border-destructive/20",
               "transition-colors duration-100",
@@ -222,6 +207,29 @@ export function AppSidebar() {
             <LogOut className="h-3.5 w-3.5 flex-shrink-0" />
             {!isCollapsed && "Sair"}
           </Button>
+        </div>
+
+      
+        {/* IntelliX.AI logo — last element, gradient backdrop */}
+        <div
+          className={cn(
+            "relative flex items-center justify-center overflow-hidden border-t border-sidebar-border",
+            isCollapsed ? "py-3 px-2" : "py-5 px-4"
+          )}
+          style={{
+            background: "linear-gradient(to top, hsl(var(--sidebar-background)) 0%, hsl(var(--sidebar-background) / 0.5) 70%, transparent 100%)",
+          }}
+        >
+          <img
+            src={LOGO_SRC}
+            alt="IntelliX.AI"
+            className={cn(
+              "object-contain transition-opacity duration-150",
+              "opacity-60 hover:opacity-90",
+              isCollapsed ? "h-8 w-8" : "h-20 w-auto"
+            )}
+            style={{ filter: "brightness(0) invert(1)" }}
+          />
         </div>
 
       </SidebarContent>

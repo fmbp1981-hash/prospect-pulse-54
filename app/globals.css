@@ -2,212 +2,169 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─────────────────────────────────────────────────────────────────────
-   PRECISION DARK — Design System
-   Fontes: IBM Plex Sans (UI) + IBM Plex Mono (dados/números)
-   Accent: Âmbar #D97706 — único acento, transmite precisão
-   Filosofia: borders em vez de sombras, radius mínimo, densidade alta
-───────────────────────────────────────────────────────────────────── */
-
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 @layer base {
   :root {
-    /* ── Backgrounds */
-    --background:     11 14% 6%;    /* #0A0B10 */
-    --bg-surface:     220 14% 8%;   /* #0F1117 */
-    --bg-raised:      225 12% 11%;  /* #161820 */
-    --bg-overlay:     228 11% 13%;  /* #1C1E28 */
-    --bg-hover:       228 11% 14%;  /* #1E2030 */
-
-    /* ── Borders */
-    --border:         230 14% 14%;  /* #1A1C26 */
-    --border-default: 230 16% 18%;  /* #22253A */
-    --border-strong:  232 22% 25%;  /* #2E3251 */
-
-    /* ── Text */
-    --foreground:     225 30% 94%;  /* #EAEDF5 */
-    --text-secondary: 230 12% 60%;  /* #8B90A8 */
-    --muted-foreground: 232 16% 35%; /* #4A4E6A */
-
-    /* ── Cards / Popovers */
-    --card:           220 14% 8%;
-    --card-foreground: 225 30% 94%;
-    --popover:        228 11% 13%;
-    --popover-foreground: 225 30% 94%;
-
-    /* ── Primary = Accent Âmbar */
-    --primary:        38 93% 45%;   /* #D97706 */
-    --primary-foreground: 0 0% 5%;  /* quase preto sobre âmbar */
-
-    /* ── Secondary */
-    --secondary:      225 12% 11%;
-    --secondary-foreground: 225 30% 94%;
-
-    /* ── Muted */
-    --muted:          225 12% 11%;
-
-    /* ── Input */
-    --input:          230 16% 18%;
-    --ring:           38 93% 45%;   /* âmbar no focus */
-
-    /* ── Status */
-    --accent:         38 93% 45%;
-    --accent-foreground: 0 0% 5%;
-
-    --success:        160 84% 39%;  /* #10B981 */
-    --success-foreground: 0 0% 100%;
-    --success-muted:  158 75% 8%;   /* #0A2B1E */
-
-    --warning:        38 92% 50%;   /* #F59E0B */
-    --warning-foreground: 0 0% 5%;
-    --warning-muted:  40 90% 8%;
-
-    --destructive:    0 72% 60%;    /* #EF4444 */
-    --destructive-foreground: 0 0% 100%;
-    --destructive-muted: 0 65% 8%;
-
-    --info:           217 91% 60%;  /* #3B82F6 */
-    --info-foreground: 0 0% 100%;
-    --info-muted:     217 90% 8%;
-
-    /* ── Radius — mínimo, comunica precisão */
-    --radius: 0.25rem; /* 4px */
-
-    /* ── Sidebar */
-    --sidebar-background: 11 14% 5%;   /* ligeiramente mais escuro que base */
-    --sidebar-foreground: 225 30% 94%;
-    --sidebar-primary:    38 93% 45%;
-    --sidebar-primary-foreground: 0 0% 5%;
-    --sidebar-accent:     228 11% 14%;
-    --sidebar-accent-foreground: 225 30% 94%;
-    --sidebar-border:     230 14% 11%;
-    --sidebar-ring:       38 93% 45%;
-
-    /* ── Gradients — apenas onde faz sentido semântico */
-    --gradient-primary: linear-gradient(135deg, hsl(38 93% 40%), hsl(38 93% 50%));
-    --gradient-subtle: linear-gradient(180deg, hsl(11 14% 6%), hsl(220 14% 7%));
-
-    /* ── Shadows — mínimo, apenas em modais */
-    --shadow-modal: 0 25px 50px -12px hsl(0 0% 0% / 0.7);
-    --shadow-dropdown: 0 10px 20px -5px hsl(0 0% 0% / 0.5);
-  }
-
-  /* Light mode — mantido mas secondary */
-  .light {
-    --background:     210 20% 98%;
+    /* Backgrounds — cinza quente neutro */
+    --background:     0 0% 98%;
     --bg-surface:     0 0% 100%;
-    --bg-raised:      220 14% 96%;
-    --bg-overlay:     220 13% 91%;
-    --bg-hover:       220 14% 94%;
+    --bg-raised:      240 5% 96%;
+    --bg-overlay:     240 5% 93%;
+    --bg-hover:       240 5% 91%;
 
-    --border:         220 13% 91%;
-    --border-default: 214 32% 86%;
-    --border-strong:  213 27% 78%;
+    /* Borders */
+    --border:         240 6% 90%;
+    --border-default: 240 6% 85%;
+    --border-strong:  240 6% 76%;
 
-    --foreground:     224 71% 4%;
-    --text-secondary: 215 20% 40%;
-    --muted-foreground: 215 16% 55%;
+    /* Text */
+    --foreground:     240 10% 4%;
+    --text-secondary: 240 4% 46%;
+    --muted-foreground: 240 4% 55%;
 
+    /* Cards */
     --card:           0 0% 100%;
-    --card-foreground: 224 71% 4%;
+    --card-foreground: 240 10% 4%;
     --popover:        0 0% 100%;
-    --popover-foreground: 224 71% 4%;
+    --popover-foreground: 240 10% 4%;
 
-    --primary:        38 93% 40%;
+    /* Primary = Accent Ambar */
+    --primary:        38 92% 40%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary:      220 14% 96%;
-    --secondary-foreground: 224 71% 4%;
+    /* Secondary */
+    --secondary:      240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
 
-    --muted:          220 14% 96%;
-    --input:          214 32% 86%;
-    --ring:           38 93% 40%;
+    /* Muted */
+    --muted:          240 5% 96%;
+    --input:          240 6% 85%;
+    --ring:           38 92% 40%;
 
-    --accent:         38 93% 40%;
+    --accent:         38 92% 40%;
     --accent-foreground: 0 0% 100%;
 
-    --success:        160 84% 35%;
-    --success-muted:  158 75% 93%;
-    --warning:        38 92% 45%;
-    --warning-muted:  40 90% 93%;
+    /* Status */
+    --success:        142 71% 35%;
+    --success-foreground: 0 0% 100%;
+    --success-muted:  142 71% 94%;
+
+    --warning:        38 92% 50%;
+    --warning-foreground: 0 0% 5%;
+    --warning-muted:  38 92% 94%;
+
     --destructive:    0 72% 51%;
-    --destructive-muted: 0 65% 93%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-muted: 0 72% 94%;
+
     --info:           217 91% 50%;
-    --info-muted:     217 90% 93%;
+    --info-foreground: 0 0% 100%;
+    --info-muted:     217 91% 94%;
 
-    --sidebar-background: 220 14% 96%;
-    --sidebar-foreground: 224 71% 4%;
-    --sidebar-primary:    38 93% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent:     220 14% 91%;
-    --sidebar-accent-foreground: 224 71% 4%;
-    --sidebar-border:     220 13% 88%;
-    --sidebar-ring:       38 93% 40%;
+    --radius: 0.25rem;
 
-    --shadow-modal: 0 25px 50px -12px hsl(220 30% 10% / 0.25);
-    --shadow-dropdown: 0 10px 20px -5px hsl(220 30% 10% / 0.12);
+    /* Sidebar — dark em ambos os modos */
+    --sidebar-background: 240 6% 13%;
+    --sidebar-foreground: 240 5% 84%;
+    --sidebar-primary:    38 92% 50%;
+    --sidebar-primary-foreground: 0 0% 5%;
+    --sidebar-accent:     240 6% 18%;
+    --sidebar-accent-foreground: 240 5% 90%;
+    --sidebar-border:     240 6% 18%;
+    --sidebar-ring:       38 92% 50%;
+
+    --shadow-modal: 0 20px 60px -10px hsl(240 6% 10% / 0.2);
+    --shadow-dropdown: 0 8px 24px -4px hsl(240 6% 10% / 0.12);
+  }
+
+  .dark {
+    --background:     240 6% 9%;
+    --bg-surface:     240 6% 11%;
+    --bg-raised:      240 6% 14%;
+    --bg-overlay:     240 6% 17%;
+    --bg-hover:       240 6% 19%;
+
+    --border:         240 6% 17%;
+    --border-default: 240 6% 22%;
+    --border-strong:  240 6% 30%;
+
+    --foreground:     0 0% 95%;
+    --text-secondary: 240 5% 65%;
+    --muted-foreground: 240 5% 50%;
+
+    --card:           240 6% 11%;
+    --card-foreground: 0 0% 95%;
+    --popover:        240 6% 14%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary:        38 92% 48%;
+    --primary-foreground: 0 0% 5%;
+
+    --secondary:      240 6% 14%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted:          240 6% 14%;
+    --input:          240 6% 22%;
+    --ring:           38 92% 48%;
+
+    --accent:         38 92% 48%;
+    --accent-foreground: 0 0% 5%;
+
+    --success:        142 71% 42%;
+    --success-foreground: 0 0% 5%;
+    --success-muted:  142 71% 12%;
+
+    --warning:        38 92% 52%;
+    --warning-foreground: 0 0% 5%;
+    --warning-muted:  38 92% 12%;
+
+    --destructive:    0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-muted: 0 72% 12%;
+
+    --info:           217 91% 58%;
+    --info-foreground: 0 0% 5%;
+    --info-muted:     217 91% 12%;
+
+    --sidebar-background: 240 6% 7%;
+    --sidebar-foreground: 240 5% 84%;
+    --sidebar-primary:    38 92% 50%;
+    --sidebar-primary-foreground: 0 0% 5%;
+    --sidebar-accent:     240 6% 12%;
+    --sidebar-accent-foreground: 240 5% 90%;
+    --sidebar-border:     240 6% 12%;
+    --sidebar-ring:       38 92% 50%;
+
+    --shadow-modal: 0 20px 60px -10px hsl(0 0% 0% / 0.5);
+    --shadow-dropdown: 0 8px 24px -4px hsl(0 0% 0% / 0.3);
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
 
-  html {
-    color-scheme: dark;
-  }
+  html { color-scheme: light dark; }
 
   body {
     @apply bg-background text-foreground;
     font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
     font-size: 13px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
   }
 
-  h1 {
-    font-size: 1.25rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    line-height: 1.2;
-  }
+  h1 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+  h2 { font-size: 1rem;    font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
+  h3, h4, h5, h6 { font-weight: 500; }
 
-  h2 {
-    font-size: 1rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    line-height: 1.3;
-  }
-
-  h3, h4, h5, h6 {
-    font-weight: 500;
-    letter-spacing: -0.005em;
-  }
-
-  /* Monospace para dados numéricos */
-  .font-mono, [data-numeric] {
-    font-family: 'IBM Plex Mono', 'Fira Code', monospace;
-  }
-
-  /* Scrollbar sutil */
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb {
-    background: hsl(var(--border-strong));
-    border-radius: 2px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--muted-foreground));
-  }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border-strong)); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
 }
 
 @layer utilities {
-  /* ── Tipografia utilitária */
-  .font-ui   { font-family: 'IBM Plex Sans', sans-serif; }
   .font-data { font-family: 'IBM Plex Mono', monospace; }
 
   .text-label {
@@ -219,56 +176,20 @@
     color: hsl(var(--muted-foreground));
   }
 
-  /* ── Layout */
-  .surface {
-    background: hsl(var(--bg-surface));
-    border: 1px solid hsl(var(--border));
-  }
-
-  .raised {
-    background: hsl(var(--bg-raised));
-    border: 1px solid hsl(var(--border-default));
-  }
-
-  /* ── Status colors */
   .text-success { color: hsl(var(--success)); }
   .text-warning { color: hsl(var(--warning)); }
   .text-danger  { color: hsl(var(--destructive)); }
   .text-info    { color: hsl(var(--info)); }
 
-  .bg-success-muted { background: hsl(var(--success-muted)); }
-  .bg-warning-muted { background: hsl(var(--warning-muted)); }
-  .bg-danger-muted  { background: hsl(var(--destructive-muted)); }
-  .bg-info-muted    { background: hsl(var(--info-muted)); }
-
-  /* ── Sombras */
   .shadow-modal    { box-shadow: var(--shadow-modal); }
   .shadow-dropdown { box-shadow: var(--shadow-dropdown); }
 
-  /* ── Gradients */
-  .gradient-primary { background: var(--gradient-primary); }
-  .gradient-subtle  { background: var(--gradient-subtle); }
+  .animate-fade-in { animation: fadeIn 0.15s ease-out; }
+  .animate-fade-up { animation: fadeUp 0.18s ease-out; }
 
-  /* ── Animações — apenas onde importa */
-  .animate-fade-in {
-    animation: fadeIn 0.15s ease-out;
-  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-  .animate-fade-up {
-    animation: fadeUp 0.18s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-  }
-
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  /* ── Sidebar override */
   [data-sidebar] {
     --sidebar-background: hsl(var(--sidebar-background));
     --sidebar-foreground: hsl(var(--sidebar-foreground));
