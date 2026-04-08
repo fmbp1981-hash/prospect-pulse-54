@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, LayoutDashboard, Table2, LayoutGrid,
-  MessageSquare, Users, Megaphone, FileText,
-  Link2, Settings, BookOpen, LogOut, ChevronRight,
+  MessageSquare, Users, Megaphone,
+  Link2, Settings, BookOpen, LogOut,
 } from "lucide-react";
 import { NavLink } from "@/components/layout/NavLink";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { useAuth } from "@/contexts/AuthContext";
 import { TemplateManager } from "@/components/shared/TemplateManager";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -169,6 +170,21 @@ export function AppSidebar() {
           ))}
         </div>
 
+        {/* ── IntelliX.AI logo */}
+        <div className={cn(
+          'border-t border-sidebar-border flex items-center justify-center',
+          isCollapsed ? 'py-2 px-2' : 'py-3 px-4'
+        )}>
+          <img
+            src='/Logotipo-removebg-preview.png.png'
+            alt='IntelliX.AI'
+            className={cn(
+              'object-contain opacity-70 hover:opacity-100 transition-opacity duration-150',
+              isCollapsed ? 'h-8 w-8' : 'h-14 w-auto'
+            )}
+          />
+        </div>
+
         {/* ── User footer */}
         <div className="border-t border-sidebar-border px-3 py-3 space-y-2">
           <div className="flex items-center gap-2">
@@ -188,6 +204,7 @@ export function AppSidebar() {
                 </p>
               </div>
             )}
+            <ThemeToggle />
           </div>
 
           <Button
