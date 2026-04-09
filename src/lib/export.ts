@@ -1,67 +1,65 @@
-// @ts-nocheck — TODO: migrar para strictNullChecks (dívida técnica rastreada)
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 import { Lead } from '@/types/prospection';
 
+const COLUMN_MAPPING: Record<string, keyof Lead> = {
+  'Lead': 'lead',
+  'Status': 'status',
+  'Data': 'data',
+  'Empresa': 'empresa',
+  'Categoria': 'categoria',
+  'Contato': 'contato',
+  'WhatsApp': 'whatsapp',
+  'Telefone': 'telefone',
+  'Email': 'email',
+  'Website': 'website',
+  'Instagram': 'instagram',
+  'Cidade': 'cidade',
+  'Endereço': 'endereco',
+  'Bairro/Região': 'bairroRegiao',
+  'Link Google Maps': 'linkGMN',
+  'Aceita Cartão': 'aceitaCartao',
+  'CNPJ': 'cnpj',
+  'Mensagem WhatsApp': 'mensagemWhatsApp',
+  'Status WhatsApp': 'statusMsgWA',
+  'Data Envio WA': 'dataEnvioWA',
+  'Resumo Analítico': 'resumoAnalitico',
+  'Origem': 'origem',
+  'Prioridade': 'prioridade',
+  'Região': 'regiao',
+  'Segmento': 'segmento',
+  'Ticket Médio Estimado': 'ticketMedioEstimado',
+  'Contato Principal': 'contatoPrincipal',
+  'Data Contato': 'dataContato',
+  'Observações': 'observacoes',
+  'Data Criação': 'createdAt',
+  'Data Atualização': 'updatedAt',
+};
+
 // Sanitizar dados para prevenir CSV injection
-export const sanitizeForCSV = (value: string | number | boolean | undefined): string => {
+export const sanitizeForCSV = (value: string | number | boolean | null | undefined): string => {
   if (value === undefined || value === null) return '';
-  
+
   const stringValue = String(value);
-  
-  // Remover caracteres perigosos que podem causar formula injection
+
   const dangerous = ['=', '+', '-', '@', '\t', '\r'];
   if (dangerous.some(char => stringValue.startsWith(char))) {
-    return `'${stringValue}`; // Adicionar aspas simples para escapar
+    return `'${stringValue}`;
   }
-  
+
   return stringValue;
 };
 
 export const exportToCSV = (leads: Lead[], filename: string, selectedColumns?: string[]) => {
-  const columnMapping: Record<string, keyof Lead> = {
-    'Lead': 'lead',
-    'Status': 'status',
-    'Data': 'data',
-    'Empresa': 'empresa',
-    'Categoria': 'categoria',
-    'Contato': 'contato',
-    'WhatsApp': 'whatsapp',
-    'Telefone': 'telefone',
-    'Email': 'email',
-    'Website': 'website',
-    'Instagram': 'instagram',
-    'Cidade': 'cidade',
-    'Endereço': 'endereco',
-    'Bairro/Região': 'bairroRegiao',
-    'Link Google Maps': 'linkGMN',
-    'Aceita Cartão': 'aceitaCartao',
-    'CNPJ': 'cnpj',
-    'Mensagem WhatsApp': 'mensagemWhatsApp',
-    'Status WhatsApp': 'statusMsgWA',
-    'Data Envio WA': 'dataEnvioWA',
-    'Resumo Analítico': 'resumoAnalitico',
-    'Origem': 'origem',
-    'Prioridade': 'prioridade',
-    'Região': 'regiao',
-    'Segmento': 'segmento',
-    'Ticket Médio Estimado': 'ticketMedioEstimado',
-    'Contato Principal': 'contatoPrincipal',
-    'Data Contato': 'dataContato',
-    'Observações': 'observacoes',
-    'Data Criação': 'createdAt',
-    'Data Atualização': 'updatedAt',
-  };
-
   const data = leads.map(lead => {
     const row: Record<string, string> = {};
-    
-    Object.entries(columnMapping).forEach(([displayName, key]) => {
+
+    Object.entries(COLUMN_MAPPING).forEach(([displayName, key]) => {
       if (!selectedColumns || selectedColumns.includes(displayName)) {
-        row[displayName] = sanitizeForCSV(lead[key]);
+        row[displayName] = sanitizeForCSV(lead[key] as string | number | boolean | null | undefined);
       }
     });
-    
+
     return row;
   });
 
@@ -71,7 +69,7 @@ export const exportToCSV = (leads: Lead[], filename: string, selectedColumns?: s
     newline: '\n',
   });
 
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM para UTF-8
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -80,68 +78,49 @@ export const exportToCSV = (leads: Lead[], filename: string, selectedColumns?: s
   window.URL.revokeObjectURL(url);
 };
 
-export const exportToExcel = (leads: Lead[], filename: string, selectedColumns?: string[]) => {
-  const columnMapping: Record<string, keyof Lead> = {
-    'Lead': 'lead',
-    'Status': 'status',
-    'Data': 'data',
-    'Empresa': 'empresa',
-    'Categoria': 'categoria',
-    'Contato': 'contato',
-    'WhatsApp': 'whatsapp',
-    'Telefone': 'telefone',
-    'Email': 'email',
-    'Website': 'website',
-    'Instagram': 'instagram',
-    'Cidade': 'cidade',
-    'Endereço': 'endereco',
-    'Bairro/Região': 'bairroRegiao',
-    'Link Google Maps': 'linkGMN',
-    'Aceita Cartão': 'aceitaCartao',
-    'CNPJ': 'cnpj',
-    'Mensagem WhatsApp': 'mensagemWhatsApp',
-    'Status WhatsApp': 'statusMsgWA',
-    'Data Envio WA': 'dataEnvioWA',
-    'Resumo Analítico': 'resumoAnalitico',
-    'Origem': 'origem',
-    'Prioridade': 'prioridade',
-    'Região': 'regiao',
-    'Segmento': 'segmento',
-    'Ticket Médio Estimado': 'ticketMedioEstimado',
-    'Contato Principal': 'contatoPrincipal',
-    'Data de Contato': 'dataContato',
-    'Observações': 'observacoes',
-    'Data Criação': 'createdAt',
-    'Data Atualização': 'updatedAt',
-  };
+export const exportToExcel = async (leads: Lead[], filename: string, selectedColumns?: string[]): Promise<void> => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Leads');
 
-  const data = leads.map(lead => {
-    const row: Record<string, any> = {};
-    
-    Object.entries(columnMapping).forEach(([displayName, key]) => {
-      if (!selectedColumns || selectedColumns.includes(displayName)) {
-        row[displayName] = lead[key] || '';
-      }
+  const activeColumns = Object.keys(COLUMN_MAPPING).filter(
+    col => !selectedColumns || selectedColumns.includes(col)
+  );
+
+  worksheet.columns = activeColumns.map(col => ({
+    header: col,
+    key: col,
+    width: Math.min(col.length + 10, 50),
+  }));
+
+  leads.forEach(lead => {
+    const row: Record<string, string> = {};
+    activeColumns.forEach(displayName => {
+      const key = COLUMN_MAPPING[displayName];
+      row[displayName] = String(lead[key] ?? '');
     });
-    
-    return row;
+    worksheet.addRow(row);
   });
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
-  
-  // Auto-ajustar largura das colunas
-  const maxWidth = 50;
-  const colWidths = Object.keys(data[0] || {}).map(key => {
+  // Auto-ajustar largura das colunas com base no conteúdo
+  worksheet.columns.forEach(col => {
+    if (!col.key) return;
+    const colKey = col.key as string;
+    const leadKey = COLUMN_MAPPING[colKey];
     const maxLength = Math.max(
-      key.length,
-      ...data.map(row => String(row[key] || '').length)
+      String(col.header ?? '').length,
+      ...leads.map(lead => String(lead[leadKey] ?? '').length)
     );
-    return { wch: Math.min(maxLength + 2, maxWidth) };
+    col.width = Math.min(maxLength + 2, 50);
   });
-  worksheet['!cols'] = colWidths;
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads');
-  
-  XLSX.writeFile(workbook, `${filename}.xlsx`);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}.xlsx`;
+  link.click();
+  window.URL.revokeObjectURL(url);
 };

@@ -43,22 +43,39 @@ function parseCSV(text: string): RawLead[] {
   })).filter(l => l.empresa || l.whatsapp || l.contato);
 }
 
-function parseXLSX(buffer: Buffer): RawLead[] {
-  const XLSX = require('xlsx') as typeof import('xlsx');
-  const wb = XLSX.read(buffer, { type: 'buffer' });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-  return rows.map(row => {
-    const key = (k: string) => {
-      for (const r of Object.keys(row)) {
-        if (r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          === k.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) {
-          return String(row[r] ?? '');
-        }
+async function parseXLSX(buffer: Buffer): Promise<RawLead[]> {
+  const ExcelJS = require('exceljs') as typeof import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  // Type cast: exceljs types predate Node.js Buffer generics
+  await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+
+  const sheet = workbook.worksheets[0];
+  const headers: string[] = [];
+  const rows: RawLead[] = [];
+
+  const normalize = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) {
+      row.eachCell((cell, colNumber) => {
+        headers[colNumber] = normalize(String(cell.value ?? ''));
+      });
+      return;
+    }
+    const rowData: Record<string, string> = {};
+    row.eachCell((cell, colNumber) => {
+      const header = headers[colNumber];
+      if (header) rowData[header] = String(cell.value ?? '');
+    });
+    const key = (k: string): string => {
+      const norm = normalize(k);
+      for (const h of Object.keys(rowData)) {
+        if (h === norm) return rowData[h];
       }
       return '';
     };
-    return {
+    rows.push({
       empresa: key('empresa') || key('company') || key('nome') || '',
       contato: key('contato') || key('nome') || key('name') || '',
       whatsapp: key('whatsapp') || key('telefone') || key('phone') || key('celular') || '',
@@ -66,8 +83,10 @@ function parseXLSX(buffer: Buffer): RawLead[] {
       email: key('email') || '',
       cidade: key('cidade') || key('city') || '',
       categoria: key('categoria') || key('category') || key('nicho') || '',
-    };
-  }).filter(l => l.empresa || l.whatsapp || l.contato);
+    });
+  });
+
+  return rows.filter(l => l.empresa || l.whatsapp || l.contato);
 }
 
 function parseVCF(text: string): RawLead[] {
@@ -129,7 +148,7 @@ export async function POST(req: NextRequest) {
   if (ext === 'csv' || file.type === 'text/csv') {
     rawLeads = parseCSV(text);
   } else if (ext === 'xlsx' || ext === 'xls') {
-    rawLeads = parseXLSX(buffer);
+    rawLeads = await parseXLSX(buffer);
   } else if (ext === 'vcf') {
     rawLeads = parseVCF(text);
   } else if (ext === 'txt') {

@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import Papa from 'papaparse';
 
 export interface LeadForExport {
@@ -23,15 +23,14 @@ export interface LeadForExport {
 }
 
 // Sanitizar dados para prevenir CSV injection
-const sanitizeForCSV = (value: any): string => {
+const sanitizeForCSV = (value: string | number | boolean | null | undefined): string => {
   if (value === undefined || value === null) return '';
 
   const stringValue = String(value);
 
-  // Remover caracteres perigosos que podem causar formula injection
   const dangerous = ['=', '+', '-', '@', '\t', '\r'];
   if (dangerous.some(char => stringValue.startsWith(char))) {
-    return `'${stringValue}`; // Adicionar aspas simples para escapar
+    return `'${stringValue}`;
   }
 
   return stringValue;
@@ -63,7 +62,7 @@ export const exportLeadsToCSV = (leads: LeadForExport[], filename: string = 'lea
     newline: '\n',
   });
 
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM para UTF-8
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -72,42 +71,60 @@ export const exportLeadsToCSV = (leads: LeadForExport[], filename: string = 'lea
   window.URL.revokeObjectURL(url);
 };
 
-export const exportLeadsToExcel = (leads: LeadForExport[], filename: string = 'leads') => {
-  const data = leads.map(lead => ({
-    'ID Lead': lead.lead,
-    'Empresa': lead.empresa,
-    'Categoria': lead.categoria,
-    'Telefone': lead.telefone || '',
-    'WhatsApp': lead.whatsapp || '',
-    'Website': lead.website || '',
-    'Endereço': lead.endereco || '',
-    'Cidade': lead.cidade || '',
-    'Estado': lead.estado || '',
-    'CEP': lead.cep || '',
-    'Avaliação': lead.avaliacao || '',
-    'Horário Funcionamento': lead.horario_funcionamento || '',
-    'Aceita Cartão': lead.aceita_cartao ? 'Sim' : 'Não',
-    'Mensagem WhatsApp': lead.mensagem_whatsapp || '',
-    'Status WhatsApp': lead.status_msg_wa || '',
-    'Status': lead.status,
-    'Data Criação': new Date(lead.created_at).toLocaleDateString('pt-BR'),
-  }));
+export const exportLeadsToExcel = async (leads: LeadForExport[], filename: string = 'leads'): Promise<void> => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Leads Prospectados');
 
-  const worksheet = XLSX.utils.json_to_sheet(data);
+  worksheet.columns = [
+    { header: 'ID Lead', key: 'lead', width: 20 },
+    { header: 'Empresa', key: 'empresa', width: 30 },
+    { header: 'Categoria', key: 'categoria', width: 20 },
+    { header: 'Telefone', key: 'telefone', width: 18 },
+    { header: 'WhatsApp', key: 'whatsapp', width: 18 },
+    { header: 'Website', key: 'website', width: 30 },
+    { header: 'Endereço', key: 'endereco', width: 35 },
+    { header: 'Cidade', key: 'cidade', width: 20 },
+    { header: 'Estado', key: 'estado', width: 10 },
+    { header: 'CEP', key: 'cep', width: 12 },
+    { header: 'Avaliação', key: 'avaliacao', width: 12 },
+    { header: 'Horário Funcionamento', key: 'horario_funcionamento', width: 30 },
+    { header: 'Aceita Cartão', key: 'aceita_cartao', width: 14 },
+    { header: 'Mensagem WhatsApp', key: 'mensagem_whatsapp', width: 40 },
+    { header: 'Status WhatsApp', key: 'status_msg_wa', width: 16 },
+    { header: 'Status', key: 'status', width: 16 },
+    { header: 'Data Criação', key: 'created_at', width: 14 },
+  ];
 
-  // Auto-ajustar largura das colunas
-  const maxWidth = 50;
-  const colWidths = Object.keys(data[0] || {}).map(key => {
-    const maxLength = Math.max(
-      key.length,
-      ...data.map(row => String(row[key as keyof typeof row] || '').length)
-    );
-    return { wch: Math.min(maxLength + 2, maxWidth) };
+  leads.forEach(lead => {
+    worksheet.addRow({
+      lead: lead.lead,
+      empresa: lead.empresa,
+      categoria: lead.categoria,
+      telefone: lead.telefone ?? '',
+      whatsapp: lead.whatsapp ?? '',
+      website: lead.website ?? '',
+      endereco: lead.endereco ?? '',
+      cidade: lead.cidade ?? '',
+      estado: lead.estado ?? '',
+      cep: lead.cep ?? '',
+      avaliacao: lead.avaliacao ?? '',
+      horario_funcionamento: lead.horario_funcionamento ?? '',
+      aceita_cartao: lead.aceita_cartao ? 'Sim' : 'Não',
+      mensagem_whatsapp: lead.mensagem_whatsapp ?? '',
+      status_msg_wa: lead.status_msg_wa ?? '',
+      status: lead.status,
+      created_at: new Date(lead.created_at).toLocaleDateString('pt-BR'),
+    });
   });
-  worksheet['!cols'] = colWidths;
 
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Leads Prospectados');
-
-  XLSX.writeFile(workbook, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  link.click();
+  window.URL.revokeObjectURL(url);
 };
