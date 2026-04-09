@@ -8,6 +8,8 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { normalizeBRPhone } from '@/lib/normalizePhone';
+import { parse as parseCSVLib } from 'papaparse';
+import ExcelJS from 'exceljs';
 
 export const runtime = 'nodejs';
 
@@ -24,8 +26,7 @@ interface RawLead {
 // ─── Parsers ─────────────────────────────────────────────────────────────────
 
 function parseCSV(text: string): RawLead[] {
-  const { parse } = require('papaparse') as typeof import('papaparse');
-  const result = parse<Record<string, string>>(text, {
+  const result = parseCSVLib<Record<string, string>>(text, {
     header: true,
     skipEmptyLines: true,
     transformHeader: (h: string) => h.trim().toLowerCase()
@@ -44,7 +45,6 @@ function parseCSV(text: string): RawLead[] {
 }
 
 async function parseXLSX(buffer: Buffer): Promise<RawLead[]> {
-  const ExcelJS = require('exceljs') as typeof import('exceljs');
   const workbook = new ExcelJS.Workbook();
   // Type cast: exceljs types predate Node.js Buffer generics
   await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
