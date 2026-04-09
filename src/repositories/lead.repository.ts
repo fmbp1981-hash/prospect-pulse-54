@@ -11,11 +11,17 @@ type LeadRow = Database['public']['Tables']['leads_prospeccao']['Row'];
 type LeadInsert = Database['public']['Tables']['leads_prospeccao']['Insert'];
 type LeadUpdate = Database['public']['Tables']['leads_prospeccao']['Update'];
 
-// Singleton: criado uma vez por cold start, reutilizado em warm requests
-const supabaseAdmin = createClient<Database>(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazy singleton: criado apenas na primeira chamada de rota (evita erro de build sem env vars)
+let _supabaseAdmin: ReturnType<typeof createClient<Database>> | null = null;
+function getSupabase() {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return _supabaseAdmin;
+}
 
 export const leadRepository = {
   /**
@@ -33,7 +39,7 @@ export const leadRepository = {
     whatsapp: string,
     userId?: string
   ): Promise<LeadRow | null> {
-    const supabase = supabaseAdmin;
+    const supabase = getSupabase();
 
     // Extrai apenas dígitos e usa os últimos 11 (cobre mobile BR: DDD 2 + 9 dígitos)
     // Para fixo (DDD 2 + 8 dígitos = 10), os últimos 11 incluem o dígito país correto.
@@ -61,7 +67,7 @@ export const leadRepository = {
    * Equivalente ao node "Criar_lead" (INSERT).
    */
   async create(lead: LeadInsert): Promise<LeadRow> {
-    const supabase = supabaseAdmin;
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('leads_prospeccao')
       .insert(lead)
@@ -77,7 +83,7 @@ export const leadRepository = {
    * Equivalente à tool "atualizar_lead".
    */
   async update(id: string, fields: LeadUpdate): Promise<LeadRow> {
-    const supabase = supabaseAdmin;
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('leads_prospeccao')
       .update({ ...fields, updated_at: new Date().toISOString() })
@@ -94,7 +100,7 @@ export const leadRepository = {
    * Equivalente ao node "Buscar Leads para Follow-up" do Fluxo 4.
    */
   async findLeadsForFollowUp(): Promise<LeadRow[]> {
-    const supabase = supabaseAdmin;
+    const supabase = getSupabase();
     const now = new Date();
 
     // Janelas de follow-up: 15min (count=0), 1h (count=1), 24h (count=2)
@@ -134,7 +140,7 @@ export const leadRepository = {
    * Incrementa o contador de follow-up e atualiza última interação.
    */
   async incrementFollowUpCount(id: string): Promise<void> {
-    const supabase = supabaseAdmin;
+    const supabase = getSupabase();
 
     const { data: current } = await supabase
       .from('leads_prospeccao')
@@ -163,7 +169,7 @@ export const leadRepository = {
    * Equivalente ao fluxo auxiliar "Supabase Instancia Ativa".
    */
   async keepAlive(): Promise<void> {
-    const supabase = supabaseAdmin;
+    const supabase = getSupabase();
     await supabase.from('leads_prospeccao').select('id').limit(1);
   },
 };
