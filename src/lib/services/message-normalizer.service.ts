@@ -25,6 +25,10 @@ export interface NormalizedMessage {
   instanceName: string;
   timestamp: string;
 
+  // Detecção de bot/automação
+  isBusinessAccount: boolean;  // JID com dígitos além do padrão BR (business API/CNPJ-based)
+  isAutomatedMessage: boolean; // Texto detectado como resposta automática de bot
+
   // Debug
   _raw?: unknown;
 }
@@ -62,15 +66,41 @@ interface EvolutionMessageData {
   instanceName?: string;
 }
 
-function extractPhoneNumber(remoteJid: string): string {
+function extractPhoneNumber(remoteJid: string): { phone: string; isBusinessAccount: boolean } {
   // Remove @s.whatsapp.net, @g.us, etc.
   const raw = remoteJid.replace(/@.*/, '').replace(/\D/g, '');
 
-  // Garante prefixo +55
-  if (raw.startsWith('55')) {
-    return `+${raw}`;
-  }
-  return `+55${raw}`;
+  const localDigits = raw.startsWith('55') ? raw.slice(2) : raw;
+
+  // Números BR válidos: 10 dígitos (fixo DDD+8) ou 11 dígitos (celular DDD+9+8)
+  // JIDs de contas Business API / CNPJ-based têm > 11 dígitos locais
+  const isBusinessAccount = localDigits.length > 11;
+
+  const phone = raw.startsWith('55') ? `+${raw}` : `+55${raw}`;
+  return { phone, isBusinessAccount };
+}
+
+// Padrões que indicam resposta automática de bot de atendimento
+const BOT_PATTERNS = [
+  /atendimento\s+(virtual|automático|automatico|bot)/i,
+  /resposta\s+automática/i,
+  /bem[- ]vindo[a]?\s+ao\s+atendimento/i,
+  /cancelar\s+este\s+atendimento/i,
+  /escolha\s+a\s+opção\s+desejada/i,
+  /políticas?\s+de\s+privacidade/i,
+  /responderemos\s+em\s+breve/i,
+  /agradecemos?\s+seu\s+contato/i,
+  /sou\s+pessoa\s+(física|jurídica|fisica|juridica)/i,
+  /\*[0-9]+\.\*\s/,   // menus formatados: *1.* Opção
+  /Digite\s+[0-9]+\s+para/i,
+  /pressione\s+[0-9]+/i,
+  /horário\s+de\s+atendimento/i,
+];
+
+function detectAutomatedMessage(text: string, isBusinessAccount: boolean): boolean {
+  if (isBusinessAccount) return true;
+  if (!text) return false;
+  return BOT_PATTERNS.some((p) => p.test(text));
 }
 
 function formatPhoneDisplay(whatsapp: string): string {
@@ -154,14 +184,15 @@ export function normalizeMessage(
   const data = payload as EvolutionMessageData;
 
   const remoteJid = data.key?.remoteJid ?? '';
-  const whatsApp = extractPhoneNumber(remoteJid);
+  const { phone: whatsApp, isBusinessAccount } = extractPhoneNumber(remoteJid);
   const type = detectMessageType(data);
+  const mensagem = extractMessageContent(data, type);
 
   return {
     clienteNome: data.pushName || 'Desconhecido',
     clienteTelefone: formatPhoneDisplay(whatsApp),
     clienteWhatsApp: whatsApp,
-    mensagem: extractMessageContent(data, type),
+    mensagem,
     messageType: type,
     messageId: data.key?.id,
     ...extractMediaInfo(data, type),
@@ -170,6 +201,8 @@ export function normalizeMessage(
     timestamp: data.messageTimestamp
       ? new Date(data.messageTimestamp * 1000).toISOString()
       : new Date().toISOString(),
+    isBusinessAccount,
+    isAutomatedMessage: detectAutomatedMessage(mensagem, isBusinessAccount),
     _raw: process.env.NODE_ENV !== 'production' ? data : undefined,
   };
 }

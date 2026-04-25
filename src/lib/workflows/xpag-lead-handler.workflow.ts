@@ -96,6 +96,20 @@ async function runWorkflowSteps(
   );
   logger.info(isNew ? 'Lead created' : 'Lead found', { leadId: lead.id });
 
+  // ── STEP 3B: DETECTAR MENSAGEM AUTOMÁTICA / BOT ─────────────────────────
+  // Detectado = avança estágio e sinaliza o agente, mas NÃO bloqueia resposta.
+  // O agente receberá instrução específica para lidar com bots.
+  if (normalized.isAutomatedMessage) {
+    const reason = normalized.isBusinessAccount ? 'business-jid' : 'bot-pattern';
+    if (lead.estagio_pipeline === 'Novo Lead' || !lead.estagio_pipeline) {
+      await leadRepository.update(lead.id, {
+        estagio_pipeline: 'Contato Inicial',
+        data_ultima_interacao: new Date().toISOString(),
+      }).catch(() => null);
+    }
+    logger.info('Bot/automated message — agent will respond with adapted approach', { leadId: lead.id, reason });
+  }
+
   // ── STEP 4: VERIFICAR MODO HUMANO ────────────────────────────────────────
   if (leadService.isInHumanMode(lead)) {
     // Salva a mensagem (consultor pode ver no histórico)
@@ -138,7 +152,7 @@ async function runWorkflowSteps(
   }).catch((err) => logger.warn('Save lead message failed', { error: err.message }));
 
   // ── STEP 7: MONTAR CONTEXTO + EXECUTAR AGENTE ────────────────────────────
-  const agentCtx = await buildAgentContext(normalized, processed, lead, isNew, tenant);
+  const agentCtx = await buildAgentContext(normalized, processed, lead, isNew, tenant, normalized.isAutomatedMessage);
 
   const agentResult = await withTimeout(
     executeAIAgent(agentCtx),

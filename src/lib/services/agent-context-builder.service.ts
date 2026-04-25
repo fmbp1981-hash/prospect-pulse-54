@@ -22,6 +22,7 @@ export interface AgentContext {
   tenant: TenantContext;
   contactName: string;
   whatsapp: string;
+  isAutomatedMessage: boolean;
 }
 
 export async function buildAgentContext(
@@ -29,7 +30,8 @@ export async function buildAgentContext(
   processed: ProcessedMessage,
   lead: LeadRow,
   isNewLead: boolean,
-  tenant: TenantContext
+  tenant: TenantContext,
+  isAutomatedMessage = false
 ): Promise<AgentContext> {
   // Busca histórico de conversas (últimas 20)
   const historyRaw = await conversationRepository.getHistory(lead.id, 20);
@@ -44,5 +46,6 @@ export async function buildAgentContext(
     tenant,
     contactName: normalized.clienteNome,
     whatsapp: normalized.clienteWhatsApp,
+    isAutomatedMessage,
   };
 }

@@ -40,6 +40,7 @@ export interface AgentExecutionInput {
   formattedHistory: string;
   instanceName: string;
   tenant: { userId: string; companyName: string };
+  isAutomatedMessage: boolean;
 }
 
 export interface AgentExecutionResult {
@@ -51,7 +52,7 @@ export interface AgentExecutionResult {
 }
 
 function buildUserPrompt(input: AgentExecutionInput): string {
-  const { lead, isNewLead, processedMessage, formattedHistory } = input;
+  const { lead, isNewLead, processedMessage, formattedHistory, isAutomatedMessage } = input;
 
   // Instrução comportamental baseada no tipo de contato
   const hasHistory = formattedHistory && formattedHistory !== 'Nenhum histórico anterior';
@@ -60,7 +61,9 @@ function buildUserPrompt(input: AgentExecutionInput): string {
   const isProspectedWithNoHistory = !isNewLead && !hasHistory && mensagemPersonalizada;
 
   let behaviorInstruction: string;
-  if (isNewLead) {
+  if (isAutomatedMessage) {
+    behaviorInstruction = 'RESPOSTA AUTOMÁTICA DETECTADA — a mensagem recebida é de um bot de atendimento automático ou sistema empresarial, não de um humano. NÃO responda ao conteúdo do bot. Em vez disso, envie uma mensagem curta e direta se apresentando como XPAG Brasil e perguntando se pode falar com o responsável pelas decisões financeiras ou de pagamentos da empresa. Exemplo: "Olá! 👋 Aqui é da equipe XPAG Brasil. Estamos entrando em contato para apresentar nossas soluções em meios de pagamento. Poderia me conectar com o responsável pela área financeira ou de pagamentos?" — adapte o tom conforme o sistema prompt.';
+  } else if (isNewLead) {
     behaviorInstruction = 'NOVO CONTATO — lead não existe no banco. Faça a abordagem inicial conforme o fluxo do sistema prompt.';
   } else if (isProspectedWithNoHistory) {
     behaviorInstruction = 'LEAD EXISTENTE RETORNANDO — este lead foi prospectado e está respondendo pela primeira vez. Use a mensagem de prospecção abaixo como contexto do contato anterior. Não se reapresente como se fosse o primeiro contato — você já enviou uma mensagem a ele. Retome naturalmente.';
