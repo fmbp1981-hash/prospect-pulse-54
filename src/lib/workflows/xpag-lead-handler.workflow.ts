@@ -225,16 +225,57 @@ async function runWorkflowSteps(
   provider.sendTyping(normalized.instanceName, sendTargetWhatsApp, typingMs).catch(() => {});
 
   // ── STEP 9: ENVIAR VIA WHATSAPP PROVIDER ────────────────────────────────
-  const { sent } = await withTimeout(
+  // Princípio: se o lead recebeu a msg de prospecção, ele TEM um número válido.
+  // Tentativa 1: envia para sendTargetWhatsApp (número já resolvido ou JID original).
+  // Fallback:    se falhar E ainda não usamos o número da prospecção,
+  //              busca o lead prospectado que recebeu a msg e tenta de novo.
+  let sentCount = 0;
+
+  const firstAttempt = await withTimeout(
     provider.sendMessageSequence(normalized.instanceName, sendTargetWhatsApp, messages, 3000),
     STEP_TIMEOUTS.send,
     'sendMessages'
   ).catch((err) => {
-    logger.error('Send messages failed', { error: err.message });
+    logger.error('Send messages failed (attempt 1)', { error: err.message, target: sendTargetWhatsApp });
     return { sent: 0, failed: messages.length };
   });
 
+  sentCount = firstAttempt.sent;
+
+  // Fallback: tentativa falhou e o número ainda não foi resolvido via prospecção
+  if (sentCount === 0 && sendTargetWhatsApp === normalized.clienteWhatsApp) {
+    logger.warn('Send failed — looking up original prospection number as fallback', { leadId: lead.id });
+
+    const prospectionLead = await leadRepository.findRecentProspectionTarget(
+      tenant.userId,
+      normalized.timestamp,
+      120
+    ).catch(() => null);
+
+    if (prospectionLead?.whatsapp && prospectionLead.whatsapp !== sendTargetWhatsApp) {
+      logger.info('Fallback: retrying with prospection lead number', {
+        original: sendTargetWhatsApp,
+        fallback: prospectionLead.whatsapp,
+        empresa: prospectionLead.empresa,
+      });
+
+      const fallbackAttempt = await withTimeout(
+        provider.sendMessageSequence(normalized.instanceName, prospectionLead.whatsapp, messages, 3000),
+        STEP_TIMEOUTS.send,
+        'sendMessages-fallback'
+      ).catch((err) => {
+        logger.error('Send messages failed (fallback)', { error: err.message, target: prospectionLead.whatsapp });
+        return { sent: 0, failed: messages.length };
+      });
+
+      sentCount = fallbackAttempt.sent;
+    } else {
+      logger.warn('Fallback: no valid prospection lead found within 2h window', { leadId: lead.id });
+    }
+  }
+
   // ── STEP 10: PERSISTIR RESPOSTA ──────────────────────────────────────────
+  const sent = sentCount;
   if (sent > 0) {
     await Promise.all([
       conversationRepository.saveAgentResponse(lead.id, agentResult.output, tenant.userId),
