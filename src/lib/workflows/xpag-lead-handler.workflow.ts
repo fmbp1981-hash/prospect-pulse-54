@@ -97,16 +97,48 @@ async function runWorkflowSteps(
   logger.info(isNew ? 'Lead created' : 'Lead found', { leadId: lead.id });
 
   // ── STEP 3B: DETECTAR MENSAGEM AUTOMÁTICA / BOT ─────────────────────────
-  // Detectado = avança estágio e sinaliza o agente, mas NÃO bloqueia resposta.
+  // Detectado = avança estágio, resolve número real de envio, mas NÃO bloqueia.
   // O agente receberá instrução específica para lidar com bots.
+  //
+  // Caso especial: business account JID (ORG lead) — o bot respondeu de um JID
+  // diferente do número que foi prospectado. Precisamos enviar para o número
+  // da prospecção original, não para o JID do bot (que pode não existir no WA).
+  let sendTargetWhatsApp = normalized.clienteWhatsApp;
+
   if (normalized.isAutomatedMessage) {
     const reason = normalized.isBusinessAccount ? 'business-jid' : 'bot-pattern';
+
     if (lead.estagio_pipeline === 'Novo Lead' || !lead.estagio_pipeline) {
       await leadRepository.update(lead.id, {
         estagio_pipeline: 'Contato Inicial',
         data_ultima_interacao: new Date().toISOString(),
       }).catch(() => null);
     }
+
+    // Para business JIDs (ORG leads): busca o lead de prospecção original
+    // enviado nos últimos 120min e usa o número DELE para o envio.
+    if (normalized.isBusinessAccount && lead.id.startsWith('ORG-')) {
+      const prospectionLead = await leadRepository.findRecentProspectionTarget(
+        tenant.userId,
+        normalized.timestamp,
+        120
+      ).catch(() => null);
+
+      if (prospectionLead?.whatsapp) {
+        sendTargetWhatsApp = prospectionLead.whatsapp;
+        logger.info('Business JID — resolved send target to prospection lead', {
+          orgLeadId: lead.id,
+          prospectionLeadId: prospectionLead.id,
+          empresa: prospectionLead.empresa,
+          sendTarget: sendTargetWhatsApp,
+        });
+      } else {
+        logger.warn('Business JID — no recent prospection lead found, will attempt with original JID', {
+          leadId: lead.id,
+        });
+      }
+    }
+
     logger.info('Bot/automated message — agent will respond with adapted approach', { leadId: lead.id, reason });
   }
 
@@ -190,11 +222,11 @@ async function runWorkflowSteps(
   const typingMs = Math.min(Math.max(Math.round(totalChars / 4.5 * 1000), 3000), 12000);
 
   provider.markAsRead(normalized.instanceName, normalized.clienteWhatsApp, normalized.messageId ?? '').catch(() => {});
-  provider.sendTyping(normalized.instanceName, normalized.clienteWhatsApp, typingMs).catch(() => {});
+  provider.sendTyping(normalized.instanceName, sendTargetWhatsApp, typingMs).catch(() => {});
 
   // ── STEP 9: ENVIAR VIA WHATSAPP PROVIDER ────────────────────────────────
   const { sent } = await withTimeout(
-    provider.sendMessageSequence(normalized.instanceName, normalized.clienteWhatsApp, messages, 3000),
+    provider.sendMessageSequence(normalized.instanceName, sendTargetWhatsApp, messages, 3000),
     STEP_TIMEOUTS.send,
     'sendMessages'
   ).catch((err) => {

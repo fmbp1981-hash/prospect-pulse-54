@@ -159,6 +159,47 @@ export const leadRepository = {
   },
 
   /**
+   * Busca o lead de prospecção mais recente enviado pelo tenant que pode
+   * ter originado uma resposta de bot.
+   *
+   * Usado quando um business account JID (ORG lead) responde com bot:
+   * nesse caso precisamos enviar a resposta para o número original da
+   * prospecção, não para o JID do bot (que pode não existir no WhatsApp).
+   *
+   * Critérios: non-ORG, status_msg_wa='sent', whatsapp preenchido,
+   * criado até `windowMinutes` antes do momento indicado.
+   */
+  async findRecentProspectionTarget(
+    userId: string,
+    beforeIso: string,
+    windowMinutes = 120
+  ): Promise<LeadRow | null> {
+    const supabase = getServiceClient();
+    const windowStart = new Date(
+      new Date(beforeIso).getTime() - windowMinutes * 60 * 1000
+    ).toISOString();
+
+    const { data, error } = await supabase
+      .from('leads_prospeccao')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status_msg_wa', 'sent')
+      .not('whatsapp', 'is', null)
+      .not('id', 'like', 'ORG-%')
+      .gte('created_at', windowStart)
+      .lte('created_at', beforeIso)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[leadRepository] findRecentProspectionTarget error:', error.message);
+      return null;
+    }
+    return data;
+  },
+
+  /**
    * Keep-alive: consulta 1 linha para manter projeto Supabase ativo.
    * Equivalente ao fluxo auxiliar "Supabase Instancia Ativa".
    */
