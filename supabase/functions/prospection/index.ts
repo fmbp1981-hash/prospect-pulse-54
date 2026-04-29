@@ -590,21 +590,14 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    // Cliente autenticado com JWT do usuário (para user_settings e auth.getUser)
+    // Cliente autenticado com JWT do usuário — RLS + auth.uid() funcionam corretamente
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
         headers: {
           Authorization: authHeader
         }
       }
-    });
-
-    // Cliente service role — usado para inserts em leads_prospeccao (bypassa RLS)
-    // user_id é passado explicitamente no insert para garantir isolamento multi-tenant
-    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
     });
 
     // Extrair user_id autenticado do JWT
@@ -818,8 +811,8 @@ serve(async (req) => {
     const insertErrors: Array<{ empresa: string; error: string }> = [];
 
     if (leadsToInsert.length > 0) {
-      // Obter próximo número de lead (usa adminSupabase para bypass RLS)
-      let nextLeadNumber = await getNextLeadNumber(adminSupabase);
+      // Obter próximo número de lead
+      let nextLeadNumber = await getNextLeadNumber(supabase);
       console.log(`🔢 Iniciando numeração a partir de: Lead-${String(nextLeadNumber).padStart(3, '0')}`);
 
       for (const lead of leadsToInsert) {
@@ -844,8 +837,8 @@ serve(async (req) => {
 
           console.log(`\n🔍 Verificando duplicata para: ${lead.empresa}`);
 
-          // Verificar se o lead já existe (usa adminSupabase para bypass RLS)
-          const { data: existingLead, error: checkError } = await adminSupabase
+          // Verificar se o lead já existe
+          const { data: existingLead, error: checkError } = await supabase
             .from('leads_prospeccao')
             .select('id, status, lead')
             .eq('id', lead.id)
@@ -878,7 +871,7 @@ serve(async (req) => {
               link_gmn: leadToInsert.link_gmn
             });
 
-            const { error: insertError } = await adminSupabase
+            const { error: insertError } = await supabase
               .from('leads_prospeccao')
               .insert(leadToInsert);
 
