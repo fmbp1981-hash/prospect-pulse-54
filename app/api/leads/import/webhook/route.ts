@@ -22,6 +22,8 @@ const NormalizedLeadSchema = z.object({
   instagram: z.string().nullable().default(null),
   linkedin: z.string().nullable().default(null),
   resumo_analitico: z.string().nullable().default(null),
+  warnings: z.record(z.string()).optional().default({}),
+  errors: z.record(z.string()).optional().default({}),
 });
 
 const RequestSchema = z.object({
@@ -57,15 +59,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Atualizar last_used_at — best effort, não bloqueia
-  db.from('webhook_keys' as never)
+  void (db.from('webhook_keys' as never)
     .update({ last_used_at: new Date().toISOString() })
-    .eq('id', keyRecord.id)
-    .then(() => {});
+    .eq('id', keyRecord.id));
 
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'JSON malformado no corpo da requisição' }, { status: 400 });
+  }
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.message }, { status: 400 });
+    return NextResponse.json({ error: 'Dados inválidos', details: parsed.error.flatten() }, { status: 400 });
   }
 
   const report = await runImport(

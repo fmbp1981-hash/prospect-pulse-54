@@ -58,7 +58,7 @@ export function WebhookKeysPanel() {
       const result: NewKeyResult = await res.json();
       setNewKeyResult(result);
       setNewKeyName('');
-      loadKeys();
+      await loadKeys();
     } catch {
       toast.error('Erro ao gerar API key');
     } finally {
@@ -73,7 +73,7 @@ export function WebhookKeysPanel() {
       const res = await fetch(`/api/webhook-keys/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Erro ao revogar');
       toast.success('Chave revogada');
-      loadKeys();
+      await loadKeys();
     } catch {
       toast.error('Erro ao revogar chave');
     } finally {
@@ -83,7 +83,9 @@ export function WebhookKeysPanel() {
 
   const handleCopy = () => {
     if (!newKeyResult) return;
-    navigator.clipboard.writeText(newKeyResult.key);
+    navigator.clipboard.writeText(newKeyResult.key).catch(() => {
+      toast.error('Falha ao copiar. Selecione e copie manualmente.');
+    });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -155,7 +157,15 @@ export function WebhookKeysPanel() {
         </div>
       )}
 
-      <Dialog open={!!newKeyResult} onOpenChange={() => setNewKeyResult(null)}>
+      <Dialog
+        open={!!newKeyResult}
+        onOpenChange={(open) => {
+          if (!open && !copied) {
+            if (!confirm('Você copiou a chave? Ela não poderá ser recuperada.')) return;
+          }
+          if (!open) setNewKeyResult(null);
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>API Key Gerada — "{newKeyResult?.name}"</DialogTitle>
