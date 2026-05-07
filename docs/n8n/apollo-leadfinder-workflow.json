@@ -41,7 +41,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "// Mapeia colunas Apollo → LeadFinder\nconst items = $input.all();\n\nconst leads = items.map(item => {\n  const row = item.json;\n\n  // Concatena First Name + Last Name\n  const firstName = (row['First Name'] || row['first name'] || '').trim();\n  const lastName = (row['Last Name'] || row['last name'] || '').trim();\n  const contato = [firstName, lastName].filter(Boolean).join(' ') || null;\n\n  return {\n    empresa: row['Company'] || row['Account Name'] || row['company'] || '',\n    contato,\n    email: row['Email'] || row['email'] || null,\n    whatsapp: row['Mobile Phone'] || row['mobile phone'] || row['Phone'] || null,\n    telefone: row['Work Phone'] || row['Work Direct Phone'] || row['work phone'] || null,\n    linkedin: row['Person Linkedin URL'] || row['LinkedIn URL'] || row['linkedin url'] || null,\n    website: row['Website'] || row['Company Website'] || row['website url'] || null,\n    cidade: row['City'] || row['city'] || null,\n    categoria: row['Industry'] || row['Keywords'] || row['industry'] || null,\n    resumo_analitico: row['Title'] || row['Job Title'] || row['SEO Description'] || null,\n    bairro: null,\n    cnpj: null,\n    instagram: null,\n  };\n}).filter(l => l.empresa.trim() !== '');\n\nreturn [{ json: { leads, options: { defaultOrigem: 'apollo', defaultEstagio: 'Novo' } } }];"
+        "jsCode": "// Mapeia colunas Apollo → LeadFinder\nconst items = $input.all();\n\nconst leads = items.map(item => {\n  const row = item.json;\n\n  // Concatena First Name + Last Name\n  const firstName = (row['First Name'] || row['first name'] || '').trim();\n  const lastName = (row['Last Name'] || row['last name'] || '').trim();\n  const contato = [firstName, lastName].filter(Boolean).join(' ') || null;\n\n  return {\n    empresa: row['Account Name'] || row['Company'] || row['account name'] || row['company'] || '',\n    contato,\n    email: row['Email'] || row['email'] || null,\n    whatsapp: row['Mobile Phone'] || row['mobile phone'] || row['Phone'] || null,\n    telefone: row['Work Phone'] || row['Work Direct Phone'] || row['work phone'] || null,\n    linkedin: row['Person Linkedin Url'] || row['Person Linkedin URL'] || row['LinkedIn URL'] || row['linkedin url'] || null,\n    website: row['Website'] || row['Company Website'] || row['website url'] || null,\n    cidade: row['City'] || row['city'] || null,\n    categoria: row['Industry'] || row['Keywords'] || row['industry'] || null,\n    resumo_analitico: row['Title'] || row['Job Title'] || row['SEO Description'] || null,\n    bairro: null,\n    cnpj: null,\n    instagram: null,\n  };\n}).filter(l => l.empresa.trim() !== '');\n\nreturn [{ json: { leads, options: { defaultOrigem: 'apollo', defaultEstagio: 'Novo' } } }];"
       },
       "id": "node-map-columns",
       "name": "Mapear Colunas Apollo",
@@ -64,7 +64,7 @@
         },
         "sendBody": true,
         "contentType": "json",
-        "body": "={{ JSON.stringify($json) }}"
+        "body": "={{ $json }}"
       },
       "id": "node-http-import",
       "name": "Importar no LeadFinder",
