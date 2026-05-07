@@ -74,4 +74,4 @@ export function mapColumnsLocally(columns: string[]): MapColumnsResult {
   return { mappings, unmapped };
 }
 
-export { FIELD_DESCRIPTIONS, LEAD_FIELDS };
+export { LEAD_FIELDS };

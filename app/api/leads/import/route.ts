@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
+import type { Database } from '@/integrations/supabase/types';
 import type { NormalizedLead, ImportReport, ImportResultRow } from '@/lib/import/types';
 import { v4 as uuidv4 } from 'uuid';
+import { leadRepository } from '@/lib/repositories/lead.repository';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -35,15 +37,10 @@ const RequestSchema = z.object({
   }).optional(),
 });
 
-async function findExistingLead(db: ReturnType<typeof createClient>, userId: string, lead: NormalizedLead) {
+async function findExistingLead(db: SupabaseClient<Database>, userId: string, lead: NormalizedLead) {
   if (lead.whatsapp) {
-    const digits = lead.whatsapp.replace(/\D/g, '');
-    const localDigits = digits.length >= 11 ? digits.slice(-11) : digits.slice(-8);
-    const { data } = await (db as any).rpc('find_lead_by_phone_digits', {
-      p_digits: localDigits,
-      p_user_id: userId,
-    });
-    if (data?.[0]) return data[0] as { id: string };
+    const existing = await leadRepository.findByWhatsApp(lead.whatsapp, userId);
+    if (existing) return { id: existing.id };
   }
   if (lead.email) {
     const { data } = await db
@@ -82,7 +79,7 @@ export async function POST(req: NextRequest) {
   const estagio = options?.defaultEstagio ?? 'Novo';
   const origem = options?.defaultOrigem ?? 'importação';
 
-  const db = createClient(
+  const db = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
@@ -100,7 +97,7 @@ export async function POST(req: NextRequest) {
   for (const batch of chunks) {
     for (const lead of batch) {
       try {
-        const existing = await findExistingLead(db, user.id, lead);
+        const existing = await findExistingLead(db, user.id, lead as unknown as NormalizedLead);
 
         if (existing) {
           // Merge: atualiza apenas campos vazios no banco
@@ -124,13 +121,14 @@ export async function POST(req: NextRequest) {
 
           if (Object.keys(updateFields).length > 1) {
             await db.from('leads_prospeccao').update(updateFields).eq('id', existing.id);
+            rows.push({ empresa: lead.empresa, status: 'updated' });
+            updated++;
+          } else {
+            rows.push({ empresa: lead.empresa, status: 'skipped' });
+            skipped++;
           }
-
-          rows.push({ empresa: lead.empresa, status: 'updated' });
-          updated++;
         } else {
           const { error: insertErr } = await db.from('leads_prospeccao').insert({
-            id: `import-${importId}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
             user_id: user.id,
             empresa: lead.empresa,
             lead: lead.lead || lead.empresa,
@@ -170,13 +168,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Audit log
-  await db.from('audit_logs').insert({
-    user_id: user.id,
-    action: 'IMPORT_LEADS',
-    details: { created, updated, skipped, errors, importId },
-    created_at: now,
-  }).catch(() => null);
+  // Audit log — best-effort, errors are non-fatal
+  try {
+    await (db as SupabaseClient).from('audit_logs').insert({
+      user_id: user.id,
+      action: 'IMPORT_LEADS',
+      details: { created, updated, skipped, errors, importId },
+      created_at: now,
+    });
+  } catch { /* non-fatal */ }
 
   const report: ImportReport = { created, updated, skipped, errors, rows, importId };
   return NextResponse.json(report);
