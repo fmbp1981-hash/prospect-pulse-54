@@ -69,6 +69,24 @@ export default function LeadsPage() {
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [lastImport, setLastImport] = useState<{
+    source: 'manual' | 'webhook' | 'google_drive';
+    created: number;
+    created_at: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch('/api/leads/import/history?limit=1')
+      .then(r => r.ok ? r.json() : null)
+      .then((json: { data: { source: 'manual' | 'webhook' | 'google_drive'; created: number; created_at: string }[] } | null) => {
+        if (json?.data?.[0]) {
+          const row = json.data[0];
+          const hoursSince = (Date.now() - new Date(row.created_at).getTime()) / 3_600_000;
+          if (hoursSince <= 24) setLastImport(row);
+        }
+      })
+      .catch(() => null);
+  }, []);
   const [isConvertingLead, setIsConvertingLead] = useState<string | null>(null);
 
   // Filtros
@@ -392,6 +410,26 @@ export default function LeadsPage() {
         <KanbanBoard leads={filteredAndSortedLeads} onLeadUpdate={loadLeads} />
       ) : (
         <>
+          {lastImport && (
+            <div className="flex items-center gap-2 px-1 py-2 text-sm text-muted-foreground border-b">
+              <RefreshCw className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                Última importação via{' '}
+                <strong>
+                  {lastImport.source === 'google_drive' ? 'Google Drive' :
+                   lastImport.source === 'manual' ? 'Upload manual' : 'API'}
+                </strong>
+                {' · '}+{lastImport.created} leads
+              </span>
+              <a
+                href="/settings?tab=integrations#import-history"
+                className="ml-auto text-xs underline underline-offset-2 hover:text-foreground shrink-0"
+              >
+                Ver histórico →
+              </a>
+            </div>
+          )}
+
           {/* Filters */}
           <LeadsFilters
             statusFilter={statusFilter}
