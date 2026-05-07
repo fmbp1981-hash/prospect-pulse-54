@@ -1,0 +1,206 @@
+{
+  "name": "F18 — Google Drive Apollo → LeadFinder",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "triggerOn": "specificFolder",
+        "folderToWatch": { "__rl": true, "value": "={{ $vars.APOLLO_FOLDER_ID }}", "mode": "id" },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "node-1",
+      "name": "Google Drive Trigger",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "credentials": { "googleDriveOAuth2Api": { "id": "CONFIGURE_GOOGLE_OAUTH", "name": "Google Drive" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.name.toLowerCase() }}",
+              "operation": "regex",
+              "value2": "\\.(csv|xlsx)$"
+            }
+          ]
+        }
+      },
+      "id": "node-2",
+      "name": "Filtrar CSV/XLSX",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": { "__rl": true, "value": "={{ $json.id }}", "mode": "id" },
+        "options": { "binaryPropertyName": "data" }
+      },
+      "id": "node-3",
+      "name": "Download File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [680, 200],
+      "credentials": { "googleDriveOAuth2Api": { "id": "CONFIGURE_GOOGLE_OAUTH", "name": "Google Drive" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const fileName = $('Google Drive Trigger').first().json.name;\nconst ext = fileName.split('.').pop().toLowerCase();\nlet rows = [];\n\nif (ext === 'csv') {\n  const csvText = Buffer.from($input.first().binary.data.data, 'base64').toString('utf8');\n  const lines = csvText.split('\\n').filter(l => l.trim());\n  if (lines.length < 2) throw new Error('CSV vazio');\n  const headers = lines[0].split(',').map(h => h.replace(/^\"|\"$/g, '').trim());\n  rows = lines.slice(1).map(line => {\n    const vals = line.match(/(?:\"[^\"]*\"|[^,])+/g) || [];\n    const obj = {};\n    headers.forEach((h, i) => { obj[h] = (vals[i] || '').replace(/^\"|\"$/g, '').trim(); });\n    return obj;\n  });\n} else {\n  throw new Error('Formato não suportado diretamente — converta para CSV no Apollo');\n}\n\nconst APOLLO_MAP = {\n  empresa:   ['Account Name', 'Company'],\n  email:     ['Email'],\n  linkedin:  ['Person Linkedin Url', 'LinkedIn Url'],\n  cidade:    ['City'],\n  categoria: ['Title'],\n  website:   ['Website'],\n};\nconst cols = rows.length > 0 ? Object.keys(rows[0]) : [];\nlet matched = 0;\nfor (const apolloCols of Object.values(APOLLO_MAP)) {\n  if (apolloCols.some(c => cols.includes(c))) matched++;\n}\nif (cols.includes('First Name') && cols.includes('Last Name')) matched++;\nconst confidence = cols.length > 0 ? matched / (Object.keys(APOLLO_MAP).length + 1) : 0;\n\nreturn [{ json: { rows, fileName, confidence, columns: cols } }];"
+      },
+      "id": "node-4",
+      "name": "Parse + Confidence",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            { "value1": "={{ $json.confidence }}", "operation": "largerEqual", "value2": 0.7 }
+          ]
+        }
+      },
+      "id": "node-5",
+      "name": "Confidence >= 0.7?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { rows, fileName } = $input.first().json;\nconst leads = rows.map(row => ({\n  empresa:          row['Account Name'] || row['Company'] || '',\n  contato:          [row['First Name'], row['Last Name']].filter(Boolean).join(' ') || null,\n  email:            row['Email'] || null,\n  linkedin:         row['Person Linkedin Url'] || row['LinkedIn Url'] || null,\n  cidade:           row['City'] || null,\n  categoria:        row['Title'] || null,\n  website:          row['Website'] || null,\n  whatsapp:         null, telefone: null, bairro: null,\n  cnpj:             null, instagram: null, resumo_analitico: null,\n  warnings: {}, errors: {},\n})).filter(l => l.empresa.trim().length > 0);\nreturn [{ json: { leads, fileName } }];"
+      },
+      "id": "node-6",
+      "name": "Montar payload Apollo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.LEADFINDER_WEBHOOK_URL }}/map",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "columns", "value": "={{ $json.columns }}" },
+            { "name": "sample", "value": "={{ $json.rows.slice(0, 3) }}" }
+          ]
+        },
+        "options": { "timeout": 15000 }
+      },
+      "id": "node-7",
+      "name": "Fallback IA /map",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'gpt-4o-mini',\n  response_format: { type: 'json_object' },\n  temperature: 0,\n  messages: [\n    {\n      role: 'system',\n      content: 'Você é um normalizador de dados de leads empresariais brasileiros. Recebe um array de leads e retorna o mesmo array normalizado seguindo estas regras:\\n1. empresa: title case, remover sufixos desnecessários\\n2. contato: title case, apenas nome (sem cargo)\\n3. email: lowercase, sem espaços\\n4. telefone/whatsapp: formato E.164 brasileiro (+55 DDD 9XXXX-XXXX); se inválido, null\\n5. website: adicionar https:// se ausente; null se inválido\\n6. linkedin: URL completa https://linkedin.com/in/slug; null se inválido\\n7. cidade: title case, apenas nome da cidade (sem estado)\\n8. categoria: manter em inglês se for cargo executivo padrão, senão traduzir para pt-BR\\n9. resumo_analitico: gerar 1 frase descritiva se empresa + categoria disponíveis, senão null\\nRetorne EXATAMENTE o mesmo array com os mesmos campos, apenas valores normalizados. Não adicione nem remova campos. Formato: {\\\"leads\\\": [...]}'\n    },\n    {\n      role: 'user',\n      content: JSON.stringify({ leads: $json.leads })\n    }\n  ]\n}) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "node-8",
+      "name": "Normalizar via IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 200],
+      "credentials": { "httpHeaderAuth": { "id": "CONFIGURE_OPENAI_CREDENTIAL", "name": "OpenAI API Key" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "const fileName = $('Montar payload Apollo').first()?.json?.fileName\n               || $('Fallback IA /map').first()?.json?.fileName\n               || 'unknown.csv';\n\nconst rawContent = $input.first().json.choices[0].message.content;\nlet normalizedLeads;\ntry {\n  normalizedLeads = JSON.parse(rawContent).leads;\n} catch {\n  throw new Error('OpenAI retornou JSON inválido: ' + rawContent.slice(0, 200));\n}\n\nreturn [{ json: {\n  leads: normalizedLeads,\n  fileName,\n  metadata: { source: 'google_drive', filename: fileName },\n  options: { defaultOrigem: 'apollo' }\n} }];"
+      },
+      "id": "node-9",
+      "name": "Montar payload final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.LEADFINDER_WEBHOOK_URL }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ leads: $json.leads, metadata: $json.metadata, options: $json.options }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "node-10",
+      "name": "POST Webhook LeadFinder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2000, 200],
+      "credentials": { "httpHeaderAuth": { "id": "CONFIGURE_API_KEY_CREDENTIAL", "name": "LeadFinder API Key" } }
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": { "__rl": true, "value": "={{ $('Google Drive Trigger').first().json.id }}", "mode": "id" },
+        "folderId": { "__rl": true, "value": "={{ $vars.APOLLO_PROCESSED_FOLDER_ID }}", "mode": "id" },
+        "options": {
+          "fileName": "={{ new Date().toISOString().slice(0,16).replace('T','_') }}_{{ $('Google Drive Trigger').first().json.name }}"
+        }
+      },
+      "id": "node-11",
+      "name": "Mover → Processados",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2220, 200],
+      "credentials": { "googleDriveOAuth2Api": { "id": "CONFIGURE_GOOGLE_OAUTH", "name": "Google Drive" } }
+    },
+    {
+      "parameters": {
+        "operation": "move",
+        "fileId": { "__rl": true, "value": "={{ $('Google Drive Trigger').first().json.id }}", "mode": "id" },
+        "folderId": { "__rl": true, "value": "={{ $vars.APOLLO_ERRORS_FOLDER_ID }}", "mode": "id" },
+        "options": {}
+      },
+      "id": "node-err",
+      "name": "Mover → Erros",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [680, 440],
+      "credentials": { "googleDriveOAuth2Api": { "id": "CONFIGURE_GOOGLE_OAUTH", "name": "Google Drive" } }
+    }
+  ],
+  "connections": {
+    "Google Drive Trigger": { "main": [[{ "node": "Filtrar CSV/XLSX", "type": "main", "index": 0 }]] },
+    "Filtrar CSV/XLSX": {
+      "main": [
+        [{ "node": "Download File", "type": "main", "index": 0 }],
+        [{ "node": "Mover → Erros", "type": "main", "index": 0 }]
+      ]
+    },
+    "Download File":         { "main": [[{ "node": "Parse + Confidence",  "type": "main", "index": 0 }]] },
+    "Parse + Confidence":    { "main": [[{ "node": "Confidence >= 0.7?",  "type": "main", "index": 0 }]] },
+    "Confidence >= 0.7?": {
+      "main": [
+        [{ "node": "Montar payload Apollo", "type": "main", "index": 0 }],
+        [{ "node": "Fallback IA /map",      "type": "main", "index": 0 }]
+      ]
+    },
+    "Montar payload Apollo": { "main": [[{ "node": "Normalizar via IA",    "type": "main", "index": 0 }]] },
+    "Fallback IA /map":      { "main": [[{ "node": "Normalizar via IA",    "type": "main", "index": 0 }]] },
+    "Normalizar via IA":     { "main": [[{ "node": "Montar payload final", "type": "main", "index": 0 }]] },
+    "Montar payload final":  { "main": [[{ "node": "POST Webhook LeadFinder", "type": "main", "index": 0 }]] },
+    "POST Webhook LeadFinder": { "main": [[{ "node": "Mover → Processados","type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "staticData": null,
+  "meta": { "templateCredsSetupCompleted": false },
+  "pinData": {}
+}
