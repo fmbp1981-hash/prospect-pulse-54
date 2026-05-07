@@ -8,6 +8,11 @@ export interface ImportOptions {
   defaultOrigem?: string;
 }
 
+export interface ImportMetadata {
+  source?: 'manual' | 'webhook' | 'google_drive';
+  filename?: string;
+}
+
 async function getNextLeadSequence(db: SupabaseClient<Database>, userId: string): Promise<number> {
   const { data } = await db
     .from('leads_prospeccao')
@@ -67,7 +72,8 @@ function chunk<T>(arr: T[], size: number): T[][] {
 export async function runImport(
   userId: string,
   leads: NormalizedLead[],
-  options: ImportOptions = {}
+  options: ImportOptions = {},
+  metadata: ImportMetadata = {}
 ): Promise<ImportReport> {
   const estagio = options.defaultEstagio ?? 'Novo';
   const origem = options.defaultOrigem ?? 'importação';
@@ -157,6 +163,21 @@ export async function runImport(
       }
     }
   }
+
+  // Grava histórico de importação — best-effort
+  try {
+    await (db as SupabaseClient).from('import_history').insert({
+      user_id: userId,
+      source: metadata.source ?? 'webhook',
+      filename: metadata.filename ?? null,
+      created,
+      updated,
+      skipped,
+      errors,
+      import_id: importId,
+      created_at: now,
+    });
+  } catch { /* non-fatal */ }
 
   // Audit log — best-effort
   try {
