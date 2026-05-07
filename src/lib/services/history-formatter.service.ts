@@ -27,17 +27,14 @@ export function formatConversationHistory(
   return conversations
     .map((entry) => {
       const date = new Date(entry.timestamp);
-      const time = date.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-      const day = date.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-      });
+      // Manual formatting avoids ICU locale overhead (~10-50x faster than toLocaleString)
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mm = String(date.getMinutes()).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      const mo = String(date.getMonth() + 1).padStart(2, '0');
 
       const role = entry.from_lead ? 'Lead' : 'Agente';
-      return `[${time} ${day}] ${role}: ${entry.message}`;
+      return `[${hh}:${mm} ${dd}/${mo}] ${role}: ${entry.message}`;
     })
     .join('\n');
 }

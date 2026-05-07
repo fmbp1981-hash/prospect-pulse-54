@@ -6,12 +6,6 @@
 
 import { humanizeResponse } from '@/lib/services/message-humanizer.service';
 
-// Mock OpenAI para testes unitários
-jest.mock('@/lib/services/message-humanizer.service', () => {
-  const original = jest.requireActual('@/lib/services/message-humanizer.service');
-  return original;
-});
-
 describe('Humanizer — Paridade com n8n', () => {
   it('deve retornar array vazio para resposta vazia', async () => {
     const result = await humanizeResponse('');
@@ -21,15 +15,14 @@ describe('Humanizer — Paridade com n8n', () => {
   it('deve retornar resposta curta como array de 1 item', async () => {
     const shortResponse = 'Olá! Tudo bem? 😊';
 
-    // Mock fetch para simular resposta da API
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         choices: [
           { message: { content: JSON.stringify({ messages: [shortResponse] }) } },
         ],
       }),
-    }) as jest.Mock;
+    });
 
     const result = await humanizeResponse(shortResponse);
     expect(result).toHaveLength(1);
@@ -37,7 +30,6 @@ describe('Humanizer — Paridade com n8n', () => {
   });
 
   it('todas as partes devem ter <= 240 caracteres (fallback split)', () => {
-    // Testa o fallback de split sem IA
     function splitByParagraph(text: string, maxChars = 240): string[] {
       const parts = text
         .split(/\n\n+/)
@@ -74,7 +66,7 @@ describe('Humanizer — Paridade com n8n', () => {
   });
 
   it('não deve gerar mais de 4 partes', async () => {
-    global.fetch = jest.fn().mockResolvedValue({
+    global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
         choices: [
@@ -87,7 +79,7 @@ describe('Humanizer — Paridade com n8n', () => {
           },
         ],
       }),
-    }) as jest.Mock;
+    });
 
     const longText = 'Lorem ipsum dolor sit amet. '.repeat(20);
     const result = await humanizeResponse(longText);
