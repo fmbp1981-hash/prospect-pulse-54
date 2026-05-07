@@ -109,8 +109,13 @@ function applyMappings(
     const mapped: RawMappedLead = {};
     for (const m of mappings) {
       if (m.targetField !== 'ignore') {
-        const val = row[m.sourceColumn];
-        if (val) mapped[m.targetField] = val;
+        const val = row[m.sourceColumn]?.trim();
+        if (val) {
+          const existing = mapped[m.targetField];
+          // Concatena com espaço quando dois campos mapeiam para o mesmo target
+          // (ex: Apollo "First Name" + "Last Name" → contato)
+          mapped[m.targetField] = existing ? `${existing} ${val}` : val;
+        }
       }
     }
     return mapped;

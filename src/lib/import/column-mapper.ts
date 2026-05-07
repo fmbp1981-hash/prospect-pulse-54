@@ -45,38 +45,60 @@ export function mapColumnsLocally(columns: string[]): MapColumnsResult {
     'empresa': 'empresa', 'company': 'empresa', 'razao social': 'empresa',
     'razao_social': 'empresa', 'nome empresa': 'empresa', 'nome_empresa': 'empresa',
     'estabelecimento': 'empresa', 'negocio': 'empresa', 'negócio': 'empresa',
+    // Apollo.io: Account Name = empresa
+    'account name': 'empresa', 'organization': 'empresa', 'organization name': 'empresa',
     // Contato (pessoa física responsável)
     'contato': 'contato', 'nome': 'contato', 'name': 'contato',
     'responsavel': 'contato', 'responsável': 'contato', 'contact': 'contato',
     'lead': 'contato', 'pessoa': 'contato', 'full name': 'contato',
     'primeiro nome': 'contato', 'nome completo': 'contato',
+    // Apollo.io: First Name + Last Name (ambos → contato, concatenados no applyMappings)
+    'first name': 'contato', 'last name': 'contato',
+    'firstname': 'contato', 'lastname': 'contato',
     // WhatsApp / Celular
     'whatsapp': 'whatsapp', 'celular': 'whatsapp', 'cel': 'whatsapp',
     'mobile': 'whatsapp', 'phone': 'whatsapp', 'telefone celular': 'whatsapp',
     'numero': 'whatsapp', 'número': 'whatsapp',
+    // Apollo.io: Mobile Phone
+    'mobile phone': 'whatsapp', 'cell phone': 'whatsapp', 'cellular': 'whatsapp',
     // Telefone fixo
     'telefone': 'telefone', 'tel': 'telefone', 'fone': 'telefone', 'fixo': 'telefone',
     'telefone fixo': 'telefone',
+    // Apollo.io: Work Phone / Direct Phone
+    'work phone': 'telefone', 'work direct phone': 'telefone', 'direct phone': 'telefone',
+    'office phone': 'telefone', 'business phone': 'telefone',
     // Email
     'email': 'email', 'e-mail': 'email', 'mail': 'email', 'e mail': 'email',
+    // Apollo.io: Email (às vezes aparece como "emails" no export)
+    'emails': 'email', 'contact email': 'email', 'work email': 'email',
     // Localização
     'cidade': 'cidade', 'city': 'cidade', 'municipio': 'cidade', 'município': 'cidade',
     'bairro': 'bairro', 'regiao': 'bairro', 'região': 'bairro', 'district': 'bairro',
     // Negócio
     'categoria': 'categoria', 'nicho': 'categoria', 'segmento': 'categoria',
     'category': 'categoria', 'ramo': 'categoria', 'setor': 'categoria',
+    // Apollo.io: Industry / Keywords
+    'industry': 'categoria', 'keywords': 'categoria', 'sector': 'categoria',
     'cnpj': 'cnpj',
     // Web
     'website': 'website', 'site': 'website', 'url': 'website', 'web': 'website',
     'homepage': 'website', 'pagina': 'website', 'página': 'website',
+    // Apollo.io: Website URL / Company Website
+    'website url': 'website', 'company website': 'website', 'company domain': 'website',
     // Redes sociais
     'instagram': 'instagram', 'insta': 'instagram', 'ig': 'instagram',
     'linkedin': 'linkedin', 'linkedin url': 'linkedin', 'perfil linkedin': 'linkedin',
+    // Apollo.io: Person LinkedIn URL / Company LinkedIn
+    'person linkedin url': 'linkedin', 'company linkedin url': 'linkedin',
+    'company linkedin': 'linkedin', 'linkedin profile': 'linkedin',
     // Observações
     'resumo': 'resumo_analitico', 'observacoes': 'resumo_analitico',
     'observações': 'resumo_analitico', 'descricao': 'resumo_analitico',
     'descrição': 'resumo_analitico', 'notes': 'resumo_analitico',
     'obs': 'resumo_analitico', 'about': 'resumo_analitico',
+    // Apollo.io: Title (cargo) e SEO Description → resumo analítico
+    'title': 'resumo_analitico', 'job title': 'resumo_analitico',
+    'seo description': 'resumo_analitico', 'short description': 'resumo_analitico',
   };
 
   const mappings: ColumnMapping[] = [];
