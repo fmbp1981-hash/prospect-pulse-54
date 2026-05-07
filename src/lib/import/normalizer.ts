@@ -26,18 +26,19 @@ export function normalizePhone(raw: string): PhoneResult {
   let digits = raw.replace(/[^\d+]/g, '');
   if (digits.startsWith('+')) digits = digits.slice(1);
 
-  if (digits.startsWith('0800') || digits.startsWith('800')) {
-    return { value: null, warning: null, error: 'Número 0800 não é suportado como WhatsApp' };
+  // Strip country code 55 if present (total 12 or 13 digits with country code)
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    digits = digits.slice(2);
   }
 
-  if (digits.startsWith('0')) digits = digits.slice(1);
+  // Strip leading zero (e.g. 011... → 11...)
+  if (digits.startsWith('0') && (digits.length === 11 || digits.length === 12)) {
+    digits = digits.slice(1);
+  }
 
-  if (digits.startsWith('55')) {
-    const rest = digits.slice(2);
-    if (rest.length === 11) return { value: `+55${rest}`, warning: null, error: null };
-    if (rest.length === 10) {
-      return { value: `+55${rest}`, warning: 'Número fixo: verifique se é WhatsApp', error: null };
-    }
+  // 0800 detection (after stripping country code and leading zero)
+  if (digits.startsWith('800') || digits.startsWith('0800')) {
+    return { value: null, warning: null, error: 'Número 0800 não é suportado como WhatsApp' };
   }
 
   if (digits.length === 11) return { value: `+55${digits}`, warning: null, error: null };

@@ -116,3 +116,53 @@ describe('normalizeLinkedin', () => {
     expect(normalizeLinkedin('João Silva')).toBeNull();
   });
 });
+
+describe('normalizeLeadRow', () => {
+  it('retorna NormalizedLead válido para RawMappedLead vazio', () => {
+    const result = normalizeLeadRow({});
+    expect(result.empresa).toBe('');
+    expect(result.lead).toBe('');
+    expect(result.whatsapp).toBeNull();
+    expect(result.errors).toEqual({});
+    expect(result.warnings).toEqual({});
+  });
+  it('popula errors.whatsapp para número 0800', () => {
+    const result = normalizeLeadRow({ empresa: 'Empresa', whatsapp: '0800 123 4567' });
+    expect(result.errors.whatsapp).toBeTruthy();
+    expect(result.whatsapp).toBeNull();
+  });
+  it('popula warnings.whatsapp para número fixo', () => {
+    const result = normalizeLeadRow({ empresa: 'Empresa', whatsapp: '(11) 3333-4444' });
+    expect(result.warnings.whatsapp).toBeTruthy();
+    expect(result.errors.whatsapp).toBeUndefined();
+    expect(result.whatsapp).toBe('+551133334444');
+  });
+  it('demote erro de telefone para warnings (não errors)', () => {
+    const result = normalizeLeadRow({ empresa: 'Empresa', telefone: '99999' });
+    expect(result.warnings.telefone).toBeTruthy();
+    expect((result.errors as Record<string, unknown>).telefone).toBeUndefined();
+  });
+  it('demote erro de CNPJ para warnings', () => {
+    const result = normalizeLeadRow({ empresa: 'Empresa', cnpj: '12345678000199' });
+    expect(result.warnings.cnpj).toBeTruthy();
+    expect((result.errors as Record<string, unknown>).cnpj).toBeUndefined();
+  });
+  it('normaliza todos os campos de uma vez', () => {
+    const result = normalizeLeadRow({
+      empresa: 'CLÍNICA SÃO PEDRO',
+      lead: 'maria silva',
+      whatsapp: '(11) 99999-8888',
+      email: 'CONTATO@EMPRESA.COM',
+      instagram: 'https://www.instagram.com/empresa/',
+      linkedin: 'https://www.linkedin.com/company/empresa/',
+      website: 'empresa.com.br',
+    });
+    expect(result.empresa).toBe('Clínica São Pedro');
+    expect(result.lead).toBe('Maria Silva');
+    expect(result.whatsapp).toBe('+5511999998888');
+    expect(result.email).toBe('contato@empresa.com');
+    expect(result.instagram).toBe('@empresa');
+    expect(result.linkedin).toBe('linkedin.com/company/empresa');
+    expect(result.website).toBe('https://empresa.com.br');
+  });
+});
