@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink, LayoutGrid, List, TableIcon, Mail, Phone, FileText, UploadCloud, Users } from "lucide-react";
+import { Loader2, Search, RefreshCw, ArrowUpDown, Edit, MessageCircle, Download, ExternalLink, LayoutGrid, List, TableIcon, Mail, Phone, FileText, UploadCloud, Users, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { LeadsFilters } from "@/components/leads/LeadsFilters";
 import { toTitleCase, searchMatch } from "@/lib/utils";
@@ -68,6 +68,7 @@ export default function LeadsPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isConvertingLead, setIsConvertingLead] = useState<string | null>(null);
 
   // Filtros
@@ -354,6 +355,16 @@ export default function LeadsPage() {
               <LayoutGrid className="h-4 w-4" />
             </Button>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Novo Lead
+          </Button>
 
           <Button
             variant="outline"
@@ -686,6 +697,16 @@ export default function LeadsPage() {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImported={() => loadLeads()}
+      />
+
+      <LeadEditModal
+        open={isCreateModalOpen}
+        lead={null}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => {
+          setIsCreateModalOpen(false);
+          loadLeads();
+        }}
       />
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
