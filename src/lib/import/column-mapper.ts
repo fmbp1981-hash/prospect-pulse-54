@@ -12,8 +12,8 @@ export interface MapColumnsResult {
 }
 
 export const FIELD_DESCRIPTIONS: Record<LeadField, string> = {
-  empresa: 'nome da empresa ou razão social',
-  lead: 'nome do contato ou responsável',
+  empresa: 'nome da empresa ou razão social (obrigatório)',
+  contato: 'nome da pessoa física responsável pelo atendimento',
   whatsapp: 'número de WhatsApp ou celular',
   telefone: 'número de telefone fixo',
   email: 'endereço de email',
@@ -23,7 +23,7 @@ export const FIELD_DESCRIPTIONS: Record<LeadField, string> = {
   cnpj: 'CNPJ da empresa',
   website: 'site ou URL da empresa',
   instagram: 'perfil do Instagram',
-  linkedin: 'perfil do LinkedIn (pessoa ou empresa)',
+  linkedin: 'perfil do LinkedIn (empresa ou pessoa)',
   resumo_analitico: 'resumo, observações ou descrição da empresa',
 };
 
@@ -38,22 +38,45 @@ export async function mapColumnsViaApi(input: MapColumnsInput): Promise<MapColum
   return res.json();
 }
 
-/** Fallback local: tenta mapear por correspondência de string simples */
+/** Fallback local — mapeia por aliases conhecidos */
 export function mapColumnsLocally(columns: string[]): MapColumnsResult {
   const KNOWN_ALIASES: Record<string, LeadField> = {
-    'empresa': 'empresa', 'company': 'empresa', 'razao social': 'empresa', 'razão social': 'empresa', 'nome empresa': 'empresa',
-    'lead': 'lead', 'contato': 'lead', 'nome': 'lead', 'name': 'lead', 'responsavel': 'lead', 'responsável': 'lead',
-    'whatsapp': 'whatsapp', 'celular': 'whatsapp', 'cel': 'whatsapp', 'mobile': 'whatsapp', 'phone': 'whatsapp',
+    // Empresa
+    'empresa': 'empresa', 'company': 'empresa', 'razao social': 'empresa',
+    'razao_social': 'empresa', 'nome empresa': 'empresa', 'nome_empresa': 'empresa',
+    'estabelecimento': 'empresa', 'negocio': 'empresa', 'negócio': 'empresa',
+    // Contato (pessoa física responsável)
+    'contato': 'contato', 'nome': 'contato', 'name': 'contato',
+    'responsavel': 'contato', 'responsável': 'contato', 'contact': 'contato',
+    'lead': 'contato', 'pessoa': 'contato', 'full name': 'contato',
+    'primeiro nome': 'contato', 'nome completo': 'contato',
+    // WhatsApp / Celular
+    'whatsapp': 'whatsapp', 'celular': 'whatsapp', 'cel': 'whatsapp',
+    'mobile': 'whatsapp', 'phone': 'whatsapp', 'telefone celular': 'whatsapp',
+    'numero': 'whatsapp', 'número': 'whatsapp',
+    // Telefone fixo
     'telefone': 'telefone', 'tel': 'telefone', 'fone': 'telefone', 'fixo': 'telefone',
-    'email': 'email', 'e-mail': 'email', 'mail': 'email',
+    'telefone fixo': 'telefone',
+    // Email
+    'email': 'email', 'e-mail': 'email', 'mail': 'email', 'e mail': 'email',
+    // Localização
     'cidade': 'cidade', 'city': 'cidade', 'municipio': 'cidade', 'município': 'cidade',
-    'bairro': 'bairro', 'regiao': 'bairro', 'região': 'bairro',
-    'categoria': 'categoria', 'nicho': 'categoria', 'segmento': 'categoria', 'category': 'categoria',
+    'bairro': 'bairro', 'regiao': 'bairro', 'região': 'bairro', 'district': 'bairro',
+    // Negócio
+    'categoria': 'categoria', 'nicho': 'categoria', 'segmento': 'categoria',
+    'category': 'categoria', 'ramo': 'categoria', 'setor': 'categoria',
     'cnpj': 'cnpj',
-    'website': 'website', 'site': 'website', 'url': 'website',
-    'instagram': 'instagram', 'insta': 'instagram',
-    'linkedin': 'linkedin',
-    'resumo': 'resumo_analitico', 'observacoes': 'resumo_analitico', 'observações': 'resumo_analitico', 'descricao': 'resumo_analitico', 'descrição': 'resumo_analitico', 'notes': 'resumo_analitico',
+    // Web
+    'website': 'website', 'site': 'website', 'url': 'website', 'web': 'website',
+    'homepage': 'website', 'pagina': 'website', 'página': 'website',
+    // Redes sociais
+    'instagram': 'instagram', 'insta': 'instagram', 'ig': 'instagram',
+    'linkedin': 'linkedin', 'linkedin url': 'linkedin', 'perfil linkedin': 'linkedin',
+    // Observações
+    'resumo': 'resumo_analitico', 'observacoes': 'resumo_analitico',
+    'observações': 'resumo_analitico', 'descricao': 'resumo_analitico',
+    'descrição': 'resumo_analitico', 'notes': 'resumo_analitico',
+    'obs': 'resumo_analitico', 'about': 'resumo_analitico',
   };
 
   const mappings: ColumnMapping[] = [];
@@ -74,4 +97,4 @@ export function mapColumnsLocally(columns: string[]): MapColumnsResult {
   return { mappings, unmapped };
 }
 
-export { LEAD_FIELDS };
+export { FIELD_DESCRIPTIONS as default, LEAD_FIELDS };

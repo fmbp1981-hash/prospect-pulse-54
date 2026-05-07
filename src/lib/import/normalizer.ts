@@ -1,6 +1,6 @@
 import type { NormalizedLead, RawMappedLead } from './types';
 
-type PhoneResult = { value: string | null; warning: string | null; error: string | null };
+type PhoneResult = { value: string | null; warning: string | null; error: null };
 type TextFieldResult = { value: string | null; error: string | null };
 
 const LOWERCASE_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em', 'com', 'para', 'a', 'o', 'as', 'os']);
@@ -20,25 +20,26 @@ export function normalizeText(raw: string): string {
     .join(' ');
 }
 
+/** Normaliza telefone brasileiro — nunca retorna erro, apenas warnings. Lead sempre passa. */
 export function normalizePhone(raw: string): PhoneResult {
   if (!raw || !raw.trim()) return { value: null, warning: null, error: null };
 
   let digits = raw.replace(/[^\d+]/g, '');
   if (digits.startsWith('+')) digits = digits.slice(1);
 
-  // Strip country code 55 if present (total 12 or 13 digits with country code)
+  // Strip country code 55 if present
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
     digits = digits.slice(2);
   }
 
-  // Strip leading zero (e.g. 011... → 11...)
+  // Strip leading zero
   if (digits.startsWith('0') && (digits.length === 11 || digits.length === 12)) {
     digits = digits.slice(1);
   }
 
-  // 0800 detection (after stripping country code and leading zero)
+  // 0800 — não é WhatsApp, ignora silenciosamente
   if (digits.startsWith('800') || digits.startsWith('0800')) {
-    return { value: null, warning: null, error: 'Número 0800 não é suportado como WhatsApp' };
+    return { value: null, warning: 'Número 0800 ignorado (não é WhatsApp)', error: null };
   }
 
   if (digits.length === 11) return { value: `+55${digits}`, warning: null, error: null };
@@ -46,7 +47,8 @@ export function normalizePhone(raw: string): PhoneResult {
     return { value: `+55${digits}`, warning: 'Número fixo: verifique se é WhatsApp', error: null };
   }
 
-  return { value: null, warning: null, error: `Número inválido: dígitos insuficientes (${digits.length})` };
+  // Número fora do padrão — armazena null com aviso, não bloqueia o lead
+  return { value: null, warning: `Número fora do padrão BR (${digits.length} dígitos)`, error: null };
 }
 
 export function normalizeEmail(raw: string): TextFieldResult {
@@ -105,27 +107,29 @@ export function normalizeLinkedin(raw: string): string | null {
     .replace(/\/$/, '');
 }
 
-/** Normaliza uma linha já mapeada para os campos do sistema */
+/** Normaliza uma linha mapeada — premissa B2B: empresa obrigatória, contato é a pessoa física */
 export function normalizeLeadRow(raw: RawMappedLead): NormalizedLead {
   const warnings: NormalizedLead['warnings'] = {};
   const errors: NormalizedLead['errors'] = {};
 
+  // Telefones: apenas warnings, nunca bloqueiam o lead
   const phone = normalizePhone(raw.whatsapp ?? '');
-  if (phone.error) errors.whatsapp = phone.error;
   if (phone.warning) warnings.whatsapp = phone.warning;
 
   const tel = normalizePhone(raw.telefone ?? '');
-  if (tel.error && raw.telefone) warnings.telefone = tel.error;
+  if (tel.warning && raw.telefone) warnings.telefone = tel.warning;
 
+  // Email: warning se inválido
   const email = normalizeEmail(raw.email ?? '');
   if (email.error) warnings.email = email.error;
 
+  // CNPJ: warning se inválido (não bloqueia)
   const cnpj = normalizeCnpj(raw.cnpj ?? '');
   if (cnpj.error && raw.cnpj) warnings.cnpj = cnpj.error;
 
   return {
     empresa: normalizeText(raw.empresa ?? ''),
-    lead: normalizeText(raw.lead ?? ''),
+    contato: raw.contato ? normalizeText(raw.contato) : null,
     whatsapp: phone.value,
     telefone: tel.value,
     email: email.value,

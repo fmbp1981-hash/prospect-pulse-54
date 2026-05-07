@@ -6,14 +6,13 @@ import { z } from 'zod';
 import type { Database } from '@/integrations/supabase/types';
 import type { NormalizedLead, ImportReport, ImportResultRow } from '@/lib/import/types';
 import { v4 as uuidv4 } from 'uuid';
-import { leadRepository } from '@/lib/repositories/lead.repository';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const NormalizedLeadSchema = z.object({
   empresa: z.string().min(1),
-  lead: z.string(),
+  contato: z.string().nullable(),
   whatsapp: z.string().nullable(),
   telefone: z.string().nullable(),
   email: z.string().nullable(),
@@ -37,10 +36,43 @@ const RequestSchema = z.object({
   }).optional(),
 });
 
+/** Retorna o próximo número sequencial para Lead-XXX do usuário */
+async function getNextLeadSequence(db: SupabaseClient<Database>, userId: string): Promise<number> {
+  const { data } = await db
+    .from('leads_prospeccao')
+    .select('lead')
+    .eq('user_id', userId)
+    .like('lead', 'Lead-%')
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (!data || data.length === 0) return 1;
+
+  let max = 0;
+  for (const row of data) {
+    const match = (row.lead as string)?.match(/^Lead-(\d+)$/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > max) max = n;
+    }
+  }
+  return max + 1;
+}
+
+function formatLeadNumber(seq: number): string {
+  return `Lead-${String(seq).padStart(3, '0')}`;
+}
+
 async function findExistingLead(db: SupabaseClient<Database>, userId: string, lead: NormalizedLead) {
   if (lead.whatsapp) {
-    const existing = await leadRepository.findByWhatsApp(lead.whatsapp, userId);
-    if (existing) return { id: existing.id };
+    const { data } = await db
+      .from('leads_prospeccao')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('whatsapp', lead.whatsapp)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as { id: string };
   }
   if (lead.email) {
     const { data } = await db
@@ -84,6 +116,9 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
+  // Busca o próximo número sequencial uma vez antes do loop
+  let leadSeq = await getNextLeadSequence(db, user.id);
+
   const rows: ImportResultRow[] = [];
   let created = 0;
   let updated = 0;
@@ -92,18 +127,15 @@ export async function POST(req: NextRequest) {
   const importId = uuidv4();
   const now = new Date().toISOString();
 
-  const chunks = chunk(leads, 50);
-
-  for (const batch of chunks) {
+  for (const batch of chunk(leads, 50)) {
     for (const lead of batch) {
       try {
         const existing = await findExistingLead(db, user.id, lead as unknown as NormalizedLead);
 
         if (existing) {
-          // Merge: atualiza apenas campos vazios no banco
           const updateFields: Record<string, unknown> = { updated_at: now };
           const fieldsToCheck = [
-            'telefone', 'email', 'cidade', 'bairro', 'categoria',
+            'contato', 'telefone', 'email', 'cidade', 'bairro', 'categoria',
             'cnpj', 'website', 'instagram', 'linkedin', 'resumo_analitico',
           ] as const;
 
@@ -115,7 +147,9 @@ export async function POST(req: NextRequest) {
 
           for (const field of fieldsToCheck) {
             const currentVal = current?.[field as keyof typeof current];
-            const newVal = lead[field as keyof NormalizedLead];
+            const newVal = field === 'contato'
+              ? (lead as unknown as NormalizedLead).contato
+              : lead[field as keyof typeof lead];
             if (!currentVal && newVal) updateFields[field] = newVal;
           }
 
@@ -130,9 +164,9 @@ export async function POST(req: NextRequest) {
         } else {
           const { error: insertErr } = await db.from('leads_prospeccao').insert({
             user_id: user.id,
+            lead: formatLeadNumber(leadSeq),
             empresa: lead.empresa,
-            lead: lead.lead || lead.empresa,
-            contato: lead.lead || null,
+            contato: lead.contato || null,
             whatsapp: lead.whatsapp,
             telefone: lead.telefone,
             email: lead.email,
@@ -159,6 +193,7 @@ export async function POST(req: NextRequest) {
           } else {
             rows.push({ empresa: lead.empresa, status: 'created' });
             created++;
+            leadSeq++;
           }
         }
       } catch (err) {
@@ -168,7 +203,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Audit log — best-effort, errors are non-fatal
+  // Audit log — best-effort
   try {
     await (db as SupabaseClient).from('audit_logs').insert({
       user_id: user.id,

@@ -449,7 +449,8 @@ export default function LeadsPage() {
                     <TableHead>Telefone</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Cidade</TableHead>
-                    <TableHead>Links</TableHead>
+                    <TableHead>Site</TableHead>
+                    <TableHead>Redes Sociais</TableHead>
                     <TableHead>Resumo</TableHead>
                     <TableHead className="cursor-pointer" onClick={() => handleSort('status')}>
                       Status <ArrowUpDown className="inline h-4 w-4 ml-1" />
@@ -467,7 +468,14 @@ export default function LeadsPage() {
                         />
                       </TableCell>
                       <TableCell className="font-medium">{lead.lead}</TableCell>
-                      <TableCell>{toTitleCase(lead.empresa || "")}</TableCell>
+                      <TableCell>
+                        <div>
+                          <span className="font-medium">{toTitleCase(lead.empresa || "")}</span>
+                          {lead.contato && (
+                            <p className="text-xs text-muted-foreground">{toTitleCase(lead.contato)}</p>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>{toTitleCase(lead.categoria || "")}</TableCell>
                       <TableCell>
                         {lead.whatsapp ? (
@@ -509,32 +517,47 @@ export default function LeadsPage() {
                       </TableCell>
                       <TableCell>{toTitleCase(lead.cidade || "")}</TableCell>
                       <TableCell>
+                        {lead.website ? (
+                          <a
+                            href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline text-xs flex items-center gap-1"
+                            title={lead.website}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Site
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          {lead.website && (
+                          {lead.instagram && (
                             <a
-                              href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                              href={`https://instagram.com/${lead.instagram.replace(/^@/, '')}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline text-xs flex items-center gap-1"
-                              title="Website"
+                              className="text-pink-600 hover:underline text-xs"
+                              title={lead.instagram}
                             >
-                              <ExternalLink className="h-3 w-3" />
-                              Site
+                              {lead.instagram}
                             </a>
                           )}
-                          {lead.linkGMN && (
+                          {lead.linkedin && (
                             <a
-                              href={lead.linkGMN}
+                              href={lead.linkedin.startsWith('http') ? lead.linkedin : `https://${lead.linkedin}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-orange-600 hover:underline text-xs flex items-center gap-1"
-                              title="Google Maps"
+                              className="text-blue-700 hover:underline text-xs flex items-center gap-1"
+                              title="LinkedIn"
                             >
                               <ExternalLink className="h-3 w-3" />
-                              Mapa
+                              in
                             </a>
                           )}
-                          {!lead.website && !lead.linkGMN && (
+                          {!lead.instagram && !lead.linkedin && (
                             <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </div>

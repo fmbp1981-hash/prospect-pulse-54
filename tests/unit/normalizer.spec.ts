@@ -13,14 +13,16 @@ describe('normalizePhone', () => {
   it('formata número com + e espaços', () => {
     expect(normalizePhone('+55 11 9 9999-8888')).toEqual({ value: '+5511999998888', warning: null, error: null });
   });
-  it('retorna erro para número sem DDD', () => {
+  it('emite warning para número sem DDD (8 dígitos)', () => {
     const r = normalizePhone('99999-8888');
-    expect(r.error).toBeTruthy();
+    expect(r.error).toBeNull();
+    expect(r.warning).toBeTruthy();
     expect(r.value).toBeNull();
   });
-  it('retorna null para 0800', () => {
+  it('retorna null com warning para 0800', () => {
     const r = normalizePhone('0800 123 4567');
-    expect(r.error).toBeTruthy();
+    expect(r.error).toBeNull();
+    expect(r.warning).toBeTruthy();
     expect(r.value).toBeNull();
   });
   it('emite warning para fixo com 8 dígitos no whatsapp', () => {
@@ -121,14 +123,15 @@ describe('normalizeLeadRow', () => {
   it('retorna NormalizedLead válido para RawMappedLead vazio', () => {
     const result = normalizeLeadRow({});
     expect(result.empresa).toBe('');
-    expect(result.lead).toBe('');
+    expect(result.contato).toBeNull();
     expect(result.whatsapp).toBeNull();
     expect(result.errors).toEqual({});
     expect(result.warnings).toEqual({});
   });
-  it('popula errors.whatsapp para número 0800', () => {
+  it('popula warnings.whatsapp para número 0800 (não errors)', () => {
     const result = normalizeLeadRow({ empresa: 'Empresa', whatsapp: '0800 123 4567' });
-    expect(result.errors.whatsapp).toBeTruthy();
+    expect(result.warnings.whatsapp).toBeTruthy();
+    expect(result.errors.whatsapp).toBeUndefined();
     expect(result.whatsapp).toBeNull();
   });
   it('popula warnings.whatsapp para número fixo', () => {
@@ -150,7 +153,7 @@ describe('normalizeLeadRow', () => {
   it('normaliza todos os campos de uma vez', () => {
     const result = normalizeLeadRow({
       empresa: 'CLÍNICA SÃO PEDRO',
-      lead: 'maria silva',
+      contato: 'maria silva',
       whatsapp: '(11) 99999-8888',
       email: 'CONTATO@EMPRESA.COM',
       instagram: 'https://www.instagram.com/empresa/',
@@ -158,7 +161,7 @@ describe('normalizeLeadRow', () => {
       website: 'empresa.com.br',
     });
     expect(result.empresa).toBe('Clínica São Pedro');
-    expect(result.lead).toBe('Maria Silva');
+    expect(result.contato).toBe('Maria Silva');
     expect(result.whatsapp).toBe('+5511999998888');
     expect(result.email).toBe('contato@empresa.com');
     expect(result.instagram).toBe('@empresa');

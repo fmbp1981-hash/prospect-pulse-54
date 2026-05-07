@@ -1,16 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { normalizeLeadRow } from '@/lib/import/normalizer';
+import type { Database } from '@/integrations/supabase/types';
 
 export const runtime = 'nodejs';
+
+async function getNextLeadSequence(db: SupabaseClient<Database>, userId: string): Promise<number> {
+  const { data } = await db
+    .from('leads_prospeccao')
+    .select('lead')
+    .eq('user_id', userId)
+    .like('lead', 'Lead-%')
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (!data || data.length === 0) return 1;
+  let max = 0;
+  for (const row of data) {
+    const match = (row.lead as string)?.match(/^Lead-(\d+)$/);
+    if (match) { const n = parseInt(match[1], 10); if (n > max) max = n; }
+  }
+  return max + 1;
+}
 
 const CreateLeadSchema = z.object({
   empresa: z.string().min(1, 'Nome da empresa obrigatório'),
   whatsapp: z.string().min(1, 'WhatsApp obrigatório'),
-  lead: z.string().optional(),
+  contato: z.string().optional(),
   telefone: z.string().optional(),
   email: z.string().optional(),
   cidade: z.string().optional(),
@@ -39,7 +57,7 @@ export async function POST(req: NextRequest) {
 
   const normalized = normalizeLeadRow(parsed.data);
 
-  const db = createClient(
+  const db = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
@@ -62,12 +80,14 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date().toISOString();
+  const seq = await getNextLeadSequence(db as SupabaseClient<Database>, user.id);
+  const leadNumber = `Lead-${String(seq).padStart(3, '0')}`;
 
   const { data, error } = await db.from('leads_prospeccao').insert({
     user_id: user.id,
     empresa: normalized.empresa,
-    lead: normalized.lead || normalized.empresa,
-    contato: normalized.lead || null,
+    lead: leadNumber,
+    contato: normalized.contato || null,
     whatsapp: normalized.whatsapp,
     telefone: normalized.telefone,
     email: normalized.email,

@@ -1,7 +1,7 @@
 import type { NormalizedLead, MergedLead, FieldConflict, LeadField } from './types';
 
 const MERGEABLE_FIELDS: LeadField[] = [
-  'empresa', 'lead', 'whatsapp', 'telefone', 'email',
+  'empresa', 'contato', 'whatsapp', 'telefone', 'email',
   'cidade', 'bairro', 'categoria', 'cnpj', 'website',
   'instagram', 'linkedin', 'resumo_analitico',
 ];
