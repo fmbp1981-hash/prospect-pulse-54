@@ -101,7 +101,7 @@ export type Database = {
                     etapa_funil?: string | null
                     faturamento_declarado?: number | null
                     follow_up_count?: number | null
-                    id: string
+                    id?: string
                     instagram?: string | null
                     lead: string
                     linkedin?: string | null
