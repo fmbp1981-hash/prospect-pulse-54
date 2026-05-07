@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Loader2, ShieldCheck, UserCog, Eye, EyeOff, Shield, Settings, AlertCircle, CheckCircle, Copy, CheckSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { UserRole, ROLE_LABELS, ROLE_COLORS, ROLE_DESCRIPTIONS } from "@/types/roles";
+import { auditRoleChange } from "@/lib/audit";
 
 interface UserWithSettings {
   id: string;
@@ -104,6 +105,7 @@ export function RoleManagement() {
   };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    const currentUser = users.find(u => u.id === userId);
     setUpdatingUserId(userId);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,6 +116,7 @@ export function RoleManagement() {
 
       if (error) throw error;
 
+      if (currentUser) auditRoleChange(userId, currentUser.role, newRole);
       toast.success(`Role alterado para ${ROLE_LABELS[newRole]} com sucesso`);
       loadUsers();
     } catch (error) {
@@ -190,6 +193,7 @@ export function RoleManagement() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Erro ao aprovar usuário');
+      auditRoleChange(approveTargetUser.id, approveTargetUser.role, approveRole);
       toast.success('Usuário aprovado e email enviado!');
       setIsApproveDialogOpen(false);
       loadUsers();

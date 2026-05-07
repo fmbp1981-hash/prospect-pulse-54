@@ -113,6 +113,26 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // RBAC: /integrations é exclusiva para admins — bloquear server-side
+  const isIntegrationsRoute = pathname.startsWith('/integrations');
+  if (user && isIntegrationsRoute && user.email !== ADMIN_EMAIL) {
+    const { data: roleSettings } = await supabase
+      .from('user_settings')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!roleSettings || roleSettings.role !== 'admin') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/';
+      const redirectResponse = NextResponse.redirect(url);
+      supabaseResponse.cookies.getAll().forEach(cookie => {
+        redirectResponse.cookies.set(cookie.name, cookie.value);
+      });
+      return redirectResponse;
+    }
+  }
+
   // Admin NUNCA deve ficar em /pending — redirecionar para home incondicionalmente
   if (user && isPendingRoute && user.email === ADMIN_EMAIL) {
     const url = request.nextUrl.clone();

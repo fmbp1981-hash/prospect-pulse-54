@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
+import { auditImportLeads } from '@/lib/audit';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -272,6 +273,7 @@ export function ImportLeadsModal({ isOpen, onClose, onImported }: ImportLeadsMod
 
       setReport(json);
       setStep(4);
+      auditImportLeads(json.created + json.updated, 'csv/xlsx');
       if (json.created + json.updated > 0) {
         onImported?.(json.created + json.updated);
       }

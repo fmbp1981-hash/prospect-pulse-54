@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Key, Plus, Trash2, Copy, Check, RefreshCw } from 'lucide-react';
+import { auditWebhookKeyCreate, auditWebhookKeyDelete } from '@/lib/audit';
 
 interface WebhookKey {
   id: string;
@@ -58,6 +59,7 @@ export function WebhookKeysPanel() {
       const result: NewKeyResult = await res.json();
       setNewKeyResult(result);
       setNewKeyName('');
+      auditWebhookKeyCreate(result.id, result.name);
       await loadKeys();
     } catch {
       toast.error('Erro ao gerar API key');
@@ -68,10 +70,12 @@ export function WebhookKeysPanel() {
 
   const handleRevoke = async (id: string) => {
     if (!confirm('Revogar esta chave? O n8n deixará de funcionar com ela.')) return;
+    const keyToRevoke = keys.find(k => k.id === id);
     setRevokingId(id);
     try {
       const res = await fetch(`/api/webhook-keys/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Erro ao revogar');
+      if (keyToRevoke) auditWebhookKeyDelete(id, keyToRevoke.name);
       toast.success('Chave revogada');
       await loadKeys();
     } catch {

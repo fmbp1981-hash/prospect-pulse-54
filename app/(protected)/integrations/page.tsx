@@ -18,15 +18,31 @@ import {
   ShieldAlert,
   MessageSquare,
 } from "lucide-react";
-import { getAuditLogs } from "@/lib/audit";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getAuditLogs, type AuditAction } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { userSettingsService } from "@/lib/userSettings";
+
+const ACTION_LABELS: Record<AuditAction, string> = {
+  EXPORT_LEADS: "Exportar Leads",
+  WHATSAPP_DISPATCH: "Disparo WhatsApp",
+  START_PROSPECTION: "Prospecção",
+  BULK_DELETE_LEADS: "Excluir em Massa",
+  LOGIN: "Login",
+  LOGOUT: "Logout",
+  SETTINGS_CHANGE: "Config. Alterada",
+  WEBHOOK_KEY_CREATE: "Chave Criada",
+  WEBHOOK_KEY_DELETE: "Chave Revogada",
+  IMPORT_LEADS: "Importar Leads",
+  ROLE_CHANGE: "Alteração de Role",
+};
 
 export default function IntegrationsPage() {
   const { isAdmin, isLoading: isLoadingRole } = useUserRole();
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+  const [actionFilter, setActionFilter] = useState<AuditAction | "ALL">("ALL");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [whatsappStatus, setWhatsappStatus] = useState<any>(null);
 
@@ -34,6 +50,10 @@ export default function IntegrationsPage() {
     loadAuditLogs();
     loadWhatsappStatus();
   }, []);
+
+  useEffect(() => {
+    loadAuditLogs();
+  }, [actionFilter]);
 
   const loadWhatsappStatus = async () => {
     try {
@@ -47,7 +67,7 @@ export default function IntegrationsPage() {
   const loadAuditLogs = async () => {
     setIsLoadingLogs(true);
     try {
-      const logs = await getAuditLogs(50);
+      const logs = await getAuditLogs(100, actionFilter === "ALL" ? undefined : actionFilter);
       setAuditLogs(logs);
     } catch (error) {
       console.error("Erro ao carregar logs:", error);
@@ -56,21 +76,29 @@ export default function IntegrationsPage() {
     }
   };
 
-  const getStatusBadge = (action: string) => {
-    const statusMap: Record<string, { color: string; icon: any }> = {
-      EXPORT_LEADS: { color: "bg-blue-500", icon: CheckCircle2 },
-      WHATSAPP_DISPATCH: { color: "bg-green-500", icon: CheckCircle2 },
-      START_PROSPECTION: { color: "bg-purple-500", icon: CheckCircle2 },
-      BULK_DELETE_LEADS: { color: "bg-red-500", icon: XCircle },
+  const getStatusBadge = (action: AuditAction) => {
+    const statusMap: Record<AuditAction, { color: string; icon: any }> = {
+      EXPORT_LEADS:        { color: "bg-blue-500",   icon: CheckCircle2 },
+      WHATSAPP_DISPATCH:   { color: "bg-green-500",  icon: CheckCircle2 },
+      START_PROSPECTION:   { color: "bg-purple-500", icon: CheckCircle2 },
+      BULK_DELETE_LEADS:   { color: "bg-red-500",    icon: XCircle },
+      LOGIN:               { color: "bg-emerald-600", icon: CheckCircle2 },
+      LOGOUT:              { color: "bg-slate-500",  icon: Activity },
+      SETTINGS_CHANGE:     { color: "bg-amber-500",  icon: Activity },
+      WEBHOOK_KEY_CREATE:  { color: "bg-cyan-600",   icon: CheckCircle2 },
+      WEBHOOK_KEY_DELETE:  { color: "bg-orange-500", icon: XCircle },
+      IMPORT_LEADS:        { color: "bg-indigo-500", icon: CheckCircle2 },
+      ROLE_CHANGE:         { color: "bg-rose-500",   icon: ShieldAlert },
     };
 
-    const status = statusMap[action] || { color: "bg-gray-500", icon: Activity };
+    const status = statusMap[action] ?? { color: "bg-gray-500", icon: Activity };
     const Icon = status.icon;
+    const label = ACTION_LABELS[action] ?? action.replace(/_/g, " ");
 
     return (
       <Badge className={`${status.color} text-white gap-1`}>
         <Icon className="h-3 w-3" />
-        {action.replace(/_/g, " ")}
+        {label}
       </Badge>
     );
   };
@@ -262,15 +290,31 @@ export default function IntegrationsPage() {
                   Histórico de todas as ações críticas realizadas
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={loadAuditLogs}
-                disabled={isLoadingLogs}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingLogs ? "animate-spin" : ""}`} />
-                Atualizar
-              </Button>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={actionFilter}
+                  onValueChange={(v) => setActionFilter(v as AuditAction | "ALL")}
+                >
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Filtrar por ação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Todas as ações</SelectItem>
+                    {(Object.keys(ACTION_LABELS) as AuditAction[]).map((a) => (
+                      <SelectItem key={a} value={a}>{ACTION_LABELS[a]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadAuditLogs}
+                  disabled={isLoadingLogs}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingLogs ? "animate-spin" : ""}`} />
+                  Atualizar
+                </Button>
+              </div>
             </div>
 
             {isLoadingLogs ? (
@@ -290,6 +334,7 @@ export default function IntegrationsPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Data/Hora</TableHead>
+                      <TableHead>Usuário</TableHead>
                       <TableHead>Ação</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Detalhes</TableHead>
@@ -301,15 +346,18 @@ export default function IntegrationsPage() {
                         <TableCell className="text-sm whitespace-nowrap">
                           {formatDate(log.created_at)}
                         </TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-[180px] truncate" title={log.user_email ?? undefined}>
+                          {log.user_email ?? "—"}
+                        </TableCell>
                         <TableCell>
                           {getStatusBadge(log.action)}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{log.entity_type}</Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground max-w-md truncate">
+                        <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                           {log.details && Object.keys(log.details).length > 0
-                            ? JSON.stringify(log.details).substring(0, 100) + "..."
+                            ? JSON.stringify(log.details).substring(0, 80)
                             : "—"}
                         </TableCell>
                       </TableRow>

@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { auditLogin, auditLogout } from "@/lib/audit";
 
 interface AuthContextType {
   user: User | null;
@@ -86,6 +87,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         });
       } else {
         toast.success("Login realizado com sucesso!");
+        auditLogin(email);
       }
 
       return { error };
@@ -170,6 +172,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
 
+      await auditLogout();
       const { error } = await supabase.auth.signOut();
 
       if (error) {
