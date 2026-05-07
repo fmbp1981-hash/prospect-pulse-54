@@ -117,6 +117,7 @@ export async function runImport(
           }
         } else {
           const { error: insertErr } = await db.from('leads_prospeccao').insert({
+            id: uuidv4(),
             user_id: userId,
             lead: formatLeadNumber(leadSeq),
             empresa: lead.empresa,
