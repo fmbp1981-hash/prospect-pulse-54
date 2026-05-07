@@ -1,0 +1,136 @@
+{
+  "name": "Apollo.io → LeadFinder Pro",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "triggerOn": "specificFolder",
+        "folderToWatch": { "__rl": true, "mode": "list", "value": "CONFIGURE: ID da pasta Apollo Exports no Google Drive" },
+        "event": "fileCreated"
+      },
+      "id": "node-gdrive-trigger",
+      "name": "Google Drive — Novo arquivo",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": { "__rl": true, "mode": "id", "value": "={{ $json.id }}" },
+        "options": {}
+      },
+      "id": "node-gdrive-download",
+      "name": "Google Drive — Download CSV",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "operation": "fromFile",
+        "binaryPropertyName": "data",
+        "options": { "headerRow": true, "delimiter": "," }
+      },
+      "id": "node-parse-csv",
+      "name": "Parsear CSV",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Mapeia colunas Apollo → LeadFinder\nconst items = $input.all();\n\nconst leads = items.map(item => {\n  const row = item.json;\n\n  // Concatena First Name + Last Name\n  const firstName = (row['First Name'] || row['first name'] || '').trim();\n  const lastName = (row['Last Name'] || row['last name'] || '').trim();\n  const contato = [firstName, lastName].filter(Boolean).join(' ') || null;\n\n  return {\n    empresa: row['Company'] || row['Account Name'] || row['company'] || '',\n    contato,\n    email: row['Email'] || row['email'] || null,\n    whatsapp: row['Mobile Phone'] || row['mobile phone'] || row['Phone'] || null,\n    telefone: row['Work Phone'] || row['Work Direct Phone'] || row['work phone'] || null,\n    linkedin: row['Person Linkedin URL'] || row['LinkedIn URL'] || row['linkedin url'] || null,\n    website: row['Website'] || row['Company Website'] || row['website url'] || null,\n    cidade: row['City'] || row['city'] || null,\n    categoria: row['Industry'] || row['Keywords'] || row['industry'] || null,\n    resumo_analitico: row['Title'] || row['Job Title'] || row['SEO Description'] || null,\n    bairro: null,\n    cnpj: null,\n    instagram: null,\n  };\n}).filter(l => l.empresa.trim() !== '');\n\nreturn [{ json: { leads, options: { defaultOrigem: 'apollo', defaultEstagio: 'Novo' } } }];"
+      },
+      "id": "node-map-columns",
+      "name": "Mapear Colunas Apollo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "CONFIGURE: https://seu-dominio.vercel.app/api/leads/import/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "CONFIGURE: lpk_sua_chave_aqui" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify($json) }}"
+      },
+      "id": "node-http-import",
+      "name": "Importar no LeadFinder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [{ "value1": "={{ $json.errors }}", "operation": "equal", "value2": 0 }]
+        }
+      },
+      "id": "node-if-success",
+      "name": "Importação ok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1360, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nconsole.log(`✅ Apollo import: ${r.created} criados, ${r.updated} atualizados, ${r.skipped} ignorados, ${r.errors} erros`);\nreturn $input.all();"
+      },
+      "id": "node-log-success",
+      "name": "Log Sucesso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r = $input.first().json;\nconsole.error(`❌ Apollo import com erros: ${r.errors} falhas`);\nreturn $input.all();"
+      },
+      "id": "node-log-error",
+      "name": "Log Erros",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 400]
+    }
+  ],
+  "connections": {
+    "Google Drive — Novo arquivo": {
+      "main": [[{ "node": "Google Drive — Download CSV", "type": "main", "index": 0 }]]
+    },
+    "Google Drive — Download CSV": {
+      "main": [[{ "node": "Parsear CSV", "type": "main", "index": 0 }]]
+    },
+    "Parsear CSV": {
+      "main": [[{ "node": "Mapear Colunas Apollo", "type": "main", "index": 0 }]]
+    },
+    "Mapear Colunas Apollo": {
+      "main": [[{ "node": "Importar no LeadFinder", "type": "main", "index": 0 }]]
+    },
+    "Importar no LeadFinder": {
+      "main": [[{ "node": "Importação ok?", "type": "main", "index": 0 }]]
+    },
+    "Importação ok?": {
+      "main": [
+        [{ "node": "Log Sucesso", "type": "main", "index": 0 }],
+        [{ "node": "Log Erros", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "notes": "CONFIGURE antes de ativar: (1) Credenciais Google Drive, (2) ID da pasta Apollo Exports, (3) URL do LeadFinder, (4) x-api-key gerada em Settings → Integrações"
+  }
+}
