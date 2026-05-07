@@ -1,108 +1,68 @@
-/**
- * POST /api/leads/import
- * Importa leads em massa a partir de CSV, XLSX, VCF ou TXT.
- * Retorna: { imported, skipped, errors }
- */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import { normalizeBRPhone } from '@/lib/normalizePhone';
+import { z } from 'zod';
+import type { NormalizedLead, ImportReport, ImportResultRow } from '@/lib/import/types';
+import { v4 as uuidv4 } from 'uuid';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
-interface RawLead {
-  empresa: string;
-  contato?: string;
-  whatsapp?: string;
-  telefone?: string;
-  email?: string;
-  cidade?: string;
-  categoria?: string;
+const NormalizedLeadSchema = z.object({
+  empresa: z.string().min(1),
+  lead: z.string(),
+  whatsapp: z.string().nullable(),
+  telefone: z.string().nullable(),
+  email: z.string().nullable(),
+  cidade: z.string().nullable(),
+  bairro: z.string().nullable(),
+  categoria: z.string().nullable(),
+  cnpj: z.string().nullable(),
+  website: z.string().nullable(),
+  instagram: z.string().nullable(),
+  linkedin: z.string().nullable(),
+  resumo_analitico: z.string().nullable(),
+  warnings: z.record(z.string()).optional(),
+  errors: z.record(z.string()).optional(),
+});
+
+const RequestSchema = z.object({
+  leads: z.array(NormalizedLeadSchema).min(1).max(1000),
+  options: z.object({
+    defaultEstagio: z.string().default('Novo'),
+    defaultOrigem: z.string().default('importação'),
+  }).optional(),
+});
+
+async function findExistingLead(db: ReturnType<typeof createClient>, userId: string, lead: NormalizedLead) {
+  if (lead.whatsapp) {
+    const digits = lead.whatsapp.replace(/\D/g, '');
+    const localDigits = digits.length >= 11 ? digits.slice(-11) : digits.slice(-8);
+    const { data } = await (db as any).rpc('find_lead_by_phone_digits', {
+      p_digits: localDigits,
+      p_user_id: userId,
+    });
+    if (data?.[0]) return data[0] as { id: string };
+  }
+  if (lead.email) {
+    const { data } = await db
+      .from('leads_prospeccao')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('email', lead.email)
+      .limit(1)
+      .maybeSingle();
+    if (data) return data as { id: string };
+  }
+  return null;
 }
 
-// ─── Parsers ─────────────────────────────────────────────────────────────────
-
-function parseCSV(text: string): RawLead[] {
-  const { parse } = require('papaparse') as typeof import('papaparse');
-  const result = parse<Record<string, string>>(text, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h: string) => h.trim().toLowerCase()
-      .replace(/\s+/g, '_')
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
-  });
-  return result.data.map(row => ({
-    empresa: row.empresa ?? row.company ?? row.nome ?? '',
-    contato: row.contato ?? row.nome ?? row.name ?? '',
-    whatsapp: row.whatsapp ?? row.telefone ?? row.phone ?? row.celular ?? '',
-    telefone: row.telefone ?? row.phone ?? '',
-    email: row.email ?? '',
-    cidade: row.cidade ?? row.city ?? '',
-    categoria: row.categoria ?? row.category ?? row.nicho ?? '',
-  })).filter(l => l.empresa || l.whatsapp || l.contato);
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
+  return chunks;
 }
-
-function parseXLSX(buffer: Buffer): RawLead[] {
-  const XLSX = require('xlsx') as typeof import('xlsx');
-  const wb = XLSX.read(buffer, { type: 'buffer' });
-  const sheet = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
-  return rows.map(row => {
-    const key = (k: string) => {
-      for (const r of Object.keys(row)) {
-        if (r.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-          === k.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) {
-          return String(row[r] ?? '');
-        }
-      }
-      return '';
-    };
-    return {
-      empresa: key('empresa') || key('company') || key('nome') || '',
-      contato: key('contato') || key('nome') || key('name') || '',
-      whatsapp: key('whatsapp') || key('telefone') || key('phone') || key('celular') || '',
-      telefone: key('telefone') || key('phone') || '',
-      email: key('email') || '',
-      cidade: key('cidade') || key('city') || '',
-      categoria: key('categoria') || key('category') || key('nicho') || '',
-    };
-  }).filter(l => l.empresa || l.whatsapp || l.contato);
-}
-
-function parseVCF(text: string): RawLead[] {
-  const cards = text.split(/BEGIN:VCARD/i).slice(1);
-  return cards.map(card => {
-    const getField = (field: string) => {
-      const match = card.match(new RegExp(`${field}[^:]*:(.+)`, 'i'));
-      return match ? match[1].trim() : '';
-    };
-    const fullName = getField('FN') || getField('N').split(';').slice(0, 2).reverse().join(' ').trim();
-    const tel = getField('TEL;TYPE=WHATSAPP') || getField('TEL;CELL') || getField('TEL;MOBILE') || getField('TEL');
-    const org = getField('ORG');
-    return {
-      empresa: org || fullName,
-      contato: fullName || '',
-      whatsapp: tel,
-      email: getField('EMAIL'),
-      categoria: 'Importado VCF',
-    };
-  }).filter(l => l.contato || l.whatsapp);
-}
-
-function parseTXT(text: string): RawLead[] {
-  return text.split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length >= 8)
-    .map(line => ({
-      empresa: line,
-      contato: '',
-      whatsapp: line,
-      categoria: 'Importado TXT',
-    }));
-}
-
-// ─── Route Handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const cookieStore = cookies();
@@ -111,100 +71,113 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { cookies: { getAll: () => cookieStore.getAll() } }
   );
-
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const formData = await req.formData();
-  const file = formData.get('file') as File | null;
-  if (!file) return NextResponse.json({ error: 'Arquivo não enviado (campo: file)' }, { status: 400 });
+  const body = await req.json();
+  const parsed = RequestSchema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
-  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const text = buffer.toString('utf-8');
-
-  let rawLeads: RawLead[] = [];
-
-  if (ext === 'csv' || file.type === 'text/csv') {
-    rawLeads = parseCSV(text);
-  } else if (ext === 'xlsx' || ext === 'xls') {
-    rawLeads = parseXLSX(buffer);
-  } else if (ext === 'vcf') {
-    rawLeads = parseVCF(text);
-  } else if (ext === 'txt') {
-    rawLeads = parseTXT(text);
-  } else {
-    return NextResponse.json({ error: `Formato não suportado: .${ext}` }, { status: 400 });
-  }
-
-  if (rawLeads.length === 0) {
-    return NextResponse.json({ error: 'Nenhum dado encontrado no arquivo' }, { status: 400 });
-  }
+  const { leads, options } = parsed.data;
+  const estagio = options?.defaultEstagio ?? 'Novo';
+  const origem = options?.defaultOrigem ?? 'importação';
 
   const db = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const now = new Date().toISOString();
-  let imported = 0;
+  const rows: ImportResultRow[] = [];
+  let created = 0;
+  let updated = 0;
   let skipped = 0;
-  const errors: string[] = [];
+  let errors = 0;
+  const importId = uuidv4();
+  const now = new Date().toISOString();
 
-  for (let i = 0; i < rawLeads.length; i++) {
-    const raw = rawLeads[i];
+  const chunks = chunk(leads, 50);
 
-    const normalizedPhone = normalizeBRPhone(raw.whatsapp ?? '') ??
-      normalizeBRPhone(raw.telefone ?? '') ?? null;
+  for (const batch of chunks) {
+    for (const lead of batch) {
+      try {
+        const existing = await findExistingLead(db, user.id, lead);
 
-    const empresa = raw.empresa?.trim() || raw.contato?.trim() || normalizedPhone || `Lead-${i + 1}`;
+        if (existing) {
+          // Merge: atualiza apenas campos vazios no banco
+          const updateFields: Record<string, unknown> = { updated_at: now };
+          const fieldsToCheck = [
+            'telefone', 'email', 'cidade', 'bairro', 'categoria',
+            'cnpj', 'website', 'instagram', 'linkedin', 'resumo_analitico',
+          ] as const;
 
-    // Checar duplicata por whatsapp
-    if (normalizedPhone) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: existing } = await (db as any)
-        .from('leads_prospeccao')
-        .select('id')
-        .eq('user_id', user.id)
-        .or(`whatsapp.eq.${normalizedPhone},telefone.eq.${normalizedPhone}`)
-        .limit(1);
+          const { data: current } = await db
+            .from('leads_prospeccao')
+            .select(fieldsToCheck.join(','))
+            .eq('id', existing.id)
+            .single();
 
-      if (existing?.length > 0) {
-        skipped++;
-        continue;
+          for (const field of fieldsToCheck) {
+            const currentVal = current?.[field as keyof typeof current];
+            const newVal = lead[field as keyof NormalizedLead];
+            if (!currentVal && newVal) updateFields[field] = newVal;
+          }
+
+          if (Object.keys(updateFields).length > 1) {
+            await db.from('leads_prospeccao').update(updateFields).eq('id', existing.id);
+          }
+
+          rows.push({ empresa: lead.empresa, status: 'updated' });
+          updated++;
+        } else {
+          const { error: insertErr } = await db.from('leads_prospeccao').insert({
+            id: `import-${importId}-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+            user_id: user.id,
+            empresa: lead.empresa,
+            lead: lead.lead || lead.empresa,
+            contato: lead.lead || null,
+            whatsapp: lead.whatsapp,
+            telefone: lead.telefone,
+            email: lead.email,
+            cidade: lead.cidade,
+            bairro: lead.bairro,
+            categoria: lead.categoria,
+            cnpj: lead.cnpj,
+            website: lead.website,
+            instagram: lead.instagram,
+            linkedin: lead.linkedin,
+            resumo_analitico: lead.resumo_analitico,
+            status: 'Novo Lead',
+            estagio_pipeline: estagio,
+            status_msg_wa: 'not_sent',
+            modo_atendimento: 'bot',
+            origem,
+            created_at: now,
+            updated_at: now,
+          });
+
+          if (insertErr) {
+            rows.push({ empresa: lead.empresa, status: 'error', reason: insertErr.message });
+            errors++;
+          } else {
+            rows.push({ empresa: lead.empresa, status: 'created' });
+            created++;
+          }
+        }
+      } catch (err) {
+        rows.push({ empresa: lead.empresa, status: 'error', reason: String(err) });
+        errors++;
       }
-    }
-
-    const leadId = `import-${Date.now()}-${i}`;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: insertErr } = await (db as any)
-      .from('leads_prospeccao')
-      .insert({
-        id: leadId,
-        user_id: user.id,
-        empresa,
-        lead: raw.contato?.trim() || empresa,
-        contato: raw.contato?.trim() ?? null,
-        whatsapp: normalizedPhone,
-        telefone: normalizedPhone,
-        email: raw.email?.trim() || null,
-        cidade: raw.cidade?.trim() || null,
-        categoria: raw.categoria?.trim() || 'Importação Manual',
-        status: 'Novo Lead',
-        estagio_pipeline: 'Novo Lead',
-        status_msg_wa: 'not_sent',
-        origem: 'Importação Manual',
-        created_at: now,
-        updated_at: now,
-      });
-
-    if (insertErr) {
-      errors.push(`Linha ${i + 1} (${empresa}): ${insertErr.message}`);
-    } else {
-      imported++;
     }
   }
 
-  return NextResponse.json({ imported, skipped, total: rawLeads.length, errors });
+  // Audit log
+  await db.from('audit_logs').insert({
+    user_id: user.id,
+    action: 'IMPORT_LEADS',
+    details: { created, updated, skipped, errors, importId },
+    created_at: now,
+  }).catch(() => null);
+
+  const report: ImportReport = { created, updated, skipped, errors, rows, importId };
+  return NextResponse.json(report);
 }
