@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -24,8 +24,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { WebhookKeysPanel } from '@/components/settings/WebhookKeysPanel';
 import { ImportHistoryPanel } from '@/components/settings/ImportHistoryPanel';
 
-export default function SettingsPage() {
-  const { user } = useAuth();
+function IntegrationsTabScroller() {
   const searchParams = useSearchParams();
   useEffect(() => {
     if (searchParams.get('tab') === 'integrations') {
@@ -34,6 +33,11 @@ export default function SettingsPage() {
       }, 300);
     }
   }, [searchParams]);
+  return null;
+}
+
+export default function SettingsPage() {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingLeads, setIsDeletingLeads] = useState(false);
@@ -448,6 +452,9 @@ export default function SettingsPage() {
 
   return (
     <div className="container max-w-4xl mx-auto py-8 space-y-8">
+      <Suspense fallback={null}>
+        <IntegrationsTabScroller />
+      </Suspense>
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
           <SettingsIcon className="h-8 w-8 text-primary" />
