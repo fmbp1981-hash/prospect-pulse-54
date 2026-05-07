@@ -28,6 +28,10 @@ const NormalizedLeadSchema = z.object({
 
 const RequestSchema = z.object({
   leads: z.array(NormalizedLeadSchema).min(1).max(1000),
+  metadata: z.object({
+    source: z.enum(['webhook', 'google_drive']).default('webhook'),
+    filename: z.string().max(255).optional(),
+  }).optional(),
   options: z.object({
     defaultEstagio: z.string().default('Novo'),
     defaultOrigem: z.string().default('apollo'),
@@ -58,7 +62,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'API key não encontrada ou revogada' }, { status: 401 });
   }
 
-  // Atualizar last_used_at — best effort, não bloqueia
   void (db.from('webhook_keys' as never)
     .update({ last_used_at: new Date().toISOString() })
     .eq('id', keyRecord.id));
@@ -77,7 +80,11 @@ export async function POST(req: NextRequest) {
   const report = await runImport(
     keyRecord.user_id,
     parsed.data.leads as NormalizedLead[],
-    { ...parsed.data.options, defaultOrigem: parsed.data.options?.defaultOrigem ?? 'apollo' }
+    { ...parsed.data.options, defaultOrigem: parsed.data.options?.defaultOrigem ?? 'apollo' },
+    {
+      source: parsed.data.metadata?.source ?? 'webhook',
+      filename: parsed.data.metadata?.filename,
+    }
   );
 
   return NextResponse.json(report);

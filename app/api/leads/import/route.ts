@@ -28,6 +28,7 @@ const NormalizedLeadSchema = z.object({
 
 const RequestSchema = z.object({
   leads: z.array(NormalizedLeadSchema).min(1).max(1000),
+  filename: z.string().max(255).optional(),
   options: z.object({
     defaultEstagio: z.string().default('Novo'),
     defaultOrigem: z.string().default('importação'),
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
   const report = await runImport(
     user.id,
     parsed.data.leads as NormalizedLead[],
-    parsed.data.options
+    parsed.data.options,
+    { source: 'manual', filename: parsed.data.filename }
   );
 
   return NextResponse.json(report);
