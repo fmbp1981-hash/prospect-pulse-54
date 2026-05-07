@@ -11,7 +11,7 @@ export interface MapColumnsResult {
   unmapped: string[];
 }
 
-const FIELD_DESCRIPTIONS: Record<LeadField, string> = {
+export const FIELD_DESCRIPTIONS: Record<LeadField, string> = {
   empresa: 'nome da empresa ou razão social',
   lead: 'nome do contato ou responsável',
   whatsapp: 'número de WhatsApp ou celular',
@@ -61,7 +61,7 @@ export function mapColumnsLocally(columns: string[]): MapColumnsResult {
 
   for (const col of columns) {
     const normalized = col.toLowerCase().trim()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .normalize('NFD').replace(/\p{M}/gu, '')
       .replace(/\s+/g, ' ');
     const field = KNOWN_ALIASES[normalized];
     if (field) {
