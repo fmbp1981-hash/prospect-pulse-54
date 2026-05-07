@@ -58,6 +58,7 @@ export type Database = {
                     id: string
                     instagram: string | null
                     lead: string
+                    linkedin: string | null
                     link_gmn: string | null
                     mensagem_whatsapp: string | null
                     modo_atendimento: string | null
@@ -103,6 +104,7 @@ export type Database = {
                     id: string
                     instagram?: string | null
                     lead: string
+                    linkedin?: string | null
                     link_gmn?: string | null
                     mensagem_whatsapp?: string | null
                     modo_atendimento?: string | null
@@ -148,6 +150,7 @@ export type Database = {
                     id?: string
                     instagram?: string | null
                     lead?: string
+                    linkedin?: string | null
                     link_gmn?: string | null
                     mensagem_whatsapp?: string | null
                     modo_atendimento?: string | null
