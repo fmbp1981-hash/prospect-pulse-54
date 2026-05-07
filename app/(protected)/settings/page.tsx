@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -21,9 +22,18 @@ import { historyService } from "@/lib/history";
 import { leadAutomation, type FollowUpConfig } from "@/lib/leadAutomation";
 import { useAuth } from "@/contexts/AuthContext";
 import { WebhookKeysPanel } from '@/components/settings/WebhookKeysPanel';
+import { ImportHistoryPanel } from '@/components/settings/ImportHistoryPanel';
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('tab') === 'integrations') {
+      setTimeout(() => {
+        document.getElementById('import-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 300);
+    }
+  }, [searchParams]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingLeads, setIsDeletingLeads] = useState(false);
@@ -1292,6 +1302,11 @@ export default function SettingsPage() {
       {/* Integrações - Webhook Keys */}
       <div className="mt-8 border rounded-lg p-6">
         <WebhookKeysPanel />
+      </div>
+
+      {/* Integrações - Histórico de Importações */}
+      <div className="mt-6 border rounded-lg p-6">
+        <ImportHistoryPanel />
       </div>
     </div>
   );
