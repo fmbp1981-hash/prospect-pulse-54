@@ -82,6 +82,7 @@ export interface Lead {
   email?: string;
   website?: string;
   instagram?: string;
+  linkedin?: string | null;
   cidade?: string;
   endereco?: string;
   bairro?: string; // Novo campo mapeado diretamente

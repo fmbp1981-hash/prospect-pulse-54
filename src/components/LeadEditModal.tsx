@@ -60,11 +60,15 @@ const leadEditSchema = z.object({
   email: z.string().email("Email inválido").optional().or(z.literal("")),
   website: z.string().url("URL inválida").optional().or(z.literal("")),
   instagram: z.string().optional(),
+  linkedin: z.string().optional(),
   cidade: z.string().optional(),
   endereco: z.string().optional(),
+  bairro: z.string().optional(),
   categoria: z.string().optional(),
   cnpj: z.string().optional(),
   aceitaCartao: z.string().optional(),
+  telefone: z.string().optional(),
+  resumo_analitico: z.string().optional(),
 });
 
 type LeadEditFormData = z.infer<typeof leadEditSchema>;
@@ -77,6 +81,8 @@ interface LeadEditModalProps {
 }
 
 export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalProps) {
+  const isCreateMode = !lead;
+
   const form = useForm<LeadEditFormData>({
     resolver: zodResolver(leadEditSchema),
     defaultValues: {
@@ -87,38 +93,82 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
       email: lead?.email || "",
       website: lead?.website || "",
       instagram: lead?.instagram || "",
+      linkedin: lead?.linkedin || "",
       cidade: lead?.cidade || "",
       endereco: lead?.endereco || "",
+      bairro: lead?.bairro || "",
       categoria: lead?.categoria || "",
       cnpj: lead?.cnpj || "",
       aceitaCartao: lead?.aceitaCartao || "",
+      telefone: lead?.telefone || "",
+      resumo_analitico: lead?.resumoAnalitico || "",
     },
   });
 
   // Reset form when lead changes - properly wrapped in useEffect to avoid infinite loop
   useEffect(() => {
-    if (lead && open) {
+    if (open) {
       form.reset({
-        empresa: lead.empresa || "",
-        status: lead.status || "Novo Lead",
-        contato: lead.contato || "",
-        whatsapp: lead.whatsapp || "",
-        email: lead.email || "",
-        website: lead.website || "",
-        instagram: lead.instagram || "",
-        cidade: lead.cidade || "",
-        endereco: lead.endereco || "",
-        categoria: lead.categoria || "",
-        cnpj: lead.cnpj || "",
-        aceitaCartao: lead.aceitaCartao || "",
+        empresa: lead?.empresa || "",
+        status: lead?.status || "Novo Lead",
+        contato: lead?.contato || "",
+        whatsapp: lead?.whatsapp || "",
+        email: lead?.email || "",
+        website: lead?.website || "",
+        instagram: lead?.instagram || "",
+        linkedin: lead?.linkedin || "",
+        cidade: lead?.cidade || "",
+        endereco: lead?.endereco || "",
+        bairro: lead?.bairro || "",
+        categoria: lead?.categoria || "",
+        cnpj: lead?.cnpj || "",
+        aceitaCartao: lead?.aceitaCartao || "",
+        telefone: lead?.telefone || "",
+        resumo_analitico: lead?.resumoAnalitico || "",
       });
     }
   }, [lead?.id, open, form]);
 
   const onSubmit = async (data: LeadEditFormData) => {
-    if (!lead) return;
-
     try {
+      if (isCreateMode) {
+        const res = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            empresa: data.empresa,
+            whatsapp: data.whatsapp,
+            lead: data.contato,
+            telefone: data.telefone,
+            email: data.email,
+            website: data.website,
+            instagram: data.instagram,
+            linkedin: data.linkedin,
+            cidade: data.cidade,
+            bairro: data.bairro,
+            categoria: data.categoria,
+            cnpj: data.cnpj,
+            resumo_analitico: data.resumo_analitico,
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          if (res.status === 409) {
+            toast.warning('WhatsApp já cadastrado', { description: 'Já existe um lead com esse número.' });
+          } else {
+            toast.error('Erro ao criar lead', { description: err.error });
+          }
+          return;
+        }
+        toast.success('Lead criado com sucesso!');
+        form.reset();
+        onSuccess?.();
+        onClose();
+        return;
+      }
+
+      if (!lead) return;
+
       // Mapear campos do formulário para os campos do banco de dados
       const updateData = {
         empresa: data.empresa,
@@ -128,11 +178,15 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
         email: data.email || null,
         website: data.website || null,
         instagram: data.instagram || null,
+        linkedin: data.linkedin || null,
         cidade: data.cidade || null,
         endereco: data.endereco || null,
+        bairro: data.bairro || null,
         categoria: data.categoria || null,
         cnpj: data.cnpj || null,
         aceita_cartao: data.aceitaCartao || null,
+        telefone: data.telefone || null,
+        resumo_analitico: data.resumo_analitico || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -155,14 +209,12 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
         onSuccess();
       }
     } catch (error) {
-      console.error("Erro ao atualizar lead:", error);
-      toast.error("Erro ao atualizar lead", {
+      console.error("Erro ao salvar lead:", error);
+      toast.error("Erro ao salvar lead", {
         description: error instanceof Error ? error.message : "Erro desconhecido",
       });
     }
   };
-
-  if (!lead) return null;
 
   // Novo Pipeline: 7 Estágios principais
   const statuses: LeadStatus[] = [
@@ -179,9 +231,9 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Lead - {lead.lead}</DialogTitle>
+          <DialogTitle>{isCreateMode ? 'Novo Lead' : `Editar Lead - ${lead?.lead}`}</DialogTitle>
           <DialogDescription>
-            Atualize as informações do lead {lead.empresa}
+            {isCreateMode ? 'Preencha as informações do novo lead' : `Atualize as informações do lead ${lead?.empresa}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -294,7 +346,7 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
               />
             </div>
 
-            {/* Instagram e Categoria */}
+            {/* Instagram e LinkedIn */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -312,6 +364,23 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
 
               <FormField
                 control={form.control}
+                name="linkedin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>LinkedIn</FormLabel>
+                    <FormControl>
+                      <Input placeholder="linkedin.com/company/empresa" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Categoria e Telefone Fixo */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
                 name="categoria"
                 render={({ field }) => (
                   <FormItem>
@@ -323,9 +392,23 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="telefone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telefone Fixo</FormLabel>
+                    <FormControl>
+                      <Input placeholder="(11) 3333-4444" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            {/* Cidade e Endereço */}
+            {/* Cidade e Bairro */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -341,6 +424,23 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="bairro"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bairro</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Centro" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* CNPJ */}
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="cnpj"
@@ -366,6 +466,26 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
                   <FormControl>
                     <Textarea
                       placeholder="Rua, número, bairro, cidade - estado"
+                      className="resize-none"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Observações */}
+            <FormField
+              control={form.control}
+              name="resumo_analitico"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Observações</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Informações adicionais sobre o lead..."
+                      rows={3}
                       className="resize-none"
                       {...field}
                     />
@@ -422,7 +542,7 @@ export function LeadEditModal({ lead, open, onClose, onSuccess }: LeadEditModalP
                     Salvando...
                   </>
                 ) : (
-                  "Salvar Alterações"
+                  isCreateMode ? "Criar Lead" : "Salvar Alterações"
                 )}
               </Button>
             </DialogFooter>
