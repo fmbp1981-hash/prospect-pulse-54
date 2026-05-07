@@ -10,7 +10,7 @@ export async function updateSession(request: NextRequest) {
   // Rotas públicas (não requerem autenticação)
   const publicRoutes = ['/login', '/signup', '/forgot-password'];
   // Rotas de API que recebem webhooks externos (Evolution API, cron jobs) — sempre públicas
-  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/'];
+  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/', '/api/leads/import/webhook'];
   const isPublicApiRoute = publicApiPrefixes.some(prefix => pathname.startsWith(prefix));
   const isPublicRoute = isPublicApiRoute || publicRoutes.some(route => pathname.startsWith(route));
   // Rota de pending — usuário autenticado mas aguardando aprovação
