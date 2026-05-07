@@ -20,6 +20,7 @@ import { supabaseCRM, syncAllLeads } from "@/lib/supabaseCRM";
 import { historyService } from "@/lib/history";
 import { leadAutomation, type FollowUpConfig } from "@/lib/leadAutomation";
 import { useAuth } from "@/contexts/AuthContext";
+import { WebhookKeysPanel } from '@/components/settings/WebhookKeysPanel';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -1287,6 +1288,11 @@ export default function SettingsPage() {
       <RoleGuard allowedRoles={['admin']}>
         <RoleManagement />
       </RoleGuard>
+
+      {/* Integrações - Webhook Keys */}
+      <div className="mt-8 border rounded-lg p-6">
+        <WebhookKeysPanel />
+      </div>
     </div>
   );
 }
