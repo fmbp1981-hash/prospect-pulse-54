@@ -168,7 +168,7 @@ export function WebhookKeysPanel() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>API Key Gerada — "{newKeyResult?.name}"</DialogTitle>
+            <DialogTitle>API Key Gerada — &quot;{newKeyResult?.name}&quot;</DialogTitle>
             <DialogDescription>
               Copie esta chave agora. Ela não será exibida novamente.
             </DialogDescription>
