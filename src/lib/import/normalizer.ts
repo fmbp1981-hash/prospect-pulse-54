@@ -127,8 +127,13 @@ export function normalizeLeadRow(raw: RawMappedLead): NormalizedLead {
   const cnpj = normalizeCnpj(raw.cnpj ?? '');
   if (cnpj.error && raw.cnpj) warnings.cnpj = cnpj.error;
 
+  const empresaNormalized = normalizeText(raw.empresa ?? '');
+  if (!empresaNormalized) {
+    errors.empresa = 'Nome da empresa é obrigatório';
+  }
+
   return {
-    empresa: normalizeText(raw.empresa ?? ''),
+    empresa: empresaNormalized,
     contato: raw.contato ? normalizeText(raw.contato) : null,
     whatsapp: phone.value,
     telefone: tel.value,

@@ -245,7 +245,9 @@ export function ImportLeadsModal({ isOpen, onClose, onImported }: ImportLeadsMod
   const handleImport = async () => {
     setIsImporting(true);
     try {
-      const resolved = mergedLeads.map(ml => {
+      const resolved = mergedLeads.filter(
+        ml => Object.keys(ml.normalized.errors).length === 0 && ml.conflicts.every(c => c.resolution)
+      ).map(ml => {
         const lead = { ...ml.normalized };
         for (const conflict of ml.conflicts) {
           if (conflict.resolution === 'a') {
