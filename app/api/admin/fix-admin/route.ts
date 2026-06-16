@@ -23,12 +23,13 @@ export async function GET() {
     });
 
     // Buscar o usuário admin
-    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
+    const { data: listData, error: listError } = await supabase.auth.admin.listUsers();
     if (listError) {
       return NextResponse.json({ error: listError.message }, { status: 500 });
     }
 
-    const adminUser = users.find(u => u.email === ADMIN_EMAIL);
+    const users = listData?.users ?? [];
+    const adminUser = users.find((u: { email?: string | null }) => u.email === ADMIN_EMAIL);
     if (!adminUser) {
       return NextResponse.json({ error: `Usuário ${ADMIN_EMAIL} não encontrado no Auth` }, { status: 404 });
     }
