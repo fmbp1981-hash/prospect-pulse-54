@@ -152,7 +152,9 @@ export async function updateSession(request: NextRequest) {
       .eq('user_id', user.id)
       .single();
 
-    if (!settings?.pending_setup) {
+    // Só redireciona para home se settings existe E pending_setup é false (aprovado)
+    // Se settings não existe, mantém em /pending para evitar loop com a verificação acima
+    if (settings && settings.pending_setup === false) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       const redirectResponse = NextResponse.redirect(url);
