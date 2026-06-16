@@ -286,6 +286,60 @@ export function ImportLeadsModal({ isOpen, onClose, onImported }: ImportLeadsMod
     }
   };
 
+  const downloadTemplate = () => {
+    const headers = [
+      'empresa', 'contato', 'whatsapp', 'telefone', 'email',
+      'cidade', 'bairro', 'categoria', 'cnpj', 'website', 'instagram', 'linkedin', 'resumo_analitico',
+    ];
+
+    const descriptions = [
+      'Nome da empresa (OBRIGATÓRIO)',
+      'Nome do responsável/contato',
+      'WhatsApp com DDI+DDD (ex: 5511999999999)',
+      'Telefone fixo com DDI+DDD (ex: 551133334444)',
+      'E-mail de contato',
+      'Cidade',
+      'Bairro ou região',
+      'Nicho, segmento ou categoria',
+      'CNPJ (apenas números)',
+      'Site da empresa (ex: https://empresa.com.br)',
+      'Instagram (ex: @empresa ou https://instagram.com/empresa)',
+      'LinkedIn (URL do perfil)',
+      'Observações ou resumo analítico',
+    ];
+
+    const example = [
+      'Pizzaria do João',
+      'João da Silva',
+      '5511999990001',
+      '551133330001',
+      'contato@pizzariadojoao.com.br',
+      'São Paulo',
+      'Moema',
+      'Alimentação',
+      '12345678000190',
+      'https://pizzariadojoao.com.br',
+      '@pizzariadojoao',
+      'https://linkedin.com/company/pizzariadojoao',
+      'Pizzaria premium no bairro Moema, atende delivery e salão',
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, descriptions, example]);
+
+    // Largura das colunas
+    ws['!cols'] = headers.map((h) => ({
+      wch: Math.max(h.length + 4, descriptions[headers.indexOf(h)].length / 2),
+    }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Modelo de Importação');
+    XLSX.writeFile(wb, 'modelo-importacao-leadfinder.xlsx');
+
+    toast.success('Modelo baixado!', {
+      description: 'Preencha a partir da linha 3. As linhas 1 e 2 podem ser apagadas após leitura.',
+    });
+  };
+
   const downloadReport = () => {
     if (!report) return;
     const csv = generateReportCSV(report);
@@ -333,6 +387,20 @@ export function ImportLeadsModal({ isOpen, onClose, onImported }: ImportLeadsMod
         {/* ── Etapa 1: Upload ── */}
         {step === 1 && (
           <div className="space-y-4">
+            {/* Botão de modelo */}
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">Precisa de uma planilha modelo?</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Baixe o modelo com todas as colunas e um exemplo preenchido.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-2 shrink-0">
+                <Download className="h-4 w-4" />
+                Baixar Modelo
+              </Button>
+            </div>
+
             <div
               className={`border-2 border-dashed rounded-xl p-10 text-center transition-colors cursor-pointer
                 ${isDragging ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/60'}
