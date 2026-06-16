@@ -6,8 +6,10 @@
 import type {
   IWhatsAppProvider,
   SendTextResult,
+  SendMediaResult,
   SendSequenceResult,
   MediaDownloadResult,
+  MediaAttachment,
   NormalizedWebhookPayload,
 } from '../whatsapp-provider.interface';
 import { evolutionCircuit, withRetry } from '@/lib/utils/resilience';
@@ -41,6 +43,39 @@ export class EvolutionProvider implements IWhatsAppProvider {
         if (!response.ok) {
           const err = await response.text();
           throw new Error(`Evolution sendText failed: ${response.status} ${err}`);
+        }
+
+        const data = (await response.json()) as { key?: { id?: string } };
+        return { success: true, messageId: data.key?.id };
+      }, { maxAttempts: 2, initialDelayMs: 1000 })
+    ).catch((err: Error) => ({ success: false, error: err.message }));
+  }
+
+  async sendMedia(instance: string, to: string, media: MediaAttachment): Promise<SendMediaResult> {
+    const { url, key } = getEvolutionConfig();
+
+    if (!media.url && !media.base64) {
+      return { success: false, error: 'URL ou base64 são obrigatórios para envio de mídia' };
+    }
+
+    return evolutionCircuit.call(() =>
+      withRetry(async () => {
+        const response = await fetch(`${url}/message/sendMedia/${instance}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', apikey: key },
+          body: JSON.stringify({
+            number: normalizeNumber(to),
+            mediatype: media.type,
+            mimetype: media.mimetype || 'image/jpeg',
+            caption: media.caption || '',
+            media: media.base64 || media.url,
+            fileName: media.fileName || `file.${(media.mimetype || 'image/jpeg').split('/')[1] || 'jpg'}`,
+          }),
+        });
+
+        if (!response.ok) {
+          const err = await response.text();
+          throw new Error(`Evolution sendMedia failed: ${response.status} ${err}`);
         }
 
         const data = (await response.json()) as { key?: { id?: string } };

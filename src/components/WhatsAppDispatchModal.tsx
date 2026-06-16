@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, ImagePlus, Link, X, FileImage } from "lucide-react";
 import { Lead } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
 import { auditWhatsAppDispatch } from "@/lib/audit";
 import { leadAutomation } from "@/lib/leadAutomation";
 import { toast } from "sonner";
+
+type MediaMode = 'none' | 'upload' | 'url';
 
 interface DispatchStatus {
   leadId: string;
@@ -38,6 +40,54 @@ export const WhatsAppDispatchModal = ({
   const [testPhoneNumber, setTestPhoneNumber] = useState("");
   const [editedMessage, setEditedMessage] = useState("");
   const [isEditing, setIsEditing] = useState(false);
+
+  // Mídia
+  const [mediaMode, setMediaMode] = useState<MediaMode>('none');
+  const [mediaPreview, setMediaPreview] = useState<string>('');
+  const [mediaBase64, setMediaBase64] = useState<string>('');
+  const [mediaMimetype, setMediaMimetype] = useState<string>('');
+  const [mediaFileName, setMediaFileName] = useState<string>('');
+  const [mediaUrl, setMediaUrl] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const hasMedia = mediaMode === 'upload' ? !!mediaBase64 : mediaMode === 'url' ? !!mediaUrl.trim() : false;
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Formato não suportado', { description: 'Use JPG, PNG, WebP ou GIF.' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Arquivo muito grande', { description: 'Tamanho máximo: 5 MB.' });
+      return;
+    }
+
+    setMediaFileName(file.name);
+    setMediaMimetype(file.type);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      setMediaPreview(result);
+      // Remove o prefixo "data:image/...;base64,"
+      setMediaBase64(result.split(',')[1] || '');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearMedia = () => {
+    setMediaMode('none');
+    setMediaPreview('');
+    setMediaBase64('');
+    setMediaMimetype('');
+    setMediaFileName('');
+    setMediaUrl('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   const validLeads = useMemo(() => selectedLeads.filter(lead =>
     lead.whatsapp &&
@@ -110,6 +160,8 @@ export const WhatsAppDispatchModal = ({
         body: JSON.stringify({
           whatsapp: testPhoneNumber,
           message: messageToSend,
+          ...(mediaMode === 'upload' && mediaBase64 ? { mediaBase64, mediaMimetype, mediaFileName, mediaType: 'image' } : {}),
+          ...(mediaMode === 'url' && mediaUrl ? { mediaUrl, mediaType: 'image' } : {}),
         }),
       });
 
@@ -183,6 +235,8 @@ export const WhatsAppDispatchModal = ({
           body: JSON.stringify({
             whatsapp: lead.whatsapp,
             message: messageToSend,
+            ...(mediaMode === 'upload' && mediaBase64 ? { mediaBase64, mediaMimetype, mediaFileName, mediaType: 'image' } : {}),
+            ...(mediaMode === 'url' && mediaUrl ? { mediaUrl, mediaType: 'image' } : {}),
           }),
         });
 
@@ -334,6 +388,106 @@ export const WhatsAppDispatchModal = ({
               </div>
             </div>
 
+            {/* Seção de mídia */}
+            {!isDispatching && !isComplete && (
+              <div className="border rounded-lg p-3 space-y-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium flex items-center gap-2">
+                    <FileImage className="h-4 w-4 text-muted-foreground" />
+                    Anexar imagem (opcional)
+                  </span>
+                  {mediaMode !== 'none' && (
+                    <button onClick={clearMedia} className="text-muted-foreground hover:text-destructive">
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                {mediaMode === 'none' && (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-2"
+                      onClick={() => { setMediaMode('upload'); setTimeout(() => fileInputRef.current?.click(), 50); }}
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                      Upload de arquivo
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 gap-2"
+                      onClick={() => setMediaMode('url')}
+                    >
+                      <Link className="h-4 w-4" />
+                      Inserir URL
+                    </Button>
+                  </div>
+                )}
+
+                {/* Upload de arquivo */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+
+                {mediaMode === 'upload' && !mediaBase64 && (
+                  <div
+                    className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <ImagePlus className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">Clique para selecionar uma imagem</p>
+                    <p className="text-xs text-muted-foreground mt-1">JPG, PNG, WebP ou GIF • máx. 5 MB</p>
+                  </div>
+                )}
+
+                {mediaMode === 'upload' && mediaBase64 && (
+                  <div className="relative rounded-lg overflow-hidden border bg-background">
+                    <img src={mediaPreview} alt="Preview" className="w-full max-h-40 object-contain" />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
+                      <p className="text-xs text-white truncate">{mediaFileName}</p>
+                    </div>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute top-2 right-2 bg-background/80 rounded-full p-1 hover:bg-background"
+                    >
+                      <ImagePlus className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+
+                {mediaMode === 'url' && (
+                  <div className="space-y-2">
+                    <input
+                      type="url"
+                      placeholder="https://exemplo.com/imagem.jpg"
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      value={mediaUrl}
+                      onChange={(e) => setMediaUrl(e.target.value)}
+                    />
+                    {mediaUrl && (
+                      <div className="rounded-lg overflow-hidden border bg-background">
+                        <img
+                          src={mediaUrl}
+                          alt="Preview URL"
+                          className="w-full max-h-40 object-contain"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      A URL deve ser pública e acessível. A imagem será enviada antes da mensagem de texto.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Lista de status ou Editor Único */}
             <div className="space-y-2 overflow-y-auto flex-1 pr-2">
               {isEditing && validLeads.length === 1 && !isDispatching && !isComplete ? (
@@ -464,8 +618,18 @@ export const WhatsAppDispatchModal = ({
                 </div>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-xs font-medium text-blue-900 mb-2">Preview da Mensagem:</p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
+                <p className="text-xs font-medium text-blue-900">Preview da Mensagem:</p>
+                {hasMedia && (
+                  <div className="rounded overflow-hidden border border-blue-200 bg-white">
+                    <img
+                      src={mediaMode === 'upload' ? mediaPreview : mediaUrl}
+                      alt="Mídia anexada"
+                      className="w-full max-h-32 object-contain"
+                    />
+                    <p className="text-xs text-blue-600 px-2 py-1">📎 Imagem anexada</p>
+                  </div>
+                )}
                 <p className="text-xs text-blue-800 whitespace-pre-wrap max-h-32 overflow-y-auto">
                   {(isEditing && editedMessage) ? editedMessage : validLeads[0].mensagemWhatsApp}
                 </p>

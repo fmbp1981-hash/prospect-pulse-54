@@ -17,8 +17,10 @@
 import type {
   IWhatsAppProvider,
   SendTextResult,
+  SendMediaResult,
   SendSequenceResult,
   MediaDownloadResult,
+  MediaAttachment,
   NormalizedWebhookPayload,
 } from '../whatsapp-provider.interface';
 import { metaCircuit, withRetry } from '@/lib/utils/resilience';
@@ -83,6 +85,56 @@ export class MetaCloudProvider implements IWhatsAppProvider {
           error?: { message: string };
         };
 
+        if (data.error) throw new Error(data.error.message);
+
+        return { success: true, messageId: data.messages?.[0]?.id };
+      }, { maxAttempts: 2, initialDelayMs: 1000 })
+    ).catch((err: Error) => ({ success: false, error: err.message }));
+  }
+
+  async sendMedia(
+    _instanceOrPhoneId: string,
+    to: string,
+    media: MediaAttachment
+  ): Promise<SendMediaResult> {
+    const { token, phoneNumberId } = getMetaConfig();
+
+    if (!media.url) {
+      return { success: false, error: 'Meta Cloud API requer URL pública para envio de mídia. Faça upload da imagem em um servidor público primeiro.' };
+    }
+
+    return metaCircuit.call(() =>
+      withRetry(async () => {
+        const response = await fetch(
+          metaApiUrl(`/${phoneNumberId}/messages`),
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: normalizePhoneForMeta(to),
+              type: media.type,
+              [media.type]: {
+                link: media.url,
+                ...(media.caption ? { caption: media.caption } : {}),
+              },
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const err = await response.text();
+          throw new Error(`Meta sendMedia failed: ${response.status} ${err}`);
+        }
+
+        const data = (await response.json()) as {
+          messages?: Array<{ id: string }>;
+          error?: { message: string };
+        };
         if (data.error) throw new Error(data.error.message);
 
         return { success: true, messageId: data.messages?.[0]?.id };

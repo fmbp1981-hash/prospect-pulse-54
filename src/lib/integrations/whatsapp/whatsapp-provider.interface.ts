@@ -9,6 +9,12 @@ export interface SendTextResult {
   error?: string;
 }
 
+export interface SendMediaResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
 export interface SendSequenceResult {
   sent: number;
   failed: number;
@@ -21,6 +27,18 @@ export interface MediaDownloadResult {
   base64: string;
 }
 
+export interface MediaAttachment {
+  type: 'image' | 'document' | 'video';
+  /** URL pública acessível (necessário para Meta Cloud API) */
+  url?: string;
+  /** Conteúdo em base64 sem prefixo data: (aceito pela Evolution API) */
+  base64?: string;
+  mimetype?: string;
+  fileName?: string;
+  /** Legenda exibida abaixo da imagem/vídeo */
+  caption?: string;
+}
+
 export interface IWhatsAppProvider {
   readonly name: string;
 
@@ -28,6 +46,13 @@ export interface IWhatsAppProvider {
    * Envia uma mensagem de texto para um número.
    */
   sendText(instanceOrPhoneId: string, to: string, text: string): Promise<SendTextResult>;
+
+  /**
+   * Envia uma mídia (imagem, vídeo, documento) opcionalmente com legenda.
+   * - Evolution API: aceita base64 ou URL
+   * - Meta Cloud API: requer URL pública
+   */
+  sendMedia(instanceOrPhoneId: string, to: string, media: MediaAttachment): Promise<SendMediaResult>;
 
   /**
    * Envia múltiplas mensagens em sequência com delay entre elas.

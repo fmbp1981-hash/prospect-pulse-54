@@ -25,15 +25,31 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Body
-  const body = await req.json() as { whatsapp?: string; message?: string };
-  const { whatsapp, message } = body;
+  const body = await req.json() as {
+    whatsapp?: string;
+    message?: string;
+    mediaUrl?: string;
+    mediaBase64?: string;
+    mediaType?: 'image' | 'document' | 'video';
+    mediaMimetype?: string;
+    mediaFileName?: string;
+  };
+  const { whatsapp, message, mediaUrl, mediaBase64, mediaType, mediaMimetype, mediaFileName } = body;
 
-  if (!whatsapp?.trim() || !message?.trim()) {
+  if (!whatsapp?.trim()) {
     return NextResponse.json(
-      { success: false, error: 'whatsapp e message são obrigatórios' },
+      { success: false, error: 'whatsapp é obrigatório' },
       { status: 400 }
     );
   }
+  if (!message?.trim() && !mediaUrl && !mediaBase64) {
+    return NextResponse.json(
+      { success: false, error: 'message ou mídia são obrigatórios' },
+      { status: 400 }
+    );
+  }
+
+  const hasMedia = !!(mediaUrl || mediaBase64);
 
   // Normaliza: apenas dígitos
   const phone = whatsapp.replace(/\D/g, '');
@@ -61,27 +77,42 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
-      const res = await fetch(
-        `https://graph.facebook.com/${version}/${phoneNumberId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            recipient_type: 'individual',
-            to: phone,
-            type: 'text',
-            text: { preview_url: false, body: message },
-          }),
+      if (hasMedia) {
+        if (!mediaUrl) {
+          return NextResponse.json({ success: false, error: 'Meta Cloud API requer URL pública para envio de mídia.' }, { status: 400 });
         }
-      );
-
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Meta API ${res.status}: ${err}`);
+        const type = mediaType || 'image';
+        const res = await fetch(
+          `https://graph.facebook.com/${version}/${phoneNumberId}/messages`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: phone,
+              type,
+              [type]: { link: mediaUrl, ...(message ? { caption: message } : {}) },
+            }),
+          }
+        );
+        if (!res.ok) { const err = await res.text(); throw new Error(`Meta API ${res.status}: ${err}`); }
+      } else {
+        const res = await fetch(
+          `https://graph.facebook.com/${version}/${phoneNumberId}/messages`,
+          {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: phone,
+              type: 'text',
+              text: { preview_url: false, body: message },
+            }),
+          }
+        );
+        if (!res.ok) { const err = await res.text(); throw new Error(`Meta API ${res.status}: ${err}`); }
       }
     } else {
       // ── Evolution API (padrão) ─────────────────────────────────────────────
@@ -96,18 +127,30 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
-      const res = await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
-        method: 'POST',
-        headers: {
-          apikey: apiKey,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ number: phone, text: message }),
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Evolution API ${res.status}: ${err}`);
+      if (hasMedia) {
+        const type = mediaType || 'image';
+        const mime = mediaMimetype || 'image/jpeg';
+        const ext = mime.split('/')[1] || 'jpg';
+        const res = await fetch(`${apiUrl}/message/sendMedia/${instanceName}`, {
+          method: 'POST',
+          headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: phone,
+            mediatype: type,
+            mimetype: mime,
+            caption: message || '',
+            media: mediaBase64 || mediaUrl,
+            fileName: mediaFileName || `imagem.${ext}`,
+          }),
+        });
+        if (!res.ok) { const err = await res.text(); throw new Error(`Evolution API ${res.status}: ${err}`); }
+      } else {
+        const res = await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
+          method: 'POST',
+          headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ number: phone, text: message }),
+        });
+        if (!res.ok) { const err = await res.text(); throw new Error(`Evolution API ${res.status}: ${err}`); }
       }
     }
 
