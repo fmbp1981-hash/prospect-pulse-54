@@ -9,11 +9,12 @@ import { useUserRole } from '@/hooks/useUserRole';
 
 export default function PendingPage() {
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading: authLoading } = useAuth();
   const { isPending, isLoading, isAdmin, refetch } = useUserRole();
 
   // Admin nunca deve ficar em /pending
   const isAdminEmail = user?.email === 'fmbp1981@gmail.com';
+  const shouldRedirect = isAdminEmail || isAdmin || (!isLoading && !isPending);
 
   // Verificar aprovação a cada 30s
   useEffect(() => {
@@ -25,15 +26,24 @@ export default function PendingPage() {
 
   // Redirecionar automaticamente quando aprovado ou se admin
   useEffect(() => {
-    if (isAdminEmail || isAdmin || (!isLoading && !isPending)) {
-      router.push('/');
+    if (!authLoading && shouldRedirect) {
+      router.replace('/');
     }
-  }, [isPending, isLoading, router, isAdminEmail, isAdmin]);
+  }, [authLoading, shouldRedirect, router]);
 
   const handleLogout = async () => {
     await signOut();
     router.push('/login');
   };
+
+  // Não renderizar conteúdo enquanto auth carrega ou redirect está pendente
+  if (authLoading || isLoading || shouldRedirect) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
