@@ -204,6 +204,7 @@ export async function executeAIAgent(
     whatsapp: input.lead.whatsapp ?? '',
     instanceName: input.instanceName,
     userId: input.lead.user_id ?? '',
+    tenantId: (input.lead as Record<string, unknown>).tenant_id as string ?? null,
   };
 
   const messages: OpenAIMessage[] = [

@@ -8,12 +8,17 @@
  */
 
 export type FollowUpScenario =
-  | 'low_revenue'          // Faturamento < R$50k/mês
-  | 'no_response_short'    // Parou de responder (curto prazo — coberto pelo job de curto prazo)
-  | 'no_response_long'     // Sem resposta por >3 dias (longo prazo)
-  | 'qualified_not_closed' // Qualificado mas não fechou
-  | 'transferred_no_close' // Transferido mas consultor não fechou
-  | 'seasonal_reactivation'// Reativação sazonal (todos os leads frios)
+  | 'low_revenue'               // Faturamento < R$50k/mês (XPAG)
+  | 'no_response_short'         // Parou de responder (curto prazo — coberto pelo job de curto prazo)
+  | 'no_response_long'          // Sem resposta por >3 dias (longo prazo)
+  | 'qualified_not_closed'      // Qualificado mas não fechou
+  | 'transferred_no_close'      // Transferido mas consultor não fechou
+  | 'seasonal_reactivation'     // Reativação sazonal (todos os leads frios)
+  // IntelliX — Campanha Encontro & Relacionamento
+  | 'no_response_initial'       // 3 dias sem resposta ao template (IntelliX)
+  | 'no_response_followup'      // 7 dias sem resposta (IntelliX)
+  | 'goodbye'                   // 14 dias sem resposta — despedida (IntelliX)
+  | 'qualified_not_scheduled'   // Qualificado que não marcou em 2 dias (IntelliX)
 
 export interface FollowUpStep {
   stepNumber: number;
@@ -150,15 +155,65 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
   },
 
   // ── Reativação sazonal ────────────────────────────────────────────────────
-  // Todos os leads inativos recebem uma mensagem leve em datas estratégicas
   seasonal_reactivation: {
     scenario: 'seasonal_reactivation',
     label: 'Reativação sazonal',
     steps: [
       {
         stepNumber: 1,
-        daysAfterLastContact: 180, // A cada 6 meses
+        daysAfterLastContact: 180,
         message: `Oi! Tudo bem? Passando para desejar um ótimo segundo semestre para o seu negócio! 🚀 Se tiver pensando em formas de otimizar os custos com pagamentos, pode contar com a gente. Qualquer coisa, é só chamar!`,
+      },
+    ],
+  },
+
+  // ── IntelliX — Campanha Encontro & Relacionamento ─────────────────────────
+  no_response_initial: {
+    scenario: 'no_response_initial',
+    label: 'Sem resposta inicial (IntelliX)',
+    steps: [
+      {
+        stepNumber: 1,
+        daysAfterLastContact: 3,
+        message: `{{1}}, complementando o que mandei: empresas do mesmo setor que a {{2}} reduziram bastante o tempo gasto com atendimento repetitivo no WhatsApp com o que a gente faz. Vale 15 minutos de conversa para ver se faz sentido para vocês?`,
+      },
+    ],
+  },
+
+  no_response_followup: {
+    scenario: 'no_response_followup',
+    label: 'Sem resposta follow-up (IntelliX)',
+    steps: [
+      {
+        stepNumber: 1,
+        daysAfterLastContact: 7,
+        message: `{{1}}, última tentativa. Qual processo na {{2}} mais toma tempo da equipe hoje: atendimento, cobrança, relatório ou prospecção? Me diz e eu te mando um resumo específico. Se não for o momento, responda "não agora".`,
+      },
+    ],
+  },
+
+  goodbye: {
+    scenario: 'goodbye',
+    label: 'Despedida (IntelliX)',
+    steps: [
+      {
+        stepNumber: 1,
+        daysAfterLastContact: 14,
+        message: `{{1}}, sem problema se não for a hora. Fico por aqui. Quando a {{2}} quiser entender como a IA pode ajudar de verdade, sem promessa exagerada, é só me chamar. Abraço, Felipe — IntelliX.AI.`,
+        updateStatus: 'Inativo',
+        isFinal: true,
+      },
+    ],
+  },
+
+  qualified_not_scheduled: {
+    scenario: 'qualified_not_scheduled',
+    label: 'Qualificado sem agendamento (IntelliX)',
+    steps: [
+      {
+        stepNumber: 1,
+        daysAfterLastContact: 2,
+        message: `{{1}}, só confirmando: o Felipe separou uma agenda especial para quem veio do Encontro do Dirceu. São 20 minutos, direto ao ponto. Você prefere essa semana ou na próxima?`,
       },
     ],
   },
@@ -166,16 +221,40 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
 
 /**
  * Determina o cenário de follow-up para um lead baseado em seu status atual.
+ * Para tenant 'intellix', mapeia para os cenários da campanha Encontro & Relacionamento.
  */
 export function detectFollowUpScenario(lead: {
   status_msg_wa: string | null;
   estagio_pipeline: string | null;
   data_ultima_interacao: string | null;
   follow_up_count: number | null;
+  tenant_id?: string | null;
 }): FollowUpScenario | null {
   const status = lead.status_msg_wa ?? '';
   const estagio = lead.estagio_pipeline ?? '';
+  const isIntelliX = lead.tenant_id === 'intellix';
 
+  if (isIntelliX) {
+    const lastContact = lead.data_ultima_interacao ? new Date(lead.data_ultima_interacao) : null;
+    const daysSince = lastContact
+      ? (Date.now() - lastContact.getTime()) / (1000 * 60 * 60 * 24)
+      : 999;
+
+    if (status === 'Qualificado' && estagio === 'Qualificação') {
+      return 'qualified_not_scheduled';
+    }
+    if (status === 'Follow-up' || status === 'Sem Resposta' || estagio === 'Contato Inicial') {
+      if (daysSince >= 14) return 'goodbye';
+      if (daysSince >= 7) return 'no_response_followup';
+      if (daysSince >= 3) return 'no_response_initial';
+    }
+    if (status === 'Transferido' || estagio === 'Transferido para Consultor') {
+      return 'transferred_no_close';
+    }
+    return null;
+  }
+
+  // XPAG tenant (original logic)
   if (status === 'Follow-up' && estagio.toLowerCase().includes('faturamento')) {
     return 'low_revenue';
   }

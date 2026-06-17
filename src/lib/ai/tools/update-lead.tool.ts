@@ -52,6 +52,7 @@ export const updateLeadTool: AgentTool = {
       estagio_pipeline: (updates.estagio_pipeline as string) ?? updated.estagio_pipeline,
       data_ultima_interacao: updated.data_ultima_interacao,
       follow_up_count: updated.follow_up_count as number | null,
+      tenant_id: ctx.tenantId ?? null,
     });
 
     if (newScenario && newScenario !== 'no_response_short') {

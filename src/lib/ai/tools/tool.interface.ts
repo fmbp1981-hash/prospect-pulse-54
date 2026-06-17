@@ -14,4 +14,5 @@ export interface ToolExecutionContext {
   whatsapp: string;
   instanceName: string;
   userId: string;
+  tenantId?: string | null;
 }
