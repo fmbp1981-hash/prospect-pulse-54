@@ -3,6 +3,8 @@ export const LEAD_FIELDS = [
   'empresa', 'contato', 'whatsapp', 'telefone', 'email',
   'cidade', 'bairro', 'categoria', 'cnpj', 'website',
   'instagram', 'linkedin', 'resumo_analitico',
+  // Meta-campos: não têm coluna própria no BD — são consolidados em resumo_analitico durante a normalização
+  'prioridade', 'fonte',
 ] as const;
 
 export type LeadField = typeof LEAD_FIELDS[number];

@@ -25,6 +25,8 @@ export const FIELD_DESCRIPTIONS: Record<LeadField, string> = {
   instagram: 'perfil do Instagram',
   linkedin: 'perfil do LinkedIn (empresa ou pessoa)',
   resumo_analitico: 'resumo, observações ou descrição da empresa',
+  prioridade: 'prioridade do lead (ex: Alta, Média, Baixa) — será incluído no resumo analítico',
+  fonte: 'origem do lead (ex: Indicação, LinkedIn, Evento) — será incluído no resumo analítico',
 };
 
 /** Chama a API de mapeamento. Usar no cliente. */
@@ -99,6 +101,13 @@ export function mapColumnsLocally(columns: string[]): MapColumnsResult {
     // Apollo.io: Title (cargo) e SEO Description → resumo analítico
     'title': 'resumo_analitico', 'job title': 'resumo_analitico',
     'seo description': 'resumo_analitico', 'short description': 'resumo_analitico',
+    // Prioridade / ICP (meta-campo: consolidado em resumo_analitico)
+    'prioridade': 'prioridade', 'prioridade icp': 'prioridade',
+    'icp': 'prioridade', 'priority': 'prioridade', 'prioridade (icp)': 'prioridade',
+    'classificacao': 'prioridade', 'classificação': 'prioridade',
+    // Fonte / Origem (meta-campo: consolidado em resumo_analitico)
+    'fonte': 'fonte', 'origem': 'fonte', 'source': 'fonte',
+    'canal': 'fonte', 'canal de origem': 'fonte', 'lead source': 'fonte',
   };
 
   const mappings: ColumnMapping[] = [];

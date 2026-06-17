@@ -289,7 +289,8 @@ export function ImportLeadsModal({ isOpen, onClose, onImported }: ImportLeadsMod
   const downloadTemplate = () => {
     const headers = [
       'empresa', 'contato', 'whatsapp', 'telefone', 'email',
-      'cidade', 'bairro', 'categoria', 'cnpj', 'website', 'instagram', 'linkedin', 'resumo_analitico',
+      'cidade', 'bairro', 'categoria', 'cnpj', 'website', 'instagram', 'linkedin',
+      'resumo_analitico', 'prioridade', 'fonte',
     ];
 
     const descriptions = [
@@ -306,6 +307,8 @@ export function ImportLeadsModal({ isOpen, onClose, onImported }: ImportLeadsMod
       'Instagram (ex: @empresa ou https://instagram.com/empresa)',
       'LinkedIn (URL do perfil)',
       'Observações ou resumo analítico',
+      'Prioridade ICP (ex: Alta, Média, Baixa)',
+      'Origem do lead (ex: Indicação, LinkedIn, Evento)',
     ];
 
     const example = [
@@ -322,6 +325,8 @@ export function ImportLeadsModal({ isOpen, onClose, onImported }: ImportLeadsMod
       '@pizzariadojoao',
       'https://linkedin.com/company/pizzariadojoao',
       'Pizzaria premium no bairro Moema, atende delivery e salão',
+      'Alta',
+      'Indicação',
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([headers, descriptions, example]);

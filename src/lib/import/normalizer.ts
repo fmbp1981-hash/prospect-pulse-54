@@ -145,7 +145,14 @@ export function normalizeLeadRow(raw: RawMappedLead): NormalizedLead {
     website: normalizeWebsite(raw.website ?? ''),
     instagram: normalizeInstagram(raw.instagram ?? ''),
     linkedin: normalizeLinkedin(raw.linkedin ?? ''),
-    resumo_analitico: raw.resumo_analitico?.trim() || null,
+    resumo_analitico: (() => {
+      const parts: string[] = [];
+      if (raw.prioridade?.trim()) parts.push(`ICP: ${raw.prioridade.trim()}`);
+      if (raw.fonte?.trim()) parts.push(`Fonte: ${raw.fonte.trim()}`);
+      const base = raw.resumo_analitico?.trim();
+      if (base) parts.push(base);
+      return parts.length > 0 ? parts.join(' | ') : null;
+    })(),
     warnings,
     errors,
   };
