@@ -8,19 +8,23 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { readFileSync } from 'fs';
-import { join } from 'path';
 import { ingestDocument } from '@/lib/ai/rag/rag.service';
 import { withOpenAIKey } from '@/lib/ai/openai-key-context';
+import {
+  RAG_INST_01_IDENTIDADE_TOM_DE_VOZ as DOC_INST01,
+  RAG_INST_02_PRODUTOS_ICP_PERSONAS as DOC_INST02,
+  RAG_INST_03_OBJECOES_E_FUNIL as DOC_INST03,
+  RAG_LEADS_DOSSIE_INTELLIX as DOC_DOSSIE,
+} from '@/lib/ai/rag/intellix-docs';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 const RAG_DOCS = [
-  { filename: 'RAG_INST_01_Identidade_Tom_de_Voz.md',  mimetype: 'text/markdown' },
-  { filename: 'RAG_INST_02_Produtos_ICP_Personas.md',   mimetype: 'text/markdown' },
-  { filename: 'RAG_INST_03_Objecoes_e_Funil.md',        mimetype: 'text/markdown' },
-  { filename: 'RAG_Leads_Dossie_IntelliX.md',           mimetype: 'text/markdown' },
+  { filename: 'RAG_INST_01_Identidade_Tom_de_Voz.md',  mimetype: 'text/markdown', content: DOC_INST01 },
+  { filename: 'RAG_INST_02_Produtos_ICP_Personas.md',   mimetype: 'text/markdown', content: DOC_INST02 },
+  { filename: 'RAG_INST_03_Objecoes_e_Funil.md',        mimetype: 'text/markdown', content: DOC_INST03 },
+  { filename: 'RAG_Leads_Dossie_IntelliX.md',           mimetype: 'text/markdown', content: DOC_DOSSIE },
 ];
 
 function getServiceClient() {
@@ -130,16 +134,11 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        const content = readFileSync(
-          join(process.cwd(), 'scripts', 'rag-docs', doc.filename),
-          'utf-8'
-        );
-
         const { chunksCreated } = await ingestDocument(
           userId,
           agentConfigId,
           doc.filename,
-          content,
+          doc.content,
           doc.mimetype
         );
 
