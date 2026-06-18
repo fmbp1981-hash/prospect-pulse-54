@@ -1,14 +1,9 @@
 /**
- * POST /api/admin/rag-ingest
+ * GET  /api/admin/rag-ingest?secret=CRON_SECRET   ← cole no navegador
+ * POST /api/admin/rag-ingest  (Authorization: Bearer CRON_SECRET)
  *
  * Ingere os 4 documentos RAG da campanha IntelliX no pgvector.
  * Idempotente — pula docs com filename já existente para o mesmo user_id.
- *
- * Autenticação: Authorization: Bearer {CRON_SECRET}
- *
- * Exemplo:
- *   curl -X POST https://<dominio>/api/admin/rag-ingest \
- *     -H "Authorization: Bearer <CRON_SECRET>"
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -35,11 +30,21 @@ function getServiceClient() {
   );
 }
 
-export async function POST(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
+function authorize(req: NextRequest): boolean {
   const CRON_SECRET = process.env.CRON_SECRET;
+  if (!CRON_SECRET) return false;
+  const header = req.headers.get('authorization');
+  if (header === `Bearer ${CRON_SECRET}`) return true;
+  const qs = req.nextUrl.searchParams.get('secret');
+  return qs === CRON_SECRET;
+}
 
-  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+export async function GET(req: NextRequest) {
+  return POST(req);
+}
+
+export async function POST(req: NextRequest) {
+  if (!authorize(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
