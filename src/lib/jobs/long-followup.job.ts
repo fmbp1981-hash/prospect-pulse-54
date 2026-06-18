@@ -13,7 +13,12 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { FOLLOW_UP_SEQUENCES, detectFollowUpScenario } from '../services/long-followup-rules.service';
+import {
+  FOLLOW_UP_SEQUENCES,
+  detectFollowUpScenario,
+  isWithinBusinessHours,
+  normalizeToBusinessHours,
+} from '../services/long-followup-rules.service';
 import type { FollowUpScenario } from '../services/long-followup-rules.service';
 import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
 import { humanizeResponse } from '../services/message-humanizer.service';
@@ -43,6 +48,12 @@ function getServiceClient() {
 export async function runLongFollowUpJob(): Promise<void> {
   const logger = new WorkflowLogger('LongFollowUpJob', randomUUID());
   logger.info('Long follow-up job started');
+
+  // Regra global: janela útil 9h–18h BRT, seg–sex
+  if (!isWithinBusinessHours()) {
+    logger.debug('Outside business hours — skipping long follow-up job');
+    return;
+  }
 
   const supabase = getServiceClient();
 
@@ -80,11 +91,14 @@ export async function runLongFollowUpJob(): Promise<void> {
       }
 
       // 3. Verifica se o cenário ainda é válido (lead pode ter mudado de status)
+      const leadRecord = lead as Record<string, unknown>;
       const currentScenario = detectFollowUpScenario({
         status_msg_wa: lead.status_msg_wa,
         estagio_pipeline: lead.estagio_pipeline,
         data_ultima_interacao: lead.data_ultima_interacao,
         follow_up_count: lead.follow_up_count as number | null,
+        tenant_id: (leadRecord.tenant_id as string | null) ?? null,
+        opt_out: (leadRecord.opt_out as boolean | null) ?? null,
       });
 
       if (currentScenario !== schedule.scenario) {
@@ -124,12 +138,13 @@ export async function runLongFollowUpJob(): Promise<void> {
 
         await markSchedule(supabase, schedule.id, 'sent');
 
-        // 8. Agenda próximo step
+        // 8. Agenda próximo step (normalizado para janela útil BRT)
         if (!step.isFinal) {
           const nextStep = sequence.steps.find((s) => s.stepNumber === schedule.step_number + 1);
           if (nextStep) {
-            const nextDue = new Date();
-            nextDue.setDate(nextDue.getDate() + (nextStep.daysAfterLastContact - step.daysAfterLastContact));
+            const rawDue = new Date();
+            rawDue.setDate(rawDue.getDate() + (nextStep.daysAfterLastContact - step.daysAfterLastContact));
+            const nextDue = normalizeToBusinessHours(rawDue);
 
             await supabase.from('followup_schedules').insert({
               lead_id: schedule.lead_id,
@@ -141,6 +156,20 @@ export async function runLongFollowUpJob(): Promise<void> {
               user_id: schedule.user_id,
             });
           }
+        }
+
+        // 9. IntelliX — handoff SLA breach: notificar consultor no passo 1
+        if (
+          schedule.scenario === 'transferred_no_contact' &&
+          schedule.step_number === 1
+        ) {
+          await supabase.from('audit_logs').insert({
+            action: 'HANDOFF_SLA_BREACH',
+            lead_id: schedule.lead_id,
+            user_id: schedule.user_id,
+            details: JSON.stringify({ scenario: 'transferred_no_contact', step: 1 }),
+            created_at: new Date().toISOString(),
+          }).then(() => {/* fire-and-forget */});
         }
 
         logger.info('Follow-up sent', {
@@ -195,8 +224,9 @@ export async function scheduleFirstFollowUp(
   if (!sequence?.steps.length) return;
 
   const firstStep = sequence.steps[0];
-  const dueAt = new Date();
-  dueAt.setDate(dueAt.getDate() + firstStep.daysAfterLastContact);
+  const rawDue = new Date();
+  rawDue.setDate(rawDue.getDate() + firstStep.daysAfterLastContact);
+  const dueAt = normalizeToBusinessHours(rawDue);
 
   const supabase = getServiceClient();
 
