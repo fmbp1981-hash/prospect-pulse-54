@@ -13,6 +13,11 @@ const nextConfig = {
     serverComponentsExternalPackages: ['pdf-parse'],
   },
 
+  // Garante que os docs RAG sejam incluídos no bundle do Vercel
+  outputFileTracingIncludes: {
+    '/api/admin/rag-ingest': ['./scripts/rag-docs/**/*'],
+  },
+
   // Configuração de imagens externas (se necessário)
   images: {
     remotePatterns: [
