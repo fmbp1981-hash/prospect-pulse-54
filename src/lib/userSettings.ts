@@ -21,6 +21,8 @@ export interface UserSettings {
   agent_enabled?: boolean;
   // Chave de API OpenAI por tenant (sobrepõe variável de ambiente OPENAI_API_KEY)
   openai_api_key?: string;
+  // Chave Resend por tenant (sobrepõe variável de ambiente RESEND_API_KEY)
+  resend_api_key?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -103,6 +105,7 @@ export const userSettingsService = {
             consultant_whatsapp: settings.consultant_whatsapp,
             agent_enabled: settings.agent_enabled ?? true,
             openai_api_key: settings.openai_api_key ?? null,
+            resend_api_key: settings.resend_api_key ?? null,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", user.id)
@@ -129,6 +132,7 @@ export const userSettingsService = {
             consultant_whatsapp: settings.consultant_whatsapp,
             agent_enabled: settings.agent_enabled ?? true,
             openai_api_key: settings.openai_api_key ?? null,
+            resend_api_key: settings.resend_api_key ?? null,
           })
           .select()
           .single();
