@@ -50,22 +50,32 @@ export async function POST(req: NextRequest) {
 
   const supabase = getServiceClient();
 
-  // 1. Resolve user_id + openai_api_key via user_settings (company_name = IntelliX.AI)
-  const { data: settingsRow, error: settingsErr } = await supabase
-    .from('user_settings')
-    .select('user_id, openai_api_key')
-    .eq('company_name', 'IntelliX.AI')
-    .single();
+  // 1. Resolve user_id via auth admin API (mais robusto que filtrar por company_name)
+  const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
 
-  if (settingsErr || !settingsRow?.user_id) {
+  if (listErr) {
+    return NextResponse.json({ error: `Auth admin error: ${listErr.message}` }, { status: 500 });
+  }
+
+  const authUser = users.find((u) => u.email === 'contato@intellixai.com.br');
+
+  if (!authUser) {
     return NextResponse.json(
-      { error: 'IntelliX user_settings not found. Run T1 SQL first.' },
+      { error: 'User contato@intellixai.com.br not found in auth.users. Run T1 SQL first.' },
       { status: 404 }
     );
   }
 
-  const userId = settingsRow.user_id as string;
-  const openaiKey = (settingsRow.openai_api_key as string | null)
+  const userId = authUser.id;
+
+  // 2. Busca user_settings pelo user_id resolvido
+  const { data: settingsRow } = await supabase
+    .from('user_settings')
+    .select('openai_api_key')
+    .eq('user_id', userId)
+    .single();
+
+  const openaiKey = (settingsRow?.openai_api_key as string | null)
     ?? process.env.OPENAI_API_KEY
     ?? '';
 
