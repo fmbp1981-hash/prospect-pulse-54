@@ -54,3 +54,7 @@ nul
 
 # Claude Code agent worktrees (internal, never commit)
 .claude/worktrees/
+
+# TypeScript incremental build info
+tsconfig.tsbuildinfo
+*.tsbuildinfo
