@@ -165,8 +165,17 @@ export async function POST(
 
   // ─── CHANNEL: Email ──────────────────────────────────────────────────────────
   if (campaign.channel === 'email') {
-    const resendKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.FROM_EMAIL ?? 'noreply@example.com';
+    // Ler credenciais Resend e from_email do tenant (fallback para env vars)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: emailSettings } = await (db as any)
+      .from('user_settings')
+      .select('resend_api_key, from_email, company_name')
+      .eq('user_id', user.id)
+      .single();
+
+    const resendKey = (emailSettings?.resend_api_key as string | null) ?? process.env.RESEND_API_KEY;
+    const fromEmailAddr = (emailSettings?.from_email as string | null) ?? process.env.FROM_EMAIL ?? 'noreply@example.com';
+    const fromName = (emailSettings?.company_name as string | null) ?? 'LeadFinder Pro';
 
     if (!resendKey) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -174,7 +183,7 @@ export async function POST(
         .from('campaigns')
         .update({ status: 'draft', updated_at: new Date().toISOString() })
         .eq('id', params.id);
-      return NextResponse.json({ error: 'RESEND_API_KEY não configurada' }, { status: 400 });
+      return NextResponse.json({ error: 'Chave Resend não configurada. Acesse Configurações → Email para adicionar.' }, { status: 400 });
     }
 
     const emailTargets = targets.filter(l => l.email?.trim());
@@ -184,7 +193,7 @@ export async function POST(
     for (let i = 0; i < emailTargets.length; i += EMAIL_BATCH_SIZE) {
       const batch = emailTargets.slice(i, i + EMAIL_BATCH_SIZE);
       const emails = batch.map(l => ({
-        from: fromEmail,
+        from: `${fromName} <${fromEmailAddr}>`,
         to: [l.email!],
         subject: campaign.subject ?? '(sem assunto)',
         html: campaign.body,

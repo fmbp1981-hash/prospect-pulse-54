@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload, Phone, UserCheck } from "lucide-react";
+import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload, Phone, UserCheck, Mail } from "lucide-react";
 import { userSettingsService } from "@/lib/userSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { RoleGuard } from "@/components/RoleGuard";
@@ -67,6 +67,11 @@ export default function SettingsPage() {
   // Configuração da chave OpenAI
   const [openAiApiKey, setOpenAiApiKey] = useState("");
   const [showOpenAiKey, setShowOpenAiKey] = useState(false);
+
+  // Configuração Resend (Email)
+  const [resendApiKey, setResendApiKey] = useState("");
+  const [fromEmail, setFromEmail] = useState("");
+  const [showResendKey, setShowResendKey] = useState(false);
 
   // Configurações de Follow-up automático
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
@@ -127,6 +132,8 @@ export default function SettingsPage() {
         setConsultantWhatsapp(settings.consultant_whatsapp || "");
         setAgentEnabled((settings as any).agent_enabled !== false);
         setOpenAiApiKey((settings as any).openai_api_key || "");
+        setResendApiKey((settings as any).resend_api_key || "");
+        setFromEmail((settings as any).from_email || "");
       }
 
       // Carregar configurações de Follow-up
@@ -333,6 +340,8 @@ export default function SettingsPage() {
         consultant_whatsapp: consultantWhatsapp,
         agent_enabled: agentEnabled,
         openai_api_key: openAiApiKey || undefined,
+        resend_api_key: resendApiKey || undefined,
+        from_email: fromEmail || undefined,
       });
 
       // Salvar configurações de Follow-up
@@ -1093,6 +1102,88 @@ export default function SettingsPage() {
                 </div>
               </div>
             )}
+
+            <div className="flex gap-3">
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </RoleGuard>
+
+      {/* Email / Resend - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-primary" />
+              <CardTitle>Email (Resend)</CardTitle>
+            </div>
+            <CardDescription>
+              Configure a chave Resend e o endereço de remetente para disparos de email deste tenant
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="resend_api_key" className="flex items-center gap-2">
+                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
+                Chave de API Resend <span className="text-red-500">*</span>
+              </Label>
+              <div className="flex gap-2 max-w-md">
+                <Input
+                  id="resend_api_key"
+                  type={showResendKey ? "text" : "password"}
+                  placeholder="re_..."
+                  value={resendApiKey}
+                  onChange={(e) => setResendApiKey(e.target.value)}
+                  className="font-mono text-sm flex-1"
+                  autoComplete="off"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  onClick={() => setShowResendKey(!showResendKey)}
+                  title={showResendKey ? "Ocultar chave" : "Mostrar chave"}
+                >
+                  {showResendKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Obtenha em <span className="font-medium">resend.com/api-keys</span>. Começa com <code className="bg-muted px-1 rounded">re_</code>
+              </p>
+              {resendApiKey && !resendApiKey.startsWith('re_') && (
+                <p className="text-xs text-red-500">Formato inválido — a chave deve começar com <code>re_</code></p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="from_email" className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                E-mail de Remetente <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="from_email"
+                type="email"
+                placeholder="Ex: contato@intellixai.com.br"
+                value={fromEmail}
+                onChange={(e) => setFromEmail(e.target.value)}
+                className="max-w-md font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Endereço de envio dos emails. Deve ser um domínio verificado no Resend.
+                O nome exibido será o <strong>Nome da Empresa</strong> configurado acima.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
+              <p className="font-medium">Pré-requisitos para envio de email:</p>
+              <p>1. Crie uma API Key em <strong>resend.com/api-keys</strong></p>
+              <p>2. Verifique o domínio do remetente em <strong>resend.com/domains</strong></p>
+              <p>3. Preencha os campos acima e clique em <strong>Salvar Configurações</strong></p>
+              <p>4. A chave aqui salva sobrepõe a variável de ambiente <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">RESEND_API_KEY</code></p>
+            </div>
 
             <div className="flex gap-3">
               <Button onClick={handleSave} disabled={isSaving}>
