@@ -27,6 +27,10 @@ import {
   INTELLIX_EMAIL_TEMPLATES,
   type EmailTemplate,
 } from "@/lib/email-templates/intellix-email-templates";
+import {
+  INTELLIX_WA_TEMPLATES,
+  type WaTemplate,
+} from "@/lib/whatsapp-templates/intellix-wa-templates";
 
 interface Campaign {
   id: string;
@@ -77,10 +81,14 @@ export default function CampanhasPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
 
-  // Template picker state
+  // Template picker state — email
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);
   const [templateMode, setTemplateMode] = useState<'pick' | 'edit'>('pick');
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+
+  // Template picker state — whatsapp
+  const [selectedWaTemplate, setSelectedWaTemplate] = useState<WaTemplate | null>(null);
+  const [waTemplateMode, setWaTemplateMode] = useState<'pick' | 'edit'>('pick');
 
   const loadCampaigns = useCallback(async () => {
     setIsLoading(true);
@@ -100,11 +108,12 @@ export default function CampanhasPage() {
 
   // When channel changes reset template state
   useEffect(() => {
-    if (form.channel !== 'email') {
-      setSelectedTemplate(null);
-      setTemplateMode('pick');
-      setPreviewHtml(null);
-    }
+    setSelectedTemplate(null);
+    setTemplateMode('pick');
+    setPreviewHtml(null);
+    setSelectedWaTemplate(null);
+    setWaTemplateMode('pick');
+    setForm(f => ({ ...f, subject: '', body: '' }));
   }, [form.channel]);
 
   const handlePickTemplate = (tpl: EmailTemplate) => {
@@ -119,6 +128,18 @@ export default function CampanhasPage() {
     setForm(f => ({ ...f, subject: '', body: '' }));
     setPreviewHtml(null);
     setTemplateMode('pick');
+  };
+
+  const handlePickWaTemplate = (tpl: WaTemplate) => {
+    setSelectedWaTemplate(tpl);
+    setForm(f => ({ ...f, body: tpl.body }));
+    setWaTemplateMode('edit');
+  };
+
+  const handleClearWaTemplate = () => {
+    setSelectedWaTemplate(null);
+    setForm(f => ({ ...f, body: '' }));
+    setWaTemplateMode('pick');
   };
 
   const handleCreate = async () => {
@@ -147,6 +168,8 @@ export default function CampanhasPage() {
       setSelectedTemplate(null);
       setTemplateMode('pick');
       setPreviewHtml(null);
+      setSelectedWaTemplate(null);
+      setWaTemplateMode('pick');
       loadCampaigns();
     } catch (err) {
       toast.error("Erro ao criar campanha", { description: String(err) });
@@ -302,7 +325,10 @@ export default function CampanhasPage() {
           setPreviewHtml(null);
         }
       }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" onInteractOutside={() => {
+          setSelectedWaTemplate(null); setWaTemplateMode('pick');
+          setSelectedTemplate(null); setTemplateMode('pick'); setPreviewHtml(null);
+        }}>
           <DialogHeader>
             <DialogTitle>Nova Campanha</DialogTitle>
           </DialogHeader>
@@ -347,6 +373,48 @@ export default function CampanhasPage() {
               </Select>
             </div>
 
+            {/* ── WHATSAPP: Template Picker ── */}
+            {form.channel === 'whatsapp' && (
+              <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    Templates de Prospecção por WhatsApp
+                  </p>
+                  {selectedWaTemplate && (
+                    <Button variant="ghost" size="sm" onClick={handleClearWaTemplate} className="text-xs text-muted-foreground h-7">
+                      Trocar template
+                    </Button>
+                  )}
+                </div>
+
+                {waTemplateMode === 'pick' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {INTELLIX_WA_TEMPLATES.map(tpl => (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => handlePickWaTemplate(tpl)}
+                        className="text-left p-3 border rounded-lg bg-background hover:border-primary hover:bg-primary/5 transition-colors group"
+                      >
+                        <p className="text-sm font-medium group-hover:text-primary transition-colors">{tpl.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{tpl.segment}</p>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2 italic">{tpl.body.substring(0, 80)}…</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {waTemplateMode === 'edit' && selectedWaTemplate && (
+                  <div className="flex items-center gap-2 p-2 bg-primary/5 border border-primary/20 rounded-md">
+                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-sm font-medium text-primary">{selectedWaTemplate.name}</span>
+                    <span className="text-xs text-muted-foreground ml-1">— {selectedWaTemplate.segment}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ── EMAIL: Template Picker ── */}
             {form.channel === 'email' && (
               <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
@@ -356,12 +424,7 @@ export default function CampanhasPage() {
                     Templates de Prospecção por Email
                   </p>
                   {selectedTemplate && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleClearTemplate}
-                      className="text-xs text-muted-foreground h-7"
-                    >
+                    <Button variant="ghost" size="sm" onClick={handleClearTemplate} className="text-xs text-muted-foreground h-7">
                       Trocar template
                     </Button>
                   )}
@@ -376,27 +439,19 @@ export default function CampanhasPage() {
                         onClick={() => handlePickTemplate(tpl)}
                         className="text-left p-3 border rounded-lg bg-background hover:border-primary hover:bg-primary/5 transition-colors group"
                       >
-                        <p className="text-sm font-medium group-hover:text-primary transition-colors">
-                          {tpl.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
-                          {tpl.segment}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">
-                          Assunto: {tpl.subject}
-                        </p>
+                        <p className="text-sm font-medium group-hover:text-primary transition-colors">{tpl.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{tpl.segment}</p>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1 italic">Assunto: {tpl.subject}</p>
                       </button>
                     ))}
                   </div>
                 )}
 
                 {templateMode === 'edit' && selectedTemplate && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 p-2 bg-primary/5 border border-primary/20 rounded-md">
-                      <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                      <span className="text-sm font-medium text-primary">{selectedTemplate.name}</span>
-                      <span className="text-xs text-muted-foreground ml-1">— {selectedTemplate.segment}</span>
-                    </div>
+                  <div className="flex items-center gap-2 p-2 bg-primary/5 border border-primary/20 rounded-md">
+                    <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-sm font-medium text-primary">{selectedTemplate.name}</span>
+                    <span className="text-xs text-muted-foreground ml-1">— {selectedTemplate.segment}</span>
                   </div>
                 )}
               </div>
@@ -405,9 +460,7 @@ export default function CampanhasPage() {
             {/* Assunto (email) */}
             {form.channel === 'email' && templateMode === 'edit' && (
               <div>
-                <Label htmlFor="camp-subject">
-                  Assunto do email <span className="text-red-500">*</span>
-                </Label>
+                <Label htmlFor="camp-subject">Assunto do email <span className="text-red-500">*</span></Label>
                 <Input
                   id="camp-subject"
                   placeholder="Assunto que aparece na caixa de entrada"
@@ -420,8 +473,8 @@ export default function CampanhasPage() {
               </div>
             )}
 
-            {/* Corpo */}
-            {(form.channel === 'whatsapp' || (form.channel === 'email' && templateMode === 'edit')) && (
+            {/* Corpo da mensagem */}
+            {(waTemplateMode === 'edit' || (form.channel === 'email' && templateMode === 'edit')) && (
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <Label htmlFor="camp-body">
@@ -429,10 +482,7 @@ export default function CampanhasPage() {
                     <span className="text-red-500 ml-1">*</span>
                   </Label>
                   {form.channel === 'email' && form.body && (
-                    <Tabs
-                      defaultValue="edit"
-                      onValueChange={v => setPreviewHtml(v === 'preview' ? form.body : null)}
-                    >
+                    <Tabs defaultValue="edit" onValueChange={v => setPreviewHtml(v === 'preview' ? form.body : null)}>
                       <TabsList className="h-7">
                         <TabsTrigger value="edit" className="text-xs h-6 px-2 gap-1">
                           <Pencil className="h-3 w-3" />Editar
@@ -446,50 +496,36 @@ export default function CampanhasPage() {
                 </div>
 
                 {previewHtml ? (
-                  <div
-                    className="border rounded-lg overflow-hidden bg-[#f5f5f5]"
-                    style={{ minHeight: 320 }}
-                  >
-                    <iframe
-                      srcDoc={previewHtml}
-                      className="w-full border-0"
-                      style={{ minHeight: 480 }}
-                      sandbox="allow-same-origin"
-                      title="Preview do email"
-                    />
+                  <div className="border rounded-lg overflow-hidden bg-[#f5f5f5]" style={{ minHeight: 320 }}>
+                    <iframe srcDoc={previewHtml} className="w-full border-0" style={{ minHeight: 480 }} sandbox="allow-same-origin" title="Preview do email" />
                   </div>
                 ) : (
                   <>
                     <Textarea
                       id="camp-body"
                       rows={form.channel === 'email' ? 10 : 6}
-                      placeholder={
-                        form.channel === 'whatsapp'
-                          ? "Olá! Estamos com uma oferta especial para você..."
-                          : "<p>Olá, <strong>{{nome}}</strong>...</p>"
-                      }
+                      placeholder={form.channel === 'whatsapp' ? "Oi, {{nome}}! Aqui é o Felipe..." : "<p>Olá, <strong>{{nome}}</strong>...</p>"}
                       value={form.body}
                       onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-                      className="font-mono text-xs"
+                      className={form.channel === 'email' ? 'font-mono text-xs' : 'text-sm'}
                     />
-                    {form.channel === 'email' && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Variáveis disponíveis:{' '}
-                        {['{{empresa}}', '{{nome}}', '{{cidade}}', '{{categoria}}'].map(v => (
-                          <code key={v} className="bg-muted px-1 rounded mr-1">{v}</code>
-                        ))}
-                      </p>
-                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Variáveis:{' '}
+                      {['{{nome}}', '{{empresa}}', '{{cidade}}', '{{categoria}}'].map(v => (
+                        <code key={v} className="bg-muted px-1 rounded mr-1">{v}</code>
+                      ))}
+                    </p>
                   </>
                 )}
               </div>
             )}
 
-            {/* Info quando email mas ainda não escolheu template */}
-            {form.channel === 'email' && templateMode === 'pick' && (
+            {/* Info quando ainda não escolheu template */}
+            {((form.channel === 'whatsapp' && waTemplateMode === 'pick') ||
+              (form.channel === 'email' && templateMode === 'pick')) && (
               <div className="flex items-start gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-800 dark:text-blue-200">
                 <ChevronDown className="h-4 w-4 mt-0.5 shrink-0" />
-                <span>Selecione um dos templates acima para preencher o assunto e corpo do email automaticamente. Você poderá editar depois.</span>
+                <span>Selecione um template acima para preencher a mensagem automaticamente. Você poderá editar depois.</span>
               </div>
             )}
           </div>
