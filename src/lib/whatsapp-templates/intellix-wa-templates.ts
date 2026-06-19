@@ -1,6 +1,6 @@
 /**
  * Templates de WhatsApp de prospecção — Campanha IntelliX.AI
- * Encontro & Relacionamento | Felipe Melo
+ * Encontro & Relacionamento | Felipe Maranhão
  *
  * Variáveis: {{1}} = primeiro nome, {{2}} = empresa
  * (padrão Meta — no disparo manual use {{nome}} e {{empresa}})

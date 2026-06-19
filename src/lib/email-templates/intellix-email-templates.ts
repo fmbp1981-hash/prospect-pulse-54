@@ -1,6 +1,6 @@
 /**
  * Templates de email de prospecção — Campanha IntelliX.AI
- * Encontro & Relacionamento | Felipe Melo
+ * Encontro & Relacionamento | Felipe Maranhão
  *
  * Variáveis suportadas:
  *   {{empresa}} — nome da empresa prospectada
@@ -57,7 +57,7 @@ function htmlWrapper(content: string): string {
           <tr>
             <td style="padding:20px 32px 28px;">
               <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6;">
-                <strong style="color:#64748b;">Felipe Melo</strong> · IntelliX.AI<br />
+                <strong style="color:#64748b;">Felipe Maranhão</strong> · IntelliX.AI<br />
                 contato@intellixai.com.br · Recife, PE<br /><br />
                 Se preferir não receber mais mensagens desta empresa,
                 <a href="mailto:contato@intellixai.com.br?subject=Descadastrar" style="color:#6366f1;">clique aqui para descadastrar</a>.
@@ -110,11 +110,11 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Automação com IA para {{empresa}} — 2 minutos do seu tempo?',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Meu nome é <strong>Felipe Melo</strong>, fundador da <strong>IntelliX.AI</strong>. Chegamos até a <strong>{{empresa}}</strong> porque ajudamos empresas do Nordeste a automatizar tarefas repetitivas com Inteligência Artificial — sem precisar contratar mais pessoas ou trocar os sistemas atuais.')}
+      ${bodyStyle('Meu nome é <strong>Felipe Maranhão</strong>, fundador da <strong>IntelliX.AI</strong>. Chegamos até a <strong>{{empresa}}</strong> porque ajudamos empresas do Nordeste a automatizar tarefas repetitivas com Inteligência Artificial — sem precisar contratar mais pessoas ou trocar os sistemas atuais.')}
       ${highlightBox('Nossos clientes economizam em média <strong>15h/semana</strong> de trabalho manual nos primeiros 30 dias — em atendimento, qualificação de leads e follow-ups.')}
       ${bodyStyle('Tenho um material rápido que explica como funciona na prática. Posso enviar?')}
       ${ctaButton('Quero saber mais')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 
@@ -125,7 +125,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Qualificação de leads e follow-up automático para a {{empresa}}',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Sou <strong>Felipe Melo</strong>, da <strong>IntelliX.AI</strong>. Trabalho com construtoras, incorporadoras e imobiliárias que enfrentam dois desafios muito comuns:')}
+      ${bodyStyle('Sou <strong>Felipe Maranhão</strong>, da <strong>IntelliX.AI</strong>. Trabalho com construtoras, incorporadoras e imobiliárias que enfrentam dois desafios muito comuns:')}
       ${highlightBox(`
         <strong>1. Leads sem perfil</strong> — equipe de vendas gasta tempo com quem não vai comprar<br/>
         <strong>2. Follow-up manual</strong> — negociações longas geram esquecimentos e perda de venda
@@ -133,7 +133,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
       ${bodyStyle('Automatizamos esses dois processos com IA, direto no WhatsApp ou email, sem precisar trocar de CRM.')}
       ${bodyStyle('Posso te mostrar como funciona em menos de 10 minutos. Faz sentido uma conversa rápida esta semana?')}
       ${ctaButton('Sim, quero ver como funciona')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 
@@ -144,7 +144,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Triagem de casos e atendimento inicial automático — para a {{empresa}}',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Sou <strong>Felipe Melo</strong>, da <strong>IntelliX.AI</strong>. Identificamos que escritórios de advocacia e consultorias jurídicas como a <strong>{{empresa}}</strong> frequentemente perdem tempo com:')}
+      ${bodyStyle('Sou <strong>Felipe Maranhão</strong>, da <strong>IntelliX.AI</strong>. Identificamos que escritórios de advocacia e consultorias jurídicas como a <strong>{{empresa}}</strong> frequentemente perdem tempo com:')}
       ${highlightBox(`
         → Triagem de potenciais clientes com casos fora do perfil do escritório<br/>
         → Atendimento inicial que não converte e ocupa advogados seniores<br/>
@@ -153,7 +153,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
       ${bodyStyle('Desenvolvemos um agente de IA que faz essa triagem automaticamente, qualifica o caso antes do primeiro contato humano e envia lembretes de prazo — tudo com linguagem jurídica adequada.')}
       ${bodyStyle('Posso enviar um caso de uso de 2 minutos mostrando como funciona na prática?')}
       ${ctaButton('Quero ver o caso de uso')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 
@@ -164,7 +164,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Confirmação de consultas e reativação de pacientes — {{empresa}}',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Sou <strong>Felipe Melo</strong>, da <strong>IntelliX.AI</strong>. Clínicas e laboratórios como a <strong>{{empresa}}</strong> costumam ter duas dores que impactam diretamente o faturamento:')}
+      ${bodyStyle('Sou <strong>Felipe Maranhão</strong>, da <strong>IntelliX.AI</strong>. Clínicas e laboratórios como a <strong>{{empresa}}</strong> costumam ter duas dores que impactam diretamente o faturamento:')}
       ${highlightBox(`
         <strong>Faltas e cancelamentos</strong> — confirmação manual não escala e a agenda fica com horários vazios<br/><br/>
         <strong>Pacientes que somem</strong> — após o primeiro atendimento, não há follow-up para trazer de volta
@@ -172,7 +172,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
       ${bodyStyle('A IntelliX.AI resolve as duas situações com automação via WhatsApp: o agente confirma consultas automaticamente, remarca cancelamentos em tempo real e dispara reativação para pacientes inativos — sem precisar trocar de sistema de gestão.')}
       ${bodyStyle('Posso te enviar um resumo rápido de como implementamos em clínicas da região?')}
       ${ctaButton('Quero ver o resumo')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 
@@ -183,14 +183,14 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Pedidos e cobranças automáticos no WhatsApp — para {{empresa}}',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Sou <strong>Felipe Melo</strong>, da <strong>IntelliX.AI</strong>. Distribuidoras e atacadistas como a <strong>{{empresa}}</strong> normalmente têm representantes passando horas por dia respondendo pedidos no WhatsApp e ligando para cobrar pagamentos em atraso.')}
+      ${bodyStyle('Sou <strong>Felipe Maranhão</strong>, da <strong>IntelliX.AI</strong>. Distribuidoras e atacadistas como a <strong>{{empresa}}</strong> normalmente têm representantes passando horas por dia respondendo pedidos no WhatsApp e ligando para cobrar pagamentos em atraso.')}
       ${highlightBox(`
         Automatizamos <strong>recebimento de pedidos</strong>, <strong>emissão de orçamento</strong> e <strong>cobrança de inadimplentes</strong> diretamente no WhatsApp —
         o time comercial para de ser operacional e foca em novos clientes.
       `)}
       ${bodyStyle('Já implementamos isso para distribuidoras no Nordeste com resultados visíveis na primeira semana. Posso te mostrar como funciona?')}
       ${ctaButton('Sim, quero ver como funciona')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 
@@ -201,7 +201,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Prospecção ativa e suporte automatizados — {{empresa}}',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Sou <strong>Felipe Melo</strong>, da <strong>IntelliX.AI</strong>. Empresas de TI e tecnologia como a <strong>{{empresa}}</strong> enfrentam dois gargalos que consomem o time técnico:')}
+      ${bodyStyle('Sou <strong>Felipe Maranhão</strong>, da <strong>IntelliX.AI</strong>. Empresas de TI e tecnologia como a <strong>{{empresa}}</strong> enfrentam dois gargalos que consomem o time técnico:')}
       ${highlightBox(`
         <strong>Prospecção escassa</strong> — o time é bom em entregar, mas não tem estrutura para prospectar ativamente<br/><br/>
         <strong>Suporte de nível 1</strong> — tickets simples ocupam desenvolvedores que deveriam estar produzindo
@@ -209,7 +209,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
       ${bodyStyle('Com a IntelliX.AI, o agente de IA cuida do primeiro contato com leads, qualifica oportunidades e resolve tickets básicos no WhatsApp ou email — sem precisar de um time de SDR ou suporte dedicado.')}
       ${bodyStyle('Existe também uma conversa interessante sobre <strong>parceria comercial</strong> — atendemos segmentos que se complementam com TI. Posso detalhar?')}
       ${ctaButton('Quero saber mais')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 
@@ -220,7 +220,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Relatórios automáticos e onboarding de clientes — {{empresa}}',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Sou <strong>Felipe Melo</strong>, da <strong>IntelliX.AI</strong>. Agências como a <strong>{{empresa}}</strong> costumam perder horas toda semana em duas tarefas operacionais que poderiam ser automatizadas:')}
+      ${bodyStyle('Sou <strong>Felipe Maranhão</strong>, da <strong>IntelliX.AI</strong>. Agências como a <strong>{{empresa}}</strong> costumam perder horas toda semana em duas tarefas operacionais que poderiam ser automatizadas:')}
       ${highlightBox(`
         → <strong>Relatórios de performance</strong> feitos manualmente no Google Sheets ou PowerPoint<br/>
         → <strong>Onboarding de novos contratos</strong> — coleta de acessos, briefing e configurações iniciais
@@ -228,7 +228,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
       ${bodyStyle('A IntelliX.AI automatiza esses dois processos: gera relatórios consolidados automaticamente e conduz o onboarding do cliente via fluxo conversacional no WhatsApp — o time da agência foca em estratégia, não em tarefas operacionais.')}
       ${bodyStyle('Posso te enviar um exemplo de relatório gerado automaticamente para uma agência parceira?')}
       ${ctaButton('Quero ver o exemplo')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 
@@ -239,7 +239,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Qualificação de leads e follow-up de propostas — {{empresa}}',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Sou <strong>Felipe Melo</strong>, da <strong>IntelliX.AI</strong>. Empresas de consultoria, seguros e consórcio como a <strong>{{empresa}}</strong> recebem muitos leads mas convertem pouco — e o principal motivo é <strong>falta de qualificação rápida e follow-up consistente</strong>.')}
+      ${bodyStyle('Sou <strong>Felipe Maranhão</strong>, da <strong>IntelliX.AI</strong>. Empresas de consultoria, seguros e consórcio como a <strong>{{empresa}}</strong> recebem muitos leads mas convertem pouco — e o principal motivo é <strong>falta de qualificação rápida e follow-up consistente</strong>.')}
       ${highlightBox(`
         Um lead que pede cotação às 22h e não é respondido até o dia seguinte já pesquisou o concorrente.
         Um cliente que não recebe follow-up após a proposta simplesmente esquece.
@@ -247,7 +247,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
       ${bodyStyle('A IntelliX.AI automatiza a qualificação inicial (via WhatsApp ou email) e dispara follow-ups em sequência para cada etapa do funil — sem depender do vendedor se lembrar.')}
       ${bodyStyle('Faz sentido conversar? Posso mostrar como isso funciona em 10 minutos.')}
       ${ctaButton('Sim, quero uma demonstração')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 
@@ -258,7 +258,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
     subject: 'Qualificação de leads e follow-up pós-visita — {{empresa}}',
     body: htmlWrapper(`
       ${bodyStyle('Olá, <strong>{{nome}}</strong>!')}
-      ${bodyStyle('Sou <strong>Felipe Melo</strong>, da <strong>IntelliX.AI</strong>. Empresas de energia solar como a <strong>{{empresa}}</strong> costumam ter um funil com dois buracos grandes:')}
+      ${bodyStyle('Sou <strong>Felipe Maranhão</strong>, da <strong>IntelliX.AI</strong>. Empresas de energia solar como a <strong>{{empresa}}</strong> costumam ter um funil com dois buracos grandes:')}
       ${highlightBox(`
         <strong>1. Muitos leads, pouca qualificação</strong> — a equipe técnica vai até locais sem real potencial de fechamento<br/><br/>
         <strong>2. Follow-up pós-visita fraco</strong> — o cliente pediu orçamento, ficou "pensando" e o vendedor não voltou no tempo certo
@@ -266,7 +266,7 @@ export const INTELLIX_EMAIL_TEMPLATES: EmailTemplate[] = [
       ${bodyStyle('A IntelliX.AI resolve os dois: um agente de IA qualifica o lead antes da visita (conta de luz, tipo de imóvel, perfil de consumo) e dispara follow-ups automáticos depois — aumentando a taxa de fechamento sem adicionar vendedores.')}
       ${bodyStyle('Posso te enviar um resumo de como implantamos isso em empresas de solar na região?')}
       ${ctaButton('Quero ver o resumo')}
-      ${bodyStyle('Att,<br/><strong>Felipe Melo</strong><br/>Fundador · IntelliX.AI')}
+      ${bodyStyle('Att,<br/><strong>Felipe Maranhão</strong><br/>Fundador · IntelliX.AI')}
     `),
   },
 ];
