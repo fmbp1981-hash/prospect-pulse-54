@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
 
     // 6. Enviar email via Resend
     const resendApiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.FROM_EMAIL || 'noreply@xpag.com.br';
+    const fromEmail = process.env.FROM_EMAIL || 'noreply@intellixai.com.br';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://alpha.dualite.dev';
 
     const roleLabels: Record<string, string> = {

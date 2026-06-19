@@ -7,335 +7,334 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Plus, Edit2, Trash2, Star, Copy, Shuffle, Sparkles, RefreshCw, Wand2 } from "lucide-react";
+import {
+  MessageSquare, Plus, Edit2, Trash2, Copy, Sparkles, Loader2,
+  Mail, CheckCircle2, ArrowLeft
+} from "lucide-react";
 import { toast } from "sonner";
-import { MessageTemplate, MessageVariation, MessageStyle, MESSAGE_STYLES, TEMPLATE_VARIABLES } from "@/types/prospection";
-import { AITemplateGenerator } from "./AITemplateGenerator";
+import { INTELLIX_WA_TEMPLATES, type WaTemplate } from "@/lib/whatsapp-templates/intellix-wa-templates";
+import { INTELLIX_EMAIL_TEMPLATES, type EmailTemplate } from "@/lib/email-templates/intellix-email-templates";
 
 interface TemplateManagerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Template XPAG - template padrão que não pode ser removido
-const DEFAULT_TEMPLATES: MessageTemplate[] = [
-  {
-    id: "xpag-prospeccao-ativa",
-    name: "Msg de Prospecção Ativa Xpag",
-    category: "Primeiro Contato",
-    variations: [
-      {
-        style: 'formal',
-        message: `Olá! 👋 Tudo bem?
+interface CustomTemplate {
+  id: string;
+  name: string;
+  channel: 'whatsapp' | 'email';
+  segment: string;
+  subject?: string;
+  body: string;
+  createdAt: string;
+}
 
-Aqui é da XPAG Brasil.
-Entramos em contato porque identificamos que sua empresa pode se beneficiar de uma estrutura mais organizada para recebimentos via cartão e Pix.
+const STORAGE_KEY = 'custom_templates_v2';
 
-A XPAG atua há mais de 5 anos ajudando empresas em todo o Brasil a ganhar mais controle, previsibilidade e segurança financeira, sem complicação.
-
-Queria entender rapidinho:
-👉 Hoje sua empresa já recebe pagamentos por cartão, crédito, débito ou Pix?`
-      }
-    ],
-    isDefault: true,
-    createdAt: new Date().toISOString(),
-  },
-];
-
-const TEMPLATE_CATEGORIES = [
-  "Primeiro Contato",
-  "Follow-up",
-  "Proposta",
-  "Negociação",
-  "Pós-venda",
-  "Personalizado",
-];
+function getCategoryTemplateId(categoria: string, channel: 'whatsapp' | 'email'): string {
+  const cat = categoria.toLowerCase();
+  let segId: string;
+  if (/constru|im[oó]vel|imobiliar/.test(cat)) {
+    segId = 'construcao_v1';
+  } else if (/jur[ií]d|advocac|direito/.test(cat)) {
+    segId = 'juridico_v1';
+  } else if (/sa[úu]de|cl[ií]nica|odonto|labor/.test(cat)) {
+    segId = 'saude_v1';
+  } else if (/atacado|distribu|food/.test(cat)) {
+    segId = 'atacado_v1';
+  } else if (/tecnolog|ti|telecom/.test(cat)) {
+    segId = 'tech_v1';
+  } else if (/marketi|ag[eê]nci|publicid/.test(cat)) {
+    segId = 'agencia_v1';
+  } else if (/consultor|financei|seguro|cons[oó]rc/.test(cat)) {
+    segId = 'financeiro_v1';
+  } else if (/solar|energia/.test(cat)) {
+    segId = 'energiasolar_v1';
+  } else {
+    segId = 'universal_v1';
+  }
+  return channel === 'whatsapp' ? `intellix_er_${segId}` : `intellix_email_${segId}`;
+}
 
 export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
-  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [currentTemplate, setCurrentTemplate] = useState<MessageTemplate | null>(null);
-  const [activeVariationTab, setActiveVariationTab] = useState("0");
-  const [isAIGeneratorOpen, setIsAIGeneratorOpen] = useState(false);
-  const [aiGeneratorMode, setAIGeneratorMode] = useState<'from-scratch' | 'variations'>('from-scratch');
-  const [baseTemplateForVariations, setBaseTemplateForVariations] = useState<string>("");
-  const [isGeneratingVariations, setIsGeneratingVariations] = useState(false);
+  const [activeChannel, setActiveChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [view, setView] = useState<'list' | 'edit' | 'create' | 'preview'>('list');
+  const [customTemplates, setCustomTemplates] = useState<CustomTemplate[]>([]);
+  const [selectedPreset, setSelectedPreset] = useState<WaTemplate | EmailTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<CustomTemplate | null>(null);
+
+  // Form for create/edit
   const [formData, setFormData] = useState({
-    name: "",
-    category: "Primeiro Contato",
-    variations: [
-      { style: 'formal' as MessageStyle, message: "" },
-      { style: 'casual' as MessageStyle, message: "" },
-      { style: 'direto' as MessageStyle, message: "" },
-    ] as MessageVariation[],
+    name: '',
+    channel: 'whatsapp' as 'whatsapp' | 'email',
+    segment: '',
+    subject: '',
+    body: '',
   });
+
+  // Category match section
+  const [matchEmpresa, setMatchEmpresa] = useState('');
+  const [matchNome, setMatchNome] = useState('');
+  const [matchCategoria, setMatchCategoria] = useState('');
+  const [matchCidade, setMatchCidade] = useState('');
+  const [personalizedBody, setPersonalizedBody] = useState<string | null>(null);
+  const [isPersonalizing, setIsPersonalizing] = useState(false);
+
+  // AI generation section
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      loadTemplates();
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          setCustomTemplates(JSON.parse(saved));
+        } catch {
+          setCustomTemplates([]);
+        }
+      }
     }
   }, [isOpen]);
 
-  const loadTemplates = () => {
-    const saved = localStorage.getItem("whatsapp_templates");
-    if (saved) {
-      setTemplates(JSON.parse(saved));
-    } else {
-      // Carregar templates padrão na primeira vez
-      setTemplates(DEFAULT_TEMPLATES);
-      localStorage.setItem("whatsapp_templates", JSON.stringify(DEFAULT_TEMPLATES));
-    }
+  const saveCustomTemplates = (templates: CustomTemplate[]) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(templates));
+    setCustomTemplates(templates);
   };
 
-  const saveTemplates = (newTemplates: MessageTemplate[]) => {
-    localStorage.setItem("whatsapp_templates", JSON.stringify(newTemplates));
-    setTemplates(newTemplates);
-  };
-
-  const handleCreate = () => {
-    setIsEditing(true);
-    setCurrentTemplate(null);
-    setActiveVariationTab("0");
-    setFormData({
-      name: "",
-      category: "Primeiro Contato",
-      variations: [
-        { style: 'formal', message: "" },
-        { style: 'casual', message: "" },
-        { style: 'direto', message: "" },
-      ],
-    });
-  };
-
-  const handleCopyToClipboard = async (template: MessageTemplate) => {
-    const variations = template.variations || (template.message ? [{ style: 'formal' as MessageStyle, message: template.message }] : []);
-    const validVariations = variations.filter(v => v.message && v.message.trim() !== '');
-    const textToCopy = validVariations.map(v => v.message).join('\n\n---\n\n');
+  const handleCopy = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(textToCopy);
-      toast.success('Template copiado!', { description: 'Texto copiado para a área de transferência' });
+      await navigator.clipboard.writeText(text);
+      toast.success('Copiado para a area de transferencia!');
     } catch {
-      toast.error('Falha ao copiar', { description: 'Seu navegador bloqueou o acesso à área de transferência' });
+      toast.error('Falha ao copiar');
     }
   };
 
-  const handleEdit = (template: MessageTemplate) => {
-    setIsEditing(true);
-    setCurrentTemplate(template);
-    setActiveVariationTab("0");
+  const handleDeleteCustom = (id: string) => {
+    if (!confirm('Excluir este template?')) return;
+    saveCustomTemplates(customTemplates.filter(t => t.id !== id));
+    toast.success('Template excluido');
+  };
 
-    // Migrar template legado (com message) para novo formato (com variations)
-    const variations = template.variations || [
-      { style: 'formal' as MessageStyle, message: template.message || "" },
-      { style: 'casual' as MessageStyle, message: "" },
-      { style: 'direto' as MessageStyle, message: "" },
-    ];
-
+  const handleEditCustom = (tpl: CustomTemplate) => {
+    setEditingTemplate(tpl);
     setFormData({
-      name: template.name,
-      category: template.category,
-      variations,
+      name: tpl.name,
+      channel: tpl.channel,
+      segment: tpl.segment,
+      subject: tpl.subject || '',
+      body: tpl.body,
     });
+    setView('edit');
   };
 
-  const handleDuplicate = (template: MessageTemplate) => {
-    setIsEditing(true);
-    setCurrentTemplate(null);
-    setActiveVariationTab("0");
-
-    // Migrar template legado se necessário
-    const variations = template.variations || [
-      { style: 'formal' as MessageStyle, message: template.message || "" },
-      { style: 'casual' as MessageStyle, message: "" },
-      { style: 'direto' as MessageStyle, message: "" },
-    ];
-
-    setFormData({
-      name: `${template.name} (Cópia)`,
-      category: template.category,
-      variations,
-    });
+  const handleCreateNew = () => {
+    setEditingTemplate(null);
+    setFormData({ name: '', channel: activeChannel, segment: '', subject: '', body: '' });
+    setView('create');
   };
 
-  const handleDelete = (id: string) => {
-    const template = templates.find((t) => t.id === id);
-    if (template?.isDefault) {
-      toast.error("Templates padrão não podem ser deletados");
-      return;
-    }
-
-    const newTemplates = templates.filter((t) => t.id !== id);
-    saveTemplates(newTemplates);
-    toast.success("Template deletado com sucesso");
-  };
-
-  const handleResetTemplates = () => {
-    if (confirm("Tem certeza que deseja limpar todos os templates e restaurar os padrões? Esta ação não pode ser desfeita.")) {
-      localStorage.removeItem("whatsapp_templates");
-      setTemplates(DEFAULT_TEMPLATES);
-      localStorage.setItem("whatsapp_templates", JSON.stringify(DEFAULT_TEMPLATES));
-      toast.success("Templates resetados com sucesso!", {
-        description: "Templates padrão restaurados",
-      });
-    }
-  };
-
-  const handleSave = () => {
+  const handleSaveTemplate = () => {
     if (!formData.name.trim()) {
-      toast.error("Digite um nome para o template");
+      toast.error('Digite um nome para o template');
+      return;
+    }
+    if (!formData.body.trim()) {
+      toast.error('O corpo da mensagem nao pode estar vazio');
       return;
     }
 
-    // Validar que pelo menos uma variação tem mensagem
-    const hasAtLeastOneMessage = formData.variations.some(v => v.message.trim() !== "");
-    if (!hasAtLeastOneMessage) {
-      toast.error("Preencha pelo menos uma variação de mensagem");
-      return;
-    }
-
-    if (currentTemplate) {
-      // Editar existente
-      const newTemplates = templates.map((t) =>
-        t.id === currentTemplate.id
-          ? {
-            ...t,
-            name: formData.name,
-            category: formData.category,
-            variations: formData.variations,
-            updatedAt: new Date().toISOString(),
-          }
+    if (editingTemplate) {
+      const updated = customTemplates.map(t =>
+        t.id === editingTemplate.id
+          ? { ...t, ...formData, subject: formData.channel === 'email' ? formData.subject : undefined }
           : t
       );
-      saveTemplates(newTemplates);
-      toast.success("Template atualizado com sucesso");
+      saveCustomTemplates(updated);
+      toast.success('Template atualizado');
     } else {
-      // Criar novo
-      const newTemplate: MessageTemplate = {
+      const newTpl: CustomTemplate = {
         id: `custom-${Date.now()}`,
         name: formData.name,
-        category: formData.category,
-        variations: formData.variations,
-        isDefault: false,
+        channel: formData.channel,
+        segment: formData.segment,
+        subject: formData.channel === 'email' ? formData.subject : undefined,
+        body: formData.body,
         createdAt: new Date().toISOString(),
       };
-      saveTemplates([...templates, newTemplate]);
-      toast.success("Template criado com sucesso");
+      saveCustomTemplates([...customTemplates, newTpl]);
+      toast.success('Template criado');
     }
-
-    setIsEditing(false);
-    setCurrentTemplate(null);
+    setView('list');
+    setEditingTemplate(null);
   };
 
-  const updateVariation = (index: number, field: 'style' | 'message', value: string) => {
-    const newVariations = [...formData.variations];
-    if (field === 'style') {
-      newVariations[index].style = value as MessageStyle;
-    } else {
-      newVariations[index].message = value;
-    }
-    setFormData({ ...formData, variations: newVariations });
-  };
-
-  const handleAIGenerated = (name: string, category: string, variations: MessageVariation[]) => {
-    // Preencher formulário com dados gerados pela IA
-    setFormData({
-      name,
-      category,
-      variations,
-    });
-    setIsEditing(true);
-    setActiveVariationTab("0");
-    toast.success("Template carregado!", {
-      description: "Revise e ajuste antes de salvar",
-    });
-  };
-
-  // Gerar variações a partir de um template existente usando IA
-  const handleGenerateVariationsFromTemplate = async () => {
-    const baseMessage = formData.variations[0]?.message;
-    if (!baseMessage || baseMessage.trim().length < 20) {
-      toast.error("Digite pelo menos a primeira variação do template", {
-        description: "A IA usará como base para gerar as demais variações",
-      });
+  const handlePersonalizeWithAI = async () => {
+    if (!matchEmpresa.trim()) {
+      toast.error('Informe o nome da empresa');
       return;
     }
 
-    setIsGeneratingVariations(true);
+    const templateId = getCategoryTemplateId(matchCategoria, activeChannel);
+    const presetList = activeChannel === 'whatsapp' ? INTELLIX_WA_TEMPLATES : INTELLIX_EMAIL_TEMPLATES;
+    const preset = presetList.find(t => t.id === templateId) || presetList[0];
+
+    setIsPersonalizing(true);
+    setPersonalizedBody(null);
 
     try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      const response = await fetch(`${supabaseUrl}/functions/v1/generate-template-ai`, {
+      const res = await fetch('/api/templates/personalize', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: `Gere 2 variações a partir desta mensagem base (mantendo o mesmo significado mas com estilos diferentes - casual e direto): "${baseMessage}"`,
-          category: formData.category,
-          tone: 'misto',
-          baseMessage: baseMessage,
-          generateVariationsOnly: true,
+          templateBody: preset.body,
+          channel: activeChannel,
+          lead: {
+            empresa: matchEmpresa,
+            nome: matchNome || undefined,
+            categoria: matchCategoria || undefined,
+            cidade: matchCidade || undefined,
+          },
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`IA API error: ${response.status}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao personalizar');
       }
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || 'Erro ao gerar variações');
-      }
-
-      const generatedText = data.generated_text || '';
-
-      // Parse das variações geradas
-      const var2Match = generatedText.match(/VARIACAO_2:\s*(.+?)(?=VARIACAO_3:|$)/s);
-      const var3Match = generatedText.match(/VARIACAO_3:\s*(.+?)(?=NOME_TEMPLATE:|$)/s);
-
-      const newVariations = [...formData.variations];
-      if (var2Match) {
-        newVariations[1] = { style: 'casual', message: var2Match[1].trim() };
-      }
-      if (var3Match) {
-        newVariations[2] = { style: 'direto', message: var3Match[1].trim() };
-      }
-
-      setFormData({ ...formData, variations: newVariations });
-
-      toast.success("Variações geradas com sucesso!", {
-        description: "Revise as variações 2 e 3 antes de salvar",
-      });
-    } catch (error) {
-      console.error("Erro ao gerar variações:", error);
-      toast.error("Erro ao gerar variações com IA", {
-        description: "Tente novamente ou crie manualmente",
-      });
+      setPersonalizedBody(data.personalizedBody);
+      toast.success('Mensagem personalizada com IA!');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro desconhecido';
+      toast.error('Erro ao personalizar', { description: message });
     } finally {
-      setIsGeneratingVariations(false);
+      setIsPersonalizing(false);
     }
   };
 
-  const openAIGenerator = (mode: 'from-scratch' | 'variations') => {
-    setAIGeneratorMode(mode);
-    setIsAIGeneratorOpen(true);
+  const handleGenerateFromAIPrompt = () => {
+    if (!aiPrompt.trim()) {
+      toast.error('Descreva o que voce quer gerar');
+      return;
+    }
+
+    setIsGeneratingAI(true);
+
+    // Detect segment from prompt keywords and pre-fill form
+    const templateId = getCategoryTemplateId(aiPrompt, activeChannel);
+    const presetList = activeChannel === 'whatsapp' ? INTELLIX_WA_TEMPLATES : INTELLIX_EMAIL_TEMPLATES;
+    const preset = presetList.find(t => t.id === templateId) || presetList[0];
+
+    setFormData({
+      name: `Template IA - ${preset.name}`,
+      channel: activeChannel,
+      segment: preset.segment,
+      subject: activeChannel === 'email' ? (preset as EmailTemplate).subject || '' : '',
+      body: preset.body,
+    });
+    setEditingTemplate(null);
+    setView('create');
+    setIsGeneratingAI(false);
+    toast.success('Template carregado!', {
+      description: 'Revise e ajuste o conteudo antes de salvar',
+    });
   };
 
-  const renderPreview = (message: string) => {
-    return message
-      .replace(/\{\{minha_empresa\}\}/g, "Sua Empresa")
-      .replace(/\{\{empresa\}\}/g, "Exemplo Empresa Ltda")
-      .replace(/\{\{categoria\}\}/g, "Restaurantes")
-      .replace(/\{\{cidade\}\}/g, "São Paulo")
-      .replace(/\{\{contato\}\}/g, "João Silva")
-      .replace(/\{\{lead\}\}/g, "Lead-001");
-  };
+  const waTemplates = INTELLIX_WA_TEMPLATES;
+  const emailTemplates = INTELLIX_EMAIL_TEMPLATES;
+  const currentPresets = activeChannel === 'whatsapp' ? waTemplates : emailTemplates;
+  const channelCustomTemplates = customTemplates.filter(t => t.channel === activeChannel);
+
+  if (view === 'edit' || view === 'create') {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setView('list')}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              {view === 'edit' ? 'Editar Template' : 'Novo Template'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nome do template</Label>
+                <Input
+                  value={formData.name}
+                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ex: Prospecção Clinicas"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Canal</Label>
+                <Select
+                  value={formData.channel}
+                  onValueChange={v => setFormData({ ...formData, channel: v as 'whatsapp' | 'email' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Segmento (livre)</Label>
+              <Input
+                value={formData.segment}
+                onChange={e => setFormData({ ...formData, segment: e.target.value })}
+                placeholder="Ex: Clinicas odontologicas"
+              />
+            </div>
+
+            {formData.channel === 'email' && (
+              <div className="space-y-2">
+                <Label>Assunto</Label>
+                <Input
+                  value={formData.subject}
+                  onChange={e => setFormData({ ...formData, subject: e.target.value })}
+                  placeholder="Ex: Automatize sua clinica com IA"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Corpo da mensagem</Label>
+              <Textarea
+                value={formData.body}
+                onChange={e => setFormData({ ...formData, body: e.target.value })}
+                placeholder={formData.channel === 'email'
+                  ? 'HTML ou texto do email...'
+                  : 'Mensagem WhatsApp. Use {{nome}} e {{empresa}}...'}
+                rows={10}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Variaveis: <code>{'{{nome}}'}</code>, <code>{'{{empresa}}'}</code>, <code>{'{{cidade}}'}</code>, <code>{'{{categoria}}'}</code>
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setView('list')}>Cancelar</Button>
+            <Button onClick={handleSaveTemplate}>
+              {view === 'edit' ? 'Salvar alteracoes' : 'Criar template'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -347,356 +346,306 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
           </DialogTitle>
         </DialogHeader>
 
-        {!isEditing ? (
-          <>
-            {/* Lista de Templates */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <p className="text-sm text-muted-foreground">
-                    {templates.length} template(s) disponíveis
-                  </p>
-                  <div className="flex gap-2">
-                    <Button onClick={handleCreate} size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Novo Template
-                    </Button>
-                  </div>
+        <div className="flex-1 overflow-y-auto pr-1">
+          {/* Channel tabs */}
+          <Tabs value={activeChannel} onValueChange={v => {
+            setActiveChannel(v as 'whatsapp' | 'email');
+            setSelectedPreset(null);
+            setPersonalizedBody(null);
+          }}>
+            <TabsList className="w-full mb-4">
+              <TabsTrigger value="whatsapp" className="flex-1 gap-2">
+                <MessageSquare className="h-4 w-4" />
+                WhatsApp
+              </TabsTrigger>
+              <TabsTrigger value="email" className="flex-1 gap-2">
+                <Mail className="h-4 w-4" />
+                Email
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value={activeChannel} className="space-y-6 mt-0">
+
+              {/* Section 1: IntelliX presets */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">📋</span>
+                  <h3 className="font-semibold text-sm">Templates IntelliX (pre-definidos)</h3>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {currentPresets.map(tpl => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => setSelectedPreset(selectedPreset?.id === tpl.id ? null : tpl)}
+                      className={`text-left p-3 rounded-lg border transition-colors space-y-1 ${
+                        selectedPreset?.id === tpl.id
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50 hover:bg-muted/50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <p className="text-xs font-semibold text-foreground leading-tight">{tpl.name}</p>
+                        {selectedPreset?.id === tpl.id && (
+                          <CheckCircle2 className="h-3 w-3 text-primary flex-shrink-0 mt-0.5" />
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-tight">{tpl.segment}</p>
+                    </button>
+                  ))}
                 </div>
 
-                {/* Opções de Geração com IA */}
-                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" />
-                    <p className="text-sm font-medium text-foreground">Gerar Template com IA</p>
+                {selectedPreset && (
+                  <Card className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary">{selectedPreset.name}</Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopy(selectedPreset.body)}
+                        className="gap-1 text-xs"
+                      >
+                        <Copy className="h-3 w-3" />
+                        Copiar
+                      </Button>
+                    </div>
+                    {activeChannel === 'email' ? (
+                      <div className="rounded border overflow-hidden">
+                        <iframe
+                          srcDoc={(selectedPreset as EmailTemplate).body}
+                          className="w-full h-64 border-0"
+                          title="Preview email"
+                          sandbox="allow-same-origin"
+                        />
+                      </div>
+                    ) : (
+                      <div className="bg-muted/50 rounded-lg p-3">
+                        <p className="text-sm whitespace-pre-wrap text-foreground leading-relaxed">
+                          {selectedPreset.body}
+                        </p>
+                      </div>
+                    )}
+                  </Card>
+                )}
+              </section>
+
+              {/* Section 2: Category match + personalize */}
+              <section className="space-y-3 border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🎯</span>
+                  <h3 className="font-semibold text-sm">Match por Categoria</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Preencha os dados do lead e o sistema seleciona o template certo e personaliza com IA.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Empresa *</Label>
+                    <Input
+                      value={matchEmpresa}
+                      onChange={e => setMatchEmpresa(e.target.value)}
+                      placeholder="Nome da empresa"
+                      className="h-8 text-sm"
+                    />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Deixe a IA criar templates profissionais para você
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <Button
-                      onClick={() => {
-                        setAIGeneratorMode('from-scratch');
-                        setBaseTemplateForVariations('primeiro-contato-formal');
-                        setIsAIGeneratorOpen(true);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="border-primary/30 text-primary hover:bg-primary/10 justify-start"
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Primeiro Contato Formal
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setAIGeneratorMode('from-scratch');
-                        setBaseTemplateForVariations('primeiro-contato-descontraido');
-                        setIsAIGeneratorOpen(true);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="border-primary/30 text-primary hover:bg-primary/10 justify-start"
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Primeiro Contato Descontraído
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setAIGeneratorMode('from-scratch');
-                        setBaseTemplateForVariations('follow-up');
-                        setIsAIGeneratorOpen(true);
-                      }}
-                      size="sm"
-                      variant="outline"
-                      className="border-primary/30 text-primary hover:bg-primary/10 justify-start"
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Follow-Up
-                    </Button>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Nome do contato</Label>
+                    <Input
+                      value={matchNome}
+                      onChange={e => setMatchNome(e.target.value)}
+                      placeholder="Nome da pessoa"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Categoria / Segmento</Label>
+                    <Input
+                      value={matchCategoria}
+                      onChange={e => setMatchCategoria(e.target.value)}
+                      placeholder="Ex: Clinica odontologica"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Cidade</Label>
+                    <Input
+                      value={matchCidade}
+                      onChange={e => setMatchCidade(e.target.value)}
+                      placeholder="Ex: Recife"
+                      className="h-8 text-sm"
+                    />
                   </div>
                 </div>
+                <Button
+                  onClick={handlePersonalizeWithAI}
+                  disabled={isPersonalizing || !matchEmpresa.trim()}
+                  className="gap-2"
+                  size="sm"
+                >
+                  {isPersonalizing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Personalizando...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Personalizar com IA
+                    </>
+                  )}
+                </Button>
 
-                {templates.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                    <p className="text-sm">Nenhum template ainda</p>
-                    <p className="text-xs">Crie um template manualmente ou use a IA para gerar</p>
+                {personalizedBody && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">Mensagem personalizada</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleCopy(personalizedBody)}
+                        className="gap-1 text-xs h-7"
+                      >
+                        <Copy className="h-3 w-3" />
+                        Copiar
+                      </Button>
+                    </div>
+                    {activeChannel === 'email' ? (
+                      <div className="rounded border overflow-hidden">
+                        <iframe
+                          srcDoc={personalizedBody}
+                          className="w-full h-64 border-0"
+                          title="Preview personalizado"
+                          sandbox="allow-same-origin"
+                        />
+                      </div>
+                    ) : (
+                      <Textarea
+                        value={personalizedBody}
+                        onChange={e => setPersonalizedBody(e.target.value)}
+                        rows={6}
+                        className="text-sm"
+                      />
+                    )}
                   </div>
                 )}
+              </section>
 
-                {templates.map((template) => {
-                  const variations = template.variations || (template.message ? [{ style: 'formal' as MessageStyle, message: template.message }] : []);
-                  const validVariations = variations.filter(v => v.message && v.message.trim() !== "");
-
-                  return (
-                    <Card key={template.id} className="p-4 space-y-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-semibold">{template.name}</h4>
-                            {template.isDefault && (
-                              <Badge variant="secondary" className="gap-1">
-                                <Star className="h-3 w-3" />
-                                Padrão
-                              </Badge>
-                            )}
-                            <Badge variant="outline">{template.category}</Badge>
-                            {validVariations.length > 1 && (
-                              <Badge variant="default" className="gap-1">
-                                <Shuffle className="h-3 w-3" />
-                                {validVariations.length} variações
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Criado em {new Date(template.createdAt).toLocaleDateString("pt-BR")}
-                          </p>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleCopyToClipboard(template)}
-                            title="Copiar texto"
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleEdit(template)}
-                            title="Editar"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDelete(template.id)}
-                            disabled={template.isDefault}
-                            title="Excluir"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                    <Separator />
-
-                    {/* Mostrar variações */}
-                    <div className="space-y-2">
-                      {validVariations.map((variation, index) => (
-                        <div key={index} className="border rounded-lg p-3 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">
-                              {MESSAGE_STYLES[variation.style].emoji} {MESSAGE_STYLES[variation.style].label}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {MESSAGE_STYLES[variation.style].description}
-                            </span>
-                          </div>
-                          <div className="bg-muted p-2 rounded text-xs whitespace-pre-wrap max-h-20 overflow-y-auto">
-                            {variation.message}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                );
-              })}
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={onClose}>
-                Fechar
-              </Button>
-            </DialogFooter>
-          </>
-        ) : (
-          <>
-            {/* Formulário de Edição */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome do Template</Label>
+              {/* Section 3: AI generation */}
+              <section className="space-y-3 border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">✨</span>
+                  <h3 className="font-semibold text-sm">Gerar com IA</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Descreva o que quer e carregaremos o template mais proximo para voce customizar.
+                </p>
+                <div className="flex gap-2">
                   <Input
-                    id="name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Ex: Primeiro Contato - Profissional"
+                    value={aiPrompt}
+                    onChange={e => setAiPrompt(e.target.value)}
+                    placeholder="Ex: Crie uma mensagem para clinicas odontologicas"
+                    className="text-sm"
+                    onKeyDown={e => { if (e.key === 'Enter') handleGenerateFromAIPrompt(); }}
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="category">Categoria</Label>
-                  <Select
-                    value={formData.category}
-                    onValueChange={(value) => setFormData({ ...formData, category: value })}
+                  <Button
+                    onClick={handleGenerateFromAIPrompt}
+                    disabled={isGeneratingAI || !aiPrompt.trim()}
+                    size="sm"
+                    className="gap-1 flex-shrink-0"
                   >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TEMPLATE_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {isGeneratingAI ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    Gerar
+                  </Button>
+                </div>
+              </section>
+
+              {/* Section 4: Custom templates */}
+              <section className="space-y-3 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">📁</span>
+                    <h3 className="font-semibold text-sm">Meus Templates</h3>
+                    {channelCustomTemplates.length > 0 && (
+                      <Badge variant="secondary" className="text-xs">{channelCustomTemplates.length}</Badge>
+                    )}
+                  </div>
+                  <Button size="sm" onClick={handleCreateNew} className="gap-1 h-7 text-xs">
+                    <Plus className="h-3 w-3" />
+                    Novo Template
+                  </Button>
                 </div>
 
-                <Separator />
-
-                {/* Tabs para as 3 variações */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Shuffle className="h-4 w-4" />
-                      <Label>Variações de Mensagem (Envio Aleatório)</Label>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleGenerateVariationsFromTemplate}
-                      disabled={isGeneratingVariations || !formData.variations[0]?.message}
-                      className="border-primary/30 text-primary hover:bg-primary/10"
-                    >
-                      {isGeneratingVariations ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Gerando...
-                        </>
-                      ) : (
-                        <>
-                          <Wand2 className="h-4 w-4 mr-2" />
-                          Gerar Variações com IA
-                        </>
-                      )}
-                    </Button>
+                {channelCustomTemplates.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground border border-dashed rounded-lg">
+                    <p className="text-sm">Nenhum template personalizado ainda</p>
+                    <p className="text-xs mt-1">Crie um ou use o gerador de IA acima</p>
                   </div>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Escreva a primeira variação e use a IA para gerar as demais automaticamente, ou configure manualmente.
-                  </p>
-
-                  <Tabs value={activeVariationTab} onValueChange={setActiveVariationTab}>
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="0">
-                        Variação 1 {formData.variations[0]?.message && "✓"}
-                      </TabsTrigger>
-                      <TabsTrigger value="1">
-                        Variação 2 {formData.variations[1]?.message && "✓"}
-                      </TabsTrigger>
-                      <TabsTrigger value="2">
-                        Variação 3 {formData.variations[2]?.message && "✓"}
-                      </TabsTrigger>
-                    </TabsList>
-
-                    {[0, 1, 2].map((index) => (
-                      <TabsContent key={index} value={String(index)} className="space-y-3 mt-3">
-                        <div className="space-y-2">
-                          <Label>Estilo da Mensagem</Label>
-                          <Select
-                            value={formData.variations[index]?.style || 'formal'}
-                            onValueChange={(value) => updateVariation(index, 'style', value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(MESSAGE_STYLES).map(([key, style]) => (
-                                <SelectItem key={key} value={key}>
-                                  <span className="flex items-center gap-2">
-                                    {style.emoji} {style.label} - {style.description}
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Mensagem</Label>
-                          <Textarea
-                            value={formData.variations[index]?.message || ""}
-                            onChange={(e) => updateVariation(index, 'message', e.target.value)}
-                            placeholder={`Digite a variação ${index + 1} da mensagem... (opcional)`}
-                            rows={8}
-                            className="font-mono text-sm"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Use: {TEMPLATE_VARIABLES.map((v) => v.key).join(", ")}
-                          </p>
-                        </div>
-
-                        {formData.variations[index]?.message && (
-                          <div className="space-y-2">
-                            <Label>Preview:</Label>
-                            <div className="bg-accent/10 border border-accent/20 p-3 rounded-lg">
-                              <p className="text-sm whitespace-pre-wrap text-foreground">
-                                {renderPreview(formData.variations[index].message)}
-                              </p>
+                ) : (
+                  <div className="space-y-2">
+                    {channelCustomTemplates.map(tpl => (
+                      <Card key={tpl.id} className="p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold text-sm">{tpl.name}</p>
+                              {tpl.segment && (
+                                <Badge variant="outline" className="text-xs">{tpl.segment}</Badge>
+                              )}
                             </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {new Date(tpl.createdAt).toLocaleDateString('pt-BR')}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              {tpl.body.replace(/<[^>]*>/g, '').substring(0, 100)}...
+                            </p>
                           </div>
-                        )}
-                      </TabsContent>
-                    ))}
-                  </Tabs>
-                </div>
-
-                <div className="bg-muted border border-border rounded-lg p-3 space-y-2">
-                  <p className="text-xs font-medium text-foreground">💡 Dica: Variações Aleatórias</p>
-                  <p className="text-xs text-muted-foreground">
-                    Ao enviar para múltiplos leads, o sistema escolherá automaticamente uma das variações
-                    preenchidas de forma aleatória. Isso torna as mensagens mais naturais e evita bloqueios.
-                  </p>
-                </div>
-
-                <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
-                  <p className="text-xs font-medium text-foreground">⚙️ Variáveis Disponíveis:</p>
-                  <div className="grid grid-cols-2 gap-1 mt-2">
-                    {TEMPLATE_VARIABLES.map((variable) => (
-                      <div key={variable.key} className="flex items-start gap-1">
-                        <code className="text-xs bg-warning/20 text-foreground px-1.5 py-0.5 rounded font-mono">
-                          {variable.key}
-                        </code>
-                        <span className="text-xs text-muted-foreground">{variable.description}</span>
-                      </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleCopy(tpl.body)}
+                              title="Copiar"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleEditCustom(tpl)}
+                              title="Editar"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteCustom(tpl.id)}
+                              title="Excluir"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
                     ))}
                   </div>
-                </div>
-              </div>
-            </div>
+                )}
+              </section>
 
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsEditing(false);
-                  setCurrentTemplate(null);
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button onClick={handleSave}>
-                {currentTemplate ? "Salvar Alterações" : "Criar Template"}
-              </Button>
-            </DialogFooter>
-          </>
-        )}
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Fechar</Button>
+        </DialogFooter>
       </DialogContent>
-
-      {/* AI Template Generator Modal */}
-      <AITemplateGenerator
-        isOpen={isAIGeneratorOpen}
-        onClose={() => {
-          setIsAIGeneratorOpen(false);
-          setBaseTemplateForVariations("");
-        }}
-        onGenerated={handleAIGenerated}
-        presetType={baseTemplateForVariations as 'primeiro-contato-formal' | 'primeiro-contato-descontraido' | 'follow-up' | ''}
-      />
     </Dialog>
   );
 }

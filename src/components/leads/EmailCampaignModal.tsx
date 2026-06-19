@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Mail, Send, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Mail, Send, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { INTELLIX_EMAIL_TEMPLATES } from '@/lib/email-templates/intellix-email-templates';
 
 interface EmailCampaignModalProps {
   open: boolean;
@@ -24,15 +25,28 @@ interface SendResult {
 }
 
 export function EmailCampaignModal({ open, onClose, selectedLeads }: EmailCampaignModalProps) {
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [subject, setSubject] = useState('');
-  const [htmlBody, setHtmlBody] = useState(
-    `Olá {{nome}},\n\nEspero que esteja bem!\n\nSomos da XPAG Brasil e gostaríamos de apresentar nossas soluções para a {{empresa}}.\n\nTemos ajudado empresas a reduzir custos com elisão fiscal, split de pagamentos e meios de pagamento com taxas competitivas.\n\nGostaria de conhecer mais? Responda este email ou entre em contato conosco.\n\nAtenciosamente,\nEquipe XPAG Brasil`
-  );
+  const [htmlBody, setHtmlBody] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [result, setResult] = useState<SendResult | null>(null);
 
   const leadsWithEmail = selectedLeads.filter(l => l.email?.trim());
   const leadsWithoutEmail = selectedLeads.length - leadsWithEmail.length;
+
+  const handleSelectTemplate = (tplId: string) => {
+    const tpl = INTELLIX_EMAIL_TEMPLATES.find(t => t.id === tplId);
+    if (!tpl) return;
+    setSelectedTemplateId(tplId);
+    setSubject(tpl.subject);
+    setHtmlBody(tpl.body);
+  };
+
+  const handleChangeTemplate = () => {
+    setSelectedTemplateId(null);
+    setSubject('');
+    setHtmlBody('');
+  };
 
   const handleSend = async () => {
     if (!subject.trim()) {
@@ -56,7 +70,7 @@ export function EmailCampaignModal({ open, onClose, selectedLeads }: EmailCampai
         body: JSON.stringify({
           leadIds: selectedLeads.map(l => l.id),
           subject: subject.trim(),
-          htmlBody: htmlBody.replace(/\n/g, '<br>'),
+          htmlBody: htmlBody,
         }),
       });
 
@@ -78,6 +92,9 @@ export function EmailCampaignModal({ open, onClose, selectedLeads }: EmailCampai
 
   const handleClose = () => {
     setResult(null);
+    setSelectedTemplateId(null);
+    setSubject('');
+    setHtmlBody('');
     onClose();
   };
 
@@ -90,7 +107,7 @@ export function EmailCampaignModal({ open, onClose, selectedLeads }: EmailCampai
             Enviar Email para Leads
           </DialogTitle>
           <DialogDescription>
-            Compose um email para os leads selecionados. Use{' '}
+            Selecione um template IntelliX ou personalize o email. Use{' '}
             <code className="bg-muted px-1 rounded text-xs">{'{{nome}}'}</code> e{' '}
             <code className="bg-muted px-1 rounded text-xs">{'{{empresa}}'}</code> como variáveis personalizadas.
           </DialogDescription>
@@ -132,30 +149,64 @@ export function EmailCampaignModal({ open, onClose, selectedLeads }: EmailCampai
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="subject">Assunto</Label>
-              <Input
-                id="subject"
-                placeholder="Ex: Soluções de pagamento para sua empresa"
-                value={subject}
-                onChange={e => setSubject(e.target.value)}
-              />
-            </div>
+            {/* Template picker or editor */}
+            {!selectedTemplateId ? (
+              <div className="space-y-3">
+                <Label>Escolha um template IntelliX</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {INTELLIX_EMAIL_TEMPLATES.map(tpl => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => handleSelectTemplate(tpl.id)}
+                      className="text-left p-3 rounded-lg border border-border hover:border-primary hover:bg-primary/5 transition-colors space-y-1"
+                    >
+                      <p className="text-xs font-semibold text-foreground leading-tight">{tpl.name}</p>
+                      <p className="text-xs text-muted-foreground leading-tight">{tpl.segment}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium">
+                      Template: {INTELLIX_EMAIL_TEMPLATES.find(t => t.id === selectedTemplateId)?.name}
+                    </span>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={handleChangeTemplate} className="gap-1 text-xs">
+                    <RefreshCw className="h-3 w-3" />
+                    Trocar template
+                  </Button>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="body">Corpo do email</Label>
-              <Textarea
-                id="body"
-                placeholder="Escreva o corpo do email..."
-                value={htmlBody}
-                onChange={e => setHtmlBody(e.target.value)}
-                rows={10}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Variáveis disponíveis: <code>{'{{nome}}'}</code> (nome do contato) e <code>{'{{empresa}}'}</code> (nome da empresa)
-              </p>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="subject">Assunto</Label>
+                  <Input
+                    id="subject"
+                    placeholder="Ex: Automação com IA para sua empresa"
+                    value={subject}
+                    onChange={e => setSubject(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="body">Corpo do email (HTML)</Label>
+                  <Textarea
+                    id="body"
+                    placeholder="Conteúdo do email..."
+                    value={htmlBody}
+                    onChange={e => setHtmlBody(e.target.value)}
+                    rows={10}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Variáveis disponíveis: <code>{'{{nome}}'}</code> (nome do contato) e <code>{'{{empresa}}'}</code> (nome da empresa)
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-2">
               <Button variant="outline" onClick={handleClose} className="flex-1" disabled={isSending}>
@@ -163,7 +214,7 @@ export function EmailCampaignModal({ open, onClose, selectedLeads }: EmailCampai
               </Button>
               <Button
                 onClick={handleSend}
-                disabled={isSending || leadsWithEmail.length === 0}
+                disabled={isSending || leadsWithEmail.length === 0 || !selectedTemplateId}
                 className="flex-1 gap-2"
               >
                 {isSending ? (
