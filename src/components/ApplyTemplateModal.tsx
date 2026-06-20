@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Shuffle, CheckCircle } from "lucide-react";
+import { MessageSquare, CheckCircle, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Lead } from "@/types/prospection";
-import { MessageTemplate, MessageVariation, MESSAGE_STYLES } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
 import { userSettingsService } from "@/lib/userSettings";
+import { INTELLIX_WA_TEMPLATES } from "@/lib/whatsapp-templates/intellix-wa-templates";
 
 interface ApplyTemplateModalProps {
   isOpen: boolean;
@@ -20,123 +20,112 @@ interface ApplyTemplateModalProps {
   onTemplateApplied: () => void;
 }
 
+interface FlatTemplate {
+  id: string;
+  name: string;
+  segment: string;
+  body: string;
+  isPreset: boolean;
+}
+
+const CUSTOM_STORAGE_KEY = 'custom_templates_v2';
+
+function buildTemplateList(): FlatTemplate[] {
+  // 1. IntelliX presets (WhatsApp)
+  const presets: FlatTemplate[] = INTELLIX_WA_TEMPLATES.map(t => ({
+    id: t.id,
+    name: t.name,
+    segment: t.segment,
+    body: t.body,
+    isPreset: true,
+  }));
+
+  // 2. Custom WhatsApp templates from new storage
+  const saved = localStorage.getItem(CUSTOM_STORAGE_KEY);
+  let customs: FlatTemplate[] = [];
+  if (saved) {
+    try {
+      const all = JSON.parse(saved) as Array<{
+        id: string; name: string; channel: string; segment: string; body: string;
+      }>;
+      customs = all
+        .filter(t => t.channel === 'whatsapp')
+        .map(t => ({ id: t.id, name: t.name, segment: t.segment, body: t.body, isPreset: false }));
+    } catch { /* ignore */ }
+  }
+
+  return [...presets, ...customs];
+}
+
+function replaceVars(body: string, lead: Lead, companyName: string): string {
+  const nome = lead.contato || lead.empresa || '';
+  const empresa = lead.empresa || '';
+  return body
+    .replace(/\{\{nome\}\}/g, nome)
+    .replace(/\{\{empresa\}\}/g, empresa)
+    .replace(/\{\{cidade\}\}/g, lead.cidade || '')
+    .replace(/\{\{categoria\}\}/g, lead.categoria || '')
+    // legacy vars kept for old custom templates
+    .replace(/\{\{minha_empresa\}\}/g, companyName || 'IntelliX.AI')
+    .replace(/\{\{contato\}\}/g, nome)
+    .replace(/\{\{lead\}\}/g, lead.lead || '');
+}
+
 export function ApplyTemplateModal({
   isOpen,
   onClose,
   selectedLeads,
   onTemplateApplied,
 }: ApplyTemplateModalProps) {
-  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
+  const [templates, setTemplates] = useState<FlatTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<FlatTemplate | null>(null);
   const [isApplying, setIsApplying] = useState(false);
-  const [companyName, setCompanyName] = useState("");
+  const [companyName, setCompanyName] = useState('IntelliX.AI');
 
   useEffect(() => {
     if (isOpen) {
-      loadTemplates();
-      loadUserSettings();
+      setTemplates(buildTemplateList());
+      setSelectedTemplate(null);
+      userSettingsService.getUserSettings().then(s => {
+        if (s?.company_name) setCompanyName(s.company_name);
+      }).catch(() => {});
     }
   }, [isOpen]);
 
-  const loadTemplates = () => {
-    const saved = localStorage.getItem("whatsapp_templates");
-    if (saved) {
-      setTemplates(JSON.parse(saved));
-    }
-  };
-
-  const loadUserSettings = async () => {
-    try {
-      console.log("🔍 ApplyTemplateModal: Carregando configurações do usuário...");
-      const settings = await userSettingsService.getUserSettings();
-      console.log("🔍 ApplyTemplateModal: Configurações carregadas:", settings);
-      if (settings) {
-        setCompanyName(settings.company_name || "");
-        console.log("✅ ApplyTemplateModal: Nome da empresa definido:", settings.company_name);
-      } else {
-        console.log("⚠️ ApplyTemplateModal: Nenhuma configuração encontrada");
-      }
-    } catch (error) {
-      console.error("❌ ApplyTemplateModal: Erro ao carregar configurações:", error);
-    }
-  };
-
-  const getRandomVariation = (template: MessageTemplate): MessageVariation | string => {
-    // Se template tem variations, escolher aleatoriamente
-    if (template.variations && template.variations.length > 0) {
-      const validVariations = template.variations.filter(v => v.message && v.message.trim() !== "");
-      if (validVariations.length > 0) {
-        const randomIndex = Math.floor(Math.random() * validVariations.length);
-        return validVariations[randomIndex];
-      }
-    }
-
-    // Fallback para template legado
-    return template.message || "";
-  };
-
-  const replaceVariables = (message: string, lead: Lead): string => {
-    console.log("🔄 ApplyTemplateModal: Substituindo variáveis...");
-    console.log("  - companyName atual:", companyName);
-    console.log("  - Mensagem original:", message);
-    console.log("  - Contém {{minha_empresa}}?", message.includes("{{minha_empresa}}"));
-
-    const result = message
-      .replace(/\{\{minha_empresa\}\}/g, companyName || "Sua Empresa")
-      .replace(/\{\{empresa\}\}/g, lead.empresa || "Empresa")
-      .replace(/\{\{categoria\}\}/g, lead.categoria || "")
-      .replace(/\{\{cidade\}\}/g, lead.cidade || "")
-      .replace(/\{\{contato\}\}/g, lead.contato || lead.empresa || "")
-      .replace(/\{\{lead\}\}/g, lead.lead || "");
-
-    console.log("  - Mensagem após substituição:", result);
-    return result;
-  };
-
-  const handleApplyTemplate = async () => {
+  const handleApply = async () => {
     if (!selectedTemplate) {
-      toast.error("Selecione um template");
+      toast.error('Selecione um template');
       return;
     }
-
     if (selectedLeads.length === 0) {
-      toast.error("Nenhum lead selecionado");
+      toast.error('Nenhum lead selecionado');
       return;
     }
 
     setIsApplying(true);
-
     try {
-      // Aplicar template a cada lead com variação aleatória
-      const updates = selectedLeads.map(lead => {
-        const variation = getRandomVariation(selectedTemplate);
-        const messageTemplate = typeof variation === 'string' ? variation : variation.message;
-        const personalizedMessage = replaceVariables(messageTemplate, lead);
-
-        return supabaseCRM.updateLead(lead.id, {
-          mensagemWhatsApp: personalizedMessage,
-        });
-      });
-
-      await Promise.all(updates);
+      await Promise.all(
+        selectedLeads.map(lead =>
+          supabaseCRM.updateLead(lead.id, {
+            mensagemWhatsApp: replaceVars(selectedTemplate.body, lead, companyName),
+          })
+        )
+      );
 
       toast.success(`Template aplicado a ${selectedLeads.length} lead(s)`, {
-        description: "Mensagens personalizadas e prontas para envio!",
+        description: 'Mensagens prontas para envio via WhatsApp!',
       });
-
       onTemplateApplied();
       onClose();
-    } catch (error) {
-      console.error("Erro ao aplicar template:", error);
-      toast.error("Erro ao aplicar template aos leads");
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao aplicar template');
     } finally {
       setIsApplying(false);
     }
   };
 
-  const renderPreview = (lead: Lead, templateMessage: string) => {
-    return replaceVariables(templateMessage, lead);
-  };
+  const previewLead = selectedLeads[0];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -148,89 +137,65 @@ export function ApplyTemplateModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4">
-          {/* Info sobre leads selecionados */}
+        <div className="flex-1 overflow-hidden flex flex-col space-y-4">
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-primary" />
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-sm font-medium">
                 {selectedLeads.length} lead(s) selecionado(s)
               </p>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              O template será aplicado com variações aleatórias para evitar mensagens idênticas
+              A mensagem será personalizada com os dados de cada lead antes de salvar.
             </p>
           </div>
 
-          {/* Lista de templates */}
           {templates.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>Nenhum template disponível</p>
-              <p className="text-sm mt-1">Crie templates no Gerenciador de Templates</p>
+              <p className="text-sm mt-1">Acesse o Gerenciador de Templates para criar</p>
             </div>
           ) : (
-            <ScrollArea className="h-[400px] pr-4">
+            <ScrollArea className="flex-1 pr-4">
               <div className="space-y-3">
-                {templates.map((template) => {
-                  const variations = template.variations || (template.message ? [{ style: 'formal' as const, message: template.message }] : []);
-                  const validVariations = variations.filter(v => v.message && v.message.trim() !== "");
-                  const isSelected = selectedTemplate?.id === template.id;
-
+                {templates.map(tpl => {
+                  const isSelected = selectedTemplate?.id === tpl.id;
                   return (
                     <Card
-                      key={template.id}
-                      className={`p-4 cursor-pointer transition-all ${
-                        isSelected
-                          ? "border-primary border-2 bg-primary/5"
-                          : "hover:border-primary/50"
+                      key={tpl.id}
+                      className={`p-4 cursor-pointer transition-all space-y-3 ${
+                        isSelected ? 'border-primary border-2 bg-primary/5' : 'hover:border-primary/50'
                       }`}
-                      onClick={() => setSelectedTemplate(template)}
+                      onClick={() => setSelectedTemplate(tpl)}
                     >
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h4 className="font-semibold">{template.name}</h4>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                {template.category}
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h4 className="font-semibold">{tpl.name}</h4>
+                            {tpl.isPreset && (
+                              <Badge variant="secondary" className="gap-1 text-xs">
+                                <Star className="h-3 w-3" />
+                                IntelliX
                               </Badge>
-                              {validVariations.length > 1 && (
-                                <Badge variant="default" className="text-xs gap-1">
-                                  <Shuffle className="h-3 w-3" />
-                                  {validVariations.length} variações
-                                </Badge>
-                              )}
-                            </div>
+                            )}
                           </div>
-                          {isSelected && (
-                            <CheckCircle className="h-5 w-5 text-primary" />
-                          )}
+                          <Badge variant="outline" className="text-xs">{tpl.segment}</Badge>
                         </div>
-
-                        {/* Preview com primeiro lead */}
-                        {selectedLeads.length > 0 && validVariations.length > 0 && (
-                          <div className="bg-muted p-3 rounded-lg">
-                            <p className="text-xs font-medium mb-1">
-                              Preview para {selectedLeads[0].lead}:
-                            </p>
-                            <p className="text-xs whitespace-pre-wrap">
-                              {renderPreview(selectedLeads[0], validVariations[0].message)}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Estilos das variações */}
-                        {validVariations.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {validVariations.map((variation, index) => (
-                              <Badge key={index} variant="secondary" className="text-xs">
-                                {MESSAGE_STYLES[variation.style].emoji} {MESSAGE_STYLES[variation.style].label}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
+                        {isSelected && <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />}
                       </div>
+
+                      {/* Preview com primeiro lead selecionado */}
+                      {previewLead && (
+                        <div className="bg-muted p-3 rounded-lg">
+                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                            Preview para {previewLead.empresa || previewLead.lead}:
+                          </p>
+                          <p className="text-xs whitespace-pre-wrap leading-relaxed">
+                            {replaceVars(tpl.body, previewLead, companyName)}
+                          </p>
+                        </div>
+                      )}
                     </Card>
                   );
                 })}
@@ -239,15 +204,15 @@ export function ApplyTemplateModal({
           )}
         </div>
 
-        <DialogFooter className="flex-shrink-0">
+        <DialogFooter className="flex-shrink-0 pt-2">
           <Button variant="outline" onClick={onClose} disabled={isApplying}>
             Cancelar
           </Button>
           <Button
-            onClick={handleApplyTemplate}
+            onClick={handleApply}
             disabled={!selectedTemplate || isApplying || selectedLeads.length === 0}
           >
-            {isApplying ? "Aplicando..." : `Aplicar aos ${selectedLeads.length} Lead(s)`}
+            {isApplying ? 'Aplicando...' : `Aplicar aos ${selectedLeads.length} Lead(s)`}
           </Button>
         </DialogFooter>
       </DialogContent>
