@@ -192,11 +192,18 @@ export async function POST(
 
     for (let i = 0; i < emailTargets.length; i += EMAIL_BATCH_SIZE) {
       const batch = emailTargets.slice(i, i + EMAIL_BATCH_SIZE);
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
+      const logoUrl = appUrl ? `${appUrl}/intellix-logo.png` : '';
       const emails = batch.map(l => ({
         from: `${fromName} <${fromEmailAddr}>`,
         to: [l.email!],
-        subject: campaign.subject ?? '(sem assunto)',
-        html: campaign.body,
+        subject: (campaign.subject ?? '(sem assunto)')
+          .replace(/\{\{empresa\}\}/g, l.empresa || '')
+          .replace(/\{\{nome\}\}/g, l.email || ''),
+        html: campaign.body
+          .replace(/\{\{empresa\}\}/g, l.empresa || '')
+          .replace(/\{\{nome\}\}/g, l.email || '')
+          .replace(/\{\{logo_url\}\}/g, logoUrl),
       }));
 
       try {

@@ -65,6 +65,7 @@ export default function LeadsPage() {
   const [isApplyTemplateModalOpen, setIsApplyTemplateModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [preSelectedEmailTemplateId, setPreSelectedEmailTemplateId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [leadToEdit, setLeadToEdit] = useState<Lead | null>(null);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -720,10 +721,7 @@ export default function LeadsPage() {
         selectedLeads={leads.filter(l => selectedLeads.has(l.id))}
         onTemplateApplied={() => {
           loadLeads();
-          // Fluxo contínuo: fecha modal de template e abre modal de WhatsApp automaticamente
           setIsApplyTemplateModalOpen(false);
-
-          // Pequeno delay para garantir que os leads foram atualizados
           setTimeout(() => {
             setIsWhatsAppModalOpen(true);
             toast.success("Templates aplicados! Pronto para enviar.", {
@@ -731,6 +729,10 @@ export default function LeadsPage() {
               duration: 3000
             });
           }, 500);
+        }}
+        onEmailTemplateSelected={(templateId) => {
+          setPreSelectedEmailTemplateId(templateId);
+          setIsEmailModalOpen(true);
         }}
       />
 
@@ -750,8 +752,12 @@ export default function LeadsPage() {
 
       <EmailCampaignModal
         open={isEmailModalOpen}
-        onClose={() => setIsEmailModalOpen(false)}
+        onClose={() => {
+          setIsEmailModalOpen(false);
+          setPreSelectedEmailTemplateId(null);
+        }}
         selectedLeads={leads.filter(l => selectedLeads.has(l.id))}
+        preSelectedTemplateId={preSelectedEmailTemplateId}
       />
 
       <ImportLeadsModal

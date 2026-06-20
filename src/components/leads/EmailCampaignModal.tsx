@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Lead } from '@/types/prospection';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,8 @@ interface EmailCampaignModalProps {
   open: boolean;
   onClose: () => void;
   selectedLeads: Lead[];
+  /** Pre-select a template (e.g. from ApplyTemplateModal) */
+  preSelectedTemplateId?: string | null;
 }
 
 interface SendResult {
@@ -24,12 +26,20 @@ interface SendResult {
   skipped: number;
 }
 
-export function EmailCampaignModal({ open, onClose, selectedLeads }: EmailCampaignModalProps) {
+export function EmailCampaignModal({ open, onClose, selectedLeads, preSelectedTemplateId }: EmailCampaignModalProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [subject, setSubject] = useState('');
   const [htmlBody, setHtmlBody] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [result, setResult] = useState<SendResult | null>(null);
+
+  // When modal opens with a pre-selected template, auto-load it
+  useEffect(() => {
+    if (open && preSelectedTemplateId) {
+      handleSelectTemplate(preSelectedTemplateId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, preSelectedTemplateId]);
 
   const leadsWithEmail = selectedLeads.filter(l => l.email?.trim());
   const leadsWithoutEmail = selectedLeads.length - leadsWithEmail.length;

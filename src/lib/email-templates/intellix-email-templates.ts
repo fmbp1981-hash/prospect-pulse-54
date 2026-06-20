@@ -3,10 +3,11 @@
  * Encontro & Relacionamento | Felipe Maranhão
  *
  * Variáveis suportadas:
- *   {{empresa}} — nome da empresa prospectada
- *   {{nome}}    — nome do contato (fallback: empresa)
- *   {{cidade}}  — cidade do lead
+ *   {{empresa}}   — nome da empresa prospectada
+ *   {{nome}}      — nome do contato (fallback: empresa)
+ *   {{cidade}}    — cidade do lead
  *   {{categoria}} — segmento do lead
+ *   {{logo_url}}  — URL absoluta do logo (injetada pelo servidor)
  */
 
 function htmlWrapper(content: string): string {
@@ -25,13 +26,14 @@ function htmlWrapper(content: string): string {
 
           <!-- Header -->
           <tr>
-            <td style="background:#0f172a;padding:24px 32px;">
+            <td style="background:#0f172a;padding:20px 32px;">
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td>
-                    <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">IntelliX<span style="color:#6366f1;">.AI</span></span>
+                  <td style="vertical-align:middle;">
+                    <img src="{{logo_url}}" alt="IntelliX.AI" width="130" height="auto"
+                         style="display:block;max-width:130px;height:auto;" />
                   </td>
-                  <td align="right">
+                  <td align="right" style="vertical-align:middle;">
                     <span style="color:#94a3b8;font-size:12px;">Automação Inteligente</span>
                   </td>
                 </tr>
@@ -53,13 +55,27 @@ function htmlWrapper(content: string): string {
             </td>
           </tr>
 
-          <!-- Footer -->
+          <!-- Footer / Assinatura -->
           <tr>
             <td style="padding:20px 32px 28px;">
-              <p style="margin:0;font-size:12px;color:#94a3b8;line-height:1.6;">
-                <strong style="color:#64748b;">Felipe Maranhão</strong> · IntelliX.AI<br />
-                contato@intellixai.com.br · Recife, PE<br /><br />
-                Se preferir não receber mais mensagens desta empresa,
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:14px;">
+                    <img src="{{logo_url}}" alt="IntelliX.AI" width="56" height="auto"
+                         style="display:block;max-width:56px;height:auto;border-radius:6px;" />
+                  </td>
+                  <td style="vertical-align:middle;border-left:2px solid #e2e8f0;padding-left:14px;">
+                    <p style="margin:0;font-size:13px;font-weight:700;color:#1e293b;">Felipe Maranhão</p>
+                    <p style="margin:2px 0 0;font-size:12px;color:#64748b;">Fundador · IntelliX.AI</p>
+                    <p style="margin:2px 0 0;font-size:12px;color:#64748b;">
+                      <a href="mailto:contato@intellixai.com.br" style="color:#6366f1;text-decoration:none;">contato@intellixai.com.br</a>
+                      &nbsp;·&nbsp;Recife, PE
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:16px 0 0;font-size:11px;color:#94a3b8;line-height:1.6;">
+                Para não receber mais emails desta empresa,
                 <a href="mailto:contato@intellixai.com.br?subject=Descadastrar" style="color:#6366f1;">clique aqui para descadastrar</a>.
               </p>
             </td>
@@ -277,11 +293,14 @@ export function getTemplateById(id: string): EmailTemplate | undefined {
 
 export function applyTemplateVariables(
   text: string,
-  vars: { empresa?: string; nome?: string; cidade?: string; categoria?: string }
+  vars: { empresa?: string; nome?: string; cidade?: string; categoria?: string; logo_url?: string }
 ): string {
+  const appUrl = vars.logo_url || process.env.NEXT_PUBLIC_APP_URL || '';
+  const logoUrl = appUrl ? `${appUrl.replace(/\/$/, '')}/intellix-logo.png` : '';
   return text
     .replace(/\{\{empresa\}\}/g, vars.empresa || 'sua empresa')
     .replace(/\{\{nome\}\}/g, vars.nome || vars.empresa || 'você')
     .replace(/\{\{cidade\}\}/g, vars.cidade || 'sua cidade')
-    .replace(/\{\{categoria\}\}/g, vars.categoria || 'seu segmento');
+    .replace(/\{\{categoria\}\}/g, vars.categoria || 'seu segmento')
+    .replace(/\{\{logo_url\}\}/g, logoUrl);
 }

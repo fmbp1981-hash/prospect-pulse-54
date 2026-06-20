@@ -6,18 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, CheckCircle, Star } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MessageSquare, CheckCircle, Star, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Lead } from "@/types/prospection";
 import { supabaseCRM } from "@/lib/supabaseCRM";
 import { userSettingsService } from "@/lib/userSettings";
 import { INTELLIX_WA_TEMPLATES } from "@/lib/whatsapp-templates/intellix-wa-templates";
+import { INTELLIX_EMAIL_TEMPLATES } from "@/lib/email-templates/intellix-email-templates";
 
 interface ApplyTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
   selectedLeads: Lead[];
   onTemplateApplied: () => void;
+  /** Called when an email template is selected — parent should open EmailCampaignModal with this id */
+  onEmailTemplateSelected?: (templateId: string) => void;
 }
 
 interface FlatTemplate {
@@ -25,39 +29,50 @@ interface FlatTemplate {
   name: string;
   segment: string;
   body: string;
+  subject?: string;
   isPreset: boolean;
+  channel: 'whatsapp' | 'email';
 }
 
 const CUSTOM_STORAGE_KEY = 'custom_templates_v2';
 
-function buildTemplateList(): FlatTemplate[] {
-  // 1. IntelliX presets (WhatsApp)
+function buildWaTemplates(): FlatTemplate[] {
   const presets: FlatTemplate[] = INTELLIX_WA_TEMPLATES.map(t => ({
-    id: t.id,
-    name: t.name,
-    segment: t.segment,
-    body: t.body,
-    isPreset: true,
+    id: t.id, name: t.name, segment: t.segment, body: t.body, isPreset: true, channel: 'whatsapp',
   }));
 
-  // 2. Custom WhatsApp templates from new storage
   const saved = localStorage.getItem(CUSTOM_STORAGE_KEY);
   let customs: FlatTemplate[] = [];
   if (saved) {
     try {
-      const all = JSON.parse(saved) as Array<{
-        id: string; name: string; channel: string; segment: string; body: string;
-      }>;
+      const all = JSON.parse(saved) as Array<{ id: string; name: string; channel: string; segment: string; body: string }>;
       customs = all
         .filter(t => t.channel === 'whatsapp')
-        .map(t => ({ id: t.id, name: t.name, segment: t.segment, body: t.body, isPreset: false }));
+        .map(t => ({ id: t.id, name: t.name, segment: t.segment, body: t.body, isPreset: false, channel: 'whatsapp' as const }));
     } catch { /* ignore */ }
   }
-
   return [...presets, ...customs];
 }
 
-function replaceVars(body: string, lead: Lead, companyName: string): string {
+function buildEmailTemplates(): FlatTemplate[] {
+  const presets: FlatTemplate[] = INTELLIX_EMAIL_TEMPLATES.map(t => ({
+    id: t.id, name: t.name, segment: t.segment, body: t.body, subject: t.subject, isPreset: true, channel: 'email',
+  }));
+
+  const saved = localStorage.getItem(CUSTOM_STORAGE_KEY);
+  let customs: FlatTemplate[] = [];
+  if (saved) {
+    try {
+      const all = JSON.parse(saved) as Array<{ id: string; name: string; channel: string; segment: string; body: string; subject?: string }>;
+      customs = all
+        .filter(t => t.channel === 'email')
+        .map(t => ({ id: t.id, name: t.name, segment: t.segment, body: t.body, subject: t.subject, isPreset: false, channel: 'email' as const }));
+    } catch { /* ignore */ }
+  }
+  return [...presets, ...customs];
+}
+
+function replaceWaVars(body: string, lead: Lead, companyName: string): string {
   const nome = lead.contato || lead.empresa || '';
   const empresa = lead.empresa || '';
   return body
@@ -65,7 +80,6 @@ function replaceVars(body: string, lead: Lead, companyName: string): string {
     .replace(/\{\{empresa\}\}/g, empresa)
     .replace(/\{\{cidade\}\}/g, lead.cidade || '')
     .replace(/\{\{categoria\}\}/g, lead.categoria || '')
-    // legacy vars kept for old custom templates
     .replace(/\{\{minha_empresa\}\}/g, companyName || 'IntelliX.AI')
     .replace(/\{\{contato\}\}/g, nome)
     .replace(/\{\{lead\}\}/g, lead.lead || '');
@@ -76,15 +90,19 @@ export function ApplyTemplateModal({
   onClose,
   selectedLeads,
   onTemplateApplied,
+  onEmailTemplateSelected,
 }: ApplyTemplateModalProps) {
-  const [templates, setTemplates] = useState<FlatTemplate[]>([]);
+  const [channel, setChannel] = useState<'whatsapp' | 'email'>('whatsapp');
+  const [waTemplates, setWaTemplates] = useState<FlatTemplate[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<FlatTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<FlatTemplate | null>(null);
   const [isApplying, setIsApplying] = useState(false);
   const [companyName, setCompanyName] = useState('IntelliX.AI');
 
   useEffect(() => {
     if (isOpen) {
-      setTemplates(buildTemplateList());
+      setWaTemplates(buildWaTemplates());
+      setEmailTemplates(buildEmailTemplates());
       setSelectedTemplate(null);
       userSettingsService.getUserSettings().then(s => {
         if (s?.company_name) setCompanyName(s.company_name);
@@ -92,26 +110,33 @@ export function ApplyTemplateModal({
     }
   }, [isOpen]);
 
+  // Reset selection when switching channel
+  const handleChannelChange = (ch: string) => {
+    setChannel(ch as 'whatsapp' | 'email');
+    setSelectedTemplate(null);
+  };
+
   const handleApply = async () => {
-    if (!selectedTemplate) {
-      toast.error('Selecione um template');
-      return;
-    }
-    if (selectedLeads.length === 0) {
-      toast.error('Nenhum lead selecionado');
+    if (!selectedTemplate) { toast.error('Selecione um template'); return; }
+    if (selectedLeads.length === 0) { toast.error('Nenhum lead selecionado'); return; }
+
+    if (channel === 'email') {
+      // For email: delegate to parent which will open EmailCampaignModal pre-selected
+      onEmailTemplateSelected?.(selectedTemplate.id);
+      onClose();
       return;
     }
 
+    // WhatsApp: save personalized message to each lead
     setIsApplying(true);
     try {
       await Promise.all(
         selectedLeads.map(lead =>
           supabaseCRM.updateLead(lead.id, {
-            mensagemWhatsApp: replaceVars(selectedTemplate.body, lead, companyName),
+            mensagemWhatsApp: replaceWaVars(selectedTemplate.body, lead, companyName),
           })
         )
       );
-
       toast.success(`Template aplicado a ${selectedLeads.length} lead(s)`, {
         description: 'Mensagens prontas para envio via WhatsApp!',
       });
@@ -125,7 +150,11 @@ export function ApplyTemplateModal({
     }
   };
 
+  const templates = channel === 'whatsapp' ? waTemplates : emailTemplates;
   const previewLead = selectedLeads[0];
+  const applyLabel = channel === 'email'
+    ? 'Usar este template no Email'
+    : `Aplicar aos ${selectedLeads.length} Lead(s)`;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -137,7 +166,20 @@ export function ApplyTemplateModal({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col space-y-4">
+        <Tabs value={channel} onValueChange={handleChannelChange}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="whatsapp" className="gap-2">
+              <MessageSquare className="h-4 w-4" />
+              WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="email" className="gap-2">
+              <Mail className="h-4 w-4" />
+              Email
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex-1 overflow-hidden flex flex-col space-y-3">
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-primary" />
@@ -146,7 +188,9 @@ export function ApplyTemplateModal({
               </p>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              A mensagem será personalizada com os dados de cada lead antes de salvar.
+              {channel === 'whatsapp'
+                ? 'A mensagem será personalizada com os dados de cada lead antes de salvar.'
+                : 'Selecione um template de email. Você poderá revisar e enviar no próximo passo.'}
             </p>
           </div>
 
@@ -161,6 +205,10 @@ export function ApplyTemplateModal({
               <div className="space-y-3">
                 {templates.map(tpl => {
                   const isSelected = selectedTemplate?.id === tpl.id;
+                  const preview = channel === 'whatsapp' && previewLead
+                    ? replaceWaVars(tpl.body, previewLead, companyName)
+                    : tpl.body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 220);
+
                   return (
                     <Card
                       key={tpl.id}
@@ -180,22 +228,30 @@ export function ApplyTemplateModal({
                               </Badge>
                             )}
                           </div>
-                          <Badge variant="outline" className="text-xs">{tpl.segment}</Badge>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-xs">{tpl.segment}</Badge>
+                            {tpl.subject && (
+                              <span className="text-xs text-muted-foreground">
+                                Assunto: <em>{tpl.subject.replace(/\{\{empresa\}\}/g, previewLead?.empresa || '…')}</em>
+                              </span>
+                            )}
+                          </div>
                         </div>
                         {isSelected && <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />}
                       </div>
 
-                      {/* Preview com primeiro lead selecionado */}
-                      {previewLead && (
-                        <div className="bg-muted p-3 rounded-lg">
-                          <p className="text-xs font-medium text-muted-foreground mb-1">
-                            Preview para {previewLead.empresa || previewLead.lead}:
-                          </p>
-                          <p className="text-xs whitespace-pre-wrap leading-relaxed">
-                            {replaceVars(tpl.body, previewLead, companyName)}
-                          </p>
-                        </div>
-                      )}
+                      <div className="bg-muted p-3 rounded-lg">
+                        {channel === 'whatsapp' && previewLead ? (
+                          <>
+                            <p className="text-xs font-medium text-muted-foreground mb-1">
+                              Preview para {previewLead.empresa || previewLead.lead}:
+                            </p>
+                            <p className="text-xs whitespace-pre-wrap leading-relaxed">{preview}</p>
+                          </>
+                        ) : (
+                          <p className="text-xs leading-relaxed text-muted-foreground line-clamp-4">{preview}…</p>
+                        )}
+                      </div>
                     </Card>
                   );
                 })}
@@ -212,7 +268,7 @@ export function ApplyTemplateModal({
             onClick={handleApply}
             disabled={!selectedTemplate || isApplying || selectedLeads.length === 0}
           >
-            {isApplying ? 'Aplicando...' : `Aplicar aos ${selectedLeads.length} Lead(s)`}
+            {isApplying ? 'Aplicando...' : applyLabel}
           </Button>
         </DialogFooter>
       </DialogContent>
