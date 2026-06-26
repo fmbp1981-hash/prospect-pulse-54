@@ -5,7 +5,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, CheckCircle, Star, Mail, Sparkles, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -14,7 +13,6 @@ import { supabaseCRM } from "@/lib/supabaseCRM";
 import { userSettingsService } from "@/lib/userSettings";
 import { INTELLIX_WA_TEMPLATES } from "@/lib/whatsapp-templates/intellix-wa-templates";
 import { INTELLIX_EMAIL_TEMPLATES } from "@/lib/email-templates/intellix-email-templates";
-
 interface ApplyTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -251,8 +249,8 @@ export function ApplyTemplateModal({
           </p>
         </div>
 
-        {/* Scrollable template list — min-h-0 is required for flex-1 scroll to work */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        {/* Scrollable template list */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden pr-1" style={{ scrollbarGutter: 'stable' }}>
           {templates.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
@@ -260,8 +258,7 @@ export function ApplyTemplateModal({
               <p className="text-sm mt-1">Acesse o Gerenciador de Templates para criar</p>
             </div>
           ) : (
-            <ScrollArea className="h-full pr-2">
-              <div className="space-y-2 pb-2">
+            <div className="space-y-2 pb-2">
                 {orderedTemplates.map(tpl => {
                   const isSelected = selectedTemplate?.id === tpl.id;
                   const isRecommended = tpl.id === recommendedId && tpl.id !== universalId;
@@ -326,8 +323,7 @@ export function ApplyTemplateModal({
                     </Card>
                   );
                 })}
-              </div>
-            </ScrollArea>
+            </div>
           )}
         </div>
 
