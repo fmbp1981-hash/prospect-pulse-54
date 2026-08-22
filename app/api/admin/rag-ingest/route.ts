@@ -55,13 +55,13 @@ export async function POST(req: NextRequest) {
   const supabase = getServiceClient();
 
   // 1. Resolve user_id via auth admin API (mais robusto que filtrar por company_name)
-  const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  const listResult = await supabase.auth.admin.listUsers({ perPage: 1000 });
 
-  if (listErr) {
-    return NextResponse.json({ error: `Auth admin error: ${listErr.message}` }, { status: 500 });
+  if (listResult.error) {
+    return NextResponse.json({ error: `Auth admin error: ${listResult.error.message}` }, { status: 500 });
   }
 
-  const authUser = users.find((u) => u.email === 'contato@intellixai.com.br');
+  const authUser = listResult.data.users.find((u) => u.email === 'contato@intellixai.com.br');
 
   if (!authUser) {
     return NextResponse.json(
