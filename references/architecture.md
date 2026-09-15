@@ -133,3 +133,54 @@ de consumir `icp_settings` em código novo.
 - Conectores LinkedIn/Instagram, worker de enriquecimento (`prospecting_jobs`) e
   regra de auto-promoção (`contacts.converted_lead_id`) — fases seguintes do
   roadmap em `docs/PROSPECCAO-MULTICANAL.md`
+
+## 9. Pesquisa de mercado — conectores LinkedIn (2026-09-15)
+
+Pesquisa via WebSearch (Perplexity MCP indisponível na sessão — servidor não
+conectado apesar do hook indicar "ativo"; usar Perplexity quando disponível para
+revalidar antes de decidir de fato, preços/players mudam rápido neste mercado).
+
+### Firecrawl não serve para o canal LinkedIn
+LinkedIn bloqueia ativamente o Firecrawl — mesmo o Stealth Mode (proxy residencial +
+fingerprint rotation) não é confiável contra a parede de login sem uma sessão
+autenticada (`li_at`), que é justamente a categoria `authenticated_automation_risk`
+já bloqueada por padrão. Papel do Firecrawl no sistema: só enriquecimento do site
+institucional (Google Maps → website), não LinkedIn.
+
+### Apify é um marketplace, não uma ferramenta única — dois perfis de risco
+- **Cookieless/no-login** (`public_web_research`, recomendado como padrão): usa
+  proxy residencial + busca indexada em perfis públicos, sem conectar conta LinkedIn
+  nenhuma, zero risco de banimento. Extrai: nome, headline, localização, empresa
+  atual, URL do perfil, e (se o perfil for público/indexado) about, experiência,
+  formação, seguidores.
+- **Com cookie `li_at`** (`authenticated_automation_risk`, bloqueado por padrão):
+  precisa de conta LinkedIn autenticada (recomendação do mercado: conta descartável,
+  nunca a principal — risco real de banimento). Retorna ~5x mais dado por perfil e
+  até ~100x mais funcionários por empresa.
+
+### Precedente legal concreto: caso Proxycurl
+Proxycurl (cotado antes no doc de prospecção como opção) foi processado pela
+LinkedIn em jan/2025 e **fechou em jul/2025** em vez de continuar litigando. Isso
+confirma, com caso real (não hipotético), por que a classificação de risco por
+conector e o bloqueio de `authenticated_automation_risk` sem aprovação jurídica são
+necessários — LinkedIn processa vendors de scraping, não só bane contas individuais.
+Unipile, cotado como alternativa no mesmo doc, hoje é uma API de conectividade/
+mensageria (usa a própria conta autenticada do cliente) — não é um substituto
+direto para scraping de perfil em massa.
+
+### Custos operacionais (ordem de grandeza, não cotação fechada)
+- **Apify**: assinatura de plataforma (Free ~$5 de uso / Starter $29 / Scale $199 /
+  Business $999 por mês, orçamento pré-pago de créditos) + preço do actor
+  (pay-per-result). Actors de LinkedIn (ago/2026): perfis US$ 1,50–12,00/1.000,
+  vagas US$ 0,28–5,00/1.000, empresas a partir de US$ 4,00/1.000.
+- **Firecrawl** (site institucional, não LinkedIn): Free (1.000 créditos) / Hobby
+  $16 (5.000) / Standard $83 (100.000) / Growth $333 (500.000) / Scale $599
+  (1.000.000). 1 crédito/página no scrape básico.
+- Exemplo: 5.000 leads/mês com enriquecimento LinkedIn cookieless + validação de
+  site ≈ Apify Starter ($29 + ~$20 de actor) + Firecrawl Hobby ($16) ≈ **US$ 65/mês**.
+
+### Decisão recomendada
+MVP usa só a camada `public_web_research` do Apify (cookieless) para LinkedIn — cobre
+cargo/empresa/cidade/URL de perfil sem risco de conta. `authenticated_automation_risk`
+fica travado atrás da aprovação jurídica já desenhada; só reconsiderar se o volume/
+qualidade do cookieless não for suficiente.

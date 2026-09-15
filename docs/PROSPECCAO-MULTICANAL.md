@@ -56,11 +56,21 @@ Função: identificar pessoas associadas a empresas — cargo, departamento, sen
 URL pública de perfil.
 
 **Classificação de risco obrigatória** (LinkedIn proíbe scraping/bots/automação via ToS):
-- `licensed_api` — provedor com licença de dados (ex: Proxycurl, Unipile — validar
-  preço/limites atuais via Perplexity antes de decidir, não assumir de memória)
+- `licensed_api` — provedor com licença de dados formal (nenhum candidato confirmado
+  até 2026-09; Proxycurl, cotado antes, **fechou em jul/2025 após ser processado pela
+  LinkedIn** — não usar como referência)
 - `vendor_dataset`
-- `public_web_research`
-- `authenticated_automation_risk` — **bloqueado em produção sem aprovação jurídica**
+- `public_web_research` — **recomendado como padrão do MVP**: actors Apify
+  "cookieless"/"no-login" (proxy residencial + busca indexada), sem conectar conta
+  LinkedIn nenhuma, sem risco de banimento. Ver pesquisa de mercado em
+  `references/architecture.md` (seção LinkedIn — provedores).
+- `authenticated_automation_risk` — usa cookie `li_at` (conta autenticada). Real risco
+  de banimento e de ação civil (caso Proxycurl é precedente concreto, não hipotético).
+  **Bloqueado em produção sem aprovação jurídica.**
+
+Firecrawl **não é usado para o canal LinkedIn** — LinkedIn bloqueia ativamente o
+Firecrawl mesmo em Stealth Mode. Firecrawl continua no papel que já tem hoje:
+enriquecimento do site institucional da empresa (Google Maps → website).
 
 Campos: `person_name`, `linkedin_url`, `headline`, `current_title`, `department`,
 `seniority`, `company_name`, `location`.
