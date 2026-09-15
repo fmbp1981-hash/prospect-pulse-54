@@ -8,6 +8,7 @@ import type { Database } from '@/integrations/supabase/types';
 
 type ContactRow = Database['public']['Tables']['contacts']['Row'];
 type CompanyRow = Database['public']['Tables']['companies']['Row'];
+type ContactInsert = Database['public']['Tables']['contacts']['Insert'];
 type ContactUpdate = Database['public']['Tables']['contacts']['Update'];
 
 function getServiceClient() {
@@ -40,6 +41,31 @@ export const contactsRepository = {
       .maybeSingle();
 
     if (error) throw new Error(`contacts.findCompanyById: ${error.message}`);
+    return data;
+  },
+
+  async findByLinkedinSlug(userId: string, linkedinSlug: string): Promise<ContactRow | null> {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('linkedin_slug', linkedinSlug)
+      .maybeSingle();
+
+    if (error) throw new Error(`contacts.findByLinkedinSlug: ${error.message}`);
+    return data;
+  },
+
+  async create(fields: ContactInsert): Promise<ContactRow> {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase
+      .from('contacts')
+      .insert(fields)
+      .select()
+      .single();
+
+    if (error) throw new Error(`contacts.create: ${error.message}`);
     return data;
   },
 
