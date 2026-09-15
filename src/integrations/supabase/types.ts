@@ -447,6 +447,7 @@ export type Database = {
           location_raw: string | null
           name: string
           phone: string | null
+          phone_source: string | null
           region: string | null
           role_title: string | null
           seniority: string | null
@@ -476,6 +477,7 @@ export type Database = {
           location_raw?: string | null
           name: string
           phone?: string | null
+          phone_source?: string | null
           region?: string | null
           role_title?: string | null
           seniority?: string | null
@@ -505,6 +507,7 @@ export type Database = {
           location_raw?: string | null
           name?: string
           phone?: string | null
+          phone_source?: string | null
           region?: string | null
           role_title?: string | null
           seniority?: string | null
@@ -534,6 +537,60 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "prospecting_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrichment_raw: {
+        Row: {
+          company_id: string | null
+          contact_id: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          raw_json: Json
+          scraped_at: string
+          source_tool: string
+          source_url: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          raw_json: Json
+          scraped_at?: string
+          source_tool: string
+          source_url?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          raw_json?: Json
+          scraped_at?: string
+          source_tool?: string
+          source_url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_raw_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrichment_raw_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
         ]
