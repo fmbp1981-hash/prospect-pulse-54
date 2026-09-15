@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { normalizeLeadRow } from '@/lib/import/normalizer';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
   const leadNumber = `Lead-${String(seq).padStart(3, '0')}`;
 
   const { data, error } = await db.from('leads_prospeccao').insert({
+    id: uuidv4(),
     user_id: user.id,
     empresa: normalized.empresa,
     lead: leadNumber,

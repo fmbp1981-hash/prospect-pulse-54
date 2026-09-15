@@ -23,6 +23,7 @@ import { leadAutomation, type FollowUpConfig } from "@/lib/leadAutomation";
 import { useAuth } from "@/contexts/AuthContext";
 import { WebhookKeysPanel } from '@/components/settings/WebhookKeysPanel';
 import { ImportHistoryPanel } from '@/components/settings/ImportHistoryPanel';
+import { IcpSettingsPanel } from '@/components/settings/IcpSettingsPanel';
 
 function IntegrationsTabScroller() {
   const searchParams = useSearchParams();
@@ -1397,8 +1398,13 @@ export default function SettingsPage() {
         <RoleManagement />
       </RoleGuard>
 
-      {/* Integrações - Webhook Keys */}
+      {/* Perfil de Cliente Ideal (ICP) — filtro/qualificação de prospecção */}
       <div className="mt-8 border rounded-lg p-6">
+        <IcpSettingsPanel />
+      </div>
+
+      {/* Integrações - Webhook Keys */}
+      <div className="mt-6 border rounded-lg p-6">
         <WebhookKeysPanel />
       </div>
 
