@@ -29,17 +29,11 @@ function cleanExtractedValue(value: string | null | undefined): string | null {
   return trimmed;
 }
 
-function getApiKey(): string {
-  const key = process.env.FIRECRAWL_API_KEY;
-  if (!key) throw new Error('FIRECRAWL_API_KEY não configurada');
-  return key;
-}
-
-async function firecrawlFetch<T>(path: string, body: Record<string, unknown>): Promise<T> {
+async function firecrawlFetch<T>(apiKey: string, path: string, body: Record<string, unknown>): Promise<T> {
   const res = await fetch(`${FIRECRAWL_BASE_URL}${path}`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${getApiKey()}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
@@ -61,12 +55,12 @@ export const firecrawlClient = {
    * (confirmado testando contra domínios reais). Por isso fazemos uma
    * segunda chamada com `search: 'contact'` para direcionar o resultado.
    */
-  async mapDomain(domain: string): Promise<FirecrawlMapLink[]> {
+  async mapDomain(apiKey: string, domain: string): Promise<FirecrawlMapLink[]> {
     const url = domain.startsWith('http') ? domain : `https://${domain}`;
 
     const [general, contactBiased] = await Promise.all([
-      firecrawlFetch<{ success: boolean; links: FirecrawlMapLink[] }>('/map', { url, limit: 100 }),
-      firecrawlFetch<{ success: boolean; links: FirecrawlMapLink[] }>('/map', {
+      firecrawlFetch<{ success: boolean; links: FirecrawlMapLink[] }>(apiKey, '/map', { url, limit: 100 }),
+      firecrawlFetch<{ success: boolean; links: FirecrawlMapLink[] }>(apiKey, '/map', {
         url,
         search: 'contact',
         limit: 50,
@@ -87,11 +81,11 @@ export const firecrawlClient = {
    * Extrai email/telefone de uma página via schema JSON (LLM).
    * Retorna null nos campos que a página não tiver — não inventa dado.
    */
-  async extractContactInfo(pageUrl: string): Promise<ContactPageExtraction> {
+  async extractContactInfo(apiKey: string, pageUrl: string): Promise<ContactPageExtraction> {
     const data = await firecrawlFetch<{
       success: boolean;
       data?: { json?: ContactPageExtraction };
-    }>('/scrape', {
+    }>(apiKey, '/scrape', {
       url: pageUrl,
       formats: [
         {

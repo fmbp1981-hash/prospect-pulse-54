@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload, Phone, UserCheck, Mail } from "lucide-react";
+import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload, Phone, UserCheck, Mail, Globe } from "lucide-react";
 import { userSettingsService } from "@/lib/userSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { RoleGuard } from "@/components/RoleGuard";
@@ -74,6 +74,12 @@ export default function SettingsPage() {
   const [fromEmail, setFromEmail] = useState("");
   const [showResendKey, setShowResendKey] = useState(false);
 
+  // Configuração de prospecção (Firecrawl + Apify)
+  const [firecrawlApiKey, setFirecrawlApiKey] = useState("");
+  const [showFirecrawlKey, setShowFirecrawlKey] = useState(false);
+  const [apifyApiKey, setApifyApiKey] = useState("");
+  const [showApifyKey, setShowApifyKey] = useState(false);
+
   // Configurações de Follow-up automático
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
   const [followUpDays, setFollowUpDays] = useState(7);
@@ -131,10 +137,12 @@ export default function SettingsPage() {
         setMetaAccessToken(settings.business_access_token || "");
         setMetaVerifyToken(settings.meta_verify_token || "");
         setConsultantWhatsapp(settings.consultant_whatsapp || "");
-        setAgentEnabled((settings as any).agent_enabled !== false);
-        setOpenAiApiKey((settings as any).openai_api_key || "");
-        setResendApiKey((settings as any).resend_api_key || "");
-        setFromEmail((settings as any).from_email || "");
+        setAgentEnabled(settings.agent_enabled !== false);
+        setOpenAiApiKey(settings.openai_api_key || "");
+        setResendApiKey(settings.resend_api_key || "");
+        setFromEmail(settings.from_email || "");
+        setFirecrawlApiKey(settings.firecrawl_api_key || "");
+        setApifyApiKey(settings.apify_api_key || "");
       }
 
       // Carregar configurações de Follow-up
@@ -343,6 +351,8 @@ export default function SettingsPage() {
         openai_api_key: openAiApiKey || undefined,
         resend_api_key: resendApiKey || undefined,
         from_email: fromEmail || undefined,
+        firecrawl_api_key: firecrawlApiKey || undefined,
+        apify_api_key: apifyApiKey || undefined,
       });
 
       // Salvar configurações de Follow-up
@@ -1184,6 +1194,99 @@ export default function SettingsPage() {
               <p>2. Verifique o domínio do remetente em <strong>resend.com/domains</strong></p>
               <p>3. Preencha os campos acima e clique em <strong>Salvar Configurações</strong></p>
               <p>4. A chave aqui salva sobrepõe a variável de ambiente <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">RESEND_API_KEY</code></p>
+            </div>
+
+            <div className="flex gap-3">
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </RoleGuard>
+
+      {/* Prospecção — LinkedIn (Apify) e Enriquecimento de Site (Firecrawl) - Apenas para Admins */}
+      <RoleGuard allowedRoles={['admin']}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-primary" />
+              <CardTitle>Prospecção — LinkedIn e Enriquecimento</CardTitle>
+            </div>
+            <CardDescription>
+              Chaves de API para o conector de LinkedIn (Apify) e o enriquecimento de site
+              institucional (Firecrawl). Cada cliente configura suas próprias credenciais.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="apify_api_key" className="flex items-center gap-2">
+                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
+                Chave de API Apify (LinkedIn)
+              </Label>
+              <div className="flex gap-2 max-w-md">
+                <Input
+                  id="apify_api_key"
+                  type={showApifyKey ? "text" : "password"}
+                  placeholder="apify_api_..."
+                  value={apifyApiKey}
+                  onChange={(e) => setApifyApiKey(e.target.value)}
+                  className="font-mono text-sm flex-1"
+                  autoComplete="off"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  onClick={() => setShowApifyKey(!showApifyKey)}
+                  title={showApifyKey ? "Ocultar chave" : "Mostrar chave"}
+                >
+                  {showApifyKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Obtenha em <strong>console.apify.com/settings/integrations</strong>. Usada para
+                buscar pessoas/empresas no LinkedIn (camada sem cookies, sem risco de banimento).
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="firecrawl_api_key" className="flex items-center gap-2">
+                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
+                Chave de API Firecrawl (enriquecimento de site)
+              </Label>
+              <div className="flex gap-2 max-w-md">
+                <Input
+                  id="firecrawl_api_key"
+                  type={showFirecrawlKey ? "text" : "password"}
+                  placeholder="fc-..."
+                  value={firecrawlApiKey}
+                  onChange={(e) => setFirecrawlApiKey(e.target.value)}
+                  className="font-mono text-sm flex-1"
+                  autoComplete="off"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  type="button"
+                  onClick={() => setShowFirecrawlKey(!showFirecrawlKey)}
+                  title={showFirecrawlKey ? "Ocultar chave" : "Mostrar chave"}
+                >
+                  {showFirecrawlKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Obtenha em <strong>firecrawl.dev/app/api-keys</strong>. Usada só para achar
+                email/telefone publicados no site da empresa — nunca no canal LinkedIn.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
+              <p>As chaves aqui salvas sobrepõem as variáveis de ambiente
+                <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded mx-1">APIFY_API_KEY</code>
+                e
+                <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded mx-1">FIRECRAWL_API_KEY</code>
+                do servidor — cada tenant usa a própria conta e é cobrado por ela.</p>
             </div>
 
             <div className="flex gap-3">

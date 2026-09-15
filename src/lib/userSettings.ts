@@ -25,6 +25,10 @@ export interface UserSettings {
   resend_api_key?: string;
   // Endereço de remetente de e-mail por tenant (ex: contato@intellixai.com.br)
   from_email?: string;
+  // Chave de API Firecrawl por tenant (sobrepõe FIRECRAWL_API_KEY) — enriquecimento de site
+  firecrawl_api_key?: string;
+  // Chave de API Apify por tenant (sobrepõe APIFY_API_KEY) — conector LinkedIn
+  apify_api_key?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -109,6 +113,8 @@ export const userSettingsService = {
             openai_api_key: settings.openai_api_key ?? null,
             resend_api_key: settings.resend_api_key ?? null,
             from_email: settings.from_email ?? null,
+            firecrawl_api_key: settings.firecrawl_api_key ?? null,
+            apify_api_key: settings.apify_api_key ?? null,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", user.id)
@@ -137,6 +143,8 @@ export const userSettingsService = {
             openai_api_key: settings.openai_api_key ?? null,
             resend_api_key: settings.resend_api_key ?? null,
             from_email: settings.from_email ?? null,
+            firecrawl_api_key: settings.firecrawl_api_key ?? null,
+            apify_api_key: settings.apify_api_key ?? null,
           })
           .select()
           .single();

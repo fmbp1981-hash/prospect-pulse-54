@@ -1311,6 +1311,7 @@ export type Database = {
       user_settings: {
         Row: {
           agent_enabled: boolean
+          apify_api_key: string | null
           appointment_confirmation: string | null
           appointment_reminder: string | null
           approved_by: string | null
@@ -1322,6 +1323,7 @@ export type Database = {
           evolution_api_key: string | null
           evolution_api_url: string | null
           evolution_instance_name: string | null
+          firecrawl_api_key: string | null
           from_email: string | null
           id: string
           integration_configured: boolean | null
@@ -1343,6 +1345,7 @@ export type Database = {
         }
         Insert: {
           agent_enabled?: boolean
+          apify_api_key?: string | null
           appointment_confirmation?: string | null
           appointment_reminder?: string | null
           approved_by?: string | null
@@ -1354,6 +1357,7 @@ export type Database = {
           evolution_api_key?: string | null
           evolution_api_url?: string | null
           evolution_instance_name?: string | null
+          firecrawl_api_key?: string | null
           from_email?: string | null
           id?: string
           integration_configured?: boolean | null
@@ -1375,6 +1379,7 @@ export type Database = {
         }
         Update: {
           agent_enabled?: boolean
+          apify_api_key?: string | null
           appointment_confirmation?: string | null
           appointment_reminder?: string | null
           approved_by?: string | null
@@ -1386,6 +1391,7 @@ export type Database = {
           evolution_api_key?: string | null
           evolution_api_url?: string | null
           evolution_instance_name?: string | null
+          firecrawl_api_key?: string | null
           from_email?: string | null
           id?: string
           integration_configured?: boolean | null

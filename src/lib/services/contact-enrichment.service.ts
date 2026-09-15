@@ -15,6 +15,7 @@ import {
   type FirecrawlMapLink,
 } from '../integrations/firecrawl-client';
 import { normalizePhone, normalizeEmail } from '../import/normalizer';
+import { apiKeysService } from './api-keys.service';
 import type { Database, Json } from '@/integrations/supabase/types';
 
 type ContactRow = Database['public']['Tables']['contacts']['Row'];
@@ -58,7 +59,8 @@ export const contactEnrichmentService = {
     const domain = company?.domain ? extractDomain(company.domain) : null;
     if (!domain) return { contact, emailFound: false, phoneFound: false, pagesChecked: 0 };
 
-    const links = await firecrawlClient.mapDomain(domain);
+    const apiKey = await apiKeysService.getFirecrawlApiKey(userId);
+    const links = await firecrawlClient.mapDomain(apiKey, domain);
     const candidates = filterCandidateContactPages(links).slice(0, MAX_PAGES_TO_SCRAPE);
 
     let foundEmail: string | null = null;
@@ -67,7 +69,7 @@ export const contactEnrichmentService = {
     let rawExtraction: FirecrawlMapLink[] = [];
 
     for (const page of candidates) {
-      const extracted = await firecrawlClient.extractContactInfo(page.url);
+      const extracted = await firecrawlClient.extractContactInfo(apiKey, page.url);
       rawExtraction = [...rawExtraction, page];
 
       if (needsEmail && !foundEmail && extracted.email) {
