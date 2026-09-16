@@ -63,20 +63,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // 5. Atualizar user_settings
+    // 5. Atualizar user_settings — limpa também um eventual rejected anterior,
+    // já que a rejeição é reversível: um usuário rejeitado pode ser aprovado
+    // depois (decisão do produto).
     const { error: updateError } = await adminClient
       .from('user_settings')
       .update({
         role: newRole,
         pending_setup: false,
         approved_by: caller.id,
+        rejected: false,
+        rejected_at: null,
+        rejected_by: null,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId);
 
     if (updateError) {
       console.error('[approve-user] Erro ao atualizar user_settings:', updateError);
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
     }
 
     // 6. Enviar email via Resend

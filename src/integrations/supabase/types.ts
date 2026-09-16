@@ -1632,6 +1632,9 @@ export type Database = {
           pending_setup: boolean | null
           provider: string | null
           reactivation_message: string | null
+          rejected: boolean
+          rejected_at: string | null
+          rejected_by: string | null
           resend_api_key: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string | null
@@ -1667,6 +1670,9 @@ export type Database = {
           pending_setup?: boolean | null
           provider?: string | null
           reactivation_message?: string | null
+          rejected?: boolean
+          rejected_at?: string | null
+          rejected_by?: string | null
           resend_api_key?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string | null
@@ -1702,6 +1708,9 @@ export type Database = {
           pending_setup?: boolean | null
           provider?: string | null
           reactivation_message?: string | null
+          rejected?: boolean
+          rejected_at?: string | null
+          rejected_by?: string | null
           resend_api_key?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string | null
@@ -1960,6 +1969,7 @@ export type Database = {
           similarity: number
         }[]
       }
+      purge_expired_raw_payloads: { Args: never; Returns: undefined }
     }
     Enums: {
       user_role: "admin" | "operador" | "visualizador"
