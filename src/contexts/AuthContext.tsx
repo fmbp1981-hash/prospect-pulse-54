@@ -141,11 +141,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         // Criar user_settings com role padrão e pending_setup=true via API route
         // (usa service role para contornar RLS no momento do signup)
-        if (data.user?.id) {
+        if (data.user?.id && data.session?.access_token) {
           try {
             const res = await fetch('/api/admin/init-user-settings', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${data.session.access_token}`,
+              },
               body: JSON.stringify({ userId: data.user.id, companyName }),
             });
             if (!res.ok) {

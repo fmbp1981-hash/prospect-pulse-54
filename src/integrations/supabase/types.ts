@@ -1943,6 +1943,7 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_org_admin: { Args: { check_org_id: string }; Returns: boolean }
       is_org_member: { Args: { check_org_id: string }; Returns: boolean }
+      is_org_writer: { Args: { check_org_id: string }; Returns: boolean }
       match_document_chunks: {
         Args: {
           match_count: number
