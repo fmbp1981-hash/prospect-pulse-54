@@ -22,6 +22,9 @@ export interface LinkedinSearchContact {
   linkedinUrl: string;
   locationRaw: string | null;
   companyName: string | null;
+  email: string | null;
+  phone: string | null;
+  convertedLeadId: string | null;
 }
 
 export interface LinkedinSearchSummary {
@@ -118,6 +121,9 @@ export const linkedinProspectingService = {
           linkedinUrl: contact.linkedin_url ?? profile.linkedinUrl,
           locationRaw: contact.location_raw,
           companyName: company?.name ?? null,
+          email: contact.email,
+          phone: contact.phone,
+          convertedLeadId: contact.converted_lead_id,
         });
 
         await linkedinRawRepository.create({

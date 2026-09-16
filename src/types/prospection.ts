@@ -70,6 +70,7 @@ export type LeadOrigin =
   | 'Redes Sociais'
   | 'Evento'
   | 'Google Places'
+  | 'LinkedIn'
   | 'Outro';
 
 export interface Lead {

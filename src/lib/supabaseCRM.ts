@@ -42,6 +42,7 @@ interface SupabaseLeadRow {
   motivo_follow_up?: string;
   data_qualificacao?: string;
   ultimo_contato?: string;
+  origem?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -128,8 +129,8 @@ export async function syncAllLeads(): Promise<{ success: boolean; leads: Lead[];
       createdAt: row.created_at || new Date().toISOString(),
       updatedAt: row.updated_at || new Date().toISOString(),
 
-      // Campos virtuais (não existem no banco)
-      origem: LEAD_ORIGIN.PROSPECCAO_ATIVA,
+      // origem agora vem do banco (campo real) — fallback só se vazio
+      origem: (row.origem as Lead['origem']) || LEAD_ORIGIN.PROSPECCAO_ATIVA,
       prioridade: LEAD_PRIORITY.MEDIA,
       regiao: row.cidade || "",
       segmento: row.categoria || "",
@@ -434,7 +435,7 @@ function mapRowToLead(row: SupabaseLeadRow): Lead {
     resumoAnalitico: row.resumo_analitico || "",
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || new Date().toISOString(),
-    origem: LEAD_ORIGIN.PROSPECCAO_ATIVA,
+    origem: (row.origem as Lead['origem']) || LEAD_ORIGIN.PROSPECCAO_ATIVA,
     prioridade: LEAD_PRIORITY.MEDIA,
     regiao: row.cidade || "",
     segmento: row.categoria || "",
@@ -549,7 +550,7 @@ export async function getMetrics(): Promise<{
         statusCounts[resolvedStatus]++;
       }
 
-      const origin = lead.categoria || LEAD_ORIGIN.GOOGLE_PLACES;
+      const origin = lead.origem || LEAD_ORIGIN.GOOGLE_PLACES;
       originCounts[origin] = (originCounts[origin] || 0) + 1;
 
       totalValue += 0; // ticket_medio_estimado não existe no banco
@@ -628,8 +629,8 @@ export async function getLeadsForWhatsApp(
       cnpj: row.cnpj || "",
       data: row.data || "",
 
-      // Campos virtuais
-      origem: LEAD_ORIGIN.GOOGLE_PLACES,
+      // origem vem do banco (campo real) — fallback só se vazio
+      origem: (row.origem as Lead['origem']) || LEAD_ORIGIN.GOOGLE_PLACES,
       prioridade: LEAD_PRIORITY.MEDIA,
       regiao: row.cidade || "",
       segmento: row.categoria || "",
