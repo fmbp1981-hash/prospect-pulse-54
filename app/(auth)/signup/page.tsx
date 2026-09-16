@@ -17,6 +17,7 @@ export default function SignUpPage() {
   const { signUp, loading: authLoading } = useAuth();
 
   const [fullName, setFullName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -29,7 +30,7 @@ export default function SignUpPage() {
     e.preventDefault();
     setError("");
 
-    if (!fullName || !email || !password || !confirmPassword) {
+    if (!fullName || !companyName || !email || !password || !confirmPassword) {
       setError("Preencha todos os campos");
       return;
     }
@@ -45,7 +46,7 @@ export default function SignUpPage() {
     }
 
     setIsLoading(true);
-    const { error: signUpError } = await signUp(email, password, fullName);
+    const { error: signUpError } = await signUp(email, password, fullName, companyName);
 
     if (!signUpError) {
       toast.success("Conta criada com sucesso! Você pode fazer login agora.");
@@ -109,6 +110,23 @@ export default function SignUpPage() {
                   required
                   autoComplete="name"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Nome da Empresa</Label>
+                <Input
+                  id="companyName"
+                  type="text"
+                  placeholder="Nome da sua empresa"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  required
+                  autoComplete="organization"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Cria uma organização isolada para sua empresa — leads e dados nunca se
+                  misturam com os de outras empresas.
+                </p>
               </div>
 
               <div className="space-y-2">

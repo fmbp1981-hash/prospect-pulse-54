@@ -11,7 +11,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<{ error: AuthError | null }>;
+  signUp: (email: string, password: string, fullName?: string, companyName?: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
 }
@@ -117,7 +117,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const signUp = async (email: string, password: string, fullName?: string) => {
+  const signUp = async (email: string, password: string, fullName?: string, companyName?: string) => {
     try {
       const supabase = getSupabaseClient();
       if (!supabase) {
@@ -141,13 +141,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       } else {
         // Criar user_settings com role padrão e pending_setup=true via API route
         // (usa service role para contornar RLS no momento do signup)
-        if (data.user?.id) {
+        if (data.user?.id && data.session?.access_token) {
           try {
-            await fetch('/api/admin/init-user-settings', {
+            const res = await fetch('/api/admin/init-user-settings', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ userId: data.user.id }),
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${data.session.access_token}`,
+              },
+              body: JSON.stringify({ userId: data.user.id, companyName }),
             });
+            if (!res.ok) {
+              console.error('Erro ao criar user_settings/organização no signup:', await res.text());
+            }
           } catch (settingsErr) {
             console.warn('Aviso: não foi possível criar user_settings no signup:', settingsErr);
           }
