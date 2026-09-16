@@ -73,6 +73,19 @@ export function InsightsCharts({ leads }: InsightsChartsProps) {
       .sort((a, b) => b.value - a.value);
   }, [leads]);
 
+  // Identifica de qual canal cada lead veio (LinkedIn, Google Places, etc.)
+  const originDistribution = useMemo(() => {
+    const map = new Map<string, number>();
+    leads.forEach((lead) => {
+      const o = lead.origem || "Não identificado";
+      map.set(o, (map.get(o) || 0) + 1);
+    });
+
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [leads]);
+
   return (
     <div className="grid lg:grid-cols-3 gap-6">
       {/* Categories with conversion */}
@@ -188,6 +201,67 @@ export function InsightsCharts({ leads }: InsightsChartsProps) {
                     style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
                   />
                   <span className="text-muted-foreground truncate max-w-[120px]">{item.name}</span>
+                </div>
+                <span className="font-medium tabular-nums">{item.value}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Origin donut — identifica o canal de cada lead (LinkedIn, Google Places, etc.) */}
+      <Card className="lg:col-span-3">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold">Leads por Origem</CardTitle>
+          <CardDescription>De qual canal cada lead veio</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[240px] max-w-md mx-auto">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={originDistribution}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={85}
+                  paddingAngle={3}
+                  dataKey="value"
+                  nameKey="name"
+                  stroke="none"
+                >
+                  {originDistribution.map((_, i) => (
+                    <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload;
+                    const total = leads.length;
+                    return (
+                      <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-md">
+                        <p className="font-medium">{d.name}</p>
+                        <p className="text-muted-foreground">
+                          {d.value} ({total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%)
+                        </p>
+                      </div>
+                    );
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="space-y-1.5 mt-2 max-w-md mx-auto">
+            {originDistribution.slice(0, 6).map((item, i) => (
+              <div key={i} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
+                  />
+                  <span className="text-muted-foreground truncate max-w-[200px]">{item.name}</span>
                 </div>
                 <span className="font-medium tabular-nums">{item.value}</span>
               </div>

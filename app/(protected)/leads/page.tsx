@@ -49,6 +49,18 @@ type SortField = keyof Lead;
 type SortOrder = 'asc' | 'desc';
 type ViewMode = 'list' | 'kanban';
 
+// Cor do badge de origem — identifica de qual canal o lead veio (Google Maps, LinkedIn, etc.)
+function originBadgeClass(origem: string): string {
+  switch (origem) {
+    case 'LinkedIn':
+      return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300';
+    case 'Google Places':
+      return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300';
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300';
+  }
+}
+
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -483,6 +495,7 @@ export default function LeadsPage() {
                     <TableHead className="cursor-pointer" onClick={() => handleSort('empresa')}>
                       Empresa <ArrowUpDown className="inline h-4 w-4 ml-1" />
                     </TableHead>
+                    <TableHead>Origem</TableHead>
                     <TableHead>Categoria</TableHead>
                     <TableHead>WhatsApp</TableHead>
                     <TableHead>Telefone</TableHead>
@@ -514,6 +527,15 @@ export default function LeadsPage() {
                             <p className="text-xs text-muted-foreground">{toTitleCase(lead.contato)}</p>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {lead.origem ? (
+                          <Badge variant="outline" className={originBadgeClass(lead.origem)}>
+                            {lead.origem}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>{toTitleCase(lead.categoria || "")}</TableCell>
                       <TableCell>

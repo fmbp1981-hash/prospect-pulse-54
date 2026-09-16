@@ -1,3 +1,8 @@
+// Match com o Perfil de Cliente Ideal (ICP) configurado em icp_settings — ver
+// docs/PROSPECCAO-MULTICANAL.md. NÃO confundir com o estágio de pipeline
+// "Qualificação" em LeadStatus, que é conversacional (conduzido pelo agente de SDR).
+export type IcpFitStatus = 'pending' | 'fit' | 'no_fit' | 'disqualified' | 'quarantine';
+
 export interface LocationData {
   country: string;
   state: string;
@@ -65,6 +70,7 @@ export type LeadOrigin =
   | 'Redes Sociais'
   | 'Evento'
   | 'Google Places'
+  | 'LinkedIn'
   | 'Outro';
 
 export interface Lead {
@@ -96,6 +102,11 @@ export interface Lead {
   resumoAnalitico?: string; // Mapeado de resumo_analitico
   createdAt?: string; // created_at
   updatedAt?: string; // updated_at
+
+  // Match com o Perfil de Cliente Ideal (ICP) — docs/PROSPECCAO-MULTICANAL.md
+  icpFitStatus?: IcpFitStatus; // Mapeado de icp_fit_status
+  icpFitReason?: string | null; // Mapeado de icp_fit_reason
+  icpFitEvaluatedAt?: string | null; // Mapeado de icp_fit_evaluated_at
 
   // Email marketing
   statusEmail?: 'not_sent' | 'sent' | 'failed'; // Mapeado de status_email

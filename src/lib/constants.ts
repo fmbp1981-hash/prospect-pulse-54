@@ -110,6 +110,7 @@ export const LEAD_ORIGIN = {
   EVENTO: 'Evento',
   OUTRO: 'Outro',
   GOOGLE_PLACES: 'Google Places',
+  LINKEDIN: 'LinkedIn',
 } as const;
 
 export type LeadOriginValue = typeof LEAD_ORIGIN[keyof typeof LEAD_ORIGIN];
