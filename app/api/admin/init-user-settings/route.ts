@@ -1,13 +1,18 @@
 /**
- * API: Inicializar user_settings para novo usuário
+ * API: Inicializar user_settings + organização para novo usuário
  *
  * POST /api/admin/init-user-settings
- * Chamado durante o signUp para criar user_settings com role=visualizador e pending_setup=true.
+ * Chamado durante o signUp para criar user_settings com role=visualizador e pending_setup=true,
+ * e — para signups normais (não o admin da plataforma) — cria uma NOVA organização (empresa)
+ * com este usuário como admin dela. Isso é o que garante isolamento completo entre empresas
+ * diferentes que adotam o sistema: cada cadastro novo nasce em sua própria organização.
+ *
  * Usa service role para contornar RLS (o usuário ainda não está autenticado no momento do signup).
  * Esta rota é pública mas só faz upsert com dados mínimos — sem risco de escalada de privilégios.
  *
  * Exceção: o email designado como admin recebe role='admin' e pending_setup=false automaticamente,
- * garantindo que o administrador principal sempre tenha acesso completo ao sistema.
+ * garantindo que o administrador principal sempre tenha acesso completo ao sistema. Esse admin de
+ * plataforma não pertence a uma organização (ele opera fora do modelo de empresa-cliente).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -17,8 +22,8 @@ const ADMIN_EMAIL = 'fmbp1981@gmail.com';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { userId?: string };
-    const { userId } = body;
+    const body = await req.json() as { userId?: string; companyName?: string };
+    const { userId, companyName } = body;
 
     // Valida formato UUID antes de tocar no banco — evita 500 com payloads maliciosos
     const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -59,13 +64,43 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase
         .from('user_settings')
         .upsert(
-          { user_id: userId, role: 'visualizador', pending_setup: true },
+          { user_id: userId, role: 'visualizador', pending_setup: true, company_name: companyName ?? null },
           { onConflict: 'user_id', ignoreDuplicates: true }
         );
 
       if (error) {
         console.error('[init-user-settings] Erro ao criar user_settings:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      // Cria a organização (empresa) deste cadastro — idempotente: se este usuário já
+      // é membro de alguma organização (chamada duplicada da rota), não cria de novo.
+      const { data: existingMembership } = await supabase
+        .from('organization_members')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!existingMembership) {
+        const { data: org, error: orgError } = await supabase
+          .from('organizations')
+          .insert({ name: companyName?.trim() || 'Minha Empresa' })
+          .select('id')
+          .single();
+
+        if (orgError) {
+          console.error('[init-user-settings] Erro ao criar organização:', orgError);
+          return NextResponse.json({ error: orgError.message }, { status: 500 });
+        }
+
+        const { error: memberError } = await supabase
+          .from('organization_members')
+          .insert({ organization_id: org.id, user_id: userId, role: 'admin' });
+
+        if (memberError) {
+          console.error('[init-user-settings] Erro ao criar membership:', memberError);
+          return NextResponse.json({ error: memberError.message }, { status: 500 });
+        }
       }
     }
 

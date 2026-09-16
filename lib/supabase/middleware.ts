@@ -10,7 +10,12 @@ export async function updateSession(request: NextRequest) {
   // Rotas públicas (não requerem autenticação)
   const publicRoutes = ['/login', '/signup', '/forgot-password'];
   // Rotas de API que recebem webhooks externos (Evolution API, cron jobs) — sempre públicas
-  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/', '/api/leads/import/webhook'];
+  // /api/admin/init-user-settings também precisa ser pública: é chamada logo após o signUp,
+  // antes de existir user_settings para o novo usuário — se não estivesse aqui, a checagem de
+  // pending_setup abaixo redirecionaria essa chamada POST para /pending antes de ela rodar,
+  // e a organização do novo cadastro nunca seria criada. A rota já valida o UUID do userId e
+  // usa service role apenas para upsert mínimo, sem risco de escalada de privilégio.
+  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/', '/api/leads/import/webhook', '/api/admin/init-user-settings'];
   const isPublicApiRoute = publicApiPrefixes.some(prefix => pathname.startsWith(prefix));
   const isPublicRoute = isPublicApiRoute || publicRoutes.some(route => pathname.startsWith(route));
   // Rota de pending — usuário autenticado mas aguardando aprovação
