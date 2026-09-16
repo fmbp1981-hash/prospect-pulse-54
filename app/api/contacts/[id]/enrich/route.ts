@@ -5,10 +5,6 @@ import { contactEnrichmentService } from '@/lib/services/contact-enrichment.serv
 
 export const runtime = 'nodejs';
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Erro desconhecido';
-}
-
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const cookieStore = cookies();
   const supabase = createServerClient(
@@ -24,6 +20,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     if (!result) return NextResponse.json({ error: 'Contato não encontrado' }, { status: 404 });
     return NextResponse.json({ data: result });
   } catch (err) {
-    return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
+    console.error('[contacts/enrich] Erro inesperado:', err);
+    return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
   }
 }

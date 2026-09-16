@@ -130,14 +130,56 @@ qualquer automação de outreach nova ser ligada a dados vindos de LinkedIn/Inst
 que carregam ainda mais sensibilidade (dado pessoal de terceiro coletado sem
 interação direta do titular).
 
+### 6.1 Base legal para coleta de dados via LinkedIn/enriquecimento (LGPD Art. 7º, IX)
+
+Achado da revisão de segurança do PR #8 (LGPD-01): faltava documentar formalmente a
+base legal para tratar dado pessoal de terceiro (nome, cargo, e-mail, telefone de
+pessoa física) coletado sem interação direta do titular. Registrado aqui.
+
+**Base legal escolhida:** Legítimo interesse (Art. 7º, IX), com o teste de
+balanceamento abaixo — não Consentimento (Art. 7º, I), porque o titular nunca interage
+diretamente com o sistema no momento da coleta.
+
+- **Finalidade:** prospecção comercial B2B — identificar potenciais decisores em
+  empresas-alvo, a partir de dados **profissionais já públicos** (nome, cargo,
+  empresa, e ocasionalmente e-mail/telefone institucional publicado no site da
+  própria empresa).
+- **Necessidade:** o dado coletado é o mínimo necessário para qualificar e abordar um
+  contato comercial (não se coleta dado sensível — saúde, biometria, opinião
+  política, orientação sexual — nem dado de contexto pessoal fora do profissional).
+- **Balanceamento (direitos do titular vs. interesse do controlador):**
+  - Fonte é sempre pública (perfil LinkedIn indexado, site institucional) — nunca
+    scraping autenticado, nunca credencial de terceiro, nunca dado privado.
+  - O dado tratado é profissional (cargo, empresa), não pessoal íntimo.
+  - **Controles compensatórios obrigatórios** (já implementados ou corrigidos junto
+    com este achado):
+    1. Lista de supressão (`linkedin_suppression_list`) consultada antes de todo
+       upsert — quem já pediu exclusão nunca é recriado.
+    2. Rota `POST /api/prospecting/linkedin/suppress` — canal real de
+       oposição/eliminação (Art. 18), não apenas documentado (ver LGPD-02).
+    3. Retenção limitada do payload bruto (`linkedin_raw`/`enrichment_raw`,
+       `expires_at` = 90 dias) com expurgo automático (ver LGPD-03).
+    4. **Nenhum disparo automático de mensagem** (WhatsApp/e-mail) a partir de um
+       contato coletado — a promoção para lead (`contact-promotion.service.ts`)
+       apenas coloca o registro na fila normal de abordagem manual/bot já existente
+       no CRM, sujeita à mesma falta de máquina de estados de consentimento já
+       identificada na Seção 6 (gap pré-existente, não ampliado por esta feature).
+- **Transparência:** pendente incluir, na política de privacidade pública do
+  sistema, menção explícita a esta prática (prospecção B2B a partir de fontes
+  profissionais públicas) — item de produto, não técnico, fora do escopo deste PR.
+
+Esta seção não substitui uma Avaliação de Legítimo Interesse (LIA) formal caso a
+ANPD venha a solicitar — é o registro mínimo da decisão e do teste de balanceamento
+no momento da implementação, conforme Art. 10, §único.
+
 ## 7. Roadmap mapeado ao estado atual
 
 | Fase | Escopo | Estado |
 |------|--------|--------|
-| 1 — MVP de dados | Manter Google Maps; filtro de nicho pós-scrap; `qualification_status` | Não iniciado |
-| 2 — Enriquecimento | Conector LinkedIn (fonte licenciada); ICP score fino; parser de telefone público | Não iniciado |
-| 3 — Produto | Modelo canônico completo (companies/people/observations); dashboard de qualidade | Não iniciado |
-| 4 — Sales Execution | Máquina de estados de consentimento; Instagram Direct; handoff vendedor | Parcial (disparo existe, sem state machine) |
+| 1 — MVP de dados | Manter Google Maps; filtro de nicho pós-scrap; `qualification_status`/`icp_fit_status` | ✅ Concluído |
+| 2 — Enriquecimento | Conector LinkedIn (Apify cookieless); worker Firecrawl (gap-fill email/telefone); ICP score configurável | ✅ Concluído |
+| 3 — Produto | Modelo canônico completo (companies/people/observations); dashboard de qualidade | Não iniciado (schema atual com extensões pontuais, mantido por decisão própria) |
+| 4 — Sales Execution | Máquina de estados de consentimento; Instagram Direct; handoff vendedor | Parcial (disparo existe, sem state machine; Instagram não iniciado) |
 
 ## 8. Próximos passos / decisões pendentes
 

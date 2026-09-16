@@ -5,10 +5,6 @@ import { contactPromotionService } from '@/lib/services/contact-promotion.servic
 
 export const runtime = 'nodejs';
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Erro desconhecido';
-}
-
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const cookieStore = cookies();
   const supabase = createServerClient(
@@ -23,6 +19,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     const lead = await contactPromotionService.promoteToLead(params.id, user.id);
     return NextResponse.json({ data: lead });
   } catch (err) {
-    return NextResponse.json({ error: errorMessage(err) }, { status: 500 });
+    console.error('[contacts/promote] Erro inesperado:', err);
+    return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
   }
 }

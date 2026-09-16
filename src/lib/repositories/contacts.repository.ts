@@ -82,4 +82,20 @@ export const contactsRepository = {
     if (error) throw new Error(`contacts.update: ${error.message}`);
     return data;
   },
+
+  /**
+   * Elimina o contato (LGPD Art. 18, VI — direito ao apagamento). Não afeta
+   * um lead já promovido para leads_prospeccao (registro separado, criado
+   * por ação explícita do usuário, fora do escopo deste apagamento).
+   */
+  async deleteByLinkedinSlug(userId: string, linkedinSlug: string): Promise<void> {
+    const supabase = getServiceClient();
+    const { error } = await supabase
+      .from('contacts')
+      .delete()
+      .eq('user_id', userId)
+      .eq('linkedin_slug', linkedinSlug);
+
+    if (error) throw new Error(`contacts.deleteByLinkedinSlug: ${error.message}`);
+  },
 };
