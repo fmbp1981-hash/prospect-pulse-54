@@ -15,12 +15,22 @@ import { prospectingJobsRepository } from '../repositories/prospecting-jobs.repo
 import { linkedinSearchSchema, type LinkedinSearchInput } from '../validations/linkedin-search.validation';
 import type { Json } from '@/integrations/supabase/types';
 
+export interface LinkedinSearchContact {
+  id: string;
+  name: string;
+  roleTitle: string | null;
+  linkedinUrl: string;
+  locationRaw: string | null;
+  companyName: string | null;
+}
+
 export interface LinkedinSearchSummary {
   jobId: string;
   found: number;
   created: number;
   skippedSuppressed: number;
   skippedDuplicate: number;
+  contacts: LinkedinSearchContact[];
 }
 
 function companySlugFromUrl(url: string | undefined): string | null {
@@ -71,6 +81,7 @@ export const linkedinProspectingService = {
       let created = 0;
       let skippedSuppressed = 0;
       let skippedDuplicate = 0;
+      const contacts: LinkedinSearchContact[] = [];
 
       for (const profile of profiles) {
         if (suppressed.has(profile.id)) {
@@ -100,6 +111,15 @@ export const linkedinProspectingService = {
           status: 'novo',
         });
 
+        contacts.push({
+          id: contact.id,
+          name: contact.name,
+          roleTitle: contact.role_title,
+          linkedinUrl: contact.linkedin_url ?? profile.linkedinUrl,
+          locationRaw: contact.location_raw,
+          companyName: company?.name ?? null,
+        });
+
         await linkedinRawRepository.create({
           user_id: userId,
           contact_id: contact.id,
@@ -119,7 +139,7 @@ export const linkedinProspectingService = {
         result_summary: { created, skippedSuppressed, skippedDuplicate } as unknown as Json,
       });
 
-      return { jobId: job.id, found: profiles.length, created, skippedSuppressed, skippedDuplicate };
+      return { jobId: job.id, found: profiles.length, created, skippedSuppressed, skippedDuplicate, contacts };
     } catch (err) {
       await prospectingJobsRepository.complete(job.id, {
         status: 'failed',
