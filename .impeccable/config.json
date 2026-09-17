@@ -1,0 +1,23 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "createdAt": "2026-09-17T12:23:00.071Z",
+        "reason": "app/api/admin/test-email/route.ts é um template de email HTML (Resend), não UI de app — Arial é a escolha correta/segura para compatibilidade de clientes de email"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "app/api/admin/test-email/route.ts"
+        ],
+        "createdAt": "2026-09-17T12:23:23.298Z",
+        "reason": "Template de email HTML (Resend), não UI de app — border-left é padrão table-safe para callout em HTML de email"
+      }
+    ]
+  }
+}
