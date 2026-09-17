@@ -13,6 +13,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { z } from 'zod';
+
+const deleteUserSchema = z.object({ userId: z.string().uuid() });
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,23 +45,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const body = await req.json() as { userId?: string };
-    const { userId } = body;
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    const parsed = deleteUserSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'userId inválido' }, { status: 400 });
     }
+    const { userId } = parsed.data;
 
     if (userId === caller.id) {
       return NextResponse.json({ error: 'Não é possível excluir a própria conta por aqui' }, { status: 400 });
     }
 
-    const { data: targetSettings } = await adminClient
+    // Guard atômico: o UPDATE só afeta a linha (e só retorna algo) se
+    // pending_setup ainda for true no exato momento da escrita — fecha a
+    // janela de corrida entre checar e agir (TOCTOU) que existiria com um
+    // SELECT seguido de deleteUser separados.
+    const { data: guarded, error: guardError } = await adminClient
       .from('user_settings')
-      .select('pending_setup')
+      .update({ updated_at: new Date().toISOString() })
       .eq('user_id', userId)
-      .single();
+      .eq('pending_setup', true)
+      .select('user_id')
+      .maybeSingle();
 
-    if (!targetSettings || targetSettings.pending_setup !== true) {
+    if (guardError) {
+      console.error('[delete-user] Erro no guard de exclusão:', guardError);
+      return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
+    }
+
+    if (!guarded) {
       return NextResponse.json(
         { error: 'Só é possível excluir contas ainda não aprovadas' },
         { status: 409 }

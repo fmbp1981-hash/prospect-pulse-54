@@ -13,6 +13,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { z } from 'zod';
+
+const rejectUserSchema = z.object({
+  userId: z.string().uuid(),
+  reason: z.string().max(500).optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -42,10 +48,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const body = await req.json() as { userId?: string; reason?: string };
-    const { userId } = body;
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    const parsed = rejectUserSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'userId inválido' }, { status: 400 });
+    }
+    const { userId } = parsed.data;
+
+    if (userId === caller.id) {
+      return NextResponse.json({ error: 'Não é possível rejeitar a própria conta' }, { status: 400 });
     }
 
     const { error: updateError } = await adminClient

@@ -22,11 +22,17 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
 const ADMIN_EMAIL = 'fmbp1981@gmail.com';
 
 export async function POST(req: NextRequest) {
   try {
+    const { limited } = await checkRateLimit(`init-user-settings:${getClientIp(req)}`);
+    if (limited) {
+      return NextResponse.json({ error: 'Muitas tentativas. Tente novamente em alguns minutos.' }, { status: 429 });
+    }
+
     const body = await req.json() as { userId?: string; companyName?: string };
     const { userId, companyName } = body;
 
@@ -78,7 +84,7 @@ export async function POST(req: NextRequest) {
 
       if (error) {
         console.error('[init-user-settings] Erro ao criar/atualizar settings do admin:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
       }
     } else {
       // Usuário comum: criar apenas se não existir — não sobrescreve settings existentes
@@ -91,7 +97,7 @@ export async function POST(req: NextRequest) {
 
       if (error) {
         console.error('[init-user-settings] Erro ao criar user_settings:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
       }
 
       // Cria a organização (empresa) deste cadastro — idempotente: se este usuário já
@@ -111,7 +117,7 @@ export async function POST(req: NextRequest) {
 
         if (orgError) {
           console.error('[init-user-settings] Erro ao criar organização:', orgError);
-          return NextResponse.json({ error: orgError.message }, { status: 500 });
+          return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
         }
 
         const { error: memberError } = await supabase
@@ -120,7 +126,7 @@ export async function POST(req: NextRequest) {
 
         if (memberError) {
           console.error('[init-user-settings] Erro ao criar membership:', memberError);
-          return NextResponse.json({ error: memberError.message }, { status: 500 });
+          return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
         }
       }
     }
