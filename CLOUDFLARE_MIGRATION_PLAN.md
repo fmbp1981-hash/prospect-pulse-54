@@ -1,6 +1,6 @@
 # Plano de Execução — Migração Vercel → Cloudflare
 
-**Status:** Fase 1 concluída e validada (build local passa). Fases 2-8 ainda não iniciadas.
+**Status:** Fases 1, 2, 4 e 5 concluídas/decididas nesta sessão. Fase 3 tem script pronto, envio pendente (precisa de `wrangler login` do usuário). Fases 6-8 ainda não iniciadas.
 **Criado em:** 2026-09-17
 **Decisão de origem:** `~/.claude/WORKFLOW-SPINE-VS-ORBIT.md`, seção 3 (2026-09-07) — stack de deploy passa a ser Cloudflare (Workers), não mais Vercel.
 **Gate de execução:** deploy real (`wrangler deploy` / cutover de DNS) é sempre manual, via `/intellix:deploy`, e exige Fase 07 concluída + `devsecops:security-gate == PASS`. Este documento cobre até o ponto de "pronto para o usuário rodar o deploy".
@@ -92,25 +92,31 @@ Variáveis identificadas no código (`process.env.*`):
 
 ---
 
-## Fase 4 — Domínio e DNS
+## Fase 4 — Domínio e DNS ✅ decidido
 
-1. Confirmar com o usuário: existe domínio próprio (ex: um domínio customizado) ou o app fica em `*.workers.dev` por enquanto?
-2. Se houver domínio: adicionar/confirmar no Cloudflare (zona já deve existir, já que o `cluster Cloudflare` do projeto pressupõe conta ativa), configurar rota customizada do Worker (`routes` no `wrangler.toml` ou domínio custom via dashboard).
-3. Definir estratégia de corte: DNS só muda na Fase 7, depois de validar em staging.
+**Decisão do usuário:** fica em `*.workers.dev` por enquanto — sem domínio customizado nesta etapa.
+
+Não precisa de nenhuma mudança em `wrangler.jsonc` (sem `routes`/domínio custom). Depois do primeiro `wrangler deploy` (Fase 7, manual), o Worker fica acessível em `https://leadfinder-pro.<seu-subdomínio-workers-dev>.workers.dev` — o subdomínio exato só é conhecido depois do login (`wrangler whoami` revela) ou do próprio deploy. Nesse momento:
+1. Setar `NEXT_PUBLIC_APP_URL` pra essa URL (via `wrangler secret put NEXT_PUBLIC_APP_URL` ou `vars` no `wrangler.jsonc` — é pública, pode ir em `vars`).
+2. Se quiser domínio próprio depois, essa fase é revisitada — adicionar a zona no Cloudflare e configurar `routes` no `wrangler.jsonc`.
 
 ---
 
-## Fase 5 — CI/CD
+## Fase 5 — CI/CD ✅ decidido
 
-**Objetivo:** manter o mesmo conforto que a Vercel dava (deploy automático a cada push).
+**Decisão do usuário:** Cloudflare Workers Builds (nativo, git-conectado — sem `.github/workflows`, sem guardar `CLOUDFLARE_API_TOKEN` no GitHub).
 
-Opção recomendada (mais próxima do que a Vercel fazia, nativa, sem gerenciar secret de CI):
-- **Cloudflare Workers Builds** — conecta o repositório GitHub direto no dashboard Cloudflare, builda e publica a cada push, sem precisar de `.github/workflows` nem guardar `CLOUDFLARE_API_TOKEN` como GitHub secret.
+Configuração é 100% no dashboard Cloudflare (ação de conta, não posso fazer por você):
+1. **Workers & Pages** → **Create application** → **Import a repository** → conectar o GitHub → selecionar `fmbp1981-hash/prospect-pulse-54`.
+   - Se preferir a partir de um Worker já existente: **Settings** → **Builds** → **Connect**.
+2. **Importante:** o nome do Worker configurado no dashboard precisa bater exatamente com `"name": "leadfinder-pro"` do `wrangler.jsonc` — senão o build falha.
+3. Comandos a configurar:
+   - **Build command:** `npm run cf:build`
+   - **Deploy command:** `npx wrangler deploy`
+4. Branch de produção: `main` (ajustar se preferir outra).
+5. Depois de conectado, cada push já builda e publica automaticamente — confirmar via **Deployments** → **View build history**.
 
-Alternativa (mais controle, mais manutenção):
-- `.github/workflows/deploy.yml` rodando `wrangler deploy` com `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` como GitHub Secrets.
-
-Decisão fica com o usuário na hora de executar esta fase.
+Isso substitui o fluxo antigo "push na main = deploy automático" que a Vercel já dava.
 
 ---
 
