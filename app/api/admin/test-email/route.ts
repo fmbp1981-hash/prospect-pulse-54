@@ -5,7 +5,7 @@
  * Útil para validar a integração sem precisar disparar uma campanha real.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 
@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
   );
 
   // Busca credenciais do tenant IntelliX
-  const { data: { users } } = await db.auth.admin.listUsers({ perPage: 1000 });
+  const { data } = await db.auth.admin.listUsers({ perPage: 1000 });
+  const users = data.users as User[];
   const authUser = users.find(u => u.email === 'contato@intellixai.com.br');
   if (!authUser) return NextResponse.json({ error: 'Tenant IntelliX não encontrado' }, { status: 404 });
 

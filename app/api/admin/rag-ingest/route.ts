@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
 import { ingestDocument } from '@/lib/ai/rag/rag.service';
 import { withOpenAIKey } from '@/lib/ai/openai-key-context';
 import {
@@ -61,7 +61,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Auth admin error: ${listResult.error.message}` }, { status: 500 });
   }
 
-  const authUser = listResult.data.users.find((u) => u.email === 'contato@intellixai.com.br');
+  // Cast explícito: o SDK tipa a rama de sucesso como `{ users: User[] } & Pagination`,
+  // mas o narrowing pelo `if (listResult.error)` acima não propaga corretamente para
+  // `.data.users` no checker de build do Next — ver CLOUDFLARE_MIGRATION_PLAN.md.
+  const users = listResult.data.users as User[];
+  const authUser = users.find((u) => u.email === 'contato@intellixai.com.br');
 
   if (!authUser) {
     return NextResponse.json(

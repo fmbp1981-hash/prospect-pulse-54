@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type User } from '@supabase/supabase-js';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -117,7 +117,8 @@ export async function GET(req: NextRequest) {
   const supabase = getServiceClient();
 
   // Busca credenciais Meta do tenant IntelliX
-  const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  const { data } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  const users = data.users as User[];
   const authUser = users.find((u) => u.email === 'contato@intellixai.com.br');
   if (!authUser) return NextResponse.json({ error: 'IntelliX user not found' }, { status: 404 });
 
