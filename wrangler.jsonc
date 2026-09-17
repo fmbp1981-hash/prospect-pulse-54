@@ -14,6 +14,17 @@
       "service": "prospect-pulse-54"
     }
   ],
+  // Vars públicas NEXT_PUBLIC_* — precisam estar aqui (build-time) além do
+  // dashboard Cloudflare (Settings > Variables and Secrets > Environment
+  // Variables), porque são inlined pelo Next.js/webpack durante o build, não
+  // apenas lidas em runtime pelo Worker. Segredos sensíveis (Service Role Key,
+  // Firecrawl, Apify etc.) NÃO vão aqui — são enviados via
+  // scripts/cloudflare-secrets-sync.sh (wrangler secret put).
+  "vars": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://kzvnwqlcrtxwagxkghxq.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6dm53cWxjcnR4d2FneGtnaHhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2MjA4OTksImV4cCI6MjA3NzE5Njg5OX0.cOfLX6lW4jHmeHXKZlyKsgggfttK3jftIDzZgCfefgs",
+    "NEXT_PUBLIC_APP_URL": "https://prospect-pulse-54.fmbp1981.workers.dev"
+  },
   // Cron Triggers — equivalentes aos jobs que rodavam via vercel.json (crons
   // nativos da Vercel) + os 2 que estavam órfãos (rescue-human-mode,
   // keepalive), religados por decisão do usuário (ver
