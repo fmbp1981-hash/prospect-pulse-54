@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
+import { createClient as createServiceClient, type User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET() {
@@ -54,13 +54,14 @@ export async function GET() {
     }
 
     // 4. Buscar emails do auth.users
-    const { data: { users: authUsers }, error: authError } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+    const listResult = await adminClient.auth.admin.listUsers({ perPage: 1000 });
 
-    if (authError) {
-      console.error('[list-users] Erro ao buscar auth.users:', authError);
+    if (listResult.error) {
+      console.error('[list-users] Erro ao buscar auth.users:', listResult.error);
       return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
     }
 
+    const authUsers = listResult.data.users as User[];
     const authMap = new Map(authUsers.map(u => [u.id, u] as const));
 
     const usersWithEmail = (settings || []).map((s: Record<string, unknown>) => {

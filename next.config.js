@@ -13,7 +13,7 @@ const nextConfig = {
     serverComponentsExternalPackages: ['pdf-parse'],
   },
 
-  // Garante que os docs RAG sejam incluídos no bundle do Vercel
+  // Garante que os docs RAG sejam incluídos no bundle de produção
   outputFileTracingIncludes: {
     '/api/admin/rag-ingest': ['./scripts/rag-docs/**/*'],
   },
@@ -34,7 +34,7 @@ const nextConfig = {
   // Headers de segurança
   async headers() {
     const allowedOrigins = [
-      'https://prospect-pulse-54.vercel.app',
+      ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL] : []),
       'https://alpha.dualite.dev',
       ...(process.env.NODE_ENV === 'development' ? ['http://localhost:3000', 'http://localhost:3001'] : []),
     ].join(' ');
@@ -44,9 +44,9 @@ const nextConfig = {
         source: '/:path*',
         headers: [
           {
-            // Restringe CORS para rotas de página — sobrescreve o * padrão do Vercel CDN
+            // Restringe CORS para rotas de página — sobrescreve o * padrão do CDN
             key: 'Access-Control-Allow-Origin',
-            value: process.env.NEXT_PUBLIC_APP_URL || 'https://prospect-pulse-54.vercel.app',
+            value: process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : ''),
           },
           {
             key: 'X-Frame-Options',
@@ -85,7 +85,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Access-Control-Allow-Origin',
-            value: process.env.NEXT_PUBLIC_APP_URL || 'https://prospect-pulse-54.vercel.app',
+            value: process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : ''),
           },
           {
             key: 'Access-Control-Allow-Methods',
@@ -107,3 +107,10 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+
+// Habilita bindings do Cloudflare (env vars, secrets, etc.) durante `next dev`
+// — sem efeito em produção/build. Ver CLOUDFLARE_MIGRATION_PLAN.md, Fase 1.
+if (process.env.NODE_ENV === 'development') {
+  const { initOpenNextCloudflareForDev } = require('@opennextjs/cloudflare');
+  initOpenNextCloudflareForDev();
+}

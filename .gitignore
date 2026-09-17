@@ -12,6 +12,8 @@ dist
 dist-ssr
 .next
 .vercel
+.open-next
+.wrangler
 *.local
 
 # Bun
