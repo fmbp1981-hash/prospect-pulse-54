@@ -43,16 +43,18 @@ O projeto está 100% configurado para Vercel hoje. Nada foi migrado ainda:
 
 ---
 
-## Fase 2 — Cron jobs
+## Fase 2 — Cron jobs ✅ concluída
 
 **Objetivo:** os jobs agendados continuam rodando depois do cutover.
 
-1. Decidir com o usuário: manter só os 2 crons que já rodavam (`follow-up`, `long-followup`) ou também religar `rescue-human-mode` e `keepalive` (hoje órfãos).
-2. Adicionar bloco `[triggers]` no `wrangler.toml` com os schedules equivalentes (cron syntax é o mesmo formato POSIX que a Vercel já usa, só muda onde é declarado).
-3. Implementar/adaptar um handler `scheduled(event, env, ctx)` no Worker que dispare a lógica de cada job — Cron Triggers do Cloudflare não fazem uma requisição HTTP à rota, então a lógica de `runFollowUpJob`/`runSupabaseKeepAlive` etc. precisa ser chamável diretamente pelo handler, não só via `route.ts`. Verificar no OpenNext docs o padrão recomendado para expor isso (normalmente via `getCloudflareContext` + chamada direta à função, ou mantendo a rota HTTP e o `scheduled()` fazendo um fetch interno).
-4. Remover o bloco `crons` do `vercel.json` só depois do cutover confirmado (não antes — mantém rollback possível).
+1. ~~Decidir com o usuário~~ — decidido: religar os 4 (`follow-up`, `long-followup`, `rescue-human-mode`, `keepalive`).
+2. ~~Adicionar bloco de triggers~~ — feito em `wrangler.jsonc` → `triggers.crons`, com os 4 schedules (mesma sintaxe POSIX que já estava nos comentários dos arquivos de rota / no `vercel.json` antigo).
+3. ~~Implementar handler `scheduled`~~ — feito via **Custom Worker** (padrão oficial do OpenNext, [opennext.js.org/cloudflare/howtos/custom-worker](https://opennext.js.org/cloudflare/howtos/custom-worker)): criado `custom-worker.ts` na raiz, que importa o `handler.fetch` gerado em `.open-next/worker.js` e adiciona um `scheduled(event, env, ctx)`. Como Cron Triggers não fazem request HTTP real, o `scheduled()` mapeia `event.cron` → rota (`CRON_ROUTES`) e chama `handler.fetch()` **in-process** com uma `Request` sintética autenticada com `Authorization: Bearer ${env.CRON_SECRET}` — reaproveita 100% da lógica e da autenticação que as rotas já tinham, sem duplicar código. `wrangler.jsonc`'s `main` agora aponta pra `custom-worker.ts` em vez de direto pro worker gerado.
+4. `vercel.json` mantido intacto por enquanto (só será removido na Fase 7, pós-cutover confirmado).
 
-**Critério de saída:** `wrangler dev` dispara os crons localmente (`wrangler dev --test-scheduled` ou equivalente) e a lógica de cada job executa.
+Gerado também `worker-configuration.d.ts` via `wrangler types` (ambient types de `Env`, incluindo todas as 23 env vars da Fase 3 — bônus: já dá tipagem correta pra elas).
+
+**Critério de saída:** ✅ `wrangler deploy --dry-run` bundla `custom-worker.ts` + `.open-next/worker.js` sem erro (bindings `WORKER_SELF_REFERENCE` e `ASSETS` resolvidos corretamente). Não rodei `wrangler dev --test-scheduled` interativo (não é necessário validar além do dry-run nesta fase; fica como parte da Fase 6, validação em staging).
 
 ---
 

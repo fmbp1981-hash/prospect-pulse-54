@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "leadfinder-pro",
-  "main": ".open-next/worker.js",
+  "main": "custom-worker.ts",
   "compatibility_date": "2025-09-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -13,7 +13,18 @@
       "binding": "WORKER_SELF_REFERENCE",
       "service": "leadfinder-pro"
     }
-  ]
-  // Cron Triggers (Fase 2 do plano — ainda não implementado):
-  // "triggers": { "crons": ["* * * * *", "0 12 * * 1-5"] }
+  ],
+  // Cron Triggers — equivalentes aos jobs que rodavam via vercel.json (crons
+  // nativos da Vercel) + os 2 que estavam órfãos (rescue-human-mode,
+  // keepalive), religados por decisão do usuário (ver
+  // CLOUDFLARE_MIGRATION_PLAN.md, Fase 2). O handler scheduled() em
+  // custom-worker.ts mapeia cada expressão pra sua rota.
+  "triggers": {
+    "crons": [
+      "* * * * *",       // follow-up — a cada minuto
+      "0 12 * * 1-5",     // long-followup — seg-sex 12h UTC (9h BRT)
+      "0 * * * *",        // rescue-human-mode — a cada hora
+      "0 0 */5 * *"        // keepalive — a cada 5 dias
+    ]
+  }
 }
