@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "leadfinder-pro",
+  "name": "prospect-pulse-54",
   "main": "custom-worker.ts",
   "compatibility_date": "2025-09-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
@@ -11,7 +11,7 @@
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "leadfinder-pro"
+      "service": "prospect-pulse-54"
     }
   ],
   // Cron Triggers — equivalentes aos jobs que rodavam via vercel.json (crons

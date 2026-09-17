@@ -32,7 +32,7 @@ O projeto está 100% configurado para Vercel hoje. Nada foi migrado ainda:
 1. ~~Instalar dependências~~ — feito. **Achado crítico:** `@opennextjs/cloudflare` >=1.16 dropou suporte a Next 14 (peer dep exige Next >=15.5). A última versão compatível com Next 14 é **1.15.1** (peer `next: ^14.2.35`). Instalado `@opennextjs/cloudflare@1.15.1` + `wrangler@^4.133.0`.
 2. ~~Pré-requisito descoberto durante a execução:~~ bump de `next` `^14.2.21` → `^14.2.35` (patch dentro da mesma major, exigido pelo peer dep acima — já estava resolvido em `node_modules` para `14.2.35`, sem quebra).
 3. ~~Criar `open-next.config.ts`~~ — feito, config mínima (`defineCloudflareConfig({})`), sem cache incremental R2 ainda (fica para Fase 6/8).
-4. ~~Criar `wrangler.jsonc`~~ — feito, `name: leadfinder-pro`, `compatibility_date: 2025-09-17`, `compatibility_flags: [nodejs_compat, global_fetch_strictly_public]`, bloco de cron comentado (Fase 2).
+4. ~~Criar `wrangler.jsonc`~~ — feito, `name: prospect-pulse-54`, `compatibility_date: 2025-09-17`, `compatibility_flags: [nodejs_compat, global_fetch_strictly_public]`, bloco de cron comentado (Fase 2).
 5. ~~Editar `next.config.js`~~ — feito: removido todo hardcode de `prospect-pulse-54.vercel.app` (CORS de página e de API agora usam só `NEXT_PUBLIC_APP_URL`, com fallback `localhost:3000` em dev e string vazia — falha fechada — em produção se a env var não estiver setada); comentário do `outputFileTracingIncludes` atualizado; adicionado `initOpenNextCloudflareForDev()` guardado por `NODE_ENV === 'development'`.
 6. ~~Adicionar scripts~~ — feito: `cf:build`, `cf:preview`, `cf:deploy` no `package.json` (não executados além do `cf:build` local).
 7. ~~Rodar `npm run cf:build`~~ — **passou**, gerou `.open-next/worker.js`. `next dev` também validado funcionando normalmente depois da mudança no `next.config.js`.
@@ -96,7 +96,7 @@ Variáveis identificadas no código (`process.env.*`):
 
 **Decisão do usuário:** fica em `*.workers.dev` por enquanto — sem domínio customizado nesta etapa.
 
-Não precisa de nenhuma mudança em `wrangler.jsonc` (sem `routes`/domínio custom). Depois do primeiro `wrangler deploy` (Fase 7, manual), o Worker fica acessível em `https://leadfinder-pro.<seu-subdomínio-workers-dev>.workers.dev` — o subdomínio exato só é conhecido depois do login (`wrangler whoami` revela) ou do próprio deploy. Nesse momento:
+Não precisa de nenhuma mudança em `wrangler.jsonc` (sem `routes`/domínio custom). Depois do primeiro `wrangler deploy` (Fase 7, manual), o Worker fica acessível em `https://prospect-pulse-54.<seu-subdomínio-workers-dev>.workers.dev` — o subdomínio exato só é conhecido depois do login (`wrangler whoami` revela) ou do próprio deploy. Nesse momento:
 1. Setar `NEXT_PUBLIC_APP_URL` pra essa URL (via `wrangler secret put NEXT_PUBLIC_APP_URL` ou `vars` no `wrangler.jsonc` — é pública, pode ir em `vars`).
 2. Se quiser domínio próprio depois, essa fase é revisitada — adicionar a zona no Cloudflare e configurar `routes` no `wrangler.jsonc`.
 
@@ -109,7 +109,7 @@ Não precisa de nenhuma mudança em `wrangler.jsonc` (sem `routes`/domínio cust
 Configuração é 100% no dashboard Cloudflare (ação de conta, não posso fazer por você):
 1. **Workers & Pages** → **Create application** → **Import a repository** → conectar o GitHub → selecionar `fmbp1981-hash/prospect-pulse-54`.
    - Se preferir a partir de um Worker já existente: **Settings** → **Builds** → **Connect**.
-2. **Importante:** o nome do Worker configurado no dashboard precisa bater exatamente com `"name": "leadfinder-pro"` do `wrangler.jsonc` — senão o build falha.
+2. **Importante:** o nome do Worker configurado no dashboard precisa bater exatamente com `"name": "prospect-pulse-54"` do `wrangler.jsonc` — senão o build falha.
 3. Comandos a configurar:
    - **Build command:** `npm run cf:build`
    - **Deploy command:** `npx wrangler deploy`
