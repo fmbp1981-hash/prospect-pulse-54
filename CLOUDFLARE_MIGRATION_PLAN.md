@@ -58,9 +58,18 @@ Gerado também `worker-configuration.d.ts` via `wrangler types` (ambient types d
 
 ---
 
-## Fase 3 — Variáveis de ambiente e secrets
+## Fase 3 — Variáveis de ambiente e secrets 🟡 script pronto, envio pendente (precisa de você)
 
 **Objetivo:** nada quebra por variável faltando no ambiente novo.
+
+**O que já foi feito:** criado `scripts/cloudflare-secrets-sync.sh` — lê `.env`/`.env.local` locais (nunca imprime valores), separa as 11 variáveis secretas das 12 de config pública, e envia as secretas via `wrangler secret put`. Rodei em `--dry-run`: confirmou 11/11 secrets presentes localmente e listou as 12 de config para revisão manual (`EVOLUTION_INSTANCE_NAME` não foi encontrada — confirmar se ainda é usada). **Não executei o envio real** — `wrangler` não está autenticado nesta máquina/sessão (`wrangler whoami` retornou "Not logged in") e enviar secrets pra sua conta Cloudflare é uma ação que toca infraestrutura externa, então fica pra você rodar.
+
+**Como você roda:**
+```bash
+npx wrangler login          # abre o navegador pra autenticar
+./scripts/cloudflare-secrets-sync.sh --dry-run   # confere o que vai ser enviado
+./scripts/cloudflare-secrets-sync.sh              # envia de verdade
+```
 
 Variáveis identificadas no código (`process.env.*`):
 
