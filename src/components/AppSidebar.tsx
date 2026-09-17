@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock, BookOpen, MessageSquare, Users, Megaphone, Linkedin } from "lucide-react";
+import { LayoutDashboard, Table, Search, Settings, Link2, LogOut, User, FileText, LayoutGrid, Clock, BookOpen, MessageSquare, Users, Megaphone } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Logo } from "@/components/Logo";
 import { motion } from "framer-motion";
@@ -29,7 +29,6 @@ import { Button } from "@/components/ui/button";
 
 const items = [
   { title: "Prospecção", url: "/", icon: Search },
-  { title: "Prospecção LinkedIn", url: "/prospeccao-linkedin", icon: Linkedin },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Tabela de Leads", url: "/leads", icon: Table },
   { title: "Kanban Board", url: "/kanban", icon: LayoutGrid },

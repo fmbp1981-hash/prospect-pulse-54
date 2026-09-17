@@ -1,15 +1,28 @@
 'use client';
 
 import { useState, useEffect } from "react";
+import { Bricolage_Grotesque } from "next/font/google";
+import { motion } from "framer-motion";
 import { ProspectionForm } from "@/components/ProspectionForm";
 import { SearchHistory } from "@/components/SearchHistory";
 import { QuickStats } from "@/components/QuickStats";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
-import { Rocket, TrendingUp, Database, Sparkles, Zap } from "lucide-react";
+import { Rocket, TrendingUp, Database, Zap, Radar } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { historyService } from "@/lib/history";
 import { useAuth } from "@/contexts/AuthContext";
+
+const display = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  display: "swap",
+});
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0 },
+};
 
 export default function HomePage() {
   const [searches, setSearches] = useState<ProspectionSearch[]>([]);
@@ -21,8 +34,18 @@ export default function HomePage() {
     const loadHistory = async () => {
       if (!user) return;
       try {
-        const history = await historyService.getHistory();
-        setSearches(history);
+        const [gmnHistory, linkedinHistory] = await Promise.all([
+          historyService.getHistory(),
+          historyService.getLinkedinHistory().catch((error) => {
+            console.error("Failed to load LinkedIn history:", error);
+            return [] as ProspectionSearch[];
+          }),
+        ]);
+
+        const merged = [...gmnHistory, ...linkedinHistory].sort(
+          (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+        );
+        setSearches(merged);
       } catch (error) {
         console.error("Failed to load history:", error);
         toast.error("Erro ao carregar histórico");
@@ -34,7 +57,31 @@ export default function HomePage() {
     loadHistory();
   }, [user]);
 
-  const handleNewSearch = async (data: ProspectionFormData & { savedCount?: number }) => {
+  const handleNewSearch = async (data: ProspectionFormData & {
+    savedCount?: number;
+    channel?: ProspectionSearch['channel'];
+    linkedinJobId?: string;
+    linkedinSummary?: ProspectionSearch['linkedinSummary'];
+  }) => {
+    if (data.channel === 'linkedin') {
+      // O job de LinkedIn já é persistido pelo próprio endpoint de busca
+      // (prospecting_jobs); aqui só refletimos o resultado no histórico local.
+      const linkedinSearch: ProspectionSearch = {
+        id: data.linkedinJobId ?? Date.now().toString(),
+        channel: 'linkedin',
+        niche: data.niche,
+        location: data.location,
+        quantity: data.quantity,
+        timestamp: new Date(),
+        status: 'completed',
+        savedCount: data.savedCount,
+        linkedinJobId: data.linkedinJobId,
+        linkedinSummary: data.linkedinSummary,
+      };
+      setSearches(prev => [linkedinSearch, ...prev]);
+      return;
+    }
+
     // Optimistic update
     const tempId = Date.now().toString();
     const newSearch: ProspectionSearch = {
@@ -140,65 +187,95 @@ export default function HomePage() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Hero Section */}
-      <section className="text-center mb-12 animate-fade-in relative">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent opacity-50 blur-3xl"></div>
+      <section className="relative mb-14 overflow-hidden rounded-3xl border border-primary/15 bg-card">
+        {/* Textura: grade de pontos + wash radial na cor primária, contida ao painel */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.35] dark:opacity-[0.25]"
+          style={{
+            backgroundImage: "radial-gradient(hsl(var(--primary) / 0.35) 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
+            maskImage: "radial-gradient(ellipse 80% 60% at 20% 20%, black, transparent)",
+          }}
+        />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
 
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6 hover:bg-primary/15 transition-colors cursor-default">
-          <Sparkles className="h-4 w-4" />
-          Nova Versão 2.0 Disponível
-        </div>
+        <div className="relative grid gap-10 px-6 py-12 md:px-12 md:py-16 lg:grid-cols-[1.3fr_1fr] lg:items-center">
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+          >
+            <div className="mb-5 inline-flex items-center gap-2 text-primary">
+              <Radar className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-[0.2em]">Central de Prospecção</span>
+            </div>
 
-        <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
-          Encontre Seus Leads Ideais
-          <br />
-          <span className="text-primary">Em Segundos</span>
-        </h2>
+            <h1
+              className={`${display.className} text-4xl leading-[1.05] tracking-tight text-foreground md:text-5xl lg:text-6xl`}
+            >
+              Encontre seus leads ideais{" "}
+              <span className="inline-block -rotate-1 rounded-lg bg-primary px-3 py-0.5 text-primary-foreground">
+                em segundos
+              </span>
+            </h1>
 
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
-          Busque automaticamente negócios no Google Places, enriqueça com IA e crie seu banco de dados de leads qualificados para vendas.
-        </p>
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
+              Busque negócios reais no Google Places ou pessoas no LinkedIn, enriqueça com IA
+              e monte seu banco de leads qualificados — sem sair desta tela.
+            </p>
+          </motion.div>
 
-        {/* Quick Stats */}
-        <div className="max-w-3xl mx-auto">
-          <QuickStats />
-        </div>
-      </section>
-
-      {/* Features Grid */}
-      <section className="grid md:grid-cols-3 gap-6 mb-12 animate-fade-in">
-        <div className="p-6 rounded-xl bg-card border shadow-sm hover:shadow-md transition-shadow group">
-          <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-            <Database className="h-6 w-6 text-primary" />
-          </div>
-          <h3 className="font-semibold mb-2">Google Places API</h3>
-          <p className="text-sm text-muted-foreground">
-            Acesse milhões de empresas reais com dados verificados
-          </p>
-        </div>
-
-        <div className="p-6 rounded-xl bg-card border shadow-sm hover:shadow-md transition-shadow group">
-          <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-            <Zap className="h-6 w-6 text-primary" />
-          </div>
-          <h3 className="font-semibold mb-2">Automação Inteligente</h3>
-          <p className="text-sm text-muted-foreground">
-            Gere mensagens personalizadas com IA e dispare via WhatsApp
-          </p>
-        </div>
-
-        <div className="p-6 rounded-xl bg-card border shadow-sm hover:shadow-md transition-shadow group">
-          <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-            <TrendingUp className="h-6 w-6 text-primary" />
-          </div>
-          <h3 className="font-semibold mb-2">Dashboard Analítico</h3>
-          <p className="text-sm text-muted-foreground">
-            Acompanhe métricas de conversão em tempo real
-          </p>
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={fadeUp}
+            transition={{ duration: 0.5, ease: "easeOut", delay: 0.12 }}
+          >
+            <QuickStats />
+          </motion.div>
         </div>
       </section>
+
+      {/* Capability Rail — um único painel dividido, não cartões repetidos */}
+      <motion.section
+        initial="hidden"
+        animate="show"
+        variants={fadeUp}
+        transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
+        className="mb-14 grid divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card sm:grid-cols-3 sm:divide-x sm:divide-y-0"
+      >
+        <div className="flex items-start gap-4 p-6">
+          <Database className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+          <div>
+            <h3 className="font-semibold text-foreground">Google Places API</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Milhões de empresas reais com dados verificados
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-4 p-6">
+          <Zap className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+          <div>
+            <h3 className="font-semibold text-foreground">Automação Inteligente</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Mensagens personalizadas com IA, disparadas via WhatsApp
+            </p>
+          </div>
+        </div>
+        <div className="flex items-start gap-4 p-6">
+          <TrendingUp className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+          <div>
+            <h3 className="font-semibold text-foreground">Dashboard Analítico</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Métricas de conversão acompanhadas em tempo real
+            </p>
+          </div>
+        </div>
+      </motion.section>
 
       {/* Form and History - Vertical Layout */}
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="mx-auto max-w-4xl space-y-8">
         {/* Formulário de Prospecção - Largura Completa */}
         <div>
           <ProspectionForm onSearch={handleNewSearch} lastSearch={searches[0]} />
@@ -216,65 +293,67 @@ export default function HomePage() {
       </div>
 
       {/* Features Section */}
-      <section className="mt-20 max-w-7xl mx-auto">
-        <div className="text-center mb-12">
-          <h3 className="text-2xl font-bold mb-4">Funcionalidades da Plataforma</h3>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            Ferramentas poderosas para automatizar sua prospecção e aumentar suas vendas
+      <section className="mx-auto mt-20 max-w-5xl">
+        <div className="mb-10">
+          <h2 className={`${display.className} text-2xl text-foreground md:text-3xl`}>
+            Funcionalidades da Plataforma
+          </h2>
+          <p className="mt-2 text-muted-foreground">
+            Ferramentas para automatizar sua prospecção do primeiro contato ao fechamento
           </p>
         </div>
 
-        <div className="grid md:grid-cols-4 gap-6">
-          <div className="p-6 rounded-xl border bg-card shadow-sm hover:shadow-md transition-all group">
-            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <TrendingUp className="h-6 w-6 text-primary" />
+        <div className="grid divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+          <div className="flex items-start gap-4 p-6">
+            <TrendingUp className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <h3 className="flex items-center gap-2 font-semibold text-foreground">
+                Dashboard
+                <span className="rounded-full border border-success/20 bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">Ativo</span>
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Métricas de conversão, gráficos interativos e performance em tempo real
+              </p>
             </div>
-            <h4 className="font-semibold mb-2 flex items-center gap-2">
-              Dashboard
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">Ativo</span>
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              Visualize métricas de conversão, gráficos interativos e performance em tempo real
-            </p>
           </div>
 
-          <div className="p-6 rounded-xl border bg-card shadow-sm hover:shadow-md transition-all group">
-            <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Zap className="h-6 w-6 text-accent" />
+          <div className="flex items-start gap-4 p-6">
+            <Zap className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+            <div>
+              <h3 className="flex items-center gap-2 font-semibold text-foreground">
+                Enriquecimento IA
+                <span className="rounded-full border border-success/20 bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">Novo</span>
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Mensagens personalizadas e análise de dados geradas automaticamente
+              </p>
             </div>
-            <h4 className="font-semibold mb-2 flex items-center gap-2">
-              Enriquecimento IA
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20">Novo</span>
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              Geração automática de mensagens personalizadas e análise de dados com IA
-            </p>
           </div>
 
-          <div className="p-6 rounded-xl border bg-card shadow-sm hover:shadow-md transition-all group">
-            <div className="h-12 w-12 rounded-lg bg-warning/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Rocket className="h-6 w-6 text-warning" />
+          <div className="flex items-start gap-4 p-6">
+            <Rocket className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+            <div>
+              <h3 className="flex items-center gap-2 font-semibold text-foreground">
+                Campanhas
+                <span className="rounded-full border border-warning/20 bg-warning/10 px-2 py-0.5 text-[10px] font-medium text-warning">Próxima fase</span>
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Sequências de mensagens e automações de follow-up para seus leads
+              </p>
             </div>
-            <h4 className="font-semibold mb-2 flex items-center gap-2">
-              Campanhas
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning border border-warning/20">Próxima Fase</span>
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              Crie sequências de mensagens e automações de follow-up para seus leads
-            </p>
           </div>
 
-          <div className="p-6 rounded-xl border bg-card shadow-sm hover:shadow-md transition-all group">
-            <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Database className="h-6 w-6 text-muted-foreground" />
+          <div className="flex items-start gap-4 p-6">
+            <Database className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+            <div>
+              <h3 className="flex items-center gap-2 font-semibold text-foreground">
+                Integração CRM
+                <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Futuro</span>
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Sincronização automática com Pipedrive, HubSpot e RD Station
+              </p>
             </div>
-            <h4 className="font-semibold mb-2 flex items-center gap-2">
-              Integração CRM
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border">Futuro</span>
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              Conecte com Pipedrive, HubSpot e RD Station para sincronização automática
-            </p>
           </div>
         </div>
       </section>
