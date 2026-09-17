@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabaseCRM } from "@/lib/supabaseCRM";
 import { supabase } from "@/integrations/supabase/client";
 import { Lead, LeadStatus } from "@/types/prospection";
@@ -61,6 +62,17 @@ function originBadgeClass(origem: string): string {
   }
 }
 
+// useSearchParams exige um limite de Suspense — isolado num componente
+// pequeno para não forçar renderização client-only na página inteira.
+function OrigemQueryReader({ onOrigem }: { onOrigem: (origem: string) => void }) {
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const origem = searchParams.get('origem');
+    if (origem) onOrigem(origem);
+  }, [searchParams, onOrigem]);
+  return null;
+}
+
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -112,6 +124,8 @@ export default function LeadsPage() {
   const [cidadeFilter, setCidadeFilter] = useState("");
   const [bairroFilter, setBairroFilter] = useState("");
   const [dateRangeFilter, setDateRangeFilter] = useState<{ start: string; end: string } | undefined>(undefined);
+  // Origem: pré-preenchido via ?origem=... (ex: link "Ver Leads" da prospecção LinkedIn)
+  const [origemFilter, setOrigemFilter] = useState("");
 
   // Ordenação
   const [sortField, setSortField] = useState<SortField>("dataContato");
@@ -236,6 +250,11 @@ export default function LeadsPage() {
       result = result.filter(lead => searchMatch(lead.bairro || "", bairroFilter));
     }
 
+    // Filtro de origem (canal de prospecção — ex: LinkedIn, Google Places)
+    if (origemFilter) {
+      result = result.filter(lead => lead.origem === origemFilter);
+    }
+
     // Ordenação
     result.sort((a, b) => {
       const aVal = a[sortField] ?? "";
@@ -249,7 +268,7 @@ export default function LeadsPage() {
     });
 
     return result;
-  }, [leads, searchTerm, statusFilter, hasWhatsAppFilter, whatsappStatusFilter, cidadeFilter, bairroFilter, sortField, sortOrder]);
+  }, [leads, searchTerm, statusFilter, hasWhatsAppFilter, whatsappStatusFilter, cidadeFilter, bairroFilter, origemFilter, sortField, sortOrder]);
 
   // Paginação
   const totalPages = Math.ceil(filteredAndSortedLeads.length / itemsPerPage);
@@ -355,6 +374,9 @@ export default function LeadsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
+      <Suspense fallback={null}>
+        <OrigemQueryReader onOrigem={setOrigemFilter} />
+      </Suspense>
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>

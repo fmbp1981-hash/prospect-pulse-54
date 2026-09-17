@@ -96,5 +96,47 @@ export const historyService = {
             console.error('Error deleting search:', error);
             throw error;
         }
+    },
+
+    // Fetch LinkedIn prospecting job history (prospecting_jobs), unificado com o histórico GMN
+    async getLinkedinHistory(): Promise<ProspectionSearch[]> {
+        const res = await fetch('/api/prospecting/linkedin/history');
+        if (!res.ok) {
+            throw new Error('Falha ao carregar histórico do LinkedIn');
+        }
+
+        const json: { data?: LinkedinHistoryApiItem[] } = await res.json();
+        const items: LinkedinHistoryApiItem[] = json.data ?? [];
+
+        return items.map((item): ProspectionSearch => ({
+            id: item.id,
+            channel: 'linkedin',
+            niche: item.searchQuery,
+            location: { country: "", state: "", city: item.locations.join(', ') || "—", neighborhood: "" },
+            quantity: item.quantity,
+            timestamp: new Date(item.createdAt),
+            status: item.status,
+            savedCount: item.created,
+            linkedinJobId: item.id,
+            linkedinSummary: {
+                found: item.found,
+                created: item.created,
+                skippedDuplicate: item.skippedDuplicate,
+                skippedSuppressed: item.skippedSuppressed,
+            },
+        }));
     }
 };
+
+interface LinkedinHistoryApiItem {
+    id: string;
+    searchQuery: string;
+    locations: string[];
+    quantity: number;
+    status: 'pending' | 'processing' | 'completed' | 'error';
+    found: number;
+    created: number;
+    skippedDuplicate: number;
+    skippedSuppressed: number;
+    createdAt: string;
+}

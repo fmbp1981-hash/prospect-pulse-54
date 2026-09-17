@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2, Trash2, RefreshCw, Database, ExternalLink } from "lucide-react";
+import { History, Target, MapPin, Hash, Clock, MessageCircle, CheckCircle2, Loader2, Trash2, RefreshCw, Database, ExternalLink, Linkedin, Building2 } from "lucide-react";
 import { ProspectionSearch } from "@/types/prospection";
 import { LocationData } from "@/components/LocationCascade";
 import { format } from "date-fns";
@@ -354,13 +354,15 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
             const isSent = whatsappStatus?.status === 'sent';
             const isSelectable = hasWhatsAppConfig && !isSent;
 
+            const isLinkedin = search.channel === 'linkedin';
+
             return (
               <div
                 key={search.id}
                 className="border rounded-lg p-4 hover:border-primary/50 transition-all hover:shadow-card"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {isSelectable && (
                       <Checkbox
                         id={`select-${search.id}`}
@@ -368,6 +370,10 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
                         onCheckedChange={() => handleToggleSelect(search.id)}
                       />
                     )}
+                    <Badge variant="outline" className={isLinkedin ? "gap-1 bg-[#0A66C2]/10 text-[#0A66C2] border-[#0A66C2]/30" : "gap-1 bg-primary/10 text-primary border-primary/30"}>
+                      {isLinkedin ? <Linkedin className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                      {isLinkedin ? "LinkedIn" : "Google Maps"}
+                    </Badge>
                     <Badge className={getStatusColor(search.status)}>
                       {getStatusLabel(search.status)}
                     </Badge>
@@ -387,7 +393,7 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <Target className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Nicho:</span>
+                    <span className="font-medium">{isLinkedin ? "Termo de busca:" : "Nicho:"}</span>
                     <span className="text-muted-foreground">{search.niche}</span>
                   </div>
 
@@ -400,13 +406,13 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
                   <div className="flex items-center gap-2 text-sm">
                     <Hash className="h-4 w-4 text-primary" />
                     <span className="font-medium">Quantidade:</span>
-                    <span className="text-muted-foreground">{search.quantity} leads</span>
+                    <span className="text-muted-foreground">{search.quantity} {isLinkedin ? "perfis" : "leads"}</span>
                   </div>
 
-                  {/* Status de salvamento no Supabase */}
+                  {/* Status de salvamento */}
                   <div className="flex items-center gap-2 text-sm">
                     <Database className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Salvos no CRM:</span>
+                    <span className="font-medium">{isLinkedin ? "Contatos encontrados:" : "Salvos no CRM:"}</span>
                     {leadCounts[search.id]?.loading ? (
                       <Badge variant="secondary" className="gap-1">
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -421,7 +427,7 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
                         variant={leadCounts[search.id]?.count > 0 ? "default" : "secondary"}
                         className={leadCounts[search.id]?.count > 0 ? "bg-success hover:bg-success/90" : ""}
                       >
-                        {leadCounts[search.id]?.count || 0} lead(s)
+                        {leadCounts[search.id]?.count || 0} {isLinkedin ? "contato(s)" : "lead(s)"}
                       </Badge>
                     )}
                   </div>
@@ -434,9 +440,13 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
                       variant="default"
                       size="sm"
                       onClick={() => {
-                        // Redirecionar para tabela com filtros aplicados
-                        const location = formatLocation(search.location);
-                        router.push(`/leads?categoria=${encodeURIComponent(search.niche)}&cidade=${encodeURIComponent(location.split(',')[0].trim())}`);
+                        if (isLinkedin) {
+                          router.push('/leads?origem=LinkedIn');
+                        } else {
+                          // Redirecionar para tabela com filtros aplicados
+                          const location = formatLocation(search.location);
+                          router.push(`/leads?categoria=${encodeURIComponent(search.niche)}&cidade=${encodeURIComponent(location.split(',')[0].trim())}`);
+                        }
                         toast.success("Redirecionando para tabela de leads...");
                       }}
                       className="flex-1"
@@ -446,7 +456,7 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
                     </Button>
                   )}
 
-                  {onReprocess && (
+                  {onReprocess && !isLinkedin && (
                     <Button
                       variant="outline"
                       size="sm"

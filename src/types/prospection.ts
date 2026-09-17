@@ -11,9 +11,17 @@ export interface LocationData {
   [key: string]: string | undefined;
 }
 
+// Canal de prospecção: Google Maps/Places (GMN) ou LinkedIn (camada pública, via Apify)
+export type ProspectionChannel = 'gmn' | 'linkedin';
+
+// Como o usuário formulou a busca no LinkedIn — só afeta rótulo/placeholder do
+// campo principal; o backend sempre recebe um único `searchQuery` de texto livre.
+export type LinkedinSearchBy = 'pessoa' | 'empresa' | 'cargo';
+
 export interface ProspectionSearch {
   id: string;
-  niche: string;
+  channel?: ProspectionChannel; // ausente = 'gmn' (retrocompatibilidade com histórico antigo)
+  niche: string; // GMN: nicho/produto. LinkedIn: termo de busca (searchQuery)
   location: string | LocationData;
   quantity: number;
   webhookUrl?: string;
@@ -22,6 +30,14 @@ export interface ProspectionSearch {
   whatsappStatus?: 'not_sent' | 'sent' | 'failed';
   whatsappSentAt?: Date;
   savedCount?: number; // Number of leads saved in this search
+  // Resumo específico de jobs de LinkedIn (prospecting_jobs.result_summary)
+  linkedinJobId?: string;
+  linkedinSummary?: {
+    found: number;
+    created: number;
+    skippedDuplicate: number;
+    skippedSuppressed: number;
+  };
 }
 
 export interface ProspectionFormData {
@@ -31,6 +47,28 @@ export interface ProspectionFormData {
   webhookUrl?: string;
   businessName?: string; // Nome específico do estabelecimento (opcional)
   searchMode?: 'niche' | 'product'; // Modo de busca: nicho/categoria ou produto/serviço
+}
+
+// Item individual de contato retornado por uma busca no LinkedIn
+export interface LinkedinSearchContact {
+  id: string;
+  name: string;
+  roleTitle: string | null;
+  linkedinUrl: string;
+  locationRaw: string | null;
+  companyName: string | null;
+  email: string | null;
+  phone: string | null;
+  convertedLeadId: string | null;
+}
+
+export interface LinkedinSearchSummary {
+  jobId: string;
+  found: number;
+  created: number;
+  skippedSuppressed: number;
+  skippedDuplicate: number;
+  contacts: LinkedinSearchContact[];
 }
 
 // Tipos completos do CRM - Novo Pipeline (7 estágios)

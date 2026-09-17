@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Users, Search, TrendingUp, Database } from "lucide-react";
+import { Users, Search, Database } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -43,53 +42,33 @@ export const QuickStats = () => {
         fetchStats();
     }, [user]);
 
+    const rows = [
+        { icon: Users, label: "Total de Leads", value: stats.totalLeads, color: "text-primary" },
+        { icon: Search, label: "Buscas Realizadas", value: stats.totalSearches, color: "text-accent" },
+        { icon: Database, label: "Base de Dados", value: stats.totalSaved, color: "text-success" },
+    ];
+
     if (loading) {
         return (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            <div className="divide-y divide-border rounded-2xl border border-border bg-background/60 backdrop-blur-sm">
                 {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
+                    <div key={i} className="h-[68px] animate-pulse bg-muted/40" />
                 ))}
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8 animate-fade-in">
-            <Card className="bg-primary/5 border-primary/10 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="p-4 flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                        <Users className="h-5 w-5" />
-                    </div>
-                    <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total de Leads</p>
-                        <h3 className="text-2xl font-bold text-foreground">{stats.totalLeads.toLocaleString()}</h3>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card className="bg-accent/5 border-accent/10 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="p-4 flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center text-accent">
-                        <Search className="h-5 w-5" />
-                    </div>
-                    <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Buscas Realizadas</p>
-                        <h3 className="text-2xl font-bold text-foreground">{stats.totalSearches.toLocaleString()}</h3>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card className="bg-success/5 border-success/10 shadow-sm hover:shadow-md transition-all hidden md:block">
-                <CardContent className="p-4 flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-success/10 flex items-center justify-center text-success">
-                        <Database className="h-5 w-5" />
-                    </div>
-                    <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Base de Dados</p>
-                        <h3 className="text-2xl font-bold text-foreground">{stats.totalSaved.toLocaleString()}</h3>
-                    </div>
-                </CardContent>
-            </Card>
+        <div className="divide-y divide-border rounded-2xl border border-border bg-background/60 backdrop-blur-sm">
+            {rows.map(({ icon: Icon, label, value, color }) => (
+                <div key={label} className="flex items-center gap-4 px-5 py-4">
+                    <Icon className={`h-4 w-4 shrink-0 ${color}`} />
+                    <span className="flex-1 text-sm text-muted-foreground">{label}</span>
+                    <span className="text-2xl font-semibold tabular-nums text-foreground">
+                        {value.toLocaleString()}
+                    </span>
+                </div>
+            ))}
         </div>
     );
 };
