@@ -68,6 +68,9 @@ export interface LinkedinSearchSummary {
   created: number;
   skippedSuppressed: number;
   skippedDuplicate: number;
+  // Perfis descartados por filtro de relevância de cargo (modo "cargo") —
+  // cargo atual resolvido não bateu o suficiente com o termo buscado.
+  skippedTitleMismatch: number;
   contacts: LinkedinSearchContact[];
 }
 
