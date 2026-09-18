@@ -69,3 +69,35 @@ export async function GET(_req: NextRequest) {
 
   return NextResponse.json({ data: items });
 }
+
+/**
+ * Apaga todo o histórico de buscas de prospecção LinkedIn do usuário
+ * autenticado (prospecting_jobs, channel = 'LinkedIn'), sob RLS do usuário —
+ * sem service role. Existe porque o histórico exibido na UI é unificado
+ * (GMN + LinkedIn), mas cada canal mora numa tabela diferente; "Apagar
+ * Histórico" só apagava search_history (GMN), então buscas de LinkedIn
+ * nunca eram removidas e reapareciam no próximo carregamento.
+ */
+export async function DELETE(_req: NextRequest) {
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => cookieStore.getAll() } }
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { error } = await supabase
+    .from('prospecting_jobs')
+    .delete()
+    .eq('channel', 'LinkedIn')
+    .eq('job_type', 'search_people');
+
+  if (error) {
+    console.error('[prospecting/linkedin/history] Erro ao apagar histórico:', error);
+    return NextResponse.json({ error: 'Falha ao apagar histórico' }, { status: 500 });
+  }
+
+  return NextResponse.json({ data: { success: true } });
+}

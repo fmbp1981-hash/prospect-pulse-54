@@ -72,16 +72,36 @@ export const historyService = {
         };
     },
 
-    // Clear all history for user
+    // Clear all history for user — a lista exibida é unificada (GMN +
+    // LinkedIn), mas cada canal mora numa tabela diferente (search_history vs
+    // prospecting_jobs). Apagar só uma faz o outro canal "voltar" no próximo
+    // carregamento — por isso as duas chamadas abaixo são obrigatórias juntas.
     async clearHistory(): Promise<void> {
-        const { error } = await (supabase
-            .from('search_history')
-            .delete()
-            .neq('id', '00000000-0000-0000-0000-000000000000')); // Delete all rows where ID is not empty UUID (effectively all)
+        const [gmnResult, linkedinResult] = await Promise.allSettled([
+            supabase
+                .from('search_history')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000'), // Delete all rows where ID is not empty UUID (effectively all)
+            fetch('/api/prospecting/linkedin/history', { method: 'DELETE' }),
+        ]);
 
-        if (error) {
-            console.error('Error clearing history:', error);
-            throw error;
+        if (gmnResult.status === 'fulfilled' && gmnResult.value.error) {
+            console.error('Error clearing GMN history:', gmnResult.value.error);
+            throw gmnResult.value.error;
+        }
+        if (gmnResult.status === 'rejected') {
+            console.error('Error clearing GMN history:', gmnResult.reason);
+            throw gmnResult.reason;
+        }
+
+        if (linkedinResult.status === 'rejected') {
+            console.error('Error clearing LinkedIn history:', linkedinResult.reason);
+            throw linkedinResult.reason;
+        }
+        if (linkedinResult.status === 'fulfilled' && !linkedinResult.value.ok) {
+            const body = await linkedinResult.value.json().catch(() => null);
+            console.error('Error clearing LinkedIn history:', body);
+            throw new Error(typeof body?.error === 'string' ? body.error : 'Erro ao apagar histórico do LinkedIn');
         }
     },
 
