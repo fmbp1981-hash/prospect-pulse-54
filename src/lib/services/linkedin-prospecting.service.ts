@@ -5,7 +5,7 @@
  * Ver references/architecture.md, seção 9, e docs/PROSPECCAO-MULTICANAL.md.
  */
 
-import { apifyClient, type LinkedInProfileResult } from '../integrations/apify-client';
+import { apifyClient, extractDiscoveredEmail, type LinkedInProfileResult } from '../integrations/apify-client';
 import { apiKeysService } from './api-keys.service';
 import { companiesRepository } from '../repositories/companies.repository';
 import { contactsRepository } from '../repositories/contacts.repository';
@@ -119,18 +119,19 @@ export const linkedinProspectingService = {
     const job = await prospectingJobsRepository.create(userId, input as unknown as Json);
 
     try {
-      const profiles = await apifyClient.searchLinkedInPeople(apiKey, {
+      const results = await apifyClient.searchLinkedInPeople(apiKey, {
         searchQuery: input.searchQuery,
         locations: input.locations,
         currentCompanies: input.currentCompanies,
         currentJobTitles: input.currentJobTitles,
         industryIds: input.industryIds,
         maxItems: input.maxItems,
+        mode: input.findEmail ? 'Full + email search' : 'Full',
       });
 
       const suppressed = await linkedinSuppressionRepository.filterSuppressed(
         userId,
-        profiles.map(p => p.id)
+        results.map(r => r.profile.id)
       );
 
       let created = 0;
@@ -138,7 +139,7 @@ export const linkedinProspectingService = {
       let skippedDuplicate = 0;
       const contacts: LinkedinSearchContact[] = [];
 
-      for (const profile of profiles) {
+      for (const { profile, raw } of results) {
         if (suppressed.has(profile.id)) {
           skippedSuppressed++;
           continue;
@@ -152,6 +153,7 @@ export const linkedinProspectingService = {
 
         const currentRole = resolveCurrentRole(profile);
         const company = currentRole ? await upsertCompanyForProfile(userId, apiKey, currentRole) : null;
+        const discoveredEmail = input.findEmail ? extractDiscoveredEmail(profile) : null;
 
         const contact = await contactsRepository.create({
           user_id: userId,
@@ -166,6 +168,8 @@ export const linkedinProspectingService = {
           city: profile.location?.parsed?.city ?? null,
           state_name: profile.location?.parsed?.state ?? null,
           country: profile.location?.parsed?.country ?? null,
+          email: discoveredEmail,
+          email_source: discoveredEmail ? 'apify_email_search' : null,
           job_id: job.id,
           status: 'novo',
         });
@@ -189,7 +193,7 @@ export const linkedinProspectingService = {
           job_id: job.id,
           source_tool: 'linkedin_scraper',
           source_url: profile.linkedinUrl,
-          raw_json: profile as unknown as Json,
+          raw_json: raw as Json,
         });
 
         created++;
@@ -197,11 +201,11 @@ export const linkedinProspectingService = {
 
       await prospectingJobsRepository.complete(job.id, {
         status: 'completed',
-        progress_found: profiles.length,
+        progress_found: results.length,
         result_summary: { created, skippedSuppressed, skippedDuplicate } as unknown as Json,
       });
 
-      return { jobId: job.id, found: profiles.length, created, skippedSuppressed, skippedDuplicate, contacts };
+      return { jobId: job.id, found: results.length, created, skippedSuppressed, skippedDuplicate, contacts };
     } catch (err) {
       await prospectingJobsRepository.complete(job.id, {
         status: 'failed',

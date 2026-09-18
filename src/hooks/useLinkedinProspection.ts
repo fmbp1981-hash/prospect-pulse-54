@@ -55,6 +55,7 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
   const [companies, setCompanies] = useState("");
   const [industryIds, setIndustryIds] = useState<number[]>([]);
   const [maxItems, setMaxItems] = useState(20);
+  const [findEmail, setFindEmail] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<LinkedinSearchSummary | null>(null);
   const [enrichingContactId, setEnrichingContactId] = useState<string | null>(null);
@@ -86,6 +87,7 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
           currentCompanies: toList(companies),
           industryIds: industryIds.length > 0 ? industryIds : undefined,
           maxItems,
+          findEmail,
         }),
       });
 
@@ -174,6 +176,8 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
     setIndustryIds,
     maxItems,
     setMaxItems,
+    findEmail,
+    setFindEmail,
     isSearching,
     result,
     enrichingContactId,

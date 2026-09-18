@@ -75,9 +75,23 @@ const linkedInProfileResultSchema = z.object({
     })
     .optional(),
   pictureUrl: z.string().optional(),
+  // Modo "Full + email search": nome exato do(s) campo(s) de email não é
+  // documentado publicamente pela HarvestAPI — aceitamos os formatos mais
+  // prováveis (todos opcionais, não quebram o parse se o nome real for
+  // outro). O item bruto original também é preservado à parte (ver
+  // searchLinkedInPeople) justamente para permitir descobrir o nome real
+  // depois, sem precisar rodar o actor de novo às cegas.
+  email: z.string().optional(),
+  workEmail: z.string().optional(),
+  emails: z.array(z.string()).optional(),
 });
 
 export type LinkedInProfileResult = z.infer<typeof linkedInProfileResultSchema>;
+
+/** Extrai o email descoberto tolerando os nomes de campo candidatos acima. */
+export function extractDiscoveredEmail(profile: LinkedInProfileResult): string | null {
+  return profile.email ?? profile.workEmail ?? profile.emails?.[0] ?? null;
+}
 
 // Schema do item retornado pelo actor de detalhe de empresa — só os campos
 // que usamos para enriquecer companies (industry/site/porte/localização).
@@ -108,6 +122,12 @@ const linkedInCompanyResultSchema = z.object({
 
 export type LinkedInCompanyResult = z.infer<typeof linkedInCompanyResultSchema>;
 
+export interface LinkedInProfileSearchResult {
+  profile: LinkedInProfileResult;
+  /** Item bruto (não filtrado pelo schema) — guardar pra depuração futura de campos novos/renomeados. */
+  raw: unknown;
+}
+
 export const apifyClient = {
   /**
    * Busca pessoas no LinkedIn via camada cookieless (sem login, sem risco de
@@ -118,7 +138,7 @@ export const apifyClient = {
   async searchLinkedInPeople(
     apiKey: string,
     params: LinkedInPeopleSearchParams
-  ): Promise<LinkedInProfileResult[]> {
+  ): Promise<LinkedInProfileSearchResult[]> {
     const res = await fetch(
       `${APIFY_BASE_URL}/acts/${PEOPLE_ACTOR_ID}/run-sync-get-dataset-items?token=${apiKey}`,
       {
@@ -147,12 +167,12 @@ export const apifyClient = {
     const raw: unknown = await res.json();
     if (!Array.isArray(raw)) return [];
 
-    const results: LinkedInProfileResult[] = [];
+    const results: LinkedInProfileSearchResult[] = [];
     let dropped = 0;
     for (const item of raw) {
       const parsed = linkedInProfileResultSchema.safeParse(item);
       if (parsed.success) {
-        results.push(parsed.data);
+        results.push({ profile: parsed.data, raw: item });
       } else {
         dropped++;
       }

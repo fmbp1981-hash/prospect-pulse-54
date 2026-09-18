@@ -8,7 +8,7 @@ import { LocationCascade, LocationData } from "@/components/LocationCascade";
 import { toast } from "sonner";
 import {
   Search, Loader2, Target, MapPin, Hash, RotateCcw, X, Package,
-  Linkedin, Building2, UserRound, Briefcase, ExternalLink, Sparkles, UserPlus, Check,
+  Linkedin, Building2, UserRound, Briefcase, ExternalLink, Sparkles, UserPlus, Check, Copy,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -18,6 +18,7 @@ import { QuickSelectNiches } from "@/components/QuickSelectNiches";
 import { LinkedinIndustrySelect } from "@/components/LinkedinIndustrySelect";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { QUICK_PRODUCTS } from "@/data/prospectionQuickSelects";
@@ -99,6 +100,19 @@ function IconBadge({ icon: Icon, tone = "primary" }: { icon: LucideIcon; tone?: 
       <Icon className="h-3.5 w-3.5" />
     </span>
   );
+}
+
+/** Mensagem de abordagem sugerida pra colar manualmente no LinkedIn — o envio
+ * em si é sempre uma ação humana (nunca automatizado, ver docs/PROSPECCAO-MULTICANAL.md
+ * seção 3.2: automação de mensagem no LinkedIn é risco real de banimento). */
+function buildLinkedinOutreachMessage(name: string, roleTitle: string | null, companyName: string | null): string {
+  const firstName = name.split(' ')[0];
+  const context = roleTitle && companyName
+    ? `como ${roleTitle} na ${companyName}`
+    : companyName
+      ? `na ${companyName}`
+      : '';
+  return `Olá ${firstName}, tudo bem? Vi seu perfil${context ? ` ${context}` : ''} e gostaria de conversar sobre uma oportunidade que pode ser interessante pra você. Podemos trocar uma ideia?`;
 }
 
 export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) => {
@@ -769,6 +783,23 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 />
                 <p className="text-xs text-muted-foreground">Digite a quantidade desejada — de 1 a 100 perfis</p>
               </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border max-w-md">
+                <Switch
+                  id="linkedinFindEmail"
+                  checked={linkedin.findEmail}
+                  onCheckedChange={linkedin.setFindEmail}
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="linkedinFindEmail" className="text-sm cursor-pointer">
+                    Buscar email (custo extra por perfil)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    💡 O LinkedIn não expõe email/telefone publicamente — isso faz uma busca/validação de email
+                    independente (não é dado do próprio LinkedIn). Sem isso, o perfil vem só com nome, cargo, empresa e localização.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <Button
@@ -854,6 +885,26 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                               </td>
                               <td className="px-3 py-2">
                                 <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="gap-1"
+                                    title="Copia uma mensagem sugerida e abre o perfil pra você colar manualmente"
+                                    onClick={() => {
+                                      const message = buildLinkedinOutreachMessage(contact.name, contact.roleTitle, contact.companyName);
+                                      navigator.clipboard.writeText(message).then(() => {
+                                        toast.success("Mensagem copiada!", {
+                                          description: "Cole na caixa de mensagem do LinkedIn — o envio é manual, como de costume.",
+                                        });
+                                      }).catch(() => {
+                                        toast.error("Não foi possível copiar a mensagem");
+                                      });
+                                      window.open(contact.linkedinUrl, '_blank', 'noopener,noreferrer');
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                    Copiar mensagem
+                                  </Button>
                                   {!hasContactInfo && (
                                     <Button
                                       size="sm"
