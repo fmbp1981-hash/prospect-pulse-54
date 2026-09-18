@@ -524,6 +524,7 @@ export default function LeadsPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Cidade</TableHead>
                     <TableHead>Site</TableHead>
+                    <TableHead>LinkedIn</TableHead>
                     <TableHead>Redes Sociais</TableHead>
                     <TableHead>Resumo</TableHead>
                     <TableHead className="cursor-pointer" onClick={() => handleSort('status')}>
@@ -616,8 +617,24 @@ export default function LeadsPage() {
                         )}
                       </TableCell>
                       <TableCell>
+                        {lead.linkedin ? (
+                          <a
+                            href={lead.linkedin.startsWith('http') ? lead.linkedin : `https://${lead.linkedin}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-700 hover:underline text-xs flex items-center gap-1"
+                            title={lead.linkedin}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Ver perfil
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-2">
-                          {lead.instagram && (
+                          {lead.instagram ? (
                             <a
                               href={`https://instagram.com/${lead.instagram.replace(/^@/, '')}`}
                               target="_blank"
@@ -627,20 +644,7 @@ export default function LeadsPage() {
                             >
                               {lead.instagram}
                             </a>
-                          )}
-                          {lead.linkedin && (
-                            <a
-                              href={lead.linkedin.startsWith('http') ? lead.linkedin : `https://${lead.linkedin}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-700 hover:underline text-xs flex items-center gap-1"
-                              title="LinkedIn"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              in
-                            </a>
-                          )}
-                          {!lead.instagram && !lead.linkedin && (
+                          ) : (
                             <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </div>
@@ -753,7 +757,7 @@ export default function LeadsPage() {
         onExport={handleExport}
         availableColumns={[
           'Lead', 'Status', 'Data', 'Empresa', 'Categoria', 'Contato',
-          'WhatsApp', 'Telefone', 'Email', 'Website', 'Instagram',
+          'WhatsApp', 'Telefone', 'Email', 'Website', 'Instagram', 'LinkedIn',
           'Cidade', 'Endereço', 'Bairro/Região', 'Link Google Maps',
           'CNPJ', 'Resumo Analítico'
         ]}

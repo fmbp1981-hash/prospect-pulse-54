@@ -19,6 +19,7 @@ export interface LinkedInPeopleSearchParams {
   locations?: string[];
   currentCompanies?: string[];
   currentJobTitles?: string[];
+  industryIds?: number[];
   maxItems?: number;
   mode?: ProfileScraperMode;
 }
@@ -71,6 +72,7 @@ export const apifyClient = {
           locations: params.locations,
           currentCompanies: params.currentCompanies,
           currentJobTitles: params.currentJobTitles,
+          industryIds: params.industryIds,
           maxItems: params.maxItems ?? 20,
         }),
       }

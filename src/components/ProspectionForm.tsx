@@ -15,6 +15,7 @@ import {
   ProspectionFormData, ProspectionSearch, ProspectionChannel, LinkedinSearchBy,
 } from "@/types/prospection";
 import { QuickSelectNiches } from "@/components/QuickSelectNiches";
+import { LinkedinIndustrySelect } from "@/components/LinkedinIndustrySelect";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -139,6 +140,12 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
   });
   const [bairros, setBairros] = useState<string[]>([]);
   const [bairroInput, setBairroInput] = useState("");
+  // Estado de texto separado do quantity numérico: permite digitar livremente
+  // (inclusive apagar tudo antes de escrever um novo valor) sem o campo forçar
+  // "0" a cada tecla — o clamp (1-500) só acontece no blur.
+  const [quantityInput, setQuantityInput] = useState(String(formData.quantity));
+  // Espelha linkedin.maxItems como texto (mesmo motivo do quantityInput acima).
+  const [maxItemsInput, setMaxItemsInput] = useState("20");
 
   const handleUseLastSearch = () => {
     if (!lastSearch) return;
@@ -153,6 +160,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       location: locationData,
       quantity: lastSearch.quantity,
     });
+    setQuantityInput(String(lastSearch.quantity));
 
     toast.success("Dados da última pesquisa carregados!", {
       description: "Você pode editar os campos antes de iniciar a prospecção."
@@ -296,6 +304,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
         quantity: 50,
         businessName: "",
       });
+      setQuantityInput("50");
     } catch (error) {
       console.error("❌ Erro na prospecção:", error);
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
@@ -507,15 +516,27 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
               </Label>
               <Input
                 id="quantity"
-                type="number"
-                min="1"
-                max="500"
-                value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={quantityInput}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "");
+                  setQuantityInput(digits);
+                  if (digits !== "") {
+                    setFormData({ ...formData, quantity: parseInt(digits, 10) });
+                  }
+                }}
+                onBlur={() => {
+                  const parsed = parseInt(quantityInput, 10);
+                  const clamped = Math.min(500, Math.max(1, Number.isFinite(parsed) ? parsed : 1));
+                  setQuantityInput(String(clamped));
+                  setFormData((prev) => ({ ...prev, quantity: clamped }));
+                }}
                 required
                 className="rounded-xl transition-all focus:shadow-card"
               />
-              <p className="text-xs text-muted-foreground">Máximo: 500 leads por busca</p>
+              <p className="text-xs text-muted-foreground">Digite a quantidade desejada — de 1 a 500 leads por busca</p>
             </div>
 
             <div className="space-y-2">
@@ -626,33 +647,100 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="linkedinJobTitles" className="flex items-center gap-2">
-                    <Briefcase className="h-4 w-4 text-muted-foreground" />
-                    Cargos-alvo (opcional)
-                  </Label>
-                  <Input
-                    id="linkedinJobTitles"
-                    placeholder="Marketing Manager, CMO"
-                    value={linkedin.jobTitles}
-                    onChange={(e) => linkedin.setJobTitles(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Separe múltiplos cargos por vírgula</p>
+              {/* Campos opcionais mudam conforme "Buscar por": cada modo destaca os
+                  filtros que fazem sentido para aquele termo de busca principal. */}
+              {linkedin.searchBy === 'pessoa' && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedinJobTitles" className="flex items-center gap-2">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      Cargos-alvo (opcional)
+                    </Label>
+                    <Input
+                      id="linkedinJobTitles"
+                      placeholder="Marketing Manager, CMO"
+                      value={linkedin.jobTitles}
+                      onChange={(e) => linkedin.setJobTitles(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Separe múltiplos cargos por vírgula</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="linkedinCompanies" className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      Empresas-alvo (opcional)
+                    </Label>
+                    <Input
+                      id="linkedinCompanies"
+                      placeholder="URLs de empresa no LinkedIn, separadas por vírgula"
+                      value={linkedin.companies}
+                      onChange={(e) => linkedin.setCompanies(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="linkedinCompanies" className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    Empresas-alvo (opcional)
-                  </Label>
-                  <Input
-                    id="linkedinCompanies"
-                    placeholder="URLs de empresa no LinkedIn, separadas por vírgula"
-                    value={linkedin.companies}
-                    onChange={(e) => linkedin.setCompanies(e.target.value)}
-                  />
+              )}
+
+              {linkedin.searchBy === 'empresa' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      Segmento / Nicho / Tipo de negócio (opcional)
+                    </Label>
+                    <LinkedinIndustrySelect
+                      selectedIds={linkedin.industryIds}
+                      onChange={linkedin.setIndustryIds}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      💡 Filtra pessoas cuja empresa atua nesses segmentos — útil quando o nome buscado é genérico.
+                    </p>
+                  </div>
+                  <div className="space-y-2 sm:max-w-sm">
+                    <Label htmlFor="linkedinJobTitles" className="flex items-center gap-2">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      Cargos-alvo (opcional)
+                    </Label>
+                    <Input
+                      id="linkedinJobTitles"
+                      placeholder="Marketing Manager, CMO"
+                      value={linkedin.jobTitles}
+                      onChange={(e) => linkedin.setJobTitles(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Separe múltiplos cargos por vírgula</p>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {linkedin.searchBy === 'cargo' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-muted-foreground" />
+                      Tipos de empresa onde buscar esse cargo (opcional)
+                    </Label>
+                    <LinkedinIndustrySelect
+                      selectedIds={linkedin.industryIds}
+                      onChange={linkedin.setIndustryIds}
+                    />
+                  </div>
+                  <div className="space-y-2 p-3 rounded-lg bg-primary/5 border border-primary/20 sm:max-w-sm">
+                    <Label htmlFor="linkedinCompanies" className="flex items-center gap-2 text-sm">
+                      <Building2 className="h-4 w-4 text-primary" />
+                      Busca direta por Nome da Empresa
+                      <Badge variant="secondary" className="text-[10px]">Opcional</Badge>
+                    </Label>
+                    <Input
+                      id="linkedinCompanies"
+                      placeholder="URLs de empresa no LinkedIn, separadas por vírgula"
+                      value={linkedin.companies}
+                      onChange={(e) => linkedin.setCompanies(e.target.value)}
+                      className="border-primary/30"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      💡 Assim como na busca do Google Maps: informe a(s) empresa(s) exata(s) para restringir a busca desse cargo a elas.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2 max-w-xs">
                 <Label htmlFor="linkedinMaxItems" className="flex items-center gap-2">
@@ -661,12 +749,25 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 </Label>
                 <Input
                   id="linkedinMaxItems"
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={linkedin.maxItems}
-                  onChange={(e) => linkedin.setMaxItems(Number(e.target.value) || 20)}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={maxItemsInput}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    setMaxItemsInput(digits);
+                    if (digits !== "") {
+                      linkedin.setMaxItems(parseInt(digits, 10));
+                    }
+                  }}
+                  onBlur={() => {
+                    const parsed = parseInt(maxItemsInput, 10);
+                    const clamped = Math.min(100, Math.max(1, Number.isFinite(parsed) ? parsed : 20));
+                    setMaxItemsInput(String(clamped));
+                    linkedin.setMaxItems(clamped);
+                  }}
                 />
+                <p className="text-xs text-muted-foreground">Digite a quantidade desejada — de 1 a 100 perfis</p>
               </div>
             </div>
 

@@ -5,6 +5,7 @@ export const linkedinSearchSchema = z.object({
   locations: z.array(z.string().trim().min(1)).max(70).optional(),
   currentCompanies: z.array(z.string().trim().min(1)).max(50).optional(),
   currentJobTitles: z.array(z.string().trim().min(1)).max(50).optional(),
+  industryIds: z.array(z.number().int().positive()).max(30).optional(),
   maxItems: z.number().int().min(1).max(100).default(20),
 });
 

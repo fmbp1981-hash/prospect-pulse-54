@@ -20,6 +20,7 @@ interface LinkedinSearchParams {
   location: LocationData;
   jobTitles: string;
   companies: string;
+  industryIds: number[];
   maxItems: number;
 }
 
@@ -52,6 +53,7 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
   const [location, setLocation] = useState<LocationData>(EMPTY_LOCATION);
   const [jobTitles, setJobTitles] = useState("");
   const [companies, setCompanies] = useState("");
+  const [industryIds, setIndustryIds] = useState<number[]>([]);
   const [maxItems, setMaxItems] = useState(20);
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<LinkedinSearchSummary | null>(null);
@@ -82,6 +84,7 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
           locations: locationToList(location),
           currentJobTitles: toList(jobTitles),
           currentCompanies: toList(companies),
+          industryIds: industryIds.length > 0 ? industryIds : undefined,
           maxItems,
         }),
       });
@@ -99,7 +102,7 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
         { id: loadingToast, duration: 5000 }
       );
 
-      options?.onSearchCompleted?.({ searchQuery, location, jobTitles, companies, maxItems }, summary);
+      options?.onSearchCompleted?.({ searchQuery, location, jobTitles, companies, industryIds, maxItems }, summary);
       setSearchQuery("");
     } catch {
       toast.error("Erro ao conectar com a API de prospecção", { id: loadingToast });
@@ -167,6 +170,8 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
     setJobTitles,
     companies,
     setCompanies,
+    industryIds,
+    setIndustryIds,
     maxItems,
     setMaxItems,
     isSearching,

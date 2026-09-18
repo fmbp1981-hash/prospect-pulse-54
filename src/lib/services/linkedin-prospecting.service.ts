@@ -73,6 +73,7 @@ export const linkedinProspectingService = {
         locations: input.locations,
         currentCompanies: input.currentCompanies,
         currentJobTitles: input.currentJobTitles,
+        industryIds: input.industryIds,
         maxItems: input.maxItems,
       });
 
