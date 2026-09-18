@@ -46,11 +46,35 @@ function companySlugFromUrl(url: string | undefined): string | null {
   }
 }
 
-async function upsertCompanyForProfile(
-  userId: string,
-  apiKey: string,
-  position: LinkedInProfileResult['currentPositions'] extends (infer U)[] | undefined ? U : never
-) {
+interface CurrentRole {
+  title?: string;
+  companyName?: string;
+  companyLinkedinUrl?: string;
+  companyId?: string;
+}
+
+/**
+ * Empresa e cargo atuais do perfil. `currentPosition` do actor só tem
+ * empresa (sem título de cargo) — o cargo mora em `experience[0].position`
+ * (a experiência do topo = mais recente). Por isso combinamos as duas: o
+ * topo de `experience` dá empresa+cargo juntos; `currentPosition[0]` é usado
+ * só como reforço quando `experience` vier vazio.
+ */
+function resolveCurrentRole(profile: LinkedInProfileResult): CurrentRole | null {
+  const topExperience = profile.experience?.[0];
+  const currentPosition = profile.currentPosition?.[0];
+
+  if (!topExperience && !currentPosition) return null;
+
+  return {
+    title: topExperience?.position,
+    companyName: topExperience?.companyName ?? currentPosition?.companyName,
+    companyLinkedinUrl: topExperience?.companyLinkedinUrl ?? currentPosition?.companyLinkedinUrl,
+    companyId: topExperience?.companyId ?? currentPosition?.companyId,
+  };
+}
+
+async function upsertCompanyForProfile(userId: string, apiKey: string, position: CurrentRole) {
   if (!position?.companyName) return null;
   const slug = companySlugFromUrl(position.companyLinkedinUrl);
   const company = await companiesRepository.findOrCreate(userId, {
@@ -126,8 +150,8 @@ export const linkedinProspectingService = {
           continue;
         }
 
-        const currentPosition = profile.currentPositions?.find(p => p.current) ?? profile.currentPositions?.[0];
-        const company = currentPosition ? await upsertCompanyForProfile(userId, apiKey, currentPosition) : null;
+        const currentRole = resolveCurrentRole(profile);
+        const company = currentRole ? await upsertCompanyForProfile(userId, apiKey, currentRole) : null;
 
         const contact = await contactsRepository.create({
           user_id: userId,
@@ -136,7 +160,7 @@ export const linkedinProspectingService = {
           name: `${profile.firstName} ${profile.lastName}`.trim(),
           linkedin_url: profile.linkedinUrl,
           linkedin_slug: profile.id,
-          role_title: currentPosition?.title ?? null,
+          role_title: currentRole?.title ?? null,
           headline: profile.headline ?? null,
           location_raw: profile.location?.linkedinText ?? null,
           city: profile.location?.parsed?.city ?? null,

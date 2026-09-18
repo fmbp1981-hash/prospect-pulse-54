@@ -38,14 +38,26 @@ const linkedInProfileResultSchema = z.object({
   lastName: z.string(),
   headline: z.string().optional(),
   summary: z.string().optional(),
-  currentPositions: z
+  // Campo real do actor é "currentPosition" (singular) — e NÃO tem título de
+  // cargo, só empresa (companyId/companyLinkedinUrl/companyName/dateRange).
+  // O título/cargo mora em `experience[0].position` (a experiência do topo =
+  // mais recente). Confirmado consultando o schema real do actor.
+  currentPosition: z
     .array(
       z.object({
-        title: z.string().optional(),
         companyName: z.string().optional(),
         companyLinkedinUrl: z.string().optional(),
         companyId: z.string().optional(),
-        current: z.boolean().optional(),
+      })
+    )
+    .optional(),
+  experience: z
+    .array(
+      z.object({
+        position: z.string().optional(),
+        companyName: z.string().optional(),
+        companyLinkedinUrl: z.string().optional(),
+        companyId: z.string().optional(),
       })
     )
     .optional(),
@@ -136,9 +148,21 @@ export const apifyClient = {
     if (!Array.isArray(raw)) return [];
 
     const results: LinkedInProfileResult[] = [];
+    let dropped = 0;
     for (const item of raw) {
       const parsed = linkedInProfileResultSchema.safeParse(item);
-      if (parsed.success) results.push(parsed.data);
+      if (parsed.success) {
+        results.push(parsed.data);
+      } else {
+        dropped++;
+      }
+    }
+    // Item descartado pelo schema quase sempre é o actor tendo mudado o
+    // formato de saída (como aconteceu com currentPosition) — isso é
+    // silencioso por design (não derruba a busca), mas precisa aparecer nos
+    // logs pra não passar despercebido de novo.
+    if (dropped > 0) {
+      console.warn(`[apify-client] ${dropped}/${raw.length} perfis descartados por não baterem com o schema esperado — o actor pode ter mudado o formato de saída.`);
     }
     return results;
   },
