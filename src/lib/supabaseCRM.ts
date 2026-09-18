@@ -23,6 +23,7 @@ interface SupabaseLeadRow {
   email?: string;
   website?: string;
   instagram?: string;
+  linkedin?: string;
   cidade?: string;
   endereco?: string;
   bairro?: string;
@@ -173,6 +174,7 @@ export async function updateLead(
     if (updates.bairroRegiao !== undefined) dbUpdates.bairro_regiao = updates.bairroRegiao;
     if (updates.website !== undefined) dbUpdates.website = updates.website;
     if (updates.instagram !== undefined) dbUpdates.instagram = updates.instagram;
+    if (updates.linkedin !== undefined) dbUpdates.linkedin = updates.linkedin;
     if (updates.linkGMN !== undefined) dbUpdates.link_gmn = updates.linkGMN;
     if (updates.aceitaCartao !== undefined) dbUpdates.aceita_cartao = updates.aceitaCartao;
     if (updates.mensagemWhatsApp !== undefined) dbUpdates.mensagem_whatsapp = updates.mensagemWhatsApp;
@@ -422,6 +424,7 @@ function mapRowToLead(row: SupabaseLeadRow): Lead {
     email: row.email || "",
     website: row.website || "",
     instagram: row.instagram || "",
+    linkedin: row.linkedin || null,
     cidade: row.cidade || "",
     endereco: row.endereco || "",
     bairro: row.bairro || "",
@@ -487,6 +490,7 @@ export async function createLead(
         bairro_regiao: leadData.bairroRegiao,
         website: leadData.website,
         instagram: leadData.instagram,
+        linkedin: leadData.linkedin,
         link_gmn: leadData.linkGMN,
         aceita_cartao: leadData.aceitaCartao,
         mensagem_whatsapp: leadData.mensagemWhatsApp || "",

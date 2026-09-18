@@ -48,16 +48,43 @@ function companySlugFromUrl(url: string | undefined): string | null {
 
 async function upsertCompanyForProfile(
   userId: string,
+  apiKey: string,
   position: LinkedInProfileResult['currentPositions'] extends (infer U)[] | undefined ? U : never
 ) {
   if (!position?.companyName) return null;
   const slug = companySlugFromUrl(position.companyLinkedinUrl);
-  return companiesRepository.findOrCreate(userId, {
+  const company = await companiesRepository.findOrCreate(userId, {
     name: position.companyName,
     linkedin_url: position.companyLinkedinUrl ?? null,
     linkedin_slug: slug,
     channel: 'LinkedIn',
   });
+
+  // Enriquece industry/site/porte só na primeira vez que vemos essa empresa
+  // (evita gastar chamadas do actor de company em toda repetição de busca).
+  if (!company.industry && position.companyLinkedinUrl) {
+    try {
+      const details = await apifyClient.getCompanyDetails(apiKey, position.companyLinkedinUrl);
+      if (details) {
+        const hq = details.locations?.find(l => l.headquarter) ?? details.locations?.[0];
+        return await companiesRepository.update(company.id, userId, {
+          industry: details.industries?.[0] ?? null,
+          domain: details.website ?? null,
+          city: hq?.parsed?.city ?? null,
+          country: hq?.parsed?.country ?? null,
+          size_label: details.employeeCountRange
+            ? `${details.employeeCountRange.start ?? ''}${details.employeeCountRange.end ? `-${details.employeeCountRange.end}` : '+'}`
+            : null,
+          size_min: details.employeeCountRange?.start ?? null,
+          size_max: details.employeeCountRange?.end ?? null,
+        });
+      }
+    } catch {
+      // Best-effort: falha no enriquecimento de empresa não pode derrubar a busca de pessoas.
+    }
+  }
+
+  return company;
 }
 
 export const linkedinProspectingService = {
@@ -100,7 +127,7 @@ export const linkedinProspectingService = {
         }
 
         const currentPosition = profile.currentPositions?.find(p => p.current) ?? profile.currentPositions?.[0];
-        const company = currentPosition ? await upsertCompanyForProfile(userId, currentPosition) : null;
+        const company = currentPosition ? await upsertCompanyForProfile(userId, apiKey, currentPosition) : null;
 
         const contact = await contactsRepository.create({
           user_id: userId,
@@ -110,7 +137,11 @@ export const linkedinProspectingService = {
           linkedin_url: profile.linkedinUrl,
           linkedin_slug: profile.id,
           role_title: currentPosition?.title ?? null,
+          headline: profile.headline ?? null,
           location_raw: profile.location?.linkedinText ?? null,
+          city: profile.location?.parsed?.city ?? null,
+          state_name: profile.location?.parsed?.state ?? null,
+          country: profile.location?.parsed?.country ?? null,
           job_id: job.id,
           status: 'novo',
         });
