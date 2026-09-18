@@ -83,7 +83,15 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
         body: JSON.stringify({
           searchQuery,
           locations: locationToList(location),
-          currentJobTitles: toList(jobTitles),
+          // No modo "cargo" o campo principal (searchQuery) É o cargo buscado.
+          // searchQuery sozinho é busca livre/fuzzy em todo o perfil (headline,
+          // resumo, experiências antigas etc.) — por isso um cargo digitado ali
+          // pode trazer perfis com título atual completamente diferente
+          // (ex: "Gerente Regional Comercial" trazendo "Diretor" ou "Sócio
+          // Fundador"). currentJobTitles é o filtro estruturado que restringe
+          // ao cargo ATUAL do perfil (AND com os demais filtros) — sem ele,
+          // a busca por cargo nunca foi de fato filtrada por cargo.
+          currentJobTitles: searchBy === "cargo" ? [...toList(searchQuery), ...toList(jobTitles)] : toList(jobTitles),
           currentCompanies: toList(companies),
           industryIds: industryIds.length > 0 ? industryIds : undefined,
           maxItems,
