@@ -33,7 +33,49 @@ export interface LinkedinSearchSummary {
   created: number;
   skippedSuppressed: number;
   skippedDuplicate: number;
+  skippedTitleMismatch: number;
   contacts: LinkedinSearchContact[];
+}
+
+// Preposições/artigos comuns em cargos PT-BR — ignorados no match de
+// relevância para não exigir que apareçam literalmente no título do perfil.
+const TITLE_STOPWORDS = new Set([
+  'de', 'da', 'do', 'das', 'dos', 'e', 'a', 'o', 'as', 'os', 'em', 'para', 'com',
+]);
+
+function normalizeTitleText(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove acentos
+    .toLowerCase()
+    .trim();
+}
+
+function significantWords(text: string): string[] {
+  return normalizeTitleText(text)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 0 && !TITLE_STOPWORDS.has(w));
+}
+
+/**
+ * Verifica se o cargo atual resolvido do perfil é relevante para o termo de
+ * cargo buscado. Existe porque o filtro nativo `currentJobTitles` do ator
+ * Apify (LinkedIn "Current title" filter) é restritivo demais para frases
+ * longas em português — muitas vezes zera a busca inteira — então filtramos
+ * por relevância nós mesmos, depois de já ter os perfis em mãos: exige que a
+ * maioria das palavras significativas do termo buscado apareça no título
+ * atual (ordem livre, tolera variações como "Gerente Comercial Regional" vs.
+ * "Gerente Regional Comercial").
+ */
+function isRelevantToTitleQuery(currentTitle: string | undefined, titleFilterQuery: string): boolean {
+  if (!currentTitle) return false;
+  const queryWords = significantWords(titleFilterQuery);
+  if (queryWords.length === 0) return true;
+
+  const normalizedTitle = normalizeTitleText(currentTitle);
+  const matchedCount = queryWords.filter((w) => normalizedTitle.includes(w)).length;
+  const requiredMatches = Math.max(1, Math.ceil(queryWords.length / 2));
+  return matchedCount >= requiredMatches;
 }
 
 function companySlugFromUrl(url: string | undefined): string | null {
@@ -137,6 +179,7 @@ export const linkedinProspectingService = {
       let created = 0;
       let skippedSuppressed = 0;
       let skippedDuplicate = 0;
+      let skippedTitleMismatch = 0;
       const contacts: LinkedinSearchContact[] = [];
 
       for (const { profile, raw } of results) {
@@ -152,6 +195,12 @@ export const linkedinProspectingService = {
         }
 
         const currentRole = resolveCurrentRole(profile);
+
+        if (input.titleFilterQuery && !isRelevantToTitleQuery(currentRole?.title, input.titleFilterQuery)) {
+          skippedTitleMismatch++;
+          continue;
+        }
+
         const company = currentRole ? await upsertCompanyForProfile(userId, apiKey, currentRole) : null;
         const discoveredEmail = input.findEmail ? extractDiscoveredEmail(profile) : null;
 
@@ -199,13 +248,28 @@ export const linkedinProspectingService = {
         created++;
       }
 
+      const resultSummary: {
+        created: number;
+        skippedSuppressed: number;
+        skippedDuplicate: number;
+        skippedTitleMismatch: number;
+      } = { created, skippedSuppressed, skippedDuplicate, skippedTitleMismatch };
+
       await prospectingJobsRepository.complete(job.id, {
         status: 'completed',
         progress_found: results.length,
-        result_summary: { created, skippedSuppressed, skippedDuplicate } as unknown as Json,
+        result_summary: resultSummary as unknown as Json,
       });
 
-      return { jobId: job.id, found: results.length, created, skippedSuppressed, skippedDuplicate, contacts };
+      return {
+        jobId: job.id,
+        found: results.length,
+        created,
+        skippedSuppressed,
+        skippedDuplicate,
+        skippedTitleMismatch,
+        contacts,
+      };
     } catch (err) {
       await prospectingJobsRepository.complete(job.id, {
         status: 'failed',

@@ -83,17 +83,21 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
         body: JSON.stringify({
           searchQuery,
           locations: locationToList(location),
-          // No modo "cargo" o campo principal (searchQuery) É o cargo buscado.
-          // searchQuery sozinho é busca livre/fuzzy em todo o perfil (headline,
-          // resumo, experiências antigas etc.) — por isso um cargo digitado ali
-          // pode trazer perfis com título atual completamente diferente
-          // (ex: "Gerente Regional Comercial" trazendo "Diretor" ou "Sócio
-          // Fundador"). currentJobTitles é o filtro estruturado que restringe
-          // ao cargo ATUAL do perfil (AND com os demais filtros) — sem ele,
-          // a busca por cargo nunca foi de fato filtrada por cargo.
-          currentJobTitles: searchBy === "cargo" ? [...toList(searchQuery), ...toList(jobTitles)] : toList(jobTitles),
+          // currentJobTitles é o filtro nativo "Current title" do próprio
+          // LinkedIn (via actor Apify) — na prática exige que as palavras da
+          // frase apareçam no título atual do perfil, o que quase nunca bate
+          // com frases longas em português ("Gerente Regional Comercial" vs.
+          // "Gerente Comercial Regional", "Gerente de Vendas Regional" etc.)
+          // e pode zerar os resultados. Por isso NÃO usamos o texto do modo
+          // "cargo" aqui — a precisão desse modo é garantida no backend por
+          // filtro de relevância próprio (ver titleFilterQuery abaixo e
+          // linkedin-prospecting.service.ts), não pelo filtro opaco do ator.
+          currentJobTitles: toList(jobTitles),
           currentCompanies: toList(companies),
           industryIds: industryIds.length > 0 ? industryIds : undefined,
+          // Usado só no backend para filtrar por relevância os resultados do
+          // modo "cargo" (não é enviado ao Apify).
+          titleFilterQuery: searchBy === "cargo" ? searchQuery : undefined,
           maxItems,
           findEmail,
         }),
@@ -107,8 +111,11 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
 
       const summary = json.data as LinkedinSearchSummary;
       setResult(summary);
+      const mismatchNote = summary.skippedTitleMismatch > 0
+        ? `, ${summary.skippedTitleMismatch} descartados por cargo divergente`
+        : "";
       toast.success(
-        `${summary.found} perfis encontrados — ${summary.created} novos, ${summary.skippedDuplicate} já existiam`,
+        `${summary.found} perfis encontrados — ${summary.created} novos, ${summary.skippedDuplicate} já existiam${mismatchNote}`,
         { id: loadingToast, duration: 5000 }
       );
 
