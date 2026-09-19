@@ -130,7 +130,18 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
       }
 
       options?.onSearchCompleted?.({ searchQuery, location, jobTitles, companies, industryIds, maxItems }, summary);
+      // Limpa TODOS os filtros, não só o termo de busca — filtros de
+      // localização/indústria/empresas/cargos-alvo ficavam "grudados" entre
+      // buscas e podiam restringir silenciosamente a busca seguinte sem o
+      // usuário perceber (ex: buscar um cargo comum e vir 0 resultados
+      // porque a indústria/localização de uma busca anterior ainda estava
+      // marcada). Quem quiser repetir os mesmos filtros usa "Reutilizar
+      // Busca" no histórico.
       setSearchQuery("");
+      setLocation(EMPTY_LOCATION);
+      setJobTitles("");
+      setCompanies("");
+      setIndustryIds([]);
     } catch {
       toast.error("Erro ao conectar com a API de prospecção", { id: loadingToast });
     } finally {

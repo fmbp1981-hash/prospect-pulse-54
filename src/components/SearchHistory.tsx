@@ -456,7 +456,7 @@ export const SearchHistory = ({ searches, onClearHistory, onReprocess, isLoading
                     </Button>
                   )}
 
-                  {onReprocess && !isLinkedin && (
+                  {onReprocess && (
                     <Button
                       variant="outline"
                       size="sm"
