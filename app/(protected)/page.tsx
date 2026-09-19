@@ -125,7 +125,54 @@ export default function HomePage() {
     }
   };
 
+  const handleReprocessLinkedinSearch = async (search: ProspectionSearch) => {
+    if (!search.linkedinJobId) {
+      toast.error("Busca inválida", {
+        description: "Esta entrada do histórico não possui um job de LinkedIn válido.",
+      });
+      return;
+    }
+
+    const loadingToast = toast.loading("Reprocessando busca no LinkedIn...", {
+      description: `Buscando "${search.niche}" novamente...`,
+      duration: Infinity,
+    });
+
+    try {
+      const res = await fetch(`/api/prospecting/linkedin/history/${search.linkedinJobId}/reprocess`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(typeof json.error === "string" ? json.error : "Erro ao reprocessar busca no LinkedIn");
+      }
+
+      const summary = json.data as { found: number; created: number };
+      toast.success("Busca no LinkedIn reprocessada com sucesso!", {
+        id: loadingToast,
+        description: `${summary.found} perfis encontrados, ${summary.created} novos.`,
+        duration: 5000,
+      });
+
+      const updatedSearches = searches.map(s =>
+        s.id === search.id ? { ...s, timestamp: new Date() } : s
+      );
+      setSearches(updatedSearches);
+    } catch (error) {
+      toast.error("Erro ao reprocessar busca no LinkedIn", {
+        id: loadingToast,
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        duration: 6000,
+      });
+      throw error;
+    }
+  };
+
   const handleReprocessSearch = async (search: ProspectionSearch) => {
+    if (search.channel === 'linkedin') {
+      return handleReprocessLinkedinSearch(search);
+    }
+
     // Validate before invoking edge function
     const locationObj = typeof search.location === 'object' ? search.location : null;
     const hasValidNiche = search.niche && search.niche.trim().length > 0;
