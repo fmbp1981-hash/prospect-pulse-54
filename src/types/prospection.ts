@@ -71,6 +71,10 @@ export interface LinkedinSearchSummary {
   // Perfis descartados por filtro de relevância de cargo (modo "cargo") —
   // cargo atual resolvido não bateu o suficiente com o termo buscado.
   skippedTitleMismatch: number;
+  // true quando o Apify devolveu perfis mas o parser local descartou TODOS
+  // (o actor mudou o formato de saída de novo) — distingue de "ninguém no
+  // LinkedIn bate com a busca".
+  parsingBroken: boolean;
   contacts: LinkedinSearchContact[];
 }
 

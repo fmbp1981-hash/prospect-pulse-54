@@ -128,6 +128,21 @@ export interface LinkedInProfileSearchResult {
   raw: unknown;
 }
 
+export interface LinkedInPeopleSearchOutcome {
+  results: LinkedInProfileSearchResult[];
+  /** Quantos itens o Apify devolveu antes do nosso parse (schema local). */
+  rawCount: number;
+  /**
+   * Quantos desses itens foram descartados por não baterem com o schema
+   * esperado — distingue "Apify não achou ninguém" (rawCount === 0) de
+   * "Apify achou gente mas o formato de saída mudou de novo e nosso parser
+   * descartou tudo" (rawCount > 0 e droppedCount === rawCount), que já
+   * aconteceu antes com o campo currentPosition e sem isso vira um "0 perfis
+   * encontrados" enganoso pro usuário.
+   */
+  droppedCount: number;
+}
+
 export const apifyClient = {
   /**
    * Busca pessoas no LinkedIn via camada cookieless (sem login, sem risco de
@@ -138,7 +153,7 @@ export const apifyClient = {
   async searchLinkedInPeople(
     apiKey: string,
     params: LinkedInPeopleSearchParams
-  ): Promise<LinkedInProfileSearchResult[]> {
+  ): Promise<LinkedInPeopleSearchOutcome> {
     const res = await fetch(
       `${APIFY_BASE_URL}/acts/${PEOPLE_ACTOR_ID}/run-sync-get-dataset-items?token=${apiKey}`,
       {
@@ -165,7 +180,7 @@ export const apifyClient = {
     }
 
     const raw: unknown = await res.json();
-    if (!Array.isArray(raw)) return [];
+    if (!Array.isArray(raw)) return { results: [], rawCount: 0, droppedCount: 0 };
 
     const results: LinkedInProfileSearchResult[] = [];
     let dropped = 0;
@@ -178,13 +193,14 @@ export const apifyClient = {
       }
     }
     // Item descartado pelo schema quase sempre é o actor tendo mudado o
-    // formato de saída (como aconteceu com currentPosition) — isso é
-    // silencioso por design (não derruba a busca), mas precisa aparecer nos
-    // logs pra não passar despercebido de novo.
+    // formato de saída (como aconteceu com currentPosition) — isso não
+    // derruba a busca (best-effort), mas precisa aparecer pro usuário
+    // (ver rawCount/droppedCount no retorno) pra não passar despercebido
+    // de novo atrás de um "0 perfis encontrados" enganoso.
     if (dropped > 0) {
       console.warn(`[apify-client] ${dropped}/${raw.length} perfis descartados por não baterem com o schema esperado — o actor pode ter mudado o formato de saída.`);
     }
-    return results;
+    return { results, rawCount: raw.length, droppedCount: dropped };
   },
 
   /**

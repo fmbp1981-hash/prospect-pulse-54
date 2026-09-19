@@ -111,13 +111,23 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
 
       const summary = json.data as LinkedinSearchSummary;
       setResult(summary);
-      const mismatchNote = summary.skippedTitleMismatch > 0
-        ? `, ${summary.skippedTitleMismatch} descartados por cargo divergente`
-        : "";
-      toast.success(
-        `${summary.found} perfis encontrados — ${summary.created} novos, ${summary.skippedDuplicate} já existiam${mismatchNote}`,
-        { id: loadingToast, duration: 5000 }
-      );
+      if (summary.parsingBroken) {
+        // Apify achou perfis, mas o formato de saída do actor mudou e nosso
+        // parser descartou todos — não é "ninguém encontrado", é um bug
+        // nosso de compatibilidade que precisa de correção no código.
+        toast.error(
+          "O Apify encontrou perfis, mas o formato de resposta do conector mudou e nada pôde ser lido — isso é um problema técnico nosso, não falta de resultados. Avise o suporte.",
+          { id: loadingToast, duration: 8000 }
+        );
+      } else {
+        const mismatchNote = summary.skippedTitleMismatch > 0
+          ? `, ${summary.skippedTitleMismatch} descartados por cargo divergente`
+          : "";
+        toast.success(
+          `${summary.found} perfis encontrados — ${summary.created} novos, ${summary.skippedDuplicate} já existiam${mismatchNote}`,
+          { id: loadingToast, duration: 5000 }
+        );
+      }
 
       options?.onSearchCompleted?.({ searchQuery, location, jobTitles, companies, industryIds, maxItems }, summary);
       setSearchQuery("");

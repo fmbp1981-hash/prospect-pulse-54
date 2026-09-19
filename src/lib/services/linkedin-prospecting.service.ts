@@ -34,7 +34,20 @@ export interface LinkedinSearchSummary {
   skippedSuppressed: number;
   skippedDuplicate: number;
   skippedTitleMismatch: number;
+  // true quando o Apify devolveu perfis (rawCount > 0) mas TODOS foram
+  // descartados no parse local (droppedCount === rawCount) — sinal de que o
+  // actor mudou o formato de saída de novo, não que ninguém bate com a busca.
+  parsingBroken: boolean;
   contacts: LinkedinSearchContact[];
+}
+
+interface LinkedinJobResultSummary {
+  created: number;
+  skippedSuppressed: number;
+  skippedDuplicate: number;
+  skippedTitleMismatch: number;
+  rawCount: number;
+  droppedCount: number;
 }
 
 // Preposições/artigos comuns em cargos PT-BR — ignorados no match de
@@ -161,7 +174,7 @@ export const linkedinProspectingService = {
     const job = await prospectingJobsRepository.create(userId, input as unknown as Json);
 
     try {
-      const results = await apifyClient.searchLinkedInPeople(apiKey, {
+      const { results, rawCount, droppedCount } = await apifyClient.searchLinkedInPeople(apiKey, {
         searchQuery: input.searchQuery,
         locations: input.locations,
         currentCompanies: input.currentCompanies,
@@ -170,6 +183,13 @@ export const linkedinProspectingService = {
         maxItems: input.maxItems,
         mode: input.findEmail ? 'Full + email search' : 'Full',
       });
+
+      // Apify achou gente (rawCount > 0) mas nosso parser descartou tudo
+      // (droppedCount === rawCount) — o actor mudou o formato de saída de
+      // novo (já aconteceu com currentPosition). Isso NÃO é "ninguém no
+      // LinkedIn bate com a busca" — é um bug nosso de parsing, e precisa
+      // aparecer assim pro usuário, não como resultado vazio comum.
+      const parsingBroken = rawCount > 0 && droppedCount === rawCount;
 
       const suppressed = await linkedinSuppressionRepository.filterSuppressed(
         userId,
@@ -248,12 +268,14 @@ export const linkedinProspectingService = {
         created++;
       }
 
-      const resultSummary: {
-        created: number;
-        skippedSuppressed: number;
-        skippedDuplicate: number;
-        skippedTitleMismatch: number;
-      } = { created, skippedSuppressed, skippedDuplicate, skippedTitleMismatch };
+      const resultSummary: LinkedinJobResultSummary = {
+        created,
+        skippedSuppressed,
+        skippedDuplicate,
+        skippedTitleMismatch,
+        rawCount,
+        droppedCount,
+      };
 
       await prospectingJobsRepository.complete(job.id, {
         status: 'completed',
@@ -267,6 +289,7 @@ export const linkedinProspectingService = {
         created,
         skippedSuppressed,
         skippedDuplicate,
+        parsingBroken,
         skippedTitleMismatch,
         contacts,
       };
