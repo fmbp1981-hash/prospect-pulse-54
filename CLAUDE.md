@@ -64,7 +64,7 @@ Version: 2.0
 - **Linter**: ESLint (`npm run lint`)
 - **Tests**: Vitest (`npm test`)
 - **Package Manager**: npm (package-lock.json present)
-- **Type Checking**: TypeScript strict
+- **Type Checking**: TypeScript (currently `strict: false` in `tsconfig.json`; target: strict, no `any` in new code)
 
 ---
 
@@ -86,7 +86,7 @@ src/lib/repositories   (data access)
 Supabase (PostgreSQL + RLS)
 ```
 
-Layering: components -> services -> repositories -> Supabase. Do not skip layers.
+Target layering for new code: components -> services -> repositories -> Supabase. Existing code does not fully follow it yet.
 
 ### Multi-Tenant Architecture
 
@@ -114,10 +114,13 @@ prospect-pulse-54/
 ├── lib/                     # Shared root-level helpers (constants, supabase clients)
 ├── src/
 │   ├── components/          # React components (ui/ = shadcn)
+│   ├── contexts/            # React contexts
+│   ├── data/                # Static data
 │   ├── hooks/               # Custom hooks
+│   ├── integrations/        # supabase/client.ts and generated types.ts
 │   ├── lib/                 # services/, repositories/, validations/, integrations/, guards/, ...
 │   └── types/               # TypeScript types
-├── supabase/                # config.toml, migrations, functions
+├── supabase/                # config.toml, migrations/, functions/
 ├── docs/                    # Documentation (docs/sql-legado/ = legacy ad-hoc SQL, do not run blindly)
 ├── scripts/                 # Maintenance scripts (scripts/legacy/ = old test scripts)
 ├── tests/ e2e_tests/        # Unit and e2e tests
@@ -130,6 +133,8 @@ prospect-pulse-54/
 ```
 
 ### Key Directories
+
+- **Unused Vite leftovers** (scheduled for removal): `vite.config.ts`, `index.html`, `src/App.tsx`, `src/main.tsx`, `tsconfig.app.json`, `tsconfig.node.json`
 
 - **src/components/ui/**: shadcn/ui components; avoid editing directly
 - **supabase/migrations/**: versioned schema evolution; never alter schema directly in production
@@ -200,7 +205,7 @@ Semantic commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`.
 
 ### API Responses
 
-Success: `{ data, meta }`. Error: `{ error: { code, message } }`. Validate all inputs with Zod.
+Target convention for new code (existing routes do not all follow it yet): success `{ data, meta }`, error `{ error: { code, message } }`. Validate all inputs with Zod.
 
 ### Error Handling
 
@@ -216,7 +221,7 @@ if (error) {
 
 ## Database & Multi-tenancy
 
-Schema lives in `supabase/migrations/` (source of truth) and generated types in `src/types`. Do not copy table definitions into docs; read the migrations.
+Schema lives in `supabase/migrations/` (source of truth) and generated types in `src/integrations/supabase/types.ts` (client in `src/integrations/supabase/client.ts`). Do not copy table definitions into docs; read the migrations.
 
 Rules:
 - RLS enabled on every table, policies scoped by organization membership
@@ -347,7 +352,7 @@ See `EVOLUTION_API_CONFIG.md`, `CONFIGURACAO_EMAIL.md` and `GUIA_ROLES.md` for s
 4. **Update types** when the schema changes
 5. **Check responsive design** (mobile-first)
 6. **Verify multi-tenancy** in every data path
-7. **TypeScript strict, no `any`**
+7. **TypeScript**: `strict` is currently off; write new code as if strict, no `any`
 
 ### Pull Request Checklist
 
