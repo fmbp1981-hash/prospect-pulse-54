@@ -18,8 +18,6 @@ interface __BaseEnv_Env {
 	RESEND_API_KEY: string;
 	FROM_EMAIL: string;
 	OPENAI_API_KEY: string;
-	XPAG_CONSULTANT_WHATSAPP: string;
-	XPAG_CONSULTANT_INSTANCE: string;
 	CRON_SECRET: string;
 	FIRECRAWL_API_KEY: string;
 	APIFY_API_KEY: string;
@@ -38,7 +36,6 @@ type StringifyValues<EnvType extends Record<string, unknown>> = {
 	[Binding in keyof EnvType]: EnvType[Binding] extends string ? EnvType[Binding] : string;
 };
 declare namespace NodeJS {
-	interface ProcessEnv extends StringifyValues<Pick<Cloudflare.Env, "NEXT_PUBLIC_SUPABASE_URL" | "NEXT_PUBLIC_SUPABASE_ANON_KEY" | "SUPABASE_SERVICE_ROLE_KEY" | "NEXT_PUBLIC_APP_URL" | "WHATSAPP_PROVIDER" | "EVOLUTION_API_URL" | "EVOLUTION_API_KEY" | "EVOLUTION_DEFAULT_INSTANCE" | "META_WA_TOKEN" | "META_WA_PHONE_NUMBER_ID" | "META_WA_VERSION" | "META_WA_VERIFY_TOKEN" | "RESEND_API_KEY" | "FROM_EMAIL" | "OPENAI_API_KEY" | "XPAG_CONSULTANT_WHATSAPP" | "XPAG_CONSULTANT_INSTANCE" | "CRON_SECRET" | "FIRECRAWL_API_KEY" | "APIFY_API_KEY" | "UPSTASH_REDIS_REST_URL" | "UPSTASH_REDIS_REST_TOKEN">> {}
 }
 
 // Begin runtime types

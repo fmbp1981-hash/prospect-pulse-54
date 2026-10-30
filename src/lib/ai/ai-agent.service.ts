@@ -9,6 +9,11 @@
  */
 
 import { agentConfigService } from './agent-config.service';
+import {
+  DEFAULT_SYSTEM_PROMPT,
+  DEFAULT_SYSTEM_PROMPT_VERSION,
+  renderSystemPrompt,
+} from './prompts/default-system-prompt';
 import { getCurrentOpenAIKey } from './openai-key-context';
 import { buildRagContext } from './rag/rag.service';
 import { updateLeadTool } from './tools/update-lead.tool';
@@ -62,7 +67,7 @@ function buildUserPrompt(input: AgentExecutionInput): string {
 
   let behaviorInstruction: string;
   if (isAutomatedMessage) {
-    behaviorInstruction = 'RESPOSTA AUTOMÁTICA DETECTADA — a mensagem recebida é de um bot de atendimento automático ou sistema empresarial, não de um humano. NÃO responda ao conteúdo do bot. Em vez disso, envie uma mensagem curta e direta se apresentando como XPAG Brasil e perguntando se pode falar com o responsável pelas decisões financeiras ou de pagamentos da empresa. Exemplo: "Olá! 👋 Aqui é da equipe XPAG Brasil. Estamos entrando em contato para apresentar nossas soluções em meios de pagamento. Poderia me conectar com o responsável pela área financeira ou de pagamentos?" — adapte o tom conforme o sistema prompt.';
+    behaviorInstruction = `RESPOSTA AUTOMÁTICA DETECTADA — a mensagem recebida é de um bot de atendimento automático ou sistema empresarial, não de um humano. NÃO responda ao conteúdo do bot. Em vez disso, envie uma mensagem curta e direta se apresentando em nome da ${input.tenant.companyName || 'empresa'} e perguntando se pode falar com o responsável pela decisão sobre o assunto. Exemplo: "Olá! 👋 Aqui é da equipe ${input.tenant.companyName || 'comercial'}. Poderia me conectar com o responsável pela área?" — adapte o tom conforme o system prompt.`;
   } else if (isNewLead) {
     behaviorInstruction = 'NOVO CONTATO — lead não existe no banco. Faça a abordagem inicial conforme o fluxo do sistema prompt.';
   } else if (isProspectedWithNoHistory) {
@@ -183,10 +188,12 @@ export async function executeAIAgent(
   const model = config?.model ?? 'gpt-4.1';
   const temperature = config?.temperature ?? 0.7;
   const maxIterations = config?.maxIterations ?? 5;
-  const promptVersion = config?.promptVersion ?? '3.4';
+  const promptVersion = config?.promptVersion ?? DEFAULT_SYSTEM_PROMPT_VERSION;
 
   // 2. Busca contexto RAG relevante para a mensagem do lead
-  let systemPrompt = config?.systemPrompt ?? '';
+  let systemPrompt = renderSystemPrompt(config?.systemPrompt ?? DEFAULT_SYSTEM_PROMPT, {
+    companyName: input.tenant.companyName,
+  });
   if (input.processedMessage) {
     const ragContext = await buildRagContext(
       input.processedMessage,

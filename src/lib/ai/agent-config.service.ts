@@ -5,7 +5,9 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { SYSTEM_PROMPT_V4_0, SYSTEM_PROMPT_VERSION } from './prompts/system-prompt.v4.0';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT_VERSION } from './prompts/default-system-prompt';
+
+export const DEFAULT_AGENT_NAME = 'Agente SDR Padrão';
 
 export interface AgentConfig {
   id: string;
@@ -36,7 +38,7 @@ export const agentConfigService = {
   /**
    * Retorna a configuração ativa do agente para um tenant.
    * Sempre usa service client (chamado por webhooks sem contexto de usuário).
-   * Se não existir, usa o default (system prompt v3.4).
+   * Se não existir, usa o prompt padrão genérico (DEFAULT_SYSTEM_PROMPT).
    */
   async getActive(userId: string): Promise<AgentConfig> {
     const supabase = getServiceClient();
@@ -70,9 +72,9 @@ export const agentConfigService = {
     return {
       id: 'default',
       userId,
-      name: 'Agente XPAG Padrão',
-      systemPrompt: SYSTEM_PROMPT_V4_0,
-      promptVersion: SYSTEM_PROMPT_VERSION,
+      name: DEFAULT_AGENT_NAME,
+      systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      promptVersion: DEFAULT_SYSTEM_PROMPT_VERSION,
       model: 'gpt-4.1',
       temperature: 0.7,
       maxIterations: 5,
@@ -124,7 +126,7 @@ export const agentConfigService = {
       .insert({
         user_id: userId,
         name: config.name || 'Prompt personalizado',
-        system_prompt: config.systemPrompt || SYSTEM_PROMPT_V4_0,
+        system_prompt: config.systemPrompt || DEFAULT_SYSTEM_PROMPT,
         prompt_version: config.promptVersion || 'custom',
         model: config.model || 'gpt-4.1',
         temperature: config.temperature ?? 0.7,
@@ -162,9 +164,9 @@ export const agentConfigService = {
    */
   async resetToDefault(userId: string, client?: DbClient): Promise<AgentConfig> {
     return this.upsert(userId, {
-      name: `Agente XPAG v${SYSTEM_PROMPT_VERSION} (reset)`,
-      systemPrompt: SYSTEM_PROMPT_V4_0,
-      promptVersion: SYSTEM_PROMPT_VERSION,
+      name: `${DEFAULT_AGENT_NAME} v${DEFAULT_SYSTEM_PROMPT_VERSION} (reset)`,
+      systemPrompt: DEFAULT_SYSTEM_PROMPT,
+      promptVersion: DEFAULT_SYSTEM_PROMPT_VERSION,
     }, true, client);
   },
 };

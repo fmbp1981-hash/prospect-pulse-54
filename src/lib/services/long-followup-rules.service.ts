@@ -1,8 +1,8 @@
 /**
  * REGRAS DE FOLLOW-UP DE LONGO PRAZO
  *
- * XPAG: cenários originais (low_revenue, no_response_long, qualified_not_closed,
- *        transferred_no_close, seasonal_reactivation)
+ * Padrão (todas as organizações): low_revenue, no_response_long,
+ *        qualified_not_closed, transferred_no_close, seasonal_reactivation
  * IntelliX — Campanha Encontro & Relacionamento:
  *   no_response_initial · qualified_not_scheduled · transferred_no_contact
  *   meeting_no_show · lost_reactivation · seasonal_reengage
@@ -17,13 +17,13 @@
  */
 
 export type FollowUpScenario =
-  // ── XPAG ──────────────────────────────────────────────────────────────────
-  | 'low_revenue'               // Faturamento < R$50k/mês
+  // ── Padrão (todas as organizações) ──────────────────────────────────────
+  | 'low_revenue'               // Fora do perfil no momento (ex.: porte abaixo do ICP)
   | 'no_response_short'         // Curto prazo (handled by follow-up.job.ts)
-  | 'no_response_long'          // Sem resposta >3 dias (XPAG)
-  | 'qualified_not_closed'      // Qualificado mas não fechou (XPAG)
-  | 'transferred_no_close'      // Transferido mas consultor não fechou (XPAG)
-  | 'seasonal_reactivation'     // Reativação sazonal (XPAG)
+  | 'no_response_long'          // Sem resposta >3 dias
+  | 'qualified_not_closed'      // Qualificado mas não fechou
+  | 'transferred_no_close'      // Transferido mas consultor não fechou
+  | 'seasonal_reactivation'     // Reativação sazonal
   // ── IntelliX — Campanha Encontro & Relacionamento ─────────────────────────
   | 'no_response_initial'       // Sem resposta: D+3, D+7, D+14, D+30 (4 passos)
   | 'no_response_followup'      // Legado — mantido para compatibilidade (não roteado)
@@ -53,27 +53,27 @@ export interface FollowUpSequence {
 export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
 
   // ══════════════════════════════════════════════════════════════════════════
-  // XPAG — cenários originais
+  // Padrão — régua genérica (todas as organizações)
   // ══════════════════════════════════════════════════════════════════════════
 
   low_revenue: {
     scenario: 'low_revenue',
-    label: 'Faturamento abaixo do mínimo (XPAG)',
+    label: 'Fora do perfil no momento',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 90,
-        message: `Oi! Tudo bem por aí? 😊 Passando para saber como está indo o negócio. Às vezes as coisas mudam rápido, né? Se quiser conversar sobre como otimizar os pagamentos da sua empresa, pode contar comigo!`,
+        message: `Oi! Tudo bem por aí? 😊 Passando para saber como está indo o negócio. Às vezes as coisas mudam rápido, né? Se quiser retomar a nossa conversa, pode contar comigo!`,
       },
       {
         stepNumber: 2,
         daysAfterLastContact: 180,
-        message: `Olá! Sei que faz um tempo desde nosso último contato. Muita coisa pode ter mudado na sua empresa em 6 meses. Se o faturamento cresceu e você quer explorar formas de economizar nas taxas de cartão, seria ótimo conversar. O que acha?`,
+        message: `Olá! Sei que faz um tempo desde nosso último contato. Muita coisa pode ter mudado na sua empresa em 6 meses. Se o momento agora for outro, seria ótimo conversar. O que acha?`,
       },
       {
         stepNumber: 3,
         daysAfterLastContact: 365,
-        message: `Olá! É a última mensagem que envio, mas queria deixar a porta aberta: se em algum momento seu faturamento crescer acima de R$50k/mês, a XPAG pode gerar uma economia real pra você. Qualquer hora pode me chamar. Cuide-se! 👋`,
+        message: `Olá! É a última mensagem que envio, mas queria deixar a porta aberta: quando fizer sentido para o seu negócio, é só me chamar. Estaremos por aqui. Cuide-se! 👋`,
         updateStatus: 'Inativo',
         isFinal: true,
       },
@@ -82,18 +82,18 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
 
   no_response_short: {
     scenario: 'no_response_short',
-    label: 'Sem resposta curto prazo (XPAG — coberto pelo follow-up.job.ts)',
+    label: 'Sem resposta curto prazo (coberto pelo follow-up.job.ts)',
     steps: [],
   },
 
   no_response_long: {
     scenario: 'no_response_long',
-    label: 'Sem resposta longo prazo (XPAG)',
+    label: 'Sem resposta longo prazo',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 7,
-        message: `Oi! Sei que o dia a dia corrido não deixa tempo pra muita coisa. Se ainda tiver interesse em otimizar os custos com pagamentos da sua empresa, é só me falar. Sem pressa! 😊`,
+        message: `Oi! Sei que o dia a dia corrido não deixa tempo pra muita coisa. Se ainda tiver interesse em continuar a nossa conversa, é só me falar. Sem pressa! 😊`,
       },
       {
         stepNumber: 2,
@@ -103,7 +103,7 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
       {
         stepNumber: 3,
         daysAfterLastContact: 45,
-        message: `Oi! Última tentativa de contato da minha parte. Se em algum momento fizer sentido conversar sobre formas de reduzir taxas e organizar melhor os pagamentos, estarei por aqui. Boa sorte com o negócio! 🤝`,
+        message: `Oi! Última tentativa de contato da minha parte. Se em algum momento fizer sentido retomar a conversa, estarei por aqui. Boa sorte com o negócio! 🤝`,
         updateStatus: 'Inativo',
         isFinal: true,
       },
@@ -112,27 +112,27 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
 
   qualified_not_closed: {
     scenario: 'qualified_not_closed',
-    label: 'Qualificado sem fechamento (XPAG)',
+    label: 'Qualificado sem fechamento',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 14,
-        message: `Oi! Sei que ficou de pensar na proposta. Queria só saber se surgiu alguma dúvida que eu possa ajudar a esclarecer. A oportunidade de reduzir as taxas ainda está em aberto! 💪`,
+        message: `Oi! Sei que ficou de pensar na proposta. Queria só saber se surgiu alguma dúvida que eu possa ajudar a esclarecer. 💪`,
       },
       {
         stepNumber: 2,
         daysAfterLastContact: 30,
-        message: `Olá! Um mês se passou. Às vezes é difícil encontrar o momento certo pra tomar uma decisão, eu entendo. Mas posso te dizer que vários empresários que estavam na mesma situação que você economizaram bastante depois de falar com a gente. Que tal marcarmos 15 minutos pra conversar?`,
+        message: `Olá! Um mês se passou. Às vezes é difícil encontrar o momento certo pra tomar uma decisão, eu entendo. Que tal marcarmos 15 minutos pra conversar e tirar as dúvidas que ficaram?`,
       },
       {
         stepNumber: 3,
         daysAfterLastContact: 60,
-        message: `Oi! Só mais uma mensagem, prometo. Se ainda estiver considerando melhorar os meios de pagamento da empresa, o Felipe está à disposição para uma conversa rápida. Sem compromisso. 🤝`,
+        message: `Oi! Só mais uma mensagem, prometo. Se ainda estiver considerando a proposta, nosso consultor está à disposição para uma conversa rápida. Sem compromisso. 🤝`,
       },
       {
         stepNumber: 4,
         daysAfterLastContact: 90,
-        message: `Olá! Última mensagem da minha parte. Se mudar de ideia ou quiser entender melhor o que a XPAG pode fazer pelo seu negócio, pode me chamar qualquer hora. Muito sucesso! 🙌`,
+        message: `Olá! Última mensagem da minha parte. Se mudar de ideia ou quiser entender melhor como podemos ajudar o seu negócio, pode me chamar qualquer hora. Muito sucesso! 🙌`,
         updateStatus: 'Inativo',
         isFinal: true,
       },
@@ -141,7 +141,7 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
 
   transferred_no_close: {
     scenario: 'transferred_no_close',
-    label: 'Transferido sem fechamento (XPAG)',
+    label: 'Transferido sem fechamento',
     steps: [
       {
         stepNumber: 1,
@@ -160,12 +160,12 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
 
   seasonal_reactivation: {
     scenario: 'seasonal_reactivation',
-    label: 'Reativação sazonal (XPAG)',
+    label: 'Reativação sazonal',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 180,
-        message: `Oi! Tudo bem? Passando para desejar um ótimo segundo semestre para o seu negócio! 🚀 Se tiver pensando em formas de otimizar os custos com pagamentos, pode contar com a gente. Qualquer coisa, é só chamar!`,
+        message: `Oi! Tudo bem? Passando para desejar um ótimo segundo semestre para o seu negócio! 🚀 Se precisar de algo, pode contar com a gente. Qualquer coisa, é só chamar!`,
       },
     ],
   },
@@ -422,7 +422,7 @@ export function isWithinBusinessHours(now: Date = new Date()): boolean {
  * Determina o cenário de follow-up de longo prazo para um lead.
  *
  * Para IntelliX: mapeia para os cenários da campanha Encontro & Relacionamento.
- * Para XPAG: mantém a lógica original.
+ * Demais organizações: régua padrão genérica.
  *
  * Retorna null se nenhum follow-up deve ser disparado (opt_out, teto atingido,
  * lead respondeu, cenário não identificado).
@@ -492,7 +492,7 @@ export function detectFollowUpScenario(lead: {
     return null;
   }
 
-  // ── XPAG logic (original) ────────────────────────────────────────────────
+  // ── Régua padrão (demais organizações) ──────────────────────────────────
 
   if (status === 'Follow-up' && estagio.toLowerCase().includes('faturamento')) {
     return 'low_revenue';

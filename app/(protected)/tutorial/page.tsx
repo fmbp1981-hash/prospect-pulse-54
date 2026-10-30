@@ -715,7 +715,6 @@ function TabIntegrations() {
               ["EVOLUTION_DEFAULT_INSTANCE", "Nome da instância WhatsApp"],
               ["RESEND_API_KEY", "Chave Resend para campanhas de email"],
               ["CRON_SECRET", "Segredo para autenticar chamadas do cron"],
-              ["XPAG_CONSULTANT_WHATSAPP", "Número do consultor para notificações"],
             ].map(([key, desc]) => (
               <div key={key} className="flex gap-2">
                 <span className="text-primary font-medium min-w-[260px]">{key}</span>

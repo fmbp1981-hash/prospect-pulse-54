@@ -1,5 +1,5 @@
 /**
- * SIMULAÇÃO DO FLUXO DO AGENTE — LeadFinder Pro / XPAG Brasil
+ * SIMULAÇÃO DO FLUXO DO AGENTE — LeadFinder Pro / Empresa Exemplo
  *
  * Testa os cenários principais do workflow sem dependências externas:
  *   1. Batching de mensagens consecutivas
@@ -298,7 +298,7 @@ describe('🤖 Bloco 5 — Simulação Completa (workflow mockado)', () => {
   async function runMockWorkflow(msg: {
     whatsapp: string; nome: string; texto: string; messageId?: string;
   }) {
-    const tenant = { userId: 'user-xpag', openaiApiKey: null };
+    const tenant = { userId: 'user-exemplo', openaiApiKey: null };
 
     // Step 3: busca ou cria lead
     const { lead, isNew } = mockFindOrCreate(msg.whatsapp, msg.nome);
@@ -317,7 +317,7 @@ describe('🤖 Bloco 5 — Simulação Completa (workflow mockado)', () => {
 
     // Step 7: agente IA (mockado)
     const agentResponse = isNew
-      ? `Olá ${lead.nome}! 😊 Sou a assistente virtual da XPAG. Como posso ajudar?`
+      ? `Olá ${lead.nome}! 😊 Sou a assistente virtual da Empresa Exemplo. Como posso ajudar?`
       : `Olá de novo! ${msg.texto.includes('faturamento') ? 'Pode me falar sobre o faturamento da sua empresa?' : 'Como posso ajudar você hoje?'}`;
 
     // Step 8: humanizar (mock — separa em 2 msgs se longa)
@@ -352,7 +352,7 @@ describe('🤖 Bloco 5 — Simulação Completa (workflow mockado)', () => {
 
     assert.equal(result.outcome, 'responded');
     assert.ok(result.messages![0].includes('Ana Paula'), 'resposta deve conter o nome');
-    assert.ok(result.messages![0].includes('XPAG'), 'resposta deve mencionar XPAG');
+    assert.ok(result.messages![0].includes('Empresa Exemplo'), 'resposta deve mencionar a empresa');
 
     const saved = conversationLog.filter(m => m.leadId === result.lead.id);
     assert.ok(saved.some(m => m.from_lead && m.message === 'Oi'), 'mensagem do lead salva');
@@ -439,7 +439,7 @@ describe('🤖 Bloco 5 — Simulação Completa (workflow mockado)', () => {
 
   test('humanizer divide resposta longa em múltiplas mensagens', async () => {
     // Força uma resposta longa injetando texto maior que 80 chars
-    const longText = 'A XPAG Brasil oferece as melhores soluções em meios de pagamento para o seu negócio crescer!';
+    const longText = 'A Empresa Exemplo oferece as melhores soluções em atendimento para o seu negócio crescer!';
     assert.ok(longText.length > 80, 'texto de teste deve ser longo');
 
     // Aplica a lógica de split do mock
@@ -510,7 +510,7 @@ describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
       instance: 'WA-Pessoal',
       data: {
         key: { remoteJid: '120363000000000@g.us', fromMe: false, id: 'SIM-002' },
-        pushName: 'Grupo XPAG',
+        pushName: 'Grupo Exemplo',
         message: { conversation: 'Mensagem no grupo' },
         messageType: 'conversation',
       },
@@ -570,5 +570,5 @@ describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
 // ─── SUMÁRIO ──────────────────────────────────────────────────────────────────
 
 console.log(`\n${CYAN}═══════════════════════════════════════════════════════════${RESET}`);
-console.log(`${CYAN}   Simulação do Agente LeadFinder Pro / XPAG Brasil${RESET}`);
+console.log(`${CYAN}   Simulação do Agente LeadFinder Pro / Empresa Exemplo${RESET}`);
 console.log(`${CYAN}═══════════════════════════════════════════════════════════${RESET}\n`);

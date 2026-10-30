@@ -13,7 +13,7 @@ function makeMsg(overrides: Partial<NormalizedMessage>): NormalizedMessage {
     mensagem: 'Olá',
     messageType: 'text',
     fromMe: false,
-    instanceName: 'Xpag Test',
+    instanceName: 'Empresa Exemplo Test',
     timestamp: new Date().toISOString(),
     ...overrides,
   };
