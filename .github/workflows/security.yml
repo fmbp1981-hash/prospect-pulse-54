@@ -1,0 +1,37 @@
+# .github/workflows/security.yml
+name: DevSecOps Security Scan
+on: [push, pull_request]
+
+jobs:
+  # Job 1: Detectar secrets commitados
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+
+  # Job 2: SAST — análise estática de código
+  sast-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: returntocorp/semgrep-action@v1
+        with:
+          config: "p/typescript p/owasp-top-ten p/nextjs"
+
+  # Job 3: SCA — dependências vulneráveis
+  sca-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with: { sarif_file: "trivy-results.sarif" }
