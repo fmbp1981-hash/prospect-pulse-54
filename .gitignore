@@ -60,3 +60,6 @@ nul
 # TypeScript incremental build info
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+# backups locais de dados antes de migrations (nunca versionar)
+scripts/legacy/backup-*.json
