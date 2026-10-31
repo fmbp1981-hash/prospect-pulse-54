@@ -36,9 +36,15 @@
 --     audit_logs, leads_prospeccao, role_changes) passam a valer só para o
 --     admin da plataforma, sem reescrever policies. O admin de organização
 --     continua coberto por is_org_admin/is_org_member/is_org_writer.
---   * organization_members: a policy FOR ALL do admin de org é trocada por
---     INSERT/UPDATE/DELETE separados; UPDATE e DELETE não alcançam a própria
---     linha do admin (user_id <> auth.uid()).
+--   * organization_members: a policy FOR ALL do admin de org é removida.
+--     INSERT/UPDATE ficam só para o servidor (service_role; o único escritor é
+--     /api/admin/init-user-settings): sem policy e sem grant para
+--     anon/authenticated. Uma policy de INSERT/UPDATE para o admin de org
+--     (revisão NEW-01) deixava qualquer admin de org (todo signup é um) vincular
+--     o dono da plataforma ou um usuário sem vínculo à própria org, ou
+--     reapontar user_id; set_organization_id_from_member então carimbava as
+--     linhas da vítima com a org do atacante. DELETE continua para o admin de
+--     org, só para OUTROS membros (user_id <> auth.uid()).
 --   * Trigger guard BEFORE INSERT OR UPDATE em user_settings: só o servidor
 --     (JWT service_role, ou conexão sem JWT com role de banco postgres /
 --     supabase_admin / service_role) ou o admin da plataforma alteram role,
@@ -76,6 +82,16 @@ where us.role = 'admin'
     select 1 from public.organization_members om where om.user_id = us.user_id
   )
 on conflict do nothing;
+
+-- Trava do seed (revisão NEW-02): produção tem exatamente 1 admin da
+-- plataforma; mais de 1 linha indica dado inesperado e aborta a migration.
+do $$
+begin
+  if (select count(*) from public.platform_admins) > 1 then
+    raise exception 'seed de platform_admins inesperado: % linhas',
+      (select count(*) from public.platform_admins);
+  end if;
+end $$;
 
 alter table public.platform_admins enable row level security;
 alter table public.platform_admins force row level security;
@@ -136,21 +152,20 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- 4. organization_members: admin de org não altera nem apaga o próprio vínculo
---    (a policy SELECT "members can view own membership rows" fica como está).
+-- 4. organization_members: escrita de vínculo só pelo servidor; admin de org
+--    só remove OUTROS membros (a policy SELECT "members can view own
+--    membership rows" fica como está).
 -- ---------------------------------------------------------------------------
 drop policy if exists "admins can manage membership" on public.organization_members;
-
 drop policy if exists "org admins can insert membership" on public.organization_members;
-create policy "org admins can insert membership" on public.organization_members
-  for insert
-  with check (public.is_org_admin(organization_id));
-
 drop policy if exists "org admins can update other members" on public.organization_members;
-create policy "org admins can update other members" on public.organization_members
-  for update
-  using (public.is_org_admin(organization_id) and user_id <> auth.uid())
-  with check (public.is_org_admin(organization_id) and user_id <> auth.uid());
+
+revoke insert, update on public.organization_members from anon, authenticated;
+
+-- TRUNCATE não passa por RLS nem por triggers de linha: o default do Supabase
+-- concede TRUNCATE a anon/authenticated; nenhum caminho do app precisa dele.
+revoke truncate on public.organization_members from anon, authenticated;
+revoke truncate on public.user_settings from anon, authenticated;
 
 drop policy if exists "org admins can delete other members" on public.organization_members;
 create policy "org admins can delete other members" on public.organization_members

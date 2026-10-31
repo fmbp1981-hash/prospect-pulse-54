@@ -5,8 +5,8 @@
 --               20261030130000_guard_user_settings_privileges)
 --   ok = false  falha de segurança / comportamento incorreto
 --   ok = null   usuário de teste não encontrado na base (ver detalhe)
--- Esperado ANTES da migration: cenários 1, 2, 3, 4, 7, 9, 10, 11, 12, 13 e 15
--- com ok=false (o 4 também falha antes: is_admin() é true para o admin de
+-- Esperado ANTES da migration: cenários 1, 2, 3, 4, 7, 9, 10, 11, 12, 13, 15,
+-- 16 e 17 com ok=false (o 4 também falha antes: is_admin() é true para o admin de
 -- organização). 5, 6, 8 e 14 são controles (ok=true antes e depois).
 -- Esperado DEPOIS: todos ok=true.
 --
@@ -45,6 +45,10 @@
 --       update set user_id = op na linha do admin da org;
 --   15: op vira role='admin', sem vínculo em organization_members e fora de
 --       platform_admins; não pode ser tratado como admin da plataforma.
+--   16: op fica sem vínculo; o admin de org tenta vincular op e o admin da
+--       plataforma à própria org (INSERT em organization_members);
+--   17: op vira membro da org do admin; o admin de org tenta reapontar o
+--       user_id desse vínculo para o admin da plataforma (UPDATE).
 -- Tudo é desfeito pela exceção sentinela.
 --
 -- Erro inesperado num cenário vira ok=false com o SQLSTATE no detalhe (o script
@@ -656,6 +660,110 @@ begin
   perform set_config('teste.c15_det', v_det, true);
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- 16. admin de org tenta vincular à própria org o admin da plataforma e o
+--     operador sem org (INSERT em organization_members) -> negado
+--     Admin de org = teste.org_admin, senão teste.adm_vinc.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := coalesce(nullif(current_setting('teste.org_admin'), '')::uuid,
+                         nullif(current_setting('teste.adm_vinc'), '')::uuid);
+  v_plat uuid := nullif(current_setting('teste.plat'), '')::uuid;
+  v_op uuid := nullif(current_setting('teste.op'), '')::uuid;
+  v_org uuid;
+  v_alvo uuid;
+  v_ok_alvos int := 0; v_tent int := 0;
+  v_ok boolean; v_det text := '';
+begin
+  if v_uid is null or (v_plat is null and v_op is null) then
+    v_det := 'sem admin de organização ou sem alvos (admin da plataforma / operador sem org) na base';
+  else
+    select organization_id into v_org from public.organization_members
+      where user_id = v_uid and role = 'admin' limit 1;
+    begin
+      -- montagem: op sem vínculo (postgres, sem JWT)
+      if v_op is not null then
+        delete from public.organization_members where user_id = v_op;
+      end if;
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      foreach v_alvo in array array_remove(array[v_plat, v_op], null) loop
+        v_tent := v_tent + 1;
+        begin
+          insert into public.organization_members (organization_id, user_id, role)
+          values (v_org, v_alvo, 'operador');
+          v_det := v_det || format('[%s vinculado] ', v_alvo);
+        exception
+          when insufficient_privilege then
+            v_ok_alvos := v_ok_alvos + 1;
+            v_det := v_det || format('[%s negado 42501: %s] ', v_alvo, sqlerrm);
+          when others then
+            v_det := v_det || format('[%s erro %s: %s] ', v_alvo, sqlstate, sqlerrm);
+        end;
+      end loop;
+      v_ok := (v_ok_alvos = v_tent);
+      raise exception 'teste_desfaz';
+    exception
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := false; v_det := 'erro inesperado P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := false; v_det := 'erro inesperado ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c16_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c16_det', v_det, true);
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 17. admin de org reaponta user_id de um vínculo da própria org para o
+--     admin da plataforma (UPDATE em organization_members) -> negado
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := coalesce(nullif(current_setting('teste.org_admin'), '')::uuid,
+                         nullif(current_setting('teste.adm_vinc'), '')::uuid);
+  v_plat uuid := nullif(current_setting('teste.plat'), '')::uuid;
+  v_op uuid := nullif(current_setting('teste.op'), '')::uuid;
+  v_org uuid;
+  v_n int; v_ok boolean; v_det text;
+begin
+  if v_uid is null or v_plat is null or v_op is null then
+    v_det := 'sem admin de organização, admin da plataforma ou operador sem org na base';
+  else
+    select organization_id into v_org from public.organization_members
+      where user_id = v_uid and role = 'admin' limit 1;
+    begin
+      -- montagem: op vira membro da org do admin (postgres, sem JWT)
+      delete from public.organization_members where user_id in (v_op, v_plat);
+      insert into public.organization_members (organization_id, user_id, role)
+      values (v_org, v_op, 'operador');
+      -- ataque
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      update public.organization_members set user_id = v_plat
+       where user_id = v_op and organization_id = v_org;
+      get diagnostics v_n = row_count;
+      v_ok := (v_n = 0);
+      v_det := format('%s vínculo(s) reapontado(s) para o admin da plataforma', v_n);
+      raise exception 'teste_desfaz';
+    exception
+      when insufficient_privilege then
+        v_ok := true; v_det := 'negado (42501): ' || sqlerrm;
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := false; v_det := 'erro inesperado P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := false; v_det := 'erro inesperado ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c17_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c17_det', v_det, true);
+end $$;
+
 select r.cenario,
        nullif(current_setting('teste.c' || r.n || '_ok'), '')::boolean as ok,
        current_setting('teste.c' || r.n || '_det') as detalhe
@@ -674,7 +782,9 @@ from (values
   (12, '12. writer reatribui user_id da linha do admin da mesma org -> negado'),
   (13, '13. upsert on conflict do update set role=admin por usuário comum -> negado'),
   (14, '14. (controle) admin da plataforma (allowlist) altera role de outro -> permitido'),
-  (15, '15. admin sem org/vínculo fora da allowlist não é admin da plataforma')
+  (15, '15. admin sem org/vínculo fora da allowlist não é admin da plataforma'),
+  (16, '16. admin de org vincula admin da plataforma / operador sem org à própria org -> negado'),
+  (17, '17. admin de org reaponta user_id de vínculo da própria org -> negado')
 ) as r(n, cenario)
 order by r.n;
 

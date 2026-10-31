@@ -9,7 +9,12 @@
 --   * remove is_platform_admin() e a tabela platform_admins (a allowlist e
 --     qualquer linha incluída depois da migration são perdidas);
 --   * organization_members volta à policy FOR ALL original
---     "admins can manage membership" (20260916000000).
+--     "admins can manage membership" (20260916000000) e aos grants de
+--     INSERT/UPDATE para anon/authenticated. Nenhuma migration do repositório
+--     concede/revoga privilégios em organization_members: o estado anterior é o
+--     default do Supabase (ALL para anon/authenticated/service_role), então o
+--     rollback devolve exatamente o que a migration revogou (insert, update e
+--     truncate; truncate também em user_settings).
 --
 -- ATENÇÃO: este rollback REABRE a auto-escalada de role em user_settings, o
 -- acesso do admin de organização ao user_settings de todas as empresas, a
@@ -38,6 +43,14 @@ $$;
 
 drop function if exists public.is_platform_admin();
 drop table if exists public.platform_admins;
+
+-- Grants de produção antes da migration (consultados em 2026-10-30): anon,
+-- authenticated e service_role com DELETE, INSERT, REFERENCES, SELECT,
+-- TRIGGER, TRUNCATE, UPDATE em organization_members (sem PUBLIC); user_settings
+-- com o mesmo default do Supabase. Devolve só o que a migration revogou.
+grant insert, update on public.organization_members to anon, authenticated;
+grant truncate on public.organization_members to anon, authenticated;
+grant truncate on public.user_settings to anon, authenticated;
 
 drop policy if exists "org admins can insert membership" on public.organization_members;
 drop policy if exists "org admins can update other members" on public.organization_members;
