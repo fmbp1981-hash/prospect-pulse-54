@@ -270,7 +270,7 @@ function TabSetup() {
             <ul className="list-disc list-inside mt-1 space-y-0.5">
               <li>URL da Evolution API (ex: <code className="bg-muted px-1 rounded text-xs">https://evolution.suaempresa.com</code>)</li>
               <li>Chave de API (API Key da instância)</li>
-              <li>Nome da instância WhatsApp</li>
+              <li>Nome da instância WhatsApp (definido pelo administrador da plataforma)</li>
             </ul>
             <p className="mt-1">Após salvar, escaneie o QR Code para conectar o número WhatsApp.</p>
           </Step>
@@ -723,8 +723,9 @@ function TabIntegrations() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            A instância do WhatsApp não é uma variável de ambiente: cada organização
-            configura a sua em Configurações → Integração WhatsApp (Nome da Instância).
+            A instância do WhatsApp não é uma variável de ambiente: cada organização tem a
+            sua, definida pelo administrador da plataforma e exibida em Configurações →
+            Integração WhatsApp (Nome da Instância).
           </p>
         </CardContent>
       </Card>

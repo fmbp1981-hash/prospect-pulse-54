@@ -48,6 +48,7 @@ export default function SettingsPage() {
   const [companyName, setCompanyName] = useState("");
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
+  // Somente leitura: definida pelo admin da plataforma (guard no banco, F-04).
   const [evolutionInstanceName, setEvolutionInstanceName] = useState("");
   const [webhookToken, setWebhookToken] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
@@ -345,7 +346,6 @@ export default function SettingsPage() {
         provider: whatsappProvider,
         evolution_api_url: evolutionApiUrl,
         evolution_api_key: evolutionApiKey,
-        evolution_instance_name: evolutionInstanceName,
         business_phone_number_id: metaPhoneNumberId,
         business_access_token: metaAccessToken,
         meta_verify_token: metaVerifyToken,
@@ -1001,11 +1001,15 @@ export default function SettingsPage() {
                   <Label htmlFor="evolution_instance_name">Nome da Instância</Label>
                   <Input
                     id="evolution_instance_name"
-                    placeholder="Ex: WA-Pessoal, WA-Producao"
+                    placeholder="Não definida"
                     value={evolutionInstanceName}
-                    onChange={(e) => setEvolutionInstanceName(e.target.value)}
-                    className="max-w-md"
+                    readOnly
+                    aria-readonly="true"
+                    className="max-w-md bg-muted"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Definida pelo administrador da plataforma. Para alterar, fale com o suporte.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -1356,13 +1360,14 @@ export default function SettingsPage() {
               </Label>
               <Input
                 id="agent_instance_name"
-                placeholder="Ex: WA-Producao, WA-Bot"
+                placeholder="Não definida"
                 value={evolutionInstanceName}
-                onChange={(e) => setEvolutionInstanceName(e.target.value)}
-                className="max-w-md font-mono"
+                readOnly
+                aria-readonly="true"
+                className="max-w-md font-mono bg-muted"
               />
               <p className="text-xs text-muted-foreground">
-                Nome da instância Evolution conectada ao número que o bot usa para conversar com leads e enviar notificações ao consultor.
+                Nome da instância Evolution conectada ao número que o bot usa para conversar com leads e enviar notificações ao consultor. Definida pelo administrador da plataforma.
               </p>
             </div>
 

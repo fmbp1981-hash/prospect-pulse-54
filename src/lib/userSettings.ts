@@ -8,6 +8,7 @@ export interface UserSettings {
   // Evolution API
   evolution_api_url?: string;
   evolution_api_key?: string;
+  /** Somente leitura no client: definida pelo admin da plataforma (guard no banco). */
   evolution_instance_name?: string;
   // Token secreto do webhook do WhatsApp (gerado no banco, somente leitura no client)
   webhook_token?: string;
@@ -106,7 +107,6 @@ export const userSettingsService = {
             provider: settings.provider,
             evolution_api_url: settings.evolution_api_url,
             evolution_api_key: settings.evolution_api_key,
-            evolution_instance_name: settings.evolution_instance_name,
             business_phone_number_id: settings.business_phone_number_id,
             business_access_token: settings.business_access_token,
             meta_verify_token: settings.meta_verify_token,
@@ -136,7 +136,6 @@ export const userSettingsService = {
             provider: settings.provider || 'evolution',
             evolution_api_url: settings.evolution_api_url,
             evolution_api_key: settings.evolution_api_key,
-            evolution_instance_name: settings.evolution_instance_name,
             business_phone_number_id: settings.business_phone_number_id,
             business_access_token: settings.business_access_token,
             meta_verify_token: settings.meta_verify_token,

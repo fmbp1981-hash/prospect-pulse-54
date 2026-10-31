@@ -166,7 +166,12 @@ export function RoleManagement() {
       loadUsers();
     } catch (error) {
       console.error('Erro ao salvar integração:', error);
-      toast.error('Erro ao salvar configurações de integração.');
+      const code = (error as { code?: string } | null)?.code;
+      toast.error(
+        code === '23505'
+          ? 'Essa instância já pertence a outro usuário.'
+          : 'Erro ao salvar configurações de integração.'
+      );
     } finally {
       setIsSaving(false);
     }
