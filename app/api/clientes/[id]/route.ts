@@ -1,12 +1,13 @@
 /**
  * GET    /api/clientes/[id] — detalhes + histórico
- * PATCH  /api/clientes/[id] — atualiza campos
+ * PATCH  /api/clientes/[id] — atualiza campos (allowlist Zod .strict())
  * DELETE /api/clientes/[id] — remove cliente (soft: status=Inativo)
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { clientePatchSchema } from '@/lib/validations/cliente.validation';
 
 export const runtime = 'nodejs';
 
@@ -64,18 +65,18 @@ export async function PATCH(
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await req.json();
-
-  // Disallow user_id override
-  delete body.user_id;
-  delete body.id;
-  body.updated_at = new Date().toISOString();
+  // Allowlist (Zod .strict()): user_id, organization_id e colunas internas → 400.
+  const parsed = clientePatchSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Campos inválidos para edição de cliente' }, { status: 400 });
+  }
+  const update = { ...parsed.data, updated_at: new Date().toISOString() };
 
   const db = service();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (db as any)
     .from('clientes')
-    .update(body)
+    .update(update)
     .eq('id', params.id)
     .eq('user_id', user.id)
     .select()

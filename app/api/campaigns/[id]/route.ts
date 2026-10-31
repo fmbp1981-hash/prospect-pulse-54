@@ -1,11 +1,12 @@
 /**
  * GET   /api/campaigns/[id] — detalhes + envios da campanha
- * PATCH /api/campaigns/[id] — atualiza campanha (somente draft)
+ * PATCH /api/campaigns/[id] — atualiza campanha (somente draft; allowlist Zod .strict())
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { campaignPatchSchema } from '@/lib/validations/campaign.validation';
 
 export const runtime = 'nodejs';
 
@@ -75,15 +76,16 @@ export async function PATCH(
     return NextResponse.json({ error: 'Só é possível editar campanhas em rascunho' }, { status: 400 });
   }
 
-  const body = await req.json();
-  delete body.user_id;
-  delete body.id;
-  body.updated_at = new Date().toISOString();
+  const parsed = campaignPatchSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Campos inválidos para edição de campanha' }, { status: 400 });
+  }
+  const update = { ...parsed.data, updated_at: new Date().toISOString() };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (svc as any)
     .from('campaigns')
-    .update(body)
+    .update(update)
     .eq('id', params.id)
     .eq('user_id', user.id)
     .select()
