@@ -2,7 +2,8 @@
  * Teste de conexão por provedor (admin da plataforma).
  *
  * Cada teste faz UMA chamada autenticada barata à API do provedor, direto
- * (sem circuit breaker: um teste precisa de fato chegar na API) e com timeout.
+ * (sem circuit breaker: um teste precisa de fato chegar na API), com timeout
+ * e sem seguir redirect (3xx = falha).
  * A mensagem devolvida nunca contém segredo nem corpo da resposta do
  * provedor (que pode ecoar a chave): só o status HTTP ou um motivo genérico.
  */
@@ -29,8 +30,28 @@ const httpFail = (status: number) =>
       : `Provedor respondeu com erro (HTTP ${status}).`
   );
 
-function get(url: string, headers: Record<string, string>): Promise<Response> {
-  return fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(TEST_TIMEOUT_MS) });
+class RedirectBlockedError extends Error {
+  constructor() {
+    super('redirect bloqueado');
+    this.name = 'RedirectBlockedError';
+  }
+}
+
+/**
+ * GET sem seguir redirect: a URL validada é só a do primeiro salto, e o
+ * header de credencial (ex.: apikey da Evolution) seria reenviado ao destino.
+ */
+async function get(url: string, headers: Record<string, string>): Promise<Response> {
+  const res = await fetch(url, {
+    method: 'GET',
+    headers,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(TEST_TIMEOUT_MS),
+  });
+  if (res.type === 'opaqueredirect' || (res.status >= 300 && res.status < 400)) {
+    throw new RedirectBlockedError();
+  }
+  return res;
 }
 
 async function readJson(res: Response): Promise<unknown> {
@@ -132,6 +153,9 @@ export async function testConnection(conn: ResolvedConnection): Promise<Connecti
       (err instanceof Error && err.message.startsWith('Timeout:'));
     if (isTimeout) return fail('Tempo esgotado ao contatar o provedor.');
     if (name === 'UnsafeOutboundUrlError') return fail('URL do provedor não permitida.');
+    if (name === 'RedirectBlockedError') {
+      return fail('Provedor redirecionou a requisição; não permitido.');
+    }
     return fail('Falha de rede ao contatar o provedor.');
   }
 }

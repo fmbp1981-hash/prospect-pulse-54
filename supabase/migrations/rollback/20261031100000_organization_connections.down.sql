@@ -3,7 +3,8 @@
 -- Restaura o estado logo após 20261030160000_restrict_row_owner_writes:
 --   * remove o índice organization_connections_evolution_instance_key e
 --     public.usage_events, public.platform_credentials e
---     public.organization_connections (com policies, triggers, índices e grants);
+--     public.organization_connections (com policies, triggers, índices, grants
+--     e a coluna last_test_ok);
 --   * remove public.set_connection_webhook_key().
 -- public.set_updated_at() é anterior a esta migration e fica.
 --

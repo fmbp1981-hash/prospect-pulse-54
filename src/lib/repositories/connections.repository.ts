@@ -22,7 +22,7 @@ export type PlatformCredentialRow = Database['public']['Tables']['platform_crede
 export type ConnectionSummary = Omit<ConnectionRow, 'secret' | 'webhook_key'>;
 
 const SUMMARY_COLUMNS =
-  'id, organization_id, category, provider, credential_source, config, status, last_tested_at, last_test_result, configured_by, created_at, updated_at';
+  'id, organization_id, category, provider, credential_source, config, status, last_tested_at, last_test_result, last_test_ok, configured_by, created_at, updated_at';
 
 export interface UpsertConnectionInput {
   organizationId: string;
@@ -116,6 +116,8 @@ export const connectionsRepository = {
           // Sem segredo novo, a coluna fica fora do upsert e o atual é preservado.
           ...(input.secret !== undefined ? { secret: input.secret } : {}),
           status: input.status ?? 'pending_test',
+          // Salvar invalida o teste anterior: ativar exige um novo teste aprovado.
+          last_test_ok: false,
           configured_by: input.configuredBy ?? null,
         },
         { onConflict: 'organization_id,category,provider' }
@@ -126,12 +128,19 @@ export const connectionsRepository = {
     return data as unknown as ConnectionSummary;
   },
 
-  async setStatus(id: string, status: ConnectionStatus, result: string | null): Promise<void> {
+  /** Grava o resultado de um teste de conexão (status, mensagem, aprovado e quando). */
+  async setStatus(
+    id: string,
+    status: ConnectionStatus,
+    result: string | null,
+    lastTestOk: boolean
+  ): Promise<void> {
     const { error } = await getServiceClient()
       .from('organization_connections')
       .update({
         status,
         last_test_result: result,
+        last_test_ok: lastTestOk,
         last_tested_at: new Date().toISOString(),
       })
       .eq('id', id);
@@ -177,18 +186,23 @@ export const connectionsRepository = {
     return data ?? [];
   },
 
-  /** Ativa/desativa manualmente. Devolve false se a conexão não é da organização. */
+  /**
+   * Ativa/desativa manualmente. `active` só se o último teste foi aprovado
+   * (filtro last_test_ok = true na própria escrita). Devolve false se nenhuma
+   * linha foi alterada.
+   */
   async updateStatus(
     organizationId: string,
     id: string,
-    status: ConnectionStatus
+    status: 'active' | 'disabled'
   ): Promise<boolean> {
-    const { data, error } = await getServiceClient()
+    let query = getServiceClient()
       .from('organization_connections')
       .update({ status })
       .eq('id', id)
-      .eq('organization_id', organizationId)
-      .select('id');
+      .eq('organization_id', organizationId);
+    if (status === 'active') query = query.eq('last_test_ok', true);
+    const { data, error } = await query.select('id');
     if (error) throw new Error(`updateStatus error: ${error.message}`);
     return (data ?? []).length > 0;
   },

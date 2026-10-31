@@ -389,6 +389,51 @@ describe('PUT de conexão (Review Focus 2)', () => {
 });
 
 describe('PATCH / DELETE', () => {
+  it('PATCH active sem teste aprovado → 409 CONNECTION_NOT_TESTED; depois de teste ok → 200', async () => {
+    await createOpenAi();
+    const id = firstId();
+    const res = await patchConn(req('PATCH', { status: 'active' }), connCtx(id));
+    expect(res.status).toBe(409);
+    expect((await jsonOf(res)).body.error).toEqual({
+      code: 'CONNECTION_NOT_TESTED',
+      message: 'Teste a conexão com sucesso antes de ativar.',
+    });
+    expect(connections.get(id)!.status).toBe('pending_test');
+
+    // teste com falha também não libera a ativação
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 401 }));
+    await testConn(req('POST'), connCtx(id));
+    expect((await patchConn(req('PATCH', { status: 'active' }), connCtx(id))).status).toBe(409);
+
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    await testConn(req('POST'), connCtx(id));
+    expect((await patchConn(req('PATCH', { status: 'disabled' }), connCtx(id))).status).toBe(200);
+    const ok = await patchConn(req('PATCH', { status: 'active' }), connCtx(id));
+    expect(ok.status).toBe(200);
+    expect((await jsonOf(ok)).body.data).toMatchObject({ status: 'active', lastTestOk: true });
+  });
+
+  it('PUT em conexão disabled continua disabled e zera last_test_ok', async () => {
+    await createOpenAi();
+    const id = firstId();
+    Object.assign(connections.get(id)!, { status: 'disabled', last_test_ok: true });
+    const res = await putConn(
+      req('PUT', { category: 'llm', provider: 'openai', credentialSource: 'own', config: { model: 'gpt-4o' } }),
+      orgCtx()
+    );
+    expect(res.status).toBe(200);
+    expect(connections.get(id)).toMatchObject({ status: 'disabled', last_test_ok: false });
+    expect((await jsonOf(res)).body.data).toMatchObject({ status: 'disabled', lastTestOk: false });
+  });
+
+  it('PUT em conexão testada volta para pending_test e zera last_test_ok', async () => {
+    await createOpenAi();
+    const id = firstId();
+    Object.assign(connections.get(id)!, { status: 'active', last_test_ok: true });
+    await createOpenAi();
+    expect(connections.get(id)).toMatchObject({ status: 'pending_test', last_test_ok: false });
+  });
+
   it('PATCH disabled altera o status; status fora de active|disabled → 400', async () => {
     await createOpenAi();
     const id = firstId();
@@ -439,6 +484,7 @@ describe('teste de conexão', () => {
 
     const row = connections.get(id)!;
     expect(row.status).toBe('active');
+    expect(row.last_test_ok).toBe(true);
     expect(row.last_tested_at).toEqual(expect.any(String));
     expect(String(row.last_test_result)).not.toContain(OPENAI_KEY);
   });
@@ -457,6 +503,7 @@ describe('teste de conexão', () => {
     expect(data.connection.status).toBe('failing');
     const row = connections.get(id)!;
     expect(row.status).toBe('failing');
+    expect(row.last_test_ok).toBe(false);
     expect(String(row.last_test_result)).not.toContain(OPENAI_KEY);
   });
 
@@ -512,6 +559,43 @@ describe('teste de conexão', () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ instance: { state: 'close' } }), { status: 200 }));
     const { body } = await jsonOf(await testConn(req('POST'), connCtx(id)));
     expect((body.data as { connection: { status: string } }).connection.status).toBe('failing');
+  });
+
+  it('evolution com redirect 302 → falha, sem seguir o redirect (uma chamada só, redirect manual)', async () => {
+    currentUser = { id: PLATFORM_ADMIN };
+    await putConn(
+      req('PUT', {
+        category: 'whatsapp',
+        provider: 'evolution',
+        credentialSource: 'own',
+        config: { baseUrl: 'https://evo.exemplo.com', instanceName: 'inst' },
+        secret: { apiKey: EVOLUTION_KEY },
+      }),
+      orgCtx()
+    );
+    const id = firstId();
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/latest' } })
+    );
+    const { body } = await jsonOf(await testConn(req('POST'), connCtx(id)));
+    const data = body.data as { result: { ok: boolean; message: string }; connection: { status: string } };
+    expect(data.result).toEqual({ ok: false, message: 'Provedor redirecionou a requisição; não permitido.' });
+    expect(data.connection.status).toBe('failing');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][1]?.redirect).toBe('manual');
+  });
+
+  it('conexão disabled: teste aprovado grava o resultado mas continua disabled', async () => {
+    await createOpenAi();
+    const id = firstId();
+    connections.get(id)!.status = 'disabled';
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const { body } = await jsonOf(await testConn(req('POST'), connCtx(id)));
+    const data = body.data as { result: { ok: boolean }; connection: { status: string; lastTestOk: boolean } };
+    expect(data.result.ok).toBe(true);
+    expect(data.connection).toMatchObject({ status: 'disabled', lastTestOk: true });
+    expect(connections.get(id)!.status).toBe('disabled');
+    expect(connections.get(id)!.last_tested_at).toEqual(expect.any(String));
   });
 
   it('platform sem credencial da plataforma → failing sem chamar o provedor', async () => {

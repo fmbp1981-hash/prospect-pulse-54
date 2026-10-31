@@ -32,8 +32,11 @@
 --   * Leitura (authenticated): membros da organização e admin da plataforma,
 --     SEM as colunas secret e webhook_key (grant de SELECT por coluna; um
 --     "select *" pelo client da sessão falha com 42501, liste as colunas).
---   * Escrita (authenticated): só admin da plataforma (RLS); webhook_key e
---     organization_id (no UPDATE) fora do grant. O servidor também pode usar
+--   * last_test_ok: resultado do último teste de conexão (true = aprovado).
+--     Só o servidor (service_role) grava; ativar exige last_test_ok = true.
+--     Legível por authenticated, fora dos grants de INSERT/UPDATE.
+--   * Escrita (authenticated): só admin da plataforma (RLS); webhook_key,
+--     last_test_ok e organization_id (no UPDATE) fora do grant. O servidor também pode usar
 --     service_role (BYPASSRLS).
 --
 -- Idempotente: pode ser reaplicada sem erro.
@@ -83,6 +86,10 @@ create table if not exists public.organization_connections (
 
 alter table public.organization_connections owner to postgres;
 
+-- Resultado do último teste (Task 10): ativar só depois de teste aprovado.
+alter table public.organization_connections
+  add column if not exists last_test_ok boolean not null default false;
+
 create unique index if not exists organization_connections_org_single_category_key
   on public.organization_connections (organization_id, category)
   where category in ('whatsapp', 'email', 'llm');
@@ -111,6 +118,9 @@ comment on column public.organization_connections.secret is
   'Segredo cifrado na aplicação: {"v":"v1","iv":"<b64>","ct":"<b64>"}. Só quando credential_source = ''own''.';
 comment on column public.organization_connections.webhook_key is
   'Identificador opaco (64 hex) da URL do webhook de entrada do WhatsApp. Gerado no banco só para category = ''whatsapp''.';
+comment on column public.organization_connections.last_test_ok is
+  'true quando o último teste de conexão foi aprovado. Gravado só pelo servidor; salvar a conexão volta para false. '
+  'Ativar (status = active) exige last_test_ok = true.';
 comment on index public.organization_connections_org_single_category_key is
   'No máximo uma conexão por organização em whatsapp, email e llm (prospecting: uma por provedor).';
 
@@ -181,10 +191,11 @@ create policy "platform admin deletes connections" on public.organization_connec
 -- a sequência abaixo é reaplicável. authenticated nunca lê secret nem
 -- webhook_key; grava secret (já cifrado pelo servidor) só se passar na RLS
 -- (admin da plataforma); webhook_key não é gravável por authenticated
--- (gerado pelo trigger). organization_id não muda no UPDATE.
+-- (gerado pelo trigger); last_test_ok só é gravado pelo servidor
+-- (service_role). organization_id não muda no UPDATE.
 revoke all on public.organization_connections from public, anon, authenticated;
 grant select (id, organization_id, category, provider, credential_source, config, status,
-              last_tested_at, last_test_result, configured_by, created_at, updated_at)
+              last_tested_at, last_test_result, last_test_ok, configured_by, created_at, updated_at)
   on public.organization_connections to authenticated;
 grant insert (organization_id, category, provider, credential_source, config, secret, status,
               last_tested_at, last_test_result, configured_by)

@@ -48,6 +48,8 @@ export interface ConnectionView {
   status: ConnectionStatus;
   lastTestedAt: string | null;
   lastTestResult: string | null;
+  /** Último teste aprovado: condição para ativar (PATCH status = active). */
+  lastTestOk: boolean;
   hasSecret: boolean;
   secretHint: string | null;
   webhookUrl: string | null;
@@ -87,6 +89,9 @@ const WEBHOOK_PROVIDERS: readonly string[] = ['meta_cloud', 'evolution'];
 const notFound = () =>
   new ConnectionsAdminError(404, 'NOT_FOUND', 'Conexão não encontrada para esta organização.');
 
+const notTested = () =>
+  new ConnectionsAdminError(409, 'CONNECTION_NOT_TESTED', 'Teste a conexão com sucesso antes de ativar.');
+
 async function secretHint(provider: ProviderId, encrypted: Json | null): Promise<string | null> {
   if (!encrypted) return null;
   try {
@@ -116,6 +121,7 @@ async function toView(row: ConnectionRow): Promise<ConnectionView> {
     status: row.status as ConnectionStatus,
     lastTestedAt: row.last_tested_at,
     lastTestResult: row.last_test_result,
+    lastTestOk: row.last_test_ok === true,
     hasSecret: row.secret !== null && row.secret !== undefined,
     secretHint: await secretHint(provider, row.secret),
     webhookUrl: webhookUrl(row),
@@ -154,22 +160,23 @@ export const connectionsAdminService = {
 
   /**
    * Cria/atualiza a conexão. Sem `secret` no corpo o segredo atual é mantido;
-   * `own` sem segredo novo nem gravado → 400. Sempre volta para pending_test.
+   * `own` sem segredo novo nem gravado → 400. Salvar zera last_test_ok e volta
+   * para pending_test — exceto conexão `disabled`, que continua desativada.
    */
   async saveConnection(
     organizationId: string,
     userId: string,
     body: UpsertConnectionBody
   ): Promise<ConnectionView> {
+    const existing = await connectionsRepository.findByKey(
+      organizationId,
+      body.category,
+      body.provider
+    );
     let secret: Json | undefined;
     if (body.secret) {
       secret = (await encryptJson(body.secret)) as unknown as Json;
     } else if (body.credentialSource === 'own') {
-      const existing = await connectionsRepository.findByKey(
-        organizationId,
-        body.category,
-        body.provider
-      );
       if (!existing?.secret) {
         throw new ConnectionsAdminError(
           400,
@@ -186,19 +193,24 @@ export const connectionsAdminService = {
       credentialSource: body.credentialSource,
       config: body.config as Json,
       secret,
-      status: 'pending_test',
+      status: existing?.status === 'disabled' ? 'disabled' : 'pending_test',
       configuredBy: userId,
     });
     return loadView(organizationId, saved.id);
   },
 
+  /** `disabled` sempre; `active` só com o último teste aprovado (senão 409). */
   async setStatus(
     organizationId: string,
     connectionId: string,
     status: 'active' | 'disabled'
   ): Promise<ConnectionView> {
+    const row = await connectionsRepository.findByIdForOrganization(organizationId, connectionId);
+    if (!row) throw notFound();
+    if (status === 'active' && row.last_test_ok !== true) throw notTested();
     const updated = await connectionsRepository.updateStatus(organizationId, connectionId, status);
-    if (!updated) throw notFound();
+    // Corrida: a conexão foi salva (last_test_ok = false) ou apagada entre a leitura e a escrita.
+    if (!updated) throw status === 'active' ? notTested() : notFound();
     return loadView(organizationId, connectionId);
   },
 
@@ -208,8 +220,9 @@ export const connectionsAdminService = {
   },
 
   /**
-   * Testa a conexão (qualquer status) e grava o resultado: ok → active,
-   * falha → failing. A mensagem gravada/devolvida nunca contém segredo.
+   * Testa a conexão (qualquer status) e grava o resultado (last_tested_at,
+   * last_test_result, last_test_ok): ok → active, falha → failing; conexão
+   * `disabled` continua `disabled`. A mensagem nunca contém segredo.
    */
   async testConnection(
     organizationId: string,
@@ -237,7 +250,9 @@ export const connectionsAdminService = {
       };
     }
 
-    await connectionsRepository.setStatus(row.id, result.ok ? 'active' : 'failing', result.message);
+    const nextStatus: ConnectionStatus =
+      row.status === 'disabled' ? 'disabled' : result.ok ? 'active' : 'failing';
+    await connectionsRepository.setStatus(row.id, nextStatus, result.message, result.ok);
     console.info('[connections-admin] test', {
       connectionId: row.id,
       provider: row.provider,

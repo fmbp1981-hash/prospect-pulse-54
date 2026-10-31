@@ -1265,6 +1265,7 @@ export type Database = {
           created_at: string
           credential_source: string
           id: string
+          last_test_ok: boolean
           last_test_result: string | null
           last_tested_at: string | null
           organization_id: string
@@ -1281,6 +1282,7 @@ export type Database = {
           created_at?: string
           credential_source: string
           id?: string
+          last_test_ok?: boolean
           last_test_result?: string | null
           last_tested_at?: string | null
           organization_id: string
@@ -1297,6 +1299,7 @@ export type Database = {
           created_at?: string
           credential_source?: string
           id?: string
+          last_test_ok?: boolean
           last_test_result?: string | null
           last_tested_at?: string | null
           organization_id?: string

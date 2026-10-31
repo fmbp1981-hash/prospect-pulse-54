@@ -267,6 +267,23 @@ begin
   perform set_config('teste.c20_ok', (v_res like '42501%')::text, true);
   perform set_config('teste.c20_det', v_res, true);
 
+  -- 25. membro lê last_test_ok (nasce false)
+  v_res := pg_temp.tentar(v_adm, 'authenticated', array[format(c_um,
+    format('select count(*) from public.organization_connections where id = %L and last_test_ok = false', v_conn_a))]);
+  perform set_config('teste.c25_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c25_det', case when v_res = 'aceito' then '1 linha, false' else v_res end, true);
+
+  -- 26. admin da plataforma não grava last_test_ok pela sessão → 42501 (fora do grant)
+  if v_padm is null then
+    perform set_config('teste.c26_ok', '', true);
+    perform set_config('teste.c26_det', 'sem admin da plataforma', true);
+  else
+    v_res := pg_temp.tentar(v_padm, 'authenticated', array[
+      format('update public.organization_connections set last_test_ok = true where id = %L', v_conn_a)]);
+    perform set_config('teste.c26_ok', (v_res like '42501%')::text, true);
+    perform set_config('teste.c26_det', v_res, true);
+  end if;
+
   -- 21. mesma instância Evolution em org A e org B → 23505
   v_res := pg_temp.tentar(null, 'postgres', array[
     format(c_evo, v_org_a, 'teste-inst-c21'),
@@ -320,7 +337,9 @@ from (values
   (21, '21. mesma instância Evolution em duas organizações → 23505'),
   (22, '22. mesma instância Evolution com espaços em volta → 23505'),
   (23, '23. Evolution com instanceName vazio → 23514'),
-  (24, '24. Evolution sem instanceName → 23514')
+  (24, '24. Evolution sem instanceName → 23514'),
+  (25, '25. membro lê last_test_ok (padrão false)'),
+  (26, '26. admin da plataforma não grava last_test_ok pela sessão → 42501')
 ) as c(n, cenario)
 order by c.n;
 

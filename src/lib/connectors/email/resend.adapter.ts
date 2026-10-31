@@ -77,6 +77,8 @@ export async function checkResendDomainVerified(apiKey: string, domain: string):
   try {
     const res = await fetch(`${RESEND_API}/domains`, {
       headers: { Authorization: `Bearer ${apiKey}` },
+      // Não segue redirect: 3xx não é ok → false (a chave não vai a outro host).
+      redirect: 'manual',
     });
     if (!res.ok) return false;
     const json = (await res.json()) as { data?: Array<{ name?: string; status?: string }> };
