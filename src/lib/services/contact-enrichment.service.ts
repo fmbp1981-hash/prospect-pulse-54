@@ -15,7 +15,8 @@ import {
   type FirecrawlMapLink,
 } from '../integrations/firecrawl-client';
 import { normalizePhone, normalizeEmail } from '../import/normalizer';
-import { apiKeysService } from './api-keys.service';
+import { resolveProspectingConnectionForUser } from '../connectors/prospecting/source';
+import { recordUsage } from '../connectors/usage';
 import type { Database, Json } from '@/integrations/supabase/types';
 
 type ContactRow = Database['public']['Tables']['contacts']['Row'];
@@ -59,9 +60,21 @@ export const contactEnrichmentService = {
     const domain = company?.domain ? extractDomain(company.domain) : null;
     if (!domain) return { contact, emailFound: false, phoneFound: false, pagesChecked: 0 };
 
-    const apiKey = await apiKeysService.getFirecrawlApiKey(userId);
+    // Conexão prospecting/firecrawl da organização; sem ela → ConnectionNotConfiguredError.
+    const connection = await resolveProspectingConnectionForUser(userId, 'firecrawl');
+    const apiKey = connection.secret.apiKey;
     const links = await firecrawlClient.mapDomain(apiKey, domain);
+    await recordUsage({
+      organizationId: connection.organizationId,
+      category: 'prospecting',
+      provider: 'firecrawl',
+      operation: 'map',
+      quantity: 2,
+      unit: 'requests',
+      connectionId: connection.id,
+    });
     const candidates = filterCandidateContactPages(links).slice(0, MAX_PAGES_TO_SCRAPE);
+    let pagesScraped = 0;
 
     let foundEmail: string | null = null;
     let foundPhone: string | null = null;
@@ -70,6 +83,7 @@ export const contactEnrichmentService = {
 
     for (const page of candidates) {
       const extracted = await firecrawlClient.extractContactInfo(apiKey, page.url);
+      pagesScraped++;
       rawExtraction = [...rawExtraction, page];
 
       if (needsEmail && !foundEmail && extracted.email) {
@@ -88,6 +102,18 @@ export const contactEnrichmentService = {
       }
 
       if ((!needsEmail || foundEmail) && (!needsPhone || foundPhone)) break;
+    }
+
+    if (pagesScraped > 0) {
+      await recordUsage({
+        organizationId: connection.organizationId,
+        category: 'prospecting',
+        provider: 'firecrawl',
+        operation: 'scrape',
+        quantity: pagesScraped,
+        unit: 'pages',
+        connectionId: connection.id,
+      });
     }
 
     if (foundEmail || foundPhone) {

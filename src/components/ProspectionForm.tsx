@@ -19,8 +19,6 @@ import { LinkedinIndustrySelect } from "@/components/LinkedinIndustrySelect";
 import { QuickSelectLocations } from "@/components/QuickSelectLocations";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { QUICK_PRODUCTS } from "@/data/prospectionQuickSelects";
 import { useLinkedinProspection, LINKEDIN_SEARCH_BY_LABELS } from "@/hooks/useLinkedinProspection";
 
@@ -117,7 +115,6 @@ function buildLinkedinOutreachMessage(name: string, roleTitle: string | null, co
 
 export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const { user } = useAuth();
   const [channel, setChannel] = useState<ProspectionChannel>('gmn');
   const [searchMode, setSearchMode] = useState<'niche' | 'product'>('niche');
 
@@ -156,7 +153,7 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
   const [bairroInput, setBairroInput] = useState("");
   // Estado de texto separado do quantity numérico: permite digitar livremente
   // (inclusive apagar tudo antes de escrever um novo valor) sem o campo forçar
-  // "0" a cada tecla — o clamp (1-500) só acontece no blur.
+  // "0" a cada tecla — o clamp (1-60) só acontece no blur.
   const [quantityInput, setQuantityInput] = useState(String(formData.quantity));
   // Espelha linkedin.maxItems como texto (mesmo motivo do quantityInput acima).
   const [maxItemsInput, setMaxItemsInput] = useState("20");
@@ -223,8 +220,8 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       }
     }
 
-    if (formData.quantity < 1 || formData.quantity > 500) {
-      toast.error("A quantidade deve estar entre 1 e 500");
+    if (formData.quantity < 1 || formData.quantity > 60) {
+      toast.error("A quantidade deve estar entre 1 e 60");
       return;
     }
 
@@ -238,29 +235,31 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
     });
 
     try {
-      console.log("📡 Chamando edge function de prospecção...", formData);
-
-      // Incluir user_id para multi-tenant
-      const { data, error } = await supabase.functions.invoke('prospection', {
-        body: {
-          ...formData,
+      const res = await fetch('/api/prospecting/places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          niche: formData.niche,
+          location: formData.location,
+          quantity: formData.quantity,
+          businessName: formData.businessName,
           bairros, // array de bairros
-          user_id: user?.id, // Passar ID do usuário autenticado
           searchMode, // Modo de busca: nicho ou produto
-        }
+        }),
       });
+      const json = await res.json().catch(() => null);
 
-      if (error) {
-        console.error("❌ Erro retornado pela edge function:", error);
-        throw error;
+      if (!res.ok || !json?.data) {
+        throw new Error(json?.error?.message || 'Erro desconhecido na prospecção');
       }
 
-      console.log("✅ Resposta completa da prospecção:", data);
-
-      // Verificar se houve sucesso
-      if (!data?.success) {
-        throw new Error(data?.error || 'Erro desconhecido na prospecção');
-      }
+      const data = json.data as {
+        insertedCount: number;
+        recurrentCount: number;
+        total: number;
+        failedProcessing: number;
+        failedInsertion: number;
+      };
 
       // Exibir resultados detalhados
       const { insertedCount, recurrentCount, total, failedProcessing, failedInsertion } = data;
@@ -278,7 +277,6 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
       // Se houver falhas, mostrar warning ao invés de success
       if (failedProcessing > 0 || failedInsertion > 0) {
         message += `. Avisos: ${failedProcessing || 0} falhas no processamento, ${failedInsertion || 0} falhas na inserção`;
-        console.warn("⚠️ Prospecção com avisos:", data.details);
         toast.warning(message, {
           id: loadingToast,
           description: "Alguns leads podem não ter sido processados. Verifique os logs.",
@@ -291,15 +289,6 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
           duration: 5000
         });
       }
-
-      console.log("📊 Detalhes da prospecção:", {
-        insertedCount,
-        recurrentCount,
-        total,
-        failedProcessing,
-        failedInsertion,
-        details: data.details
-      });
 
       onSearch({
         ...formData,
@@ -543,14 +532,14 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
                 }}
                 onBlur={() => {
                   const parsed = parseInt(quantityInput, 10);
-                  const clamped = Math.min(500, Math.max(1, Number.isFinite(parsed) ? parsed : 1));
+                  const clamped = Math.min(60, Math.max(1, Number.isFinite(parsed) ? parsed : 1));
                   setQuantityInput(String(clamped));
                   setFormData((prev) => ({ ...prev, quantity: clamped }));
                 }}
                 required
                 className="rounded-xl transition-all focus:shadow-card"
               />
-              <p className="text-xs text-muted-foreground">Digite a quantidade desejada — de 1 a 500 leads por busca</p>
+              <p className="text-xs text-muted-foreground">Digite a quantidade desejada — de 1 a 60 leads por busca</p>
             </div>
 
             <div className="space-y-2">

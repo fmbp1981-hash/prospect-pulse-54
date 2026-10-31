@@ -12,6 +12,10 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { linkedinProspectingService } from '@/lib/services/linkedin-prospecting.service';
 import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
+import {
+  PROSPECTING_SOURCE_NOT_CONFIGURED_ERROR,
+  isProspectingSourceNotConfigured,
+} from '@/lib/connectors/prospecting/source';
 
 export const runtime = 'nodejs';
 
@@ -42,6 +46,9 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     const summary = await linkedinProspectingService.searchPeople(user.id, job.params);
     return NextResponse.json({ data: summary });
   } catch (err) {
+    if (isProspectingSourceNotConfigured(err)) {
+      return NextResponse.json({ error: PROSPECTING_SOURCE_NOT_CONFIGURED_ERROR }, { status: 409 });
+    }
     console.error('[prospecting/linkedin/history/reprocess] Erro inesperado:', err);
     return NextResponse.json({ error: 'Falha ao reprocessar busca' }, { status: 500 });
   }
