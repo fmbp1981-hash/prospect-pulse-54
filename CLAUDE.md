@@ -137,7 +137,7 @@ prospect-pulse-54/
 - **Unused Vite leftovers** (scheduled for removal): `vite.config.ts`, `index.html`, `src/App.tsx`, `src/main.tsx`, `tsconfig.app.json`, `tsconfig.node.json`
 
 - **src/components/ui/**: shadcn/ui components; avoid editing directly
-- **supabase/migrations/**: versioned schema evolution; never alter schema directly in production
+- **supabase/migrations/**: versioned schema evolution (currently incomplete vs. production, see Database & Multi-tenancy); never alter schema directly in production
 - **docs/sql-legado/**: historical one-off SQL kept for reference only
 
 ---
@@ -221,13 +221,20 @@ if (error) {
 
 ## Database & Multi-tenancy
 
-Schema lives in `supabase/migrations/` (source of truth) and generated types in `src/integrations/supabase/types.ts` (client in `src/integrations/supabase/client.ts`). Do not copy table definitions into docs; read the migrations.
+The generated types in `src/integrations/supabase/types.ts` (client in `src/integrations/supabase/client.ts`) and the live database reflect the real schema. **`supabase/migrations/` is incomplete and is NOT the source of truth today**: production has schema not represented there (e.g. `leads_prospeccao.tenant_id`, trigger `set_tenant_and_origem_on_insert`). A baseline reconciliation is planned (Sprint 2). Until then, inspect the live schema (generated types or the database) before writing any migration. Do not copy table definitions into docs.
 
 Rules:
 - RLS enabled on every table, policies scoped by organization membership
 - PK UUID (`gen_random_uuid()`), `created_at` / `updated_at` on every table
-- Migrations versioned; never alter production schema by hand
+- Never alter production schema by hand; changes go through versioned migrations
 - Legacy one-off scripts in `docs/sql-legado/` are historical only
+
+### Production migration rule
+
+Any migration, or any DELETE/UPDATE, on production requires:
+1. The user's explicit authorization at that moment (prior approval does not carry over).
+2. A rollback SQL in the same PR.
+3. A prior export of the affected rows/definitions to `scripts/legacy/backup-<date>-<topic>.json` (git-ignored).
 
 ---
 
@@ -304,7 +311,7 @@ const { data, isLoading, error } = useQuery({
 
 ### Creating a Database Migration
 
-Add a versioned SQL file in `supabase/migrations/` (with RLS), apply via Supabase CLI, then regenerate types.
+Inspect the live schema first (generated types or the database), since `supabase/migrations/` is incomplete. Write a versioned SQL file in `supabase/migrations/` (with RLS) plus its rollback SQL in the same PR, and regenerate types. Do NOT apply it to production on your own: follow the "Production migration rule" in Database & Multi-tenancy (explicit user authorization at that moment, rollback SQL, and a prior backup export).
 
 ---
 
