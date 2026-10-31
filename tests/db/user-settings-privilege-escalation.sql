@@ -5,18 +5,18 @@
 --               20261030130000_guard_user_settings_privileges)
 --   ok = false  falha de segurança / comportamento incorreto
 --   ok = null   usuário de teste não encontrado na base (ver detalhe)
--- Esperado ANTES da migration: cenários 1, 2, 3, 4, 7, 9 e 10 com ok=false
--- (o 4 também falha antes: is_admin() é true para o admin de organização;
--- 9 e 10 falham também se is_platform_admin/is_admin não exigirem ausência de
--- linha em organization_members).
+-- Esperado ANTES da migration: cenários 1, 2, 3, 4, 7, 9, 10, 11, 12, 13 e 15
+-- com ok=false (o 4 também falha antes: is_admin() é true para o admin de
+-- organização). 5, 6, 8 e 14 são controles (ok=true antes e depois).
 -- Esperado DEPOIS: todos ok=true.
 --
 -- Usuários de teste (lidos de public.user_settings, o mais antigo de cada perfil):
 --   teste.vis       visualizador pendente     role='visualizador' and pending_setup
 --   teste.op        operador sem organização  role='operador' and organization_id is null
 --   teste.org_admin admin COM organização     role='admin' and organization_id is not null
---   teste.plat      admin da plataforma       role='admin' and organization_id is null
---                                             e SEM linha em organization_members
+--   teste.plat      admin da plataforma: se public.platform_admins existe (depois
+--                   da migration), o mais antigo dela; senão role='admin',
+--                   organization_id nulo e SEM linha em organization_members
 --   teste.adm_vinc  admin de org com user_settings.organization_id nulo mas COM
 --                   linha em organization_members (fluxo de signup/approve-user)
 --
@@ -38,6 +38,15 @@
 -- Confirmar antes que ele não faz chamada HTTP síncrona; com pg_net a chamada
 -- só seria enviada no COMMIT, e este script termina em ROLLBACK.
 --
+-- Cenários 12 e 15 FABRICAM o perfil de ataque dentro do sub-bloco (como
+-- postgres, sem JWT) a partir do operador sem organização (teste.op):
+--   12: op vira operador (writer) da org de teste.org_admin e perde a própria
+--       linha de user_settings; depois, como authenticated, tenta
+--       update set user_id = op na linha do admin da org;
+--   15: op vira role='admin', sem vínculo em organization_members e fora de
+--       platform_admins; não pode ser tratado como admin da plataforma.
+-- Tudo é desfeito pela exceção sentinela.
+--
 -- Erro inesperado num cenário vira ok=false com o SQLSTATE no detalhe (o script
 -- não aborta). Exceção: no cenário 4 qualquer erro significa que a escrita não
 -- aconteceu, então conta como negado (ok=true).
@@ -58,11 +67,24 @@ select set_config('teste.org_admin', coalesce((
   select user_id::text from public.user_settings
   where role = 'admin' and organization_id is not null
   order by created_at limit 1), ''), true);
-select set_config('teste.plat', coalesce((
-  select us.user_id::text from public.user_settings us
-  where us.role = 'admin' and us.organization_id is null
-    and not exists (select 1 from public.organization_members om where om.user_id = us.user_id)
-  order by us.created_at limit 1), ''), true);
+do $$
+declare v text;
+begin
+  if to_regclass('public.platform_admins') is not null then
+    execute $q$
+      select coalesce((
+        select pa.user_id::text from public.platform_admins pa
+        join public.user_settings us on us.user_id = pa.user_id
+        order by us.created_at limit 1), '')$q$ into v;
+  else
+    v := coalesce((
+      select us.user_id::text from public.user_settings us
+      where us.role = 'admin' and us.organization_id is null
+        and not exists (select 1 from public.organization_members om where om.user_id = us.user_id)
+      order by us.created_at limit 1), '');
+  end if;
+  perform set_config('teste.plat', v, true);
+end $$;
 select set_config('teste.adm_vinc', coalesce((
   select us.user_id::text from public.user_settings us
   where us.role = 'admin' and us.organization_id is null
@@ -430,6 +452,210 @@ begin
   perform set_config('teste.c10_det', v_det, true);
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- 11. admin de org tenta apagar o PRÓPRIO vínculo em organization_members
+--     (para virar "sem org") -> 0 linhas/negado e continua sem ver outras orgs.
+--     Usa teste.adm_vinc (org nula em user_settings) se existir, senão
+--     teste.org_admin.
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := coalesce(nullif(current_setting('teste.adm_vinc'), '')::uuid,
+                         nullif(current_setting('teste.org_admin'), '')::uuid);
+  v_org uuid;
+  v_n int; v_fora int; v_ok boolean; v_det text;
+begin
+  if v_uid is null then
+    v_det := 'sem admin de organização na base';
+  else
+    select organization_id into v_org from public.organization_members where user_id = v_uid limit 1;
+    begin
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      delete from public.organization_members where user_id = v_uid;
+      get diagnostics v_n = row_count;
+      select count(*) filter (where user_id <> v_uid and organization_id is distinct from v_org)
+        into v_fora from public.user_settings;
+      v_ok := (v_n = 0 and v_fora = 0);
+      v_det := format('vínculos apagados: %s; user_settings visíveis fora da org (excluindo a própria): %s', v_n, v_fora);
+      raise exception 'teste_desfaz';
+    exception
+      when insufficient_privilege then
+        v_ok := true; v_det := 'negado (42501): ' || sqlerrm;
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := false; v_det := 'erro inesperado P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := false; v_det := 'erro inesperado ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c11_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c11_det', v_det, true);
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 12. writer da org reatribui user_id da linha do admin da mesma org
+--     (perfil fabricado a partir de teste.op; ver cabeçalho) -> negado
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := nullif(current_setting('teste.op'), '')::uuid;
+  v_admin uuid := nullif(current_setting('teste.org_admin'), '')::uuid;
+  v_org uuid;
+  v_n int; v_ok boolean; v_det text;
+begin
+  if v_uid is null or v_admin is null then
+    v_det := 'sem operador sem organização ou sem admin com organização na base';
+  else
+    select organization_id into v_org from public.user_settings where user_id = v_admin;
+    begin
+      -- montagem do perfil (postgres, sem JWT)
+      delete from public.organization_members where user_id = v_uid;
+      insert into public.organization_members (organization_id, user_id, role)
+      values (v_org, v_uid, 'operador');
+      delete from public.user_settings where user_id = v_uid;
+      -- ataque
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      update public.user_settings set user_id = v_uid where user_id = v_admin;
+      get diagnostics v_n = row_count;
+      v_ok := (v_n = 0);
+      v_det := format('%s linha(s) do admin reatribuída(s) ao writer', v_n);
+      raise exception 'teste_desfaz';
+    exception
+      when insufficient_privilege then
+        v_ok := true; v_det := 'negado (42501): ' || sqlerrm;
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := false; v_det := 'erro inesperado P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := false; v_det := 'erro inesperado ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c12_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c12_det', v_det, true);
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 13. upsert do usuário comum: insert ... on conflict (user_id) do update
+--     set role = 'admin' na própria linha -> negado ou role não vira admin
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := nullif(current_setting('teste.op'), '')::uuid;
+  v_role text; v_ok boolean; v_det text;
+begin
+  if v_uid is null then
+    v_det := 'sem operador sem organização na base';
+  else
+    begin
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      insert into public.user_settings (user_id, role, pending_setup)
+      values (v_uid, 'admin', false)
+      on conflict (user_id) do update set role = 'admin', pending_setup = false;
+      select role::text into v_role from public.user_settings where user_id = v_uid;
+      v_ok := (v_role is distinct from 'admin');
+      v_det := format('upsert aceito; role resultante=%s', v_role);
+      raise exception 'teste_desfaz';
+    exception
+      when insufficient_privilege then
+        v_ok := true; v_det := 'negado (42501): ' || sqlerrm;
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := false; v_det := 'erro inesperado P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := false; v_det := 'erro inesperado ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c13_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c13_det', v_det, true);
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 14. (controle) admin da plataforma (platform_admins depois da migration)
+--     altera role do visualizador pendente -> permitido
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := nullif(current_setting('teste.plat'), '')::uuid;
+  v_alvo uuid := nullif(current_setting('teste.vis'), '')::uuid;
+  v_n int; v_ok boolean; v_det text;
+begin
+  if v_uid is null or v_alvo is null then
+    v_det := 'sem admin da plataforma ou sem visualizador pendente na base';
+  else
+    begin
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      update public.user_settings set role = 'operador' where user_id = v_alvo;
+      get diagnostics v_n = row_count;
+      v_ok := (v_n = 1);
+      v_det := format('%s linha(s) alterada(s)', v_n);
+      raise exception 'teste_desfaz';
+    exception
+      when insufficient_privilege then
+        v_ok := false; v_det := 'negado (42501): ' || sqlerrm;
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := false; v_det := 'erro inesperado P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := false; v_det := 'erro inesperado ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c14_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c14_det', v_det, true);
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 15. role='admin', organization_id nulo, SEM vínculo e FORA de
+--     platform_admins (perfil fabricado a partir de teste.op) NÃO é admin da
+--     plataforma: não vê outras linhas nem altera role de outro usuário
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := nullif(current_setting('teste.op'), '')::uuid;
+  v_alvo uuid := nullif(current_setting('teste.vis'), '')::uuid;
+  v_fora int; v_n int; v_ok boolean; v_det text;
+begin
+  if v_uid is null or v_alvo is null then
+    v_det := 'sem operador sem organização ou sem visualizador pendente na base';
+  else
+    begin
+      -- montagem do perfil (postgres, sem JWT)
+      update public.user_settings set role = 'admin', organization_id = null where user_id = v_uid;
+      delete from public.organization_members where user_id = v_uid;
+      if to_regclass('public.platform_admins') is not null then
+        execute 'delete from public.platform_admins where user_id = $1' using v_uid;
+      end if;
+      -- ataque
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      select count(*) filter (where user_id <> v_uid) into v_fora from public.user_settings;
+      update public.user_settings set role = 'operador' where user_id = v_alvo;
+      get diagnostics v_n = row_count;
+      v_ok := (v_fora = 0 and v_n = 0);
+      v_det := format('linhas de outros visíveis: %s; role de outro alterado: %s linha(s)', v_fora, v_n);
+      raise exception 'teste_desfaz';
+    exception
+      when insufficient_privilege then
+        v_ok := false; v_det := 'erro 42501 inesperado: ' || sqlerrm;
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := false; v_det := 'erro inesperado P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := false; v_det := 'erro inesperado ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c15_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c15_det', v_det, true);
+end $$;
+
 select r.cenario,
        nullif(current_setting('teste.c' || r.n || '_ok'), '')::boolean as ok,
        current_setting('teste.c' || r.n || '_det') as detalhe
@@ -443,7 +669,12 @@ from (values
   (7, '7. INSERT próprio com role=admin -> sai visualizador/pendente'),
   (8, '8. (controle) service_role aprova usuário -> permitido'),
   (9, '9. admin com org_id nulo mas com vínculo não vê outras orgs'),
-  (10, '10. admin com org_id nulo mas com vínculo altera role de outro -> 0 linhas/negado')
+  (10, '10. admin com org_id nulo mas com vínculo altera role de outro -> 0 linhas/negado'),
+  (11, '11. admin de org apaga o próprio vínculo -> negado e continua sem ver outras orgs'),
+  (12, '12. writer reatribui user_id da linha do admin da mesma org -> negado'),
+  (13, '13. upsert on conflict do update set role=admin por usuário comum -> negado'),
+  (14, '14. (controle) admin da plataforma (allowlist) altera role de outro -> permitido'),
+  (15, '15. admin sem org/vínculo fora da allowlist não é admin da plataforma')
 ) as r(n, cenario)
 order by r.n;
 
