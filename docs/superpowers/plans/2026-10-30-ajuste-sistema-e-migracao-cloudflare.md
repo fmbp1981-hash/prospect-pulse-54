@@ -313,3 +313,6 @@ Achados de 2026-10-30: `src/lib/jobs/follow-up.job.ts` envia **todos** os follow
 - E2E Playwright TS dos fluxos críticos (substitui a suíte Python em `e2e_tests/`).
 - Mover extensão `vector` para schema `extensions`.
 - **Configuração por organização das mensagens de follow-up** (hoje constantes em `follow-up.job.ts`): mover para `agent_configs`, mantendo as atuais como padrão.
+
+---
+**Adendo (2026-10-30, durante a execução do Sprint 1):** Task 6b — fechar escalada de privilégio em `user_settings` e separar admin da plataforma de admin de organização (crítica, achada na revisão da Task 6). Brief completo em `.superpowers/sdd/2026-10-30-ajuste-sistema-e-migracao-cloudflare/task-6b-brief.md`; migration `20261030130000_guard_user_settings_privileges.sql`.
