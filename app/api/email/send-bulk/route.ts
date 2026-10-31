@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 const BATCH_SIZE = 50;
 
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
+    if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
     const db = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

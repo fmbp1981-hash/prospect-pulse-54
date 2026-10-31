@@ -3,14 +3,13 @@
  *
  * Configurar via variável de ambiente:
  *   WHATSAPP_PROVIDER=evolution  (padrão)
- *   WHATSAPP_PROVIDER=meta
+ *   WHATSAPP_PROVIDER=meta       (DESATIVADO até o Sprint 2b: lança erro)
  *
  * Troca de provider é feita apenas alterando o .env — zero mudança de código.
  */
 
 import type { IWhatsAppProvider } from './whatsapp-provider.interface';
 import { EvolutionProvider } from './providers/evolution.provider';
-import { MetaCloudProvider } from './providers/meta-cloud.provider';
 
 type ProviderName = 'evolution' | 'meta';
 
@@ -23,8 +22,11 @@ export function getWhatsAppProvider(): IWhatsAppProvider {
 
   switch (providerName) {
     case 'meta':
-      _instance = new MetaCloudProvider();
-      break;
+      // O MetaCloudProvider usa META_WA_PHONE_NUMBER_ID/META_WA_TOKEN globais e
+      // ignora a instância: enviaria em nome de TODOS os tenants.
+      throw new Error(
+        'Provider Meta global desativado: configure conexões por organização (Sprint 2b)'
+      );
     case 'evolution':
     default:
       _instance = new EvolutionProvider();

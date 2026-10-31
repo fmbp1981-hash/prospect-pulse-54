@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
 import { resolveInstanceForUser } from '@/lib/services/tenant-resolver.service';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 
@@ -25,6 +26,7 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const body = await req.json() as { leadId?: string; message?: string };
   if (!body.leadId || !body.message?.trim()) {

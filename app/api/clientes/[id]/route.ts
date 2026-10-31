@@ -8,6 +8,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { clientePatchSchema } from '@/lib/validations/cliente.validation';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 
@@ -64,6 +65,7 @@ export async function PATCH(
 ) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   // Allowlist (Zod .strict()): user_id, organization_id e colunas internas → 400.
   const parsed = clientePatchSchema.safeParse(await req.json().catch(() => null));
@@ -92,6 +94,7 @@ export async function DELETE(
 ) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const db = service();
   // Soft delete — apenas marca como Inativo

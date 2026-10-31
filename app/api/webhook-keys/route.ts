@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { generateApiKey, hashApiKey } from '@/lib/webhook-keys';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 const CreateKeySchema = z.object({
   name: z.string().min(1).max(60),
@@ -45,6 +46,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const body = await req.json();
   const parsed = CreateKeySchema.safeParse(body);
