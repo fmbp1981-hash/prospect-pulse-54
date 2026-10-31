@@ -8,14 +8,19 @@
 --   M-01 (revisão da Task 8): a policy SELECT "org members can view user_settings"
 --                expunha a membros da mesma organização as chaves de API, o
 --                webhook_token e os demais segredos da linha de cada colega.
+--   T9-M1 (revisão da Task 9): as policies permissivas "org writers can
+--                update/delete/insert user_settings" deixavam um writer da org
+--                alterar ou apagar a linha de um colega.
 --
 -- Depende de 20261030140000_webhook_tokens (guard com webhook_token): rodar DEPOIS.
 -- Rollback: supabase/migrations/rollback/20261030150000_unique_evolution_instance.down.sql
 -- Testes:   tests/db/evolution-instance-isolation.sql (todos ok=true depois)
 --
 -- Comportamento:
---   * Índice único parcial em user_settings(evolution_instance_name), ignorando
---     NULL e ''. Antes de criar, aborta com mensagem clara se houver duplicata.
+--   * Índice único parcial em user_settings(btrim(evolution_instance_name)),
+--     ignorando NULL e vazio/só espaços ('inst' e ' inst ' são a mesma instância,
+--     como em resolveInstanceForUser, que faz trim). Antes de criar, aborta com
+--     mensagem clara se houver duplicata (também comparando com btrim).
 --   * Guard (trigger BEFORE INSERT OR UPDATE): evolution_instance_name entra na
 --     lista de colunas protegidas. Usuário comum (inclusive admin de organização):
 --     INSERT → coluna forçada a NULL; UPDATE que muda o valor → 42501. Quem define
@@ -28,6 +33,12 @@
 --     código (git grep "from('user_settings')"): todas as leituras pelo client da
 --     sessão filtram .eq('user_id', user.id), exceto RoleManagement, que é do admin
 --     da plataforma.
+--   * drop das policies permissivas "org writers can update user_settings",
+--     "org writers can delete user_settings" e "org writers can insert
+--     user_settings" (T9-M1): escrita só na própria linha (policies "Users can
+--     insert own settings" / "Users can update own settings or admins update all")
+--     ou pelo admin da plataforma. As policies RESTRICTIVE "org role gate ..."
+--     continuam.
 
 -- ---------------------------------------------------------------------------
 -- 1. Unicidade de evolution_instance_name (F-04)
@@ -36,13 +47,13 @@ do $$
 declare
   v_dups text;
 begin
-  select string_agg(format('%L (%s linhas)', evolution_instance_name, n), ', ')
+  select string_agg(format('%L (%s linhas)', instancia, n), ', ')
     into v_dups
   from (
-    select evolution_instance_name, count(*) as n
+    select btrim(evolution_instance_name) as instancia, count(*) as n
     from public.user_settings
-    where evolution_instance_name is not null and evolution_instance_name <> ''
-    group by evolution_instance_name
+    where evolution_instance_name is not null and btrim(evolution_instance_name) <> ''
+    group by btrim(evolution_instance_name)
     having count(*) > 1
   ) d;
 
@@ -53,11 +64,11 @@ begin
 end $$;
 
 create unique index if not exists user_settings_evolution_instance_name_key
-  on public.user_settings (evolution_instance_name)
-  where evolution_instance_name is not null and evolution_instance_name <> '';
+  on public.user_settings (btrim(evolution_instance_name))
+  where evolution_instance_name is not null and btrim(evolution_instance_name) <> '';
 
 comment on index public.user_settings_evolution_instance_name_key is
-  'Uma instância Evolution pertence a um único tenant (F-04). NULL e '''' não contam.';
+  'Uma instância Evolution pertence a um único tenant (F-04), comparando com btrim. NULL e vazio não contam.';
 
 -- ---------------------------------------------------------------------------
 -- 2. Guard: corpo de 20261030140000 + evolution_instance_name
@@ -135,3 +146,12 @@ grant  execute on function public.guard_user_settings_privileged_columns() to se
 --    uns dos outros.
 -- ---------------------------------------------------------------------------
 drop policy if exists "org members can view user_settings" on public.user_settings;
+
+-- ---------------------------------------------------------------------------
+-- 4. T9-M1: writer da organização deixa de inserir/alterar/apagar a linha de
+--    um colega. Ficam as policies da própria linha e as RESTRICTIVE
+--    "org role gate ..." (visualizador continua sem escrita).
+-- ---------------------------------------------------------------------------
+drop policy if exists "org writers can update user_settings" on public.user_settings;
+drop policy if exists "org writers can delete user_settings" on public.user_settings;
+drop policy if exists "org writers can insert user_settings" on public.user_settings;

@@ -3,16 +3,37 @@
 -- Restaura o estado logo após 20261030140000_webhook_tokens:
 --   * recria a policy SELECT "org members can view user_settings" (definição de
 --     produção: for select using (is_org_member(organization_id)));
+--   * recria as policies "org writers can insert/update/delete user_settings"
+--     (T9-M1) com as expressões exatas de produção;
 --   * remove o índice único de evolution_instance_name;
 --   * o guard volta ao corpo EXATO de 20261030140000 (sem evolution_instance_name).
 --
 -- ATENÇÃO: com a policy recriada, membros da mesma organização voltam a ler as
--- chaves de API e o webhook_token uns dos outros (M-01).
+-- chaves de API e o webhook_token uns dos outros (M-01), e writers da org voltam
+-- a poder alterar/apagar a linha de colegas (T9-M1).
 
 drop policy if exists "org members can view user_settings" on public.user_settings;
 create policy "org members can view user_settings" on public.user_settings
   for select
   using (is_org_member(organization_id));
+
+-- T9-M1: policies permissivas de escrita dos writers da organização
+-- (definição exata do backup de produção; permissive, roles public).
+drop policy if exists "org writers can insert user_settings" on public.user_settings;
+create policy "org writers can insert user_settings" on public.user_settings
+  for insert
+  with check (is_org_writer(organization_id));
+
+drop policy if exists "org writers can update user_settings" on public.user_settings;
+create policy "org writers can update user_settings" on public.user_settings
+  for update
+  using (is_org_writer(organization_id))
+  with check (is_org_writer(organization_id));
+
+drop policy if exists "org writers can delete user_settings" on public.user_settings;
+create policy "org writers can delete user_settings" on public.user_settings
+  for delete
+  using (is_org_writer(organization_id));
 
 drop index if exists public.user_settings_evolution_instance_name_key;
 

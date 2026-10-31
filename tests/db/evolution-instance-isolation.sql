@@ -1,9 +1,10 @@
--- Teste de banco: instância Evolution única e protegida + leitura de
--- user_settings só da própria linha (Task 9, Sprint 1; achados F-04 e M-01).
+-- Teste de banco: instância Evolution única e protegida + leitura e escrita de
+-- user_settings só da própria linha (Task 9, Sprint 1; achados F-04, M-01,
+-- T9-M1 e T9-L2).
 --
 -- Retorna UMA LINHA POR CENÁRIO (colunas: cenario, ok, detalhe).
 --   ok = true   comportamento esperado DEPOIS de 20261030150000_unique_evolution_instance
---   ok = false  falha (antes da migration, os cenários 1, 2, 3, 5 e 7 dão false)
+--   ok = false  falha (antes da migration, os cenários 1, 2, 3, 5, 7, 10, 11 e 12 dão false)
 --   ok = null   usuário de teste não encontrado (ver detalhe)
 --
 -- Usuários de teste (o mais antigo de cada perfil em public.user_settings):
@@ -297,6 +298,95 @@ begin
     perform set_config('teste.e9_ok', v_ok::text, true);
     perform set_config('teste.e9_det', v_det, true);
   end if;
+  -- 10. T9-M1: writer da org (admin de org) faz UPDATE SEM WHERE → só a própria
+  --     linha muda; a linha do colega fica intacta.
+  v_uid := nullif(current_setting('teste.org_admin'), '')::uuid;
+  v_alvo := nullif(current_setting('teste.membro'), '')::uuid;
+  if v_uid is null or v_alvo is null then
+    perform set_config('teste.e10_ok', '', true);
+    perform set_config('teste.e10_det', 'sem admin de org com outro membro', true);
+  else
+    begin
+      begin
+        perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+        perform set_config('role', 'authenticated', true);
+        update public.user_settings set company_name = 'teste-e10';
+        get diagnostics v_rows = row_count;
+        perform set_config('role', 'postgres', true);
+        select count(*) into v_n from public.user_settings
+          where user_id = v_alvo and company_name is not distinct from 'teste-e10';
+        v_ok := v_n = 0 and v_rows = 1;
+        v_det := format('linhas alteradas: %s; linha do colega alterada: %s', v_rows, v_n);
+      exception
+        when others then
+          if sqlerrm = 'teste_desfaz' then raise; end if;
+          v_ok := false; v_det := sqlstate || ' ' || sqlerrm;
+      end;
+      raise exception 'teste_desfaz';
+    exception when others then
+      if sqlerrm <> 'teste_desfaz' then v_ok := false; v_det := sqlstate || ' ' || sqlerrm; end if;
+    end;
+    perform set_config('teste.e10_ok', v_ok::text, true);
+    perform set_config('teste.e10_det', v_det, true);
+  end if;
+
+  -- 11. T9-M1: writer da org faz DELETE SEM WHERE → a linha do colega continua.
+  v_uid := nullif(current_setting('teste.org_admin'), '')::uuid;
+  v_alvo := nullif(current_setting('teste.membro'), '')::uuid;
+  if v_uid is null or v_alvo is null then
+    perform set_config('teste.e11_ok', '', true);
+    perform set_config('teste.e11_det', 'sem admin de org com outro membro', true);
+  else
+    begin
+      begin
+        perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+        perform set_config('role', 'authenticated', true);
+        delete from public.user_settings;
+        get diagnostics v_rows = row_count;
+        perform set_config('role', 'postgres', true);
+        select count(*) into v_n from public.user_settings where user_id = v_alvo;
+        v_ok := v_n = 1;
+        v_det := format('linhas apagadas: %s; linha do colega existe: %s', v_rows, v_n);
+      exception
+        when others then
+          if sqlerrm = 'teste_desfaz' then raise; end if;
+          v_ok := false; v_det := sqlstate || ' ' || sqlerrm;
+      end;
+      raise exception 'teste_desfaz';
+    exception when others then
+      if sqlerrm <> 'teste_desfaz' then v_ok := false; v_det := sqlstate || ' ' || sqlerrm; end if;
+    end;
+    perform set_config('teste.e11_ok', v_ok::text, true);
+    perform set_config('teste.e11_det', v_det, true);
+  end if;
+
+  -- 12. T9-L2: unicidade ignora espaços nas pontas ('x' e ' x ') → 23505.
+  v_uid := nullif(current_setting('teste.op'), '')::uuid;
+  v_alvo := nullif(current_setting('teste.membro'), '')::uuid;
+  if v_uid is null or v_alvo is null then
+    perform set_config('teste.e12_ok', '', true);
+    perform set_config('teste.e12_det', 'faltam dois usuários (operador e membro)', true);
+  else
+    begin
+      begin
+        perform set_config('request.jwt.claims', json_build_object('role', 'service_role')::text, true);
+        perform set_config('role', 'service_role', true);
+        update public.user_settings set evolution_instance_name = c_inst where user_id = v_uid;
+        update public.user_settings set evolution_instance_name = '  ' || c_inst || ' ' where user_id = v_alvo;
+        v_ok := false; v_det := 'duplicata com espaços aceita';
+      exception
+        when unique_violation then v_ok := true; v_det := '23505';
+        when others then
+          if sqlerrm = 'teste_desfaz' then raise; end if;
+          v_ok := false; v_det := sqlstate || ' ' || sqlerrm;
+      end;
+      raise exception 'teste_desfaz';
+    exception when others then
+      if sqlerrm <> 'teste_desfaz' then v_ok := false; v_det := sqlstate || ' ' || sqlerrm; end if;
+    end;
+    perform set_config('teste.e12_ok', v_ok::text, true);
+    perform set_config('teste.e12_det', v_det, true);
+  end if;
 end $$;
 
 select c.cenario,
@@ -311,7 +401,10 @@ from (values
   (6, '6. controle: vazio não conta para a unicidade'),
   (7, '7. M-01: membro não lê a linha de outro membro da org'),
   (8, '8. controle: admin da plataforma vê outras linhas'),
-  (9, '9. controle: admin da plataforma define a instância')
+  (9, '9. controle: admin da plataforma define a instância'),
+  (10, '10. T9-M1: writer da org (UPDATE sem WHERE) não altera linha de colega; própria sim'),
+  (11, '11. T9-M1: writer da org (DELETE sem WHERE) não apaga linha de colega'),
+  (12, '12. T9-L2: instância igual com espaços nas pontas → 23505')
 ) as c(n, cenario)
 order by c.n;
 
