@@ -5,8 +5,10 @@
 --               20261030130000_guard_user_settings_privileges)
 --   ok = false  falha de segurança / comportamento incorreto
 --   ok = null   usuário de teste não encontrado na base (ver detalhe)
--- Esperado ANTES da migration: cenários 1, 2, 3, 4 e 7 com ok=false
--- (o 4 também falha antes: is_admin() é true para o admin de organização).
+-- Esperado ANTES da migration: cenários 1, 2, 3, 4, 7, 9 e 10 com ok=false
+-- (o 4 também falha antes: is_admin() é true para o admin de organização;
+-- 9 e 10 falham também se is_platform_admin/is_admin não exigirem ausência de
+-- linha em organization_members).
 -- Esperado DEPOIS: todos ok=true.
 --
 -- Usuários de teste (lidos de public.user_settings, o mais antigo de cada perfil):
@@ -14,6 +16,9 @@
 --   teste.op        operador sem organização  role='operador' and organization_id is null
 --   teste.org_admin admin COM organização     role='admin' and organization_id is not null
 --   teste.plat      admin da plataforma       role='admin' and organization_id is null
+--                                             e SEM linha em organization_members
+--   teste.adm_vinc  admin de org com user_settings.organization_id nulo mas COM
+--                   linha em organization_members (fluxo de signup/approve-user)
 --
 -- Isolamento: TUDO roda dentro de begin; ... rollback;. Além disso cada cenário
 -- roda num sub-bloco que termina com a exceção sentinela 'teste_desfaz', o que
@@ -54,9 +59,15 @@ select set_config('teste.org_admin', coalesce((
   where role = 'admin' and organization_id is not null
   order by created_at limit 1), ''), true);
 select set_config('teste.plat', coalesce((
-  select user_id::text from public.user_settings
-  where role = 'admin' and organization_id is null
-  order by created_at limit 1), ''), true);
+  select us.user_id::text from public.user_settings us
+  where us.role = 'admin' and us.organization_id is null
+    and not exists (select 1 from public.organization_members om where om.user_id = us.user_id)
+  order by us.created_at limit 1), ''), true);
+select set_config('teste.adm_vinc', coalesce((
+  select us.user_id::text from public.user_settings us
+  where us.role = 'admin' and us.organization_id is null
+    and exists (select 1 from public.organization_members om where om.user_id = us.user_id)
+  order by us.created_at limit 1), ''), true);
 
 -- ---------------------------------------------------------------------------
 -- 1. visualizador pendente tenta virar admin na própria linha
@@ -345,6 +356,80 @@ begin
   perform set_config('teste.c8_det', v_det, true);
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- 9. admin com user_settings.organization_id nulo mas COM vínculo em
+--    organization_members NÃO é admin da plataforma: não vê user_settings de
+--    outras orgs / sem org (fora a própria linha)
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := nullif(current_setting('teste.adm_vinc'), '')::uuid;
+  v_org uuid;
+  v_total int; v_fora int; v_ok boolean; v_det text;
+begin
+  if v_uid is null then
+    v_det := 'sem admin com organization_id nulo e vínculo em organization_members na base';
+  else
+    select organization_id into v_org from public.organization_members where user_id = v_uid limit 1;
+    begin
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      select count(*),
+             count(*) filter (where user_id <> v_uid and organization_id is distinct from v_org)
+        into v_total, v_fora
+        from public.user_settings;
+      v_ok := (v_fora = 0);
+      v_det := format('visíveis: %s; fora da org do vínculo (excluindo a própria linha): %s', v_total, v_fora);
+      raise exception 'teste_desfaz';
+    exception
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := false; v_det := 'erro inesperado P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := false; v_det := 'erro inesperado ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c9_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c9_det', v_det, true);
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- 10. o mesmo usuário do cenário 9 tenta alterar role do operador sem org
+--     -> 0 linhas ou negado (qualquer erro = escrita não aconteceu)
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_uid uuid := nullif(current_setting('teste.adm_vinc'), '')::uuid;
+  v_alvo uuid := nullif(current_setting('teste.op'), '')::uuid;
+  v_n int; v_ok boolean; v_det text;
+begin
+  if v_uid is null or v_alvo is null then
+    v_det := 'sem admin com vínculo e organization_id nulo ou sem operador sem organização na base';
+  else
+    begin
+      perform set_config('role', 'authenticated', true);
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid, 'role', 'authenticated')::text, true);
+      update public.user_settings set role = 'visualizador' where user_id = v_alvo;
+      get diagnostics v_n = row_count;
+      v_ok := (v_n = 0);
+      v_det := format('%s linha(s) alterada(s)', v_n);
+      raise exception 'teste_desfaz';
+    exception
+      when insufficient_privilege then
+        v_ok := true; v_det := 'negado (42501): ' || sqlerrm;
+      when raise_exception then
+        if sqlerrm <> 'teste_desfaz' then
+          v_ok := true; v_det := 'negado por erro P0001: ' || sqlerrm;
+        end if;
+      when others then
+        v_ok := true; v_det := 'negado por erro ' || sqlstate || ': ' || sqlerrm;
+    end;
+  end if;
+  perform set_config('teste.c10_ok', coalesce(v_ok::text, ''), true);
+  perform set_config('teste.c10_det', v_det, true);
+end $$;
+
 select r.cenario,
        nullif(current_setting('teste.c' || r.n || '_ok'), '')::boolean as ok,
        current_setting('teste.c' || r.n || '_det') as detalhe
@@ -356,7 +441,9 @@ from (values
   (5, '5. admin da plataforma altera role de outro usuário -> permitido'),
   (6, '6. usuário comum altera campo não sensível próprio -> permitido'),
   (7, '7. INSERT próprio com role=admin -> sai visualizador/pendente'),
-  (8, '8. (controle) service_role aprova usuário -> permitido')
+  (8, '8. (controle) service_role aprova usuário -> permitido'),
+  (9, '9. admin com org_id nulo mas com vínculo não vê outras orgs'),
+  (10, '10. admin com org_id nulo mas com vínculo altera role de outro -> 0 linhas/negado')
 ) as r(n, cenario)
 order by r.n;
 

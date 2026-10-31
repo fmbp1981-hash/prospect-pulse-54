@@ -21,7 +21,13 @@
 --      admin ler/alterar user_settings (com chaves de API) de TODAS as empresas.
 --
 -- Correção:
---   * is_platform_admin(): role admin SEM organização = admin da plataforma.
+--   * is_platform_admin(): admin da plataforma = user_settings.role = 'admin',
+--     user_settings.organization_id nulo E nenhuma linha em
+--     organization_members. A ausência de vínculo é obrigatória: o signup
+--     (init-user-settings) grava user_settings antes da membership e o
+--     approve-user (service_role) não preenche organization_id, então um admin
+--     de empresa cliente pode ter user_settings.organization_id nulo
+--     (confirmado em produção em 2026-10-30: 2 usuários nessa situação).
 --   * is_admin() passa a ter o mesmo corpo. Todas as policies que já usam
 --     is_admin() (user_settings, audit_logs, leads_prospeccao, role_changes)
 --     passam a valer só para o admin da plataforma, sem reescrever policies.
@@ -30,6 +36,12 @@
 --   * Trigger guard BEFORE INSERT OR UPDATE: só service_role, conexão direta
 --     sem JWT (migrations) ou o admin da plataforma alteram role, pending_setup,
 --     approved_by, rejected, rejected_at e rejected_by.
+--
+-- Mudança de comportamento ACEITA (decisão do controller, 2026-10-30): o admin
+-- de organização deixa de alterar role / pending_setup de outros usuários pela
+-- tela RoleManagement (client da sessão), inclusive membros da própria org
+-- (42501). A gestão de roles com o client da sessão fica restrita ao admin da
+-- plataforma; as rotas /api/admin/* (service_role) não são afetadas pelo guard.
 
 -- ---------------------------------------------------------------------------
 -- 1. Admin da plataforma (grupo B: helper de RLS)
@@ -47,11 +59,16 @@ as $$
     where user_id = auth.uid()
       and role = 'admin'
       and organization_id is null
+      and not exists (
+        select 1 from public.organization_members om
+        where om.user_id = auth.uid()
+      )
   );
 $$;
 
 comment on function public.is_platform_admin() is
-  'true se o usuário atual é admin da PLATAFORMA (user_settings.role = admin e organization_id nulo). '
+  'true se o usuário atual é admin da PLATAFORMA (user_settings.role = admin, organization_id nulo e '
+  'nenhuma linha em organization_members). '
   'Admin de organização é verificado por is_org_admin(org).';
 
 revoke execute on function public.is_platform_admin() from public, anon;
@@ -77,6 +94,10 @@ as $$
     where user_id = auth.uid()
       and role = 'admin'
       and organization_id is null
+      and not exists (
+        select 1 from public.organization_members om
+        where om.user_id = auth.uid()
+      )
   );
 $$;
 
