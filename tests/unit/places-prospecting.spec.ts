@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   recordUsage: vi.fn(async () => undefined),
   dbHandler: vi.fn(),
   calls: [] as unknown[],
+  serviceCalls: [] as unknown[][],
   contactFindById: vi.fn(),
   contactFindCompany: vi.fn(),
   contactUpdate: vi.fn(),
@@ -40,6 +41,17 @@ vi.mock('@/lib/supabase/server', async () => {
       const fake = create((call) => mocks.dbHandler(call));
       mocks.calls = fake.calls;
       return { ...fake.client, auth: { getUser: async () => ({ data: { user: { id: USER } } }) } };
+    },
+  };
+});
+// service_role: só a leitura do último Lead-NNN global (prospected-leads.repository).
+vi.mock('@supabase/supabase-js', async () => {
+  const { createFakeSupabase: create } = await import('./helpers/fake-supabase');
+  return {
+    createClient: () => {
+      const fake = create((call) => mocks.dbHandler(call));
+      mocks.serviceCalls.push(fake.calls);
+      return fake.client;
     },
   };
 });
@@ -116,6 +128,14 @@ function fetchUrls(): string[] {
 
 let existingIds: string[];
 let lastLeadRef: string | null;
+let insertResult: (lead: Record<string, unknown>) => FakeResult;
+
+function uniqueViolation(constraint: string): FakeResult {
+  return {
+    data: null,
+    error: { code: '23505', message: `duplicate key value violates unique constraint "${constraint}"` },
+  };
+}
 
 function defaultDb(call: FakeCall): FakeResult | undefined {
   if (call.table !== 'leads_prospeccao') return undefined;
@@ -126,8 +146,18 @@ function defaultDb(call: FakeCall): FakeResult | undefined {
     const ids = (filterValue(call, 'id', 'in') as string[] | undefined) ?? [];
     return { data: ids.filter((id) => existingIds.includes(id)).map((id) => ({ id })), error: null };
   }
-  if (call.op === 'insert') return { data: null, error: null };
+  if (call.op === 'insert') return insertResult(call.payload as Record<string, unknown>);
   return undefined;
+}
+
+function serviceDbCalls(): FakeCall[] {
+  return (mocks.serviceCalls as FakeCall[][]).flat();
+}
+
+function insertAttempts(): Array<Record<string, unknown>> {
+  return dbCalls()
+    .filter((c) => c.table === 'leads_prospeccao' && c.op === 'insert')
+    .map((c) => c.payload as Record<string, unknown>);
 }
 
 function dbCalls(): FakeCall[] {
@@ -135,9 +165,7 @@ function dbCalls(): FakeCall[] {
 }
 
 function insertedLeads(): Array<Record<string, unknown>> {
-  return dbCalls()
-    .filter((c) => c.table === 'leads_prospeccao' && c.op === 'insert')
-    .map((c) => c.payload as Record<string, unknown>);
+  return insertAttempts().filter((lead) => insertResult(lead).error === null);
 }
 
 function post(body: unknown) {
@@ -164,6 +192,8 @@ beforeEach(() => {
   lastLeadRef = 'Lead-007';
   llmResponse = () =>
     json({ choices: [{ message: { content: 'Mensagem reescrita pela IA' } }], usage: { total_tokens: 42 } });
+  mocks.serviceCalls.length = 0;
+  insertResult = () => ({ data: null, error: null });
   mocks.dbHandler.mockImplementation(defaultDb);
   mocks.orgForUser.mockResolvedValue(ORG);
   mocks.resolveConnection.mockImplementation(async (orgId: string, category: string, provider?: string) => {
@@ -238,8 +268,12 @@ describe('POST /api/prospecting/places', () => {
     expect(leads[0]).toMatchObject({ id: 'place-a', empresa: 'Padaria Alfa', telefone: '+55 81 99999-0001', bairro_regiao: 'Boa Viagem' });
 
     // Numeração Lead-NNN calculada dentro da organização.
-    const lastLeadQuery = dbCalls().find((c) => c.table === 'leads_prospeccao' && c.columns === 'lead');
-    expect(lastLeadQuery && filterValue(lastLeadQuery, 'organization_id')).toBe(ORG);
+    // `lead` é UNIQUE global: o último número vem da tabela inteira (service_role),
+    // lendo só a coluna `lead`; a sessão não faz essa consulta.
+    const lastLeadQuery = serviceDbCalls().find((c) => c.table === 'leads_prospeccao' && c.op === 'select');
+    expect(lastLeadQuery?.columns).toBe('lead');
+    expect(lastLeadQuery && filterValue(lastLeadQuery, 'organization_id')).toBeUndefined();
+    expect(dbCalls().some((c) => c.columns === 'lead')).toBe(false);
 
     // Consumo: requests do Google e tokens da LLM na organização.
     expect(mocks.recordUsage).toHaveBeenCalledWith(
@@ -376,6 +410,70 @@ describe('POST /api/prospecting/places', () => {
     });
     const res = await placesPost(post(NICHE_BODY));
     expect((await res.json()).data).toMatchObject({ insertedCount: 1, failedProcessing: 1 });
+  });
+
+  it('conflito no número do lead (UNIQUE global) avança o número e grava o lote', async () => {
+    // Outra prospecção simultânea já gravou Lead-008 e Lead-009.
+    const taken = new Set(['Lead-008', 'Lead-009']);
+    insertResult = (lead) => (taken.has(String(lead.lead)) ? uniqueViolation('leads_prospeccao_lead_key') : { data: null, error: null });
+    const res = await placesPost(post(NICHE_BODY));
+    expect((await res.json()).data).toMatchObject({ insertedCount: 2, failedInsertion: 0 });
+    expect(insertAttempts().map((l) => [l.id, l.lead])).toEqual([
+      ['place-a', 'Lead-008'],
+      ['place-a', 'Lead-009'],
+      ['place-a', 'Lead-010'],
+      ['place-b', 'Lead-011'],
+    ]);
+    expect(insertedLeads().map((l) => l.lead)).toEqual(['Lead-010', 'Lead-011']);
+  });
+
+  it('conflito no meio do lote não faz os seguintes repetirem um número que colidiu', async () => {
+    googlePlaces = [PLACE_A, PLACE_B, { ...PLACE_B, place_id: 'place-c', name: 'Padaria Gama', international_phone_number: '+55 81 99999-0003' }];
+    // Lead-009 foi gravado por outra prospecção entre a leitura do número e o 2º insert.
+    insertResult = (lead) => (lead.lead === 'Lead-009' ? uniqueViolation('leads_prospeccao_lead_key') : { data: null, error: null });
+    const res = await placesPost(post(NICHE_BODY));
+    expect((await res.json()).data).toMatchObject({ insertedCount: 3, failedInsertion: 0 });
+    expect(insertedLeads().map((l) => [l.id, l.lead])).toEqual([
+      ['place-a', 'Lead-008'],
+      ['place-b', 'Lead-010'],
+      ['place-c', 'Lead-011'],
+    ]);
+  });
+
+  it('número do lead esgota após 5 tentativas → falha de inserção sem repetir números', async () => {
+    insertResult = (lead) => (lead.id === 'place-a' ? uniqueViolation('leads_prospeccao_lead_key') : { data: null, error: null });
+    const res = await placesPost(post(NICHE_BODY));
+    expect((await res.json()).data).toMatchObject({ insertedCount: 1, failedInsertion: 1 });
+    const numbers = insertAttempts().map((l) => l.lead);
+    expect(numbers).toEqual(['Lead-008', 'Lead-009', 'Lead-010', 'Lead-011', 'Lead-012', 'Lead-013']);
+    expect(insertedLeads().map((l) => [l.id, l.lead])).toEqual([['place-b', 'Lead-013']]);
+  });
+
+  it('conflito no whatsapp (UNIQUE global) regrava o lead com whatsapp null e mantém o telefone', async () => {
+    insertResult = (lead) =>
+      lead.id === 'place-a' && lead.whatsapp ? uniqueViolation('idx_leads_whatsapp_unique') : { data: null, error: null };
+    const res = await placesPost(post(NICHE_BODY));
+    expect((await res.json()).data).toMatchObject({ insertedCount: 2, failedInsertion: 0 });
+    const saved = insertedLeads().find((l) => l.id === 'place-a');
+    expect(saved).toMatchObject({ whatsapp: null, telefone: '+55 81 99999-0001', lead: 'Lead-008' });
+    expect(insertedLeads().find((l) => l.id === 'place-b')).toMatchObject({ lead: 'Lead-009' });
+  });
+
+  it('erro genérico de inserção → failedInsertion com só o código no log', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    insertResult = (lead) =>
+      lead.id === 'place-a' ? { data: null, error: { code: '42501', message: 'new row violates row-level security policy Padaria Alfa' } } : { data: null, error: null };
+    const res = await placesPost(post(NICHE_BODY));
+    expect((await res.json()).data).toMatchObject({ insertedCount: 1, failedInsertion: 1 });
+    // O número não consumido é reaproveitado pelo próximo lead (nenhum conflito nele).
+    expect(insertedLeads().map((l) => [l.id, l.lead])).toEqual([['place-b', 'Lead-008']]);
+    const logged = JSON.stringify(errSpy.mock.calls);
+    expect(logged).toContain('42501');
+    expect(logged).not.toContain('Padaria Alfa');
+    expect(logged).not.toContain('99999');
+    errSpy.mockRestore();
+    infoSpy.mockRestore();
   });
 
   it('logs não trazem telefone, endereço nem nome da empresa', async () => {

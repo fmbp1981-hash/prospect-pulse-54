@@ -273,6 +273,45 @@ async function searchPlaces(
   return results.slice(0, input.quantity);
 }
 
+const UNIQUE_VIOLATION = '23505';
+const LEAD_NUMBER_CONSTRAINT = 'leads_prospeccao_lead_key';
+const WHATSAPP_CONSTRAINT = 'idx_leads_whatsapp_unique';
+const MAX_LEAD_NUMBER_ATTEMPTS = 5;
+
+/**
+ * Insere um lead com o próximo `Lead-NNN` livre. `lead` é UNIQUE global:
+ * conflito no número avança para o seguinte e regrava (até 5 tentativas),
+ * nunca repetindo um número que já colidiu. `whatsapp` também é UNIQUE
+ * global: conflito nele regrava o mesmo lead com `whatsapp: null` (o número
+ * continua em `telefone`).
+ */
+async function insertLead(
+  leads: ProspectedLeadsRepository,
+  lead: Omit<ProspectedLeadInsert, 'lead'>,
+  startNumber: number
+): Promise<{ ok: boolean; nextNumber: number; code?: string; constraint?: string }> {
+  let number = startNumber;
+  let row = lead;
+  let numberAttempts = 0;
+  for (;;) {
+    const result = await leads.insert({ ...row, lead: formatLeadNumber(number) });
+    if (result.ok) return { ok: true, nextNumber: number + 1 };
+    if (result.code === UNIQUE_VIOLATION && result.constraint === LEAD_NUMBER_CONSTRAINT) {
+      number++;
+      numberAttempts++;
+      if (numberAttempts >= MAX_LEAD_NUMBER_ATTEMPTS) {
+        return { ok: false, nextNumber: number, code: result.code, constraint: result.constraint };
+      }
+      continue;
+    }
+    if (result.code === UNIQUE_VIOLATION && result.constraint === WHATSAPP_CONSTRAINT && row.whatsapp) {
+      row = { ...row, whatsapp: null };
+      continue;
+    }
+    return { ok: false, nextNumber: number, code: result.code, constraint: result.constraint };
+  }
+}
+
 export async function prospectPlaces(params: PlacesProspectingParams): Promise<PlacesProspectingResult> {
   const { organizationId, userId, input, leads } = params;
 
@@ -372,13 +411,19 @@ export async function prospectPlaces(params: PlacesProspectingParams): Promise<P
         })
       );
 
-      let next = withMessages.length > 0 ? nextLeadNumber(await leads.findLastLeadRef(organizationId)) : 1;
+      let next = withMessages.length > 0 ? nextLeadNumber(await leads.findLastGlobalLeadRef()) : 1;
       for (const lead of withMessages) {
-        if (await leads.insert({ ...lead, lead: formatLeadNumber(next) })) {
+        const outcome = await insertLead(leads, lead, next);
+        next = outcome.nextNumber;
+        if (outcome.ok) {
           insertedCount++;
-          next++;
         } else {
           failedInsertion++;
+          console.error('[prospecting/places] insert_failed', {
+            organizationId,
+            code: outcome.code,
+            constraint: outcome.constraint,
+          });
         }
       }
     }
