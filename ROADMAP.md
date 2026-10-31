@@ -274,7 +274,7 @@ Para contribuir com o projeto:
 
 - **Repositório:** prospect-pulse-54
 - **Documentação:** CLAUDE.md
-- **Guias:** GUIA_TESTE_FINAL.md, GUIA_INTEGRACAO_N8N.md
+- **Guias:** GUIA_TESTE_FINAL.md, docs/arquitetura-atendimento-whatsapp.md
 
 ---
 

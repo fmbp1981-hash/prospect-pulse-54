@@ -75,7 +75,6 @@ export const transferConsultantTool: AgentTool = {
         status_msg_wa: 'Transferido',
         estagio_pipeline: 'Transferido para Consultor',
         data_transferencia: new Date().toISOString(),
-        consultor_responsavel: 'Felipe',
       });
       dbOk = true;
     } catch (err) {

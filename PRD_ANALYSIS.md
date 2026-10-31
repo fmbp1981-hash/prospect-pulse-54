@@ -267,7 +267,7 @@ Implementações que **superam** o PRD original:
 - CLAUDE.md (21KB) - Guia para AI assistants
 - ROADMAP.md - Planejamento
 - GUIA_TESTE_FINAL.md - Troubleshooting
-- GUIA_INTEGRACAO_N8N.md - Integração opcional
+- docs/arquitetura-atendimento-whatsapp.md - Fluxo nativo de atendimento WhatsApp
 - PRD_ANALYSIS.md (este documento)
 
 ---
@@ -488,4 +488,4 @@ O **LeadFinder Pro** não apenas atende o PRD, mas **supera** as expectativas co
 - [ROADMAP.md](./ROADMAP.md) - Planejamento de Sprints
 - [CLAUDE.md](./CLAUDE.md) - Guia para AI Assistants
 - [GUIA_TESTE_FINAL.md](./GUIA_TESTE_FINAL.md) - Testes e Troubleshooting
-- [GUIA_INTEGRACAO_N8N.md](./GUIA_INTEGRACAO_N8N.md) - Integração n8n (opcional)
+- [docs/arquitetura-atendimento-whatsapp.md](./docs/arquitetura-atendimento-whatsapp.md) - Fluxo nativo de atendimento WhatsApp

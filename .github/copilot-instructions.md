@@ -31,7 +31,7 @@
 - **Google Places API**: Used in Edge Functions for lead search
 - **Firecrawl API**: Website enrichment (optional)
 - **Lovable AI Gateway**: WhatsApp message generation (optional)
-- **Evolution API**: WhatsApp dispatch (optional, see `GUIA_INTEGRACAO_N8N.md`)
+- **Evolution API**: WhatsApp dispatch and inbound webhook (native routes, see `docs/arquitetura-atendimento-whatsapp.md`)
 
 ## Common Tasks
 - **Add Page**: Create in `src/pages/`, add route in `App.tsx`, link in sidebar
