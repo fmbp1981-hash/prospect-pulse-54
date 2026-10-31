@@ -7,13 +7,14 @@
  * - Só o admin da PLATAFORMA (public.platform_admins) pode aprovar
  * - newRole 'admin' é recusado (400): promoção a admin só por SQL/migration
  * - Atualiza user_settings: role=newRole, pending_setup=false, approved_by=adminId
- * - Envia email de aprovação via Resend
+ * - Envia email de aprovação pelo remetente da plataforma (getPlatformEmailSender)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { isPlatformAdmin } from '@/lib/auth/platform-admin';
+import { getPlatformEmailSender } from '@/lib/connectors/email/get-email-sender';
 import { z } from 'zod';
 
 const approveUserSchema = z.object({
@@ -85,9 +86,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
     }
 
-    // 6. Enviar email via Resend
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const fromEmail = process.env.FROM_EMAIL || 'noreply@intellixai.com.br';
+    // 6. Enviar email de aprovação (não bloqueia a aprovação)
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://alpha.dualite.dev';
 
     const roleLabels: Record<string, string> = {
@@ -98,17 +97,12 @@ export async function POST(req: NextRequest) {
     const roleLabel = roleLabels[newRole] || newRole;
     const userName = targetUser.user_metadata?.full_name || targetUser.email?.split('@')[0] || 'Usuário';
 
-    if (resendApiKey && targetUser.email) {
+    if (targetUser.email) {
       try {
-        await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: `IntelliX.AI <${fromEmail}>`,
-            to: [targetUser.email],
+        const sender = await getPlatformEmailSender();
+        const result = await sender.sendBatch([
+          {
+            to: targetUser.email,
             subject: 'Seu acesso ao LeadFinder Pro foi aprovado!',
             html: `
               <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1a1a1a;">
@@ -132,13 +126,16 @@ export async function POST(req: NextRequest) {
                 </p>
               </div>
             `,
-          }),
-        });
+          },
+        ]);
+        if (result.sent === 0) {
+          console.warn('[approve-user] Provedor recusou o e-mail de aprovação (não bloqueia aprovação).');
+        }
       } catch (emailErr) {
-        console.warn('[approve-user] Erro ao enviar email (não bloqueia aprovação):', emailErr);
+        console.warn('[approve-user] E-mail de aprovação não enviado (não bloqueia aprovação):', {
+          reason: emailErr instanceof Error ? emailErr.name : 'erro desconhecido',
+        });
       }
-    } else if (!resendApiKey) {
-      console.warn('[approve-user] RESEND_API_KEY não configurada — email não enviado.');
     }
 
     return NextResponse.json({ success: true, email: targetUser.email });

@@ -7,7 +7,8 @@
  * ser dela (senão 404) e o envio sai pela conexão ativa da organização
  * (getWhatsAppForOrganization). Sem conexão → 409 WHATSAPP_NOT_CONFIGURED antes
  * de qualquer efeito (sem 'running', sem campaign_sends, sem fetch).
- * O canal de e-mail é da Task 7 e não é coberto aqui.
+ * Canal e-mail (Task 7): mesma regra de organização (404 para outra org), envio
+ * pela conexão de e-mail da organização e 409 EMAIL_NOT_CONFIGURED sem efeitos.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
@@ -22,16 +23,17 @@ const ORG_B = '0b0b0b0b-0000-0000-0000-00000000000b';
 const ORG_SEM_WA = '0c0c0c0c-0000-0000-0000-00000000000c';
 
 let campaignOrg: string | null = ORG_A;
+let campaignChannel: 'whatsapp' | 'email' = 'whatsapp';
 
 function handler(call: FakeCall): FakeResult | undefined {
   if (call.table === 'campaigns' && call.op === 'select') {
     return {
-      data: { id: CAMPAIGN, status: 'draft', channel: 'whatsapp', body: 'Olá', audience_filter: {}, organization_id: campaignOrg, user_id: USER },
+      data: { id: CAMPAIGN, status: 'draft', channel: campaignChannel, subject: 'Assunto {{empresa}}', body: 'Olá', audience_filter: {}, organization_id: campaignOrg, user_id: USER },
       error: null,
     };
   }
   if (call.table === 'leads_prospeccao') {
-    return { data: [{ id: 'lead-1', empresa: 'Empresa 1', whatsapp: '+55 81 99999-0001' }], error: null };
+    return { data: [{ id: 'lead-1', empresa: 'Empresa 1', whatsapp: '+55 81 99999-0001', email: 'lead@empresa1.com' }], error: null };
   }
   if (call.table === 'user_settings') {
     // Legado preenchido: NÃO pode ser usado como fallback.
@@ -45,7 +47,7 @@ function handler(call: FakeCall): FakeResult | undefined {
 
 const fake = createFakeSupabase(handler);
 
-const mocks = vi.hoisted(() => ({ findOrgForUser: vi.fn(), sendText: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findOrgForUser: vi.fn(), sendText: vi.fn(), sendBatch: vi.fn() }));
 
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => fake.client }));
 vi.mock('@supabase/ssr', () => ({
@@ -58,6 +60,11 @@ vi.mock('@/lib/auth/require-writer', async (orig) => ({
 }));
 vi.mock('@/lib/repositories/connections.repository', () => ({
   connectionsRepository: { findOrganizationIdForUser: mocks.findOrgForUser },
+}));
+
+vi.mock('@/lib/connectors/email/get-email-sender', async (orig) => ({
+  ...(await orig<typeof import('@/lib/connectors/email/get-email-sender')>()),
+  getEmailSenderForOrganization: (orgId: string) => emailFactory(orgId),
 }));
 
 import { POST } from '../../app/api/campaigns/[id]/send/route';
@@ -75,6 +82,11 @@ const factory = vi.fn(async (orgId: string): Promise<OrgWhatsApp> => {
   throw new ConnectionNotConfiguredError(orgId, 'whatsapp');
 });
 
+const emailFactory = vi.fn(async (orgId: string) => {
+  if (orgId === ORG_A) return { from: 'Org A <c@a.com.br>', sendBatch: mocks.sendBatch };
+  throw new ConnectionNotConfiguredError(orgId, 'email');
+});
+
 const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
 
 function send() {
@@ -84,6 +96,7 @@ function send() {
 function noEffects() {
   expect(fetchMock).not.toHaveBeenCalled();
   expect(mocks.sendText).not.toHaveBeenCalled();
+  expect(mocks.sendBatch).not.toHaveBeenCalled();
   expect(fake.calls.some((c) => c.table === 'campaign_sends')).toBe(false);
   expect(
     fake.calls.some((c) => c.table === 'campaigns' && c.op === 'update' && JSON.stringify(c.payload).includes('running'))
@@ -96,6 +109,8 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
   setWhatsAppProviderFactoryForTests(factory);
   campaignOrg = ORG_A;
+  campaignChannel = 'whatsapp';
+  mocks.sendBatch.mockResolvedValue({ sent: 1, failed: 0, ids: ['e1'] });
   mocks.findOrgForUser.mockResolvedValue(ORG_A);
   mocks.sendText.mockResolvedValue({ success: true, messageId: 'm1' });
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supabase.local';
@@ -174,6 +189,57 @@ describe('T5-ISO-02 — campanha WhatsApp pela conexão da organização', () =>
     const failed = fake.calls.find((c) => c.table === 'campaign_sends' && c.op === 'update');
     expect(JSON.stringify(failed?.payload)).not.toContain('ECONNREFUSED');
     expect(failed?.payload).toMatchObject({ status: 'failed' });
+    errSpy.mockRestore();
+  });
+});
+
+describe('Task 7 — campanha de e-mail pela conexão da organização', () => {
+  beforeEach(() => {
+    campaignChannel = 'email';
+  });
+
+  it('envia pelo sender da organização, sem fetch direto nem user_settings', async () => {
+    const res = await send();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, sent: 1, failed: 0 });
+    expect(emailFactory).toHaveBeenCalledWith(ORG_A);
+    expect(mocks.sendBatch).toHaveBeenCalledWith([
+      expect.objectContaining({ to: 'lead@empresa1.com', subject: 'Assunto Empresa 1' }),
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fake.calls.some((c) => c.table === 'user_settings')).toBe(false);
+  });
+
+  it('org sem conexão de e-mail → 409 EMAIL_NOT_CONFIGURED e nenhum efeito', async () => {
+    mocks.findOrgForUser.mockResolvedValue(ORG_SEM_WA);
+    campaignOrg = ORG_SEM_WA;
+    const res = await send();
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'EMAIL_NOT_CONFIGURED',
+        message: 'E-mail não configurado para esta organização. Fale com a equipe IntelliX.',
+      },
+    });
+    noEffects();
+  });
+
+  it('campanha da org B nunca usa a conexão da org A → 404 e nenhum efeito', async () => {
+    campaignOrg = ORG_B;
+    const res = await send();
+    expect(res.status).toBe(404);
+    expect(emailFactory).not.toHaveBeenCalled();
+    noEffects();
+  });
+
+  it('falha do provedor → campaign_sends failed com motivo genérico', async () => {
+    mocks.sendBatch.mockResolvedValue({ sent: 0, failed: 1, ids: [] });
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const res = await send();
+    expect(await res.json()).toEqual({ ok: true, sent: 0, failed: 1 });
+    const failed = fake.calls.find((c) => c.table === 'campaign_sends' && c.op === 'update');
+    expect(failed?.payload).toMatchObject({ status: 'failed' });
+    expect(JSON.stringify(errSpy.mock.calls)).not.toContain('lead@empresa1.com');
     errSpy.mockRestore();
   });
 });

@@ -24,10 +24,6 @@ export interface UserSettings {
   agent_enabled?: boolean;
   // Chave de API OpenAI por tenant (sobrepõe variável de ambiente OPENAI_API_KEY)
   openai_api_key?: string;
-  // Chave Resend por tenant (sobrepõe variável de ambiente RESEND_API_KEY)
-  resend_api_key?: string;
-  // Endereço de remetente de e-mail por tenant (ex: contato@intellixai.com.br)
-  from_email?: string;
   // Chave de API Firecrawl por tenant (sobrepõe FIRECRAWL_API_KEY) — enriquecimento de site
   firecrawl_api_key?: string;
   // Chave de API Apify por tenant (sobrepõe APIFY_API_KEY) — conector LinkedIn
@@ -113,8 +109,6 @@ export const userSettingsService = {
             consultant_whatsapp: settings.consultant_whatsapp,
             agent_enabled: settings.agent_enabled ?? true,
             openai_api_key: settings.openai_api_key ?? null,
-            resend_api_key: settings.resend_api_key ?? null,
-            from_email: settings.from_email ?? null,
             firecrawl_api_key: settings.firecrawl_api_key ?? null,
             apify_api_key: settings.apify_api_key ?? null,
             updated_at: new Date().toISOString(),
@@ -142,8 +136,6 @@ export const userSettingsService = {
             consultant_whatsapp: settings.consultant_whatsapp,
             agent_enabled: settings.agent_enabled ?? true,
             openai_api_key: settings.openai_api_key ?? null,
-            resend_api_key: settings.resend_api_key ?? null,
-            from_email: settings.from_email ?? null,
             firecrawl_api_key: settings.firecrawl_api_key ?? null,
             apify_api_key: settings.apify_api_key ?? null,
           })

@@ -3,6 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
+import { ConnectionNotConfiguredError } from '@/lib/connectors/types';
+import { resolveOrganizationIdForUser } from '@/lib/connectors/org-context';
+import {
+  getEmailSenderForOrganization,
+  EMAIL_NOT_CONFIGURED_ERROR,
+  type EmailSender,
+} from '@/lib/connectors/email/get-email-sender';
 
 const BATCH_SIZE = 50;
 
@@ -43,20 +50,30 @@ export async function POST(req: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Ler credenciais Resend e from_email do tenant (com fallback para env vars)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: settings } = await (db as any)
-      .from('user_settings')
-      .select('resend_api_key, from_email, company_name')
-      .eq('user_id', user.id)
-      .single();
-
-    const resendKey = (settings?.resend_api_key as string | null) ?? process.env.RESEND_API_KEY;
-    const fromEmailAddr = (settings?.from_email as string | null) ?? process.env.FROM_EMAIL ?? 'noreply@example.com';
-    const fromName = (settings?.company_name as string | null) ?? 'LeadFinder Pro';
-
-    if (!resendKey) {
-      return NextResponse.json({ error: 'Chave Resend não configurada. Acesse Configurações → Email para adicionar.' }, { status: 500 });
+    // E-mail sai pela conexão da organização (domínio do cliente), sem fallback.
+    const organizationId = await resolveOrganizationIdForUser(user.id);
+    if (!organizationId) {
+      return NextResponse.json({ error: EMAIL_NOT_CONFIGURED_ERROR }, { status: 409 });
+    }
+    let sender: EmailSender;
+    try {
+      sender = await getEmailSenderForOrganization(organizationId);
+    } catch (err) {
+      if (err instanceof ConnectionNotConfiguredError) {
+        console.warn('[email/send-bulk] e-mail não configurado', {
+          organization_id: organizationId,
+          code: 'email_not_configured',
+        });
+        return NextResponse.json({ error: EMAIL_NOT_CONFIGURED_ERROR }, { status: 409 });
+      }
+      console.error('[email/send-bulk] falha ao resolver conexão', {
+        organization_id: organizationId,
+        code: 'email_connection_error',
+      });
+      return NextResponse.json(
+        { error: { code: 'PROVIDER_UNAVAILABLE', message: 'E-mail indisponível no momento' } },
+        { status: 503 }
+      );
     }
 
     // Buscar leads com email — filtrado ao tenant pelo user_id
@@ -92,8 +109,7 @@ export async function POST(req: NextRequest) {
       const logoUrl = appUrl ? `${appUrl}/intellix-logo.png` : '';
 
       const batchEmails = batch.map(lead => ({
-        from: `${fromName} <${fromEmailAddr}>`,
-        to: [lead.email as string],
+        to: lead.email as string,
         subject: subject
           .replace(/\{\{empresa\}\}/g, lead.empresa || '')
           .replace(/\{\{nome\}\}/g, lead.contato || lead.empresa || ''),
@@ -103,38 +119,23 @@ export async function POST(req: NextRequest) {
           .replace(/\{\{logo_url\}\}/g, logoUrl),
       }));
 
-      try {
-        const res = await fetch('https://api.resend.com/emails/batch', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(batchEmails),
-        });
+      const result = await sender.sendBatch(batchEmails);
+      sent += result.sent;
+      failed += result.failed;
 
-        const result = await res.json();
-
-        if (res.ok && result.data) {
-          const successIds = batch.map(l => l.id);
-          sent += successIds.length;
-
-          await db
-            .from('leads_prospeccao')
-            .update({
-              status_email: 'sent',
-              data_envio_email: new Date().toISOString(),
-            })
-            .in('id', successIds);
-        } else {
-          failed += batch.length;
-          await db
-            .from('leads_prospeccao')
-            .update({ status_email: 'failed' })
-            .in('id', batch.map(l => l.id));
-        }
-      } catch {
-        failed += batch.length;
+      if (result.sent > 0) {
+        await db
+          .from('leads_prospeccao')
+          .update({
+            status_email: 'sent',
+            data_envio_email: new Date().toISOString(),
+          })
+          .in('id', batch.map(l => l.id));
+      } else {
+        await db
+          .from('leads_prospeccao')
+          .update({ status_email: 'failed' })
+          .in('id', batch.map(l => l.id));
       }
     }
 

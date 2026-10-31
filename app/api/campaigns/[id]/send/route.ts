@@ -10,6 +10,11 @@
  * Sem conexão → 409 WHATSAPP_NOT_CONFIGURED ANTES de qualquer efeito (campanha
  * não vai para 'running', nenhum envio é registrado). Falhas de envio gravam
  * só o status HTTP ou um motivo genérico em campaign_sends.
+ *
+ * Canal e-mail (Sprint 2b, Task 7): mesma regra de organização (campanha de
+ * outra organização → 404) e o envio sai pela conexão de e-mail ativa da
+ * organização (domínio do cliente). Sem conexão → 409 EMAIL_NOT_CONFIGURED
+ * antes de qualquer efeito.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
@@ -23,6 +28,11 @@ import {
   WHATSAPP_NOT_CONFIGURED_ERROR,
   type OrgWhatsApp,
 } from '@/lib/integrations/whatsapp/org-whatsapp';
+import {
+  getEmailSenderForOrganization,
+  EMAIL_NOT_CONFIGURED_ERROR,
+  type EmailSender,
+} from '@/lib/connectors/email/get-email-sender';
 
 export const runtime = 'nodejs';
 
@@ -121,6 +131,37 @@ export async function POST(
     }
   }
 
+  // ─── Pré-validação do canal e-mail, antes de qualquer efeito ──────────────
+  let emailSender: EmailSender | null = null;
+  if (campaign.channel === 'email') {
+    organizationId = await resolveOrganizationIdForUser(user.id);
+    if ((await resolveRecordOrganizationId(campaign)) !== organizationId) {
+      return NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 });
+    }
+    if (!organizationId) {
+      return NextResponse.json({ error: EMAIL_NOT_CONFIGURED_ERROR }, { status: 409 });
+    }
+    try {
+      emailSender = await getEmailSenderForOrganization(organizationId);
+    } catch (err) {
+      if (err instanceof ConnectionNotConfiguredError) {
+        console.warn('[campaigns/send] e-mail não configurado', {
+          organization_id: organizationId,
+          code: 'email_not_configured',
+        });
+        return NextResponse.json({ error: EMAIL_NOT_CONFIGURED_ERROR }, { status: 409 });
+      }
+      console.error('[campaigns/send] falha ao resolver conexão', {
+        organization_id: organizationId,
+        code: 'email_connection_error',
+      });
+      return NextResponse.json(
+        { error: { code: 'PROVIDER_UNAVAILABLE', message: 'E-mail indisponível no momento' } },
+        { status: 503 }
+      );
+    }
+  }
+
   // Marca como running
   const now = new Date().toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -192,28 +233,7 @@ export async function POST(
   }
 
   // ─── CHANNEL: Email ──────────────────────────────────────────────────────────
-  if (campaign.channel === 'email') {
-    // Ler credenciais Resend e from_email do tenant (fallback para env vars)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: emailSettings } = await (db as any)
-      .from('user_settings')
-      .select('resend_api_key, from_email, company_name')
-      .eq('user_id', user.id)
-      .single();
-
-    const resendKey = (emailSettings?.resend_api_key as string | null) ?? process.env.RESEND_API_KEY;
-    const fromEmailAddr = (emailSettings?.from_email as string | null) ?? process.env.FROM_EMAIL ?? 'noreply@example.com';
-    const fromName = (emailSettings?.company_name as string | null) ?? 'LeadFinder Pro';
-
-    if (!resendKey) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (db as any)
-        .from('campaigns')
-        .update({ status: 'draft', updated_at: new Date().toISOString() })
-        .eq('id', params.id);
-      return NextResponse.json({ error: 'Chave Resend não configurada. Acesse Configurações → Email para adicionar.' }, { status: 400 });
-    }
-
+  if (campaign.channel === 'email' && emailSender) {
     const emailTargets = targets.filter(l => l.email?.trim());
     let sent = 0;
     let failed = 0;
@@ -223,8 +243,7 @@ export async function POST(
       const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/$/, '');
       const logoUrl = appUrl ? `${appUrl}/intellix-logo.png` : '';
       const emails = batch.map(l => ({
-        from: `${fromName} <${fromEmailAddr}>`,
-        to: [l.email!],
+        to: l.email!,
         subject: (campaign.subject ?? '(sem assunto)')
           .replace(/\{\{empresa\}\}/g, l.empresa || '')
           .replace(/\{\{nome\}\}/g, l.email || ''),
@@ -234,42 +253,29 @@ export async function POST(
           .replace(/\{\{logo_url\}\}/g, logoUrl),
       }));
 
-      try {
-        const res = await fetch('https://api.resend.com/emails/batch', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${resendKey}`,
-          },
-          body: JSON.stringify(emails),
+      const result = await emailSender.sendBatch(emails);
+      const ok = result.failed === 0 && result.sent > 0;
+      if (!ok) {
+        console.error('[campaigns/send] Falha no envio de e-mail', {
+          organization_id: organizationId,
+          code: 'email_send_failed',
         });
-
-        if (!res.ok) {
-          const err = await res.text();
-          throw new Error(err);
-        }
-
-        const sentAt = new Date().toISOString();
-        for (const lead of batch) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (db as any)
-            .from('campaign_sends')
-            .update({ status: 'sent', sent_at: sentAt })
-            .eq('campaign_id', params.id)
-            .eq('lead_id', lead.id);
-        }
-        sent += batch.length;
-      } catch (err) {
-        for (const lead of batch) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (db as any)
-            .from('campaign_sends')
-            .update({ status: 'failed', error: String(err) })
-            .eq('campaign_id', params.id)
-            .eq('lead_id', lead.id);
-        }
-        failed += batch.length;
       }
+      const sentAt = new Date().toISOString();
+      for (const lead of batch) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (db as any)
+          .from('campaign_sends')
+          .update(
+            ok
+              ? { status: 'sent', sent_at: sentAt }
+              : { status: 'failed', error: 'Falha de comunicação com o provedor de e-mail' }
+          )
+          .eq('campaign_id', params.id)
+          .eq('lead_id', lead.id);
+      }
+      sent += result.sent;
+      failed += result.failed;
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
