@@ -3,6 +3,13 @@
 **Versão:** Feature Branch `feature/evolution-ai`
 **Data:** 16/11/2025
 
+> **OBSOLETO (2026-10-30, Sprint 1 de segurança):** a Edge Function `whatsapp-webhook`
+> descrita aqui foi removida do repositório (não tinha autenticação nem isolamento de
+> tenant). Não faça deploy dela. O webhook do WhatsApp agora é
+> `POST /api/webhooks/evolution/<webhook_token>`, com a URL mostrada em
+> Configurações → WhatsApp. Se a função ainda estiver publicada no Supabase, remova com
+> `supabase functions delete whatsapp-webhook`.
+
 ---
 
 ## 📋 Índice
