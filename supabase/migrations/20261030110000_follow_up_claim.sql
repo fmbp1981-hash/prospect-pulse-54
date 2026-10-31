@@ -8,9 +8,9 @@
 -- Solução: coluna follow_up_lock_until + função claim_due_follow_ups, que em
 -- UM único statement seleciona os leads vencidos (FOR UPDATE SKIP LOCKED) e
 -- grava a trava de 5 minutos nas linhas devolvidas. Quem chegar depois não vê
--- as linhas travadas. O job zera a trava ao incrementar o follow-up (sucesso)
--- ou ao desistir do envio (sem instância / falha), e a trava expira sozinha
--- se o processo morrer no meio.
+-- as linhas travadas. O job zera a trava ao incrementar o follow-up (sucesso);
+-- quando desiste do envio (sem instância / falha) grava um backoff de 15 min
+-- na mesma coluna; e a trava expira sozinha se o processo morrer no meio.
 --
 -- Idempotente: pode ser reaplicada sem erro.
 -- Rollback: supabase/migrations/rollback/20261030110000_follow_up_claim.down.sql
