@@ -6,6 +6,9 @@
  * Segurança (T9-C1): a instância vem só de resolveInstanceForUser (coluna
  * protegida); URL e chave Evolution são do tenant OU globais, nunca misturadas;
  * Meta exige Phone Number ID e token do próprio tenant (sem META_WA_*).
+ * S1-F-01: a URL Evolution do tenant passa por assertSafeOutboundUrl antes do
+ * fetch (inválida → 400) e erros de envio voltam ao cliente só com mensagem
+ * genérica (detalhe apenas no log).
  *
  * Body: { whatsapp: string; message: string }
  * Response: { success: true } | { success: false; error: string }
@@ -17,6 +20,7 @@ import { cookies } from 'next/headers';
 import { resolveInstanceForUser } from '@/lib/services/tenant-resolver.service';
 import { resolveEvolutionEndpoint } from '@/lib/integrations/whatsapp/evolution-credentials';
 import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
+import { assertSafeOutboundUrl } from '@/lib/security/outbound-url';
 
 export async function POST(req: NextRequest) {
   // 1. Autenticação
@@ -134,6 +138,20 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
+      // S1-F-01: URL configurada pelo tenant não pode apontar para a rede interna.
+      const tenantUrl = (settings?.evolution_api_url ?? '').trim();
+      if (tenantUrl) {
+        try {
+          assertSafeOutboundUrl(tenantUrl);
+        } catch (err) {
+          console.warn('[/api/whatsapp/send] URL Evolution do tenant recusada:', err instanceof Error ? err.message : 'erro');
+          return NextResponse.json({
+            success: false,
+            error: 'URL da Evolution API inválida. Use um endereço https público, sem usuário/senha, query ou fragmento.',
+          }, { status: 400 });
+        }
+      }
+
       // URL + chave do tenant juntas, ou URL + chave globais juntas — nunca misturadas.
       const endpoint = resolveEvolutionEndpoint(settings?.evolution_api_url, settings?.evolution_api_key);
       if (!endpoint) {
@@ -173,9 +191,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[/api/whatsapp/send]', error);
+    console.error('[/api/whatsapp/send] Falha no envio:', error instanceof Error ? error.message : 'erro');
     return NextResponse.json(
-      { success: false, error: String(error) },
+      { success: false, error: 'Falha ao enviar a mensagem. Tente novamente mais tarde.' },
       { status: 500 }
     );
   }

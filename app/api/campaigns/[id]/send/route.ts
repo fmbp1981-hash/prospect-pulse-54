@@ -2,12 +2,18 @@
  * POST /api/campaigns/[id]/send
  * Dispara uma campanha para o público selecionado.
  * Suporta canal 'whatsapp' (Evolution API) e 'email' (Resend).
+ *
+ * S1-F-01: no canal WhatsApp a URL Evolution vem de user_settings e passa por
+ * assertSafeOutboundUrl ANTES de qualquer efeito (campanha não vai para
+ * 'running', nenhum envio é registrado); inválida → 400. Falhas de envio
+ * gravam só um motivo genérico em campaign_sends (detalhe no log).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
+import { assertSafeOutboundUrl } from '@/lib/security/outbound-url';
 
 export const runtime = 'nodejs';
 
@@ -74,6 +80,42 @@ export async function POST(
     return NextResponse.json({ error: 'Nenhum destinatário válido para esta campanha' }, { status: 400 });
   }
 
+  // ─── Pré-validação do canal WhatsApp (S1-F-01), antes de qualquer efeito ───
+  let evolution: { apiUrl: string; apiKey: string; instanceName: string } | null = null;
+  if (campaign.channel === 'whatsapp') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: settingsRow } = await (db as any)
+      .from('user_settings')
+      .select('evolution_api_url, evolution_api_key, evolution_instance_name')
+      .eq('user_id', user.id)
+      .single();
+    const settings = settingsRow as {
+      evolution_api_url: string | null;
+      evolution_api_key: string | null;
+      evolution_instance_name: string | null;
+    } | null;
+
+    const apiUrl = (settings?.evolution_api_url ?? '').trim();
+    const apiKey = (settings?.evolution_api_key ?? '').trim();
+    if (!apiUrl || !apiKey) {
+      return NextResponse.json({ error: 'Evolution API não configurada em Configurações' }, { status: 400 });
+    }
+    try {
+      assertSafeOutboundUrl(apiUrl);
+    } catch (err) {
+      console.warn('[campaigns/send] URL Evolution do tenant recusada:', err instanceof Error ? err.message : 'erro');
+      return NextResponse.json(
+        { error: 'URL da Evolution API inválida. Use um endereço https público, sem usuário/senha, query ou fragmento.' },
+        { status: 400 }
+      );
+    }
+    evolution = {
+      apiUrl: apiUrl.replace(/\/$/, ''),
+      apiKey,
+      instanceName: settings?.evolution_instance_name ?? '',
+    };
+  }
+
   // Marca como running
   const now = new Date().toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,23 +138,7 @@ export async function POST(
   await (db as any).from('campaign_sends').insert(sendRows);
 
   // ─── CHANNEL: WhatsApp ───────────────────────────────────────────────────────
-  if (campaign.channel === 'whatsapp') {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: settings } = await (db as any)
-      .from('user_settings')
-      .select('evolution_api_url, evolution_api_key, evolution_instance_name')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!settings?.evolution_api_url || !settings?.evolution_api_key) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (db as any)
-        .from('campaigns')
-        .update({ status: 'draft', updated_at: new Date().toISOString() })
-        .eq('id', params.id);
-      return NextResponse.json({ error: 'Evolution API não configurada em Configurações' }, { status: 400 });
-    }
-
+  if (campaign.channel === 'whatsapp' && evolution) {
     let sent = 0;
     let failed = 0;
 
@@ -121,12 +147,12 @@ export async function POST(
       const recipient = lead.whatsapp!.replace(/\D/g, '');
       try {
         const res = await fetch(
-          `${settings.evolution_api_url}/message/sendText/${settings.evolution_instance_name}`,
+          `${evolution.apiUrl}/message/sendText/${evolution.instanceName}`,
           {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': settings.evolution_api_key,
+              'apikey': evolution.apiKey,
             },
             body: JSON.stringify({ number: recipient, text: campaign.body }),
           }
@@ -142,10 +168,14 @@ export async function POST(
 
         sent++;
       } catch (err) {
+        const detail = err instanceof Error ? err.message : 'erro';
+        console.error('[campaigns/send] Falha no envio WhatsApp:', detail);
+        // Só o status HTTP do provedor é gravado; erro de rede vira motivo genérico.
+        const reason = /^HTTP \d{3}$/.test(detail) ? detail : 'Falha de comunicação com a Evolution API';
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (db as any)
           .from('campaign_sends')
-          .update({ status: 'failed', error: String(err) })
+          .update({ status: 'failed', error: reason })
           .eq('campaign_id', params.id)
           .eq('lead_id', lead.id);
         failed++;

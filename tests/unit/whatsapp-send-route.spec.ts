@@ -125,3 +125,40 @@ describe('T9-C1 — Meta', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer token-tenant');
   });
 });
+
+describe('S1-F-01 — SSRF e vazamento de erro', () => {
+  it.each([
+    'https://169.254.169.254',
+    'https://127.0.0.1:8080',
+    'https://localhost',
+    'http://evo.cliente.com.br',
+    'https://evo.interna.internal',
+    'https://user:senha@evo.cliente.com.br',
+  ])('URL do tenant insegura (%s) → 400 e nenhum fetch', async (url) => {
+    settings = { ...settings, evolution_api_url: url, evolution_api_key: 'chave-do-usuario' };
+    const res = await POST(post(BODY));
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('erro do provedor → 500 com mensagem genérica (detalhe só no log)', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fetchMock.mockResolvedValueOnce(new Response('DETALHE-INTERNO-DO-PROVEDOR', { status: 502 }));
+    const res = await POST(post(BODY));
+    expect(res.status).toBe(500);
+    const text = await res.text();
+    expect(text).not.toContain('DETALHE-INTERNO-DO-PROVEDOR');
+    expect(text).not.toContain('Evolution API 502');
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+
+  it('exceção de rede → 500 genérico, sem a mensagem do erro', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fetchMock.mockRejectedValueOnce(new Error('connect ECONNREFUSED 10.0.0.5:8080'));
+    const res = await POST(post(BODY));
+    expect(res.status).toBe(500);
+    expect(await res.text()).not.toContain('ECONNREFUSED');
+    errSpy.mockRestore();
+  });
+});
