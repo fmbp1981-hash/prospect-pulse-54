@@ -1547,7 +1547,7 @@ Configurados em `vercel.json` (ou Vercel Dashboard → Cron Jobs):
 - Criação de `MessageHumanizerService` (split de respostas)
 - Criação de `TenantResolverService` (multi-tenancy por instância)
 - Criação de `AntiLoopGuard` (previne loops `fromMe`)
-- Criação dos jobs: `follow-up.job.ts`, `long-followup.job.ts`, `bulk-sender.job.ts`
+- Criação dos jobs: `follow-up.job.ts`, `long-followup.job.ts` (o `bulk-sender.job.ts` criado aqui foi removido em 2026-10-30; ver seção de webhooks)
 - Criação dos repositórios: `lead.repository.ts`, `conversation.repository.ts`
 - Criação do `agent-config.service.ts` (versionamento de prompts por tenant)
 - Sistema RAG: `rag.service.ts`, `embeddings.service.ts`
