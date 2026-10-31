@@ -17,6 +17,8 @@ const CFG_B = '30000000-0000-0000-0000-00000000000b';
 const docOwner: Record<string, string> = { [DOC_A]: USER_A, [DOC_B]: USER_B };
 const cfgOwner: Record<string, string> = { [CFG_A]: USER_A, [CFG_B]: USER_B };
 
+let failChunkDelete = false;
+
 function handler(call: FakeCall): FakeResult | undefined {
   if (call.table === 'rag_documents' && call.op === 'update') {
     const id = filterValue(call, 'id') as string;
@@ -24,6 +26,9 @@ function handler(call: FakeCall): FakeResult | undefined {
     const hit = docOwner[id] && docOwner[id] === uid;
     if (call.returning) return { data: hit ? [{ id }] : [], error: null };
     return { data: null, error: null };
+  }
+  if (call.table === 'rag_document_chunks' && call.op === 'delete' && failChunkDelete) {
+    return { data: null, error: { message: 'falha simulada' } };
   }
   if (call.table === 'agent_configs') {
     const id = filterValue(call, 'id') as string;
@@ -58,6 +63,7 @@ const chunkDeletes = () => fake.calls.filter((c) => c.table === 'rag_document_ch
 
 beforeEach(() => {
   fake.calls.length = 0;
+  failChunkDelete = false;
   ingestDocument.mockClear();
   currentUser = { id: USER_A };
 });
@@ -123,5 +129,20 @@ describe('F-16 — POST /api/agent/rag com agentConfigId', () => {
     const res = await ragPost(postJson({ content: CONTENT }));
     expect(res.status).toBe(201);
     expect(fake.calls.some((c) => c.table === 'agent_configs')).toBe(false);
+  });
+});
+
+describe('T9-L1 — DELETE /api/agent/rag', () => {
+  it('id que não é uuid → 400 sem consultar o banco', async () => {
+    const res = await ragDelete(new NextRequest("http://x/api/agent/rag?id=abc'%20or%201=1", { method: 'DELETE' }));
+    expect(res.status).toBe(400);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('erro ao apagar os chunks → deleteDocument lança e a rota responde 500', async () => {
+    failChunkDelete = true;
+    await expect(deleteDocument(DOC_A, USER_A)).rejects.toThrow(/chunks/i);
+    const res = await ragDelete(new NextRequest(`http://x/api/agent/rag?id=${DOC_A}`, { method: 'DELETE' }));
+    expect(res.status).toBe(500);
   });
 });

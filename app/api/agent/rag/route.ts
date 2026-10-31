@@ -20,6 +20,7 @@ import {
 const MAX_FILE_SIZE_MB = 10;
 const DEFAULT_AGENT_CONFIG = 'default';
 const agentConfigIdSchema = z.string().uuid();
+const documentIdSchema = z.string().uuid();
 const SUPPORTED_TYPES = [
   'text/plain',
   'text/markdown',
@@ -155,10 +156,16 @@ export async function DELETE(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const id = req.nextUrl.searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+  const parsedId = documentIdSchema.safeParse(req.nextUrl.searchParams.get('id'));
+  if (!parsedId.success) return NextResponse.json({ error: 'id inválido' }, { status: 400 });
+  const id = parsedId.data;
 
-  const deleted = await deleteDocument(id, user.id);
-  if (!deleted) return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 });
-  return NextResponse.json({ success: true, deletedId: id });
+  try {
+    const deleted = await deleteDocument(id, user.id);
+    if (!deleted) return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 });
+    return NextResponse.json({ success: true, deletedId: id });
+  } catch (err) {
+    console.error('[RAG] Delete error:', err);
+    return NextResponse.json({ error: 'Falha ao remover documento' }, { status: 500 });
+  }
 }
