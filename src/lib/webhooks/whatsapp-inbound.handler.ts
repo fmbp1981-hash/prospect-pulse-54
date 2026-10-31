@@ -87,7 +87,10 @@ async function captureConsultantMessage(
 
         console.log(`[Webhook] Tag de entrada do consultor enviada — lead ${lead.id}`);
       } catch (tagErr) {
-        console.warn('[Webhook] Falha ao enviar tag de entrada do consultor:', tagErr);
+        console.warn(
+          '[Webhook] Falha ao enviar tag de entrada do consultor:',
+          tagErr instanceof Error ? tagErr.message : String(tagErr)
+        );
         // Não impede o salvamento da mensagem abaixo
       }
     }
@@ -105,7 +108,11 @@ async function captureConsultantMessage(
 
     console.log(`[Webhook] Mensagem do consultor salva — lead ${lead.id}`);
   } catch (err) {
-    console.warn('[Webhook] Falha ao capturar mensagem do consultor:', err);
+    // Só a mensagem: o objeto de erro pode carregar payload/telefone (LGPD).
+    console.warn(
+      '[Webhook] Falha ao capturar mensagem do consultor:',
+      err instanceof Error ? err.message : String(err)
+    );
   }
 }
 

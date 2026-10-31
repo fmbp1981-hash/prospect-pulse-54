@@ -1,25 +1,36 @@
 /**
- * GET /api/admin/test-email?to=email@exemplo.com  (Authorization: Bearer CRON_SECRET)
+ * POST /api/admin/test-email  (Authorization: Bearer CRON_SECRET)
+ * Body: { "to": "email@exemplo.com" }
  *
  * Envia um email de teste com as credenciais Resend do tenant IntelliX.
  * Útil para validar a integração sem precisar disparar uma campanha real.
+ *
+ * LGPD-S1-01: o destinatário (dado pessoal) vem no corpo, validado por Zod, e
+ * não na query string (que fica em logs de acesso e de proxy). GET não existe.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type User } from '@supabase/supabase-js';
+import * as z from 'zod';
 import { verifyCronRequest } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
 
-export async function GET(req: NextRequest) {
+const testEmailSchema = z.object({ to: z.string().trim().max(320).email() }).strict();
+
+export async function POST(req: NextRequest) {
   // Authorization: Bearer <CRON_SECRET> (sem query string; sem CRON_SECRET → 401)
   if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const to = req.nextUrl.searchParams.get('to');
-  if (!to || !to.includes('@')) {
-    return NextResponse.json({ error: 'Parâmetro "to" (email de destino) é obrigatório' }, { status: 400 });
+  const parsed = testEmailSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: { code: 'VALIDATION_ERROR', message: 'Corpo inválido: informe { "to": "<email de destino>" }.' } },
+      { status: 400 }
+    );
   }
+  const { to } = parsed.data;
 
   const db = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

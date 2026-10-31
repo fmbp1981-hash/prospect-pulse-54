@@ -45,7 +45,7 @@ import { GET as longFollowUp } from '../../app/api/cron/long-followup/route';
 import { GET as rescue } from '../../app/api/cron/rescue-human-mode/route';
 import { GET as ragIngestGet, POST as ragIngestPost } from '../../app/api/admin/rag-ingest/route';
 import { GET as registerTemplates } from '../../app/api/admin/register-templates/route';
-import { GET as testEmail } from '../../app/api/admin/test-email/route';
+import { POST as testEmail } from '../../app/api/admin/test-email/route';
 
 function req(url: string, auth?: string, method = 'GET') {
   return new NextRequest(url, { method, headers: auth ? { authorization: auth } : {} });
@@ -132,7 +132,7 @@ describe('rotas admin com segredo (sem query string)', () => {
     ['rag-ingest GET', ragIngestGet, 'GET'],
     ['rag-ingest POST', ragIngestPost, 'POST'],
     ['register-templates', registerTemplates, 'GET'],
-    ['test-email', testEmail, 'GET'],
+    ['test-email', testEmail, 'POST'],
   ] as const)('%s com ?secret= correto e sem header → 401', async (_n, handler, method) => {
     const res = await handler(req(`http://x/api/admin/r?secret=${SECRET}&to=a@b.com`, undefined, method));
     expect(res.status).toBe(401);
@@ -144,7 +144,7 @@ describe('rotas admin com segredo (sem query string)', () => {
     ['test-email', testEmail],
   ] as const)('%s sem CRON_SECRET → 401', async (_n, handler) => {
     delete process.env.CRON_SECRET;
-    const res = await handler(req('http://x/api/admin/r?to=a@b.com', 'Bearer undefined'));
+    const res = await handler(req('http://x/api/admin/r?to=a@b.com', 'Bearer undefined', _n === 'test-email' ? 'POST' : 'GET'));
     expect(res.status).toBe(401);
   });
 });

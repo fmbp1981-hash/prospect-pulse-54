@@ -308,3 +308,22 @@ describe('POST /api/webhooks/evolution (rota antiga, sem token)', () => {
     expect(pending).toHaveLength(0);
   });
 });
+
+describe('obs. de log (LGPD-S1-01) — falha ao capturar mensagem do consultor', () => {
+  it('console.warn recebe só a mensagem do erro, nunca o objeto (que pode carregar payload/telefone)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const erro = Object.assign(new Error('falha no banco'), { details: { whatsapp: '5511999990000' } });
+    findByWhatsApp.mockRejectedValueOnce(erro);
+    resolveTenantByWebhookToken.mockResolvedValueOnce(TENANT_A);
+    await handleWhatsAppInboundPost(
+      req(`http://x/api/webhooks/evolution/${TOKEN_A}`, evolutionPayload('instancia-a', true)),
+      TOKEN_A
+    );
+    await Promise.all(pending);
+    const call = warn.mock.calls.find((c) => String(c[0]).includes('consultor'));
+    expect(call).toBeDefined();
+    expect(call?.every((arg) => typeof arg === 'string')).toBe(true);
+    expect(JSON.stringify(call)).not.toContain('5511999990000');
+    warn.mockRestore();
+  });
+});
