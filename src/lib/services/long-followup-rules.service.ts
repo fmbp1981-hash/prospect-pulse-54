@@ -420,6 +420,38 @@ export function isWithinBusinessHours(now: Date = new Date()): boolean {
   return brtDay >= 1 && brtDay <= 5 && brtHour >= 9 && brtHour < 18;
 }
 
+// ── Placeholders ───────────────────────────────────────────────────────────
+
+const PLACEHOLDER = /\{\{\s*\d+\s*\}\}/;
+
+/** true se o texto ainda tem algum `{{n}}` não resolvido. */
+export function hasUnresolvedPlaceholder(text: string): boolean {
+  return PLACEHOLDER.test(text);
+}
+
+/**
+ * Preenche `{{1}}` (primeiro nome do contato) e `{{2}}` (empresa) com os dados
+ * reais do lead. Sem nome: "Oi, {{1}}!" vira "Oi!" e os demais `{{1}}` viram
+ * "Olá"; sem empresa: "sua empresa". Sobrou algum `{{n}}` → null (não enviar).
+ */
+export function renderFollowUpMessage(
+  template: string,
+  lead: { contato?: string | null; empresa?: string | null }
+): string | null {
+  const firstName = (lead.contato ?? '').trim().split(/\s+/)[0] ?? '';
+  const empresa = (lead.empresa ?? '').trim();
+
+  let text = template;
+  if (firstName) {
+    text = text.replace(/\{\{1\}\}/g, firstName);
+  } else {
+    text = text.replace(/\bOi, \{\{1\}\}!/g, 'Oi!').replace(/\{\{1\}\}/g, 'Olá');
+  }
+  text = text.replace(/\{\{2\}\}/g, empresa || 'sua empresa');
+
+  return hasUnresolvedPlaceholder(text) ? null : text;
+}
+
 // ── Detecção de cenário ────────────────────────────────────────────────────
 
 /**

@@ -21,7 +21,9 @@ import { createClient } from '@supabase/supabase-js';
 import {
   FOLLOW_UP_SEQUENCES,
   detectFollowUpScenario,
+  hasUnresolvedPlaceholder,
   isWithinBusinessHours,
+  renderFollowUpMessage,
   normalizeToBusinessHours,
 } from '../services/long-followup-rules.service';
 import type { FollowUpScenario } from '../services/long-followup-rules.service';
@@ -137,6 +139,25 @@ export async function runLongFollowUpJob(): Promise<void> {
         continue;
       }
 
+      // 4b. Passo que exige template aprovado (HSM): texto livre não é enviado.
+      //     HSM por organização fica para depois → skipped.
+      if (step.requiresTemplate) {
+        logger.info('Schedule skipped — step requires template', { scheduleId: schedule.id, code: 'template_required' });
+        await markSchedule(supabase, schedule.id, 'skipped', 'template_required');
+        continue;
+      }
+
+      // 4c. Preenche {{1}}/{{2}} com os dados do lead; nada com `{{n}}` é enviado.
+      const stepMessage = renderFollowUpMessage(step.message, {
+        contato: leadRecord.contato as string | null | undefined,
+        empresa: leadRecord.empresa as string | null | undefined,
+      });
+      if (!stepMessage) {
+        logger.warn('Schedule skipped — unresolved placeholder', { scheduleId: schedule.id, code: 'unresolved_placeholder' });
+        await markSchedule(supabase, schedule.id, 'skipped', 'unresolved_placeholder');
+        continue;
+      }
+
       // 5. Conexão da organização do lead — nunca a coluna instance_name da linha
       const organizationId = await resolveLeadOrganizationId(lead);
       if (!organizationId) {
@@ -160,8 +181,13 @@ export async function runLongFollowUpJob(): Promise<void> {
 
       // 6. Humaniza a mensagem com a IA da organização; sem conexão `llm`
       //    (ou falha) envia o texto do passo como está — nunca bloqueia o envio.
-      const messages = await withLlmForOrganization(organizationId, () => humanizeResponse(step.message))
-        .catch(() => [step.message]);
+      const messages = await withLlmForOrganization(organizationId, () => humanizeResponse(stepMessage))
+        .catch(() => [stepMessage]);
+      if (messages.length === 0 || messages.some(hasUnresolvedPlaceholder)) {
+        logger.warn('Schedule skipped — unresolved placeholder', { scheduleId: schedule.id, code: 'unresolved_placeholder' });
+        await markSchedule(supabase, schedule.id, 'skipped', 'unresolved_placeholder');
+        continue;
+      }
 
       // 7. Envia
       const { sent } = await whatsapp.provider.sendMessageSequence(

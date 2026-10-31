@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest';
 import {
   FOLLOW_UP_SEQUENCES,
   detectFollowUpScenario,
+  renderFollowUpMessage,
 } from '@/lib/services/long-followup-rules.service';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -87,5 +88,33 @@ describe('textos neutros', () => {
         .map((step) => `${seq.scenario}#${step.stepNumber}`),
     ]);
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('renderFollowUpMessage', () => {
+  it('preenche nome (primeiro) e empresa', () => {
+    expect(renderFollowUpMessage('Oi, {{1}}! E a {{2}}?', { contato: ' Ana Lima ', empresa: 'ACME' })).toBe(
+      'Oi, Ana! E a ACME?'
+    );
+  });
+
+  it('sem nome: "Oi, {{1}}!" vira "Oi!" e demais {{1}} viram "Olá"; sem empresa: "sua empresa"', () => {
+    expect(renderFollowUpMessage('Oi, {{1}}! E a {{2}}?', { contato: null, empresa: null })).toBe(
+      'Oi! E a sua empresa?'
+    );
+    expect(renderFollowUpMessage('{{1}}, tudo bem?', {})).toBe('Olá, tudo bem?');
+  });
+
+  it('placeholder desconhecido → null', () => {
+    expect(renderFollowUpMessage('{{3}} oi', { contato: 'Ana', empresa: 'X' })).toBeNull();
+  });
+
+  it('todas as mensagens da régua ficam sem {{n}} com e sem dados do lead', () => {
+    for (const seq of Object.values(FOLLOW_UP_SEQUENCES)) {
+      for (const step of seq.steps) {
+        expect(renderFollowUpMessage(step.message, { contato: 'Ana', empresa: 'X' })).not.toBeNull();
+        expect(renderFollowUpMessage(step.message, {})).not.toBeNull();
+      }
+    }
   });
 });

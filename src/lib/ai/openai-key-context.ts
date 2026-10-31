@@ -22,6 +22,7 @@ import { resolveConnection } from '@/lib/connectors/resolve-connection';
 import { recordUsage } from '@/lib/connectors/usage';
 import { ConnectionNotConfiguredError } from '@/lib/connectors/types';
 import { resolveOrganizationIdForUser } from '@/lib/connectors/org-context';
+import { LlmHttpError } from '@/lib/utils/resilience';
 
 export interface LlmContext {
   organizationId: string;
@@ -119,4 +120,24 @@ export async function recordLlmUsage(usage: LlmUsage | undefined, operation: str
   } catch {
     // registro de consumo nunca bloqueia a operação
   }
+}
+
+/**
+ * Erro HTTP da OpenAI → LlmHttpError com status e código (sem o corpo, que pode
+ * citar trecho da credencial). 429 com `insufficient_quota` = falta de cota.
+ */
+export async function toLlmHttpError(response: Response, label: string): Promise<LlmHttpError> {
+  let code: string | undefined;
+  try {
+    const body = (await response.json()) as { error?: { code?: unknown; type?: unknown } };
+    const raw = body?.error?.code ?? body?.error?.type;
+    if (typeof raw === 'string' && /^[a-z0-9_.-]{1,64}$/i.test(raw)) code = raw;
+  } catch {
+    // corpo não-JSON: só o status
+  }
+  return new LlmHttpError(
+    `${label}: ${response.status}${code ? ` (${code})` : ''}`,
+    response.status,
+    response.status === 429 && code === 'insufficient_quota'
+  );
 }

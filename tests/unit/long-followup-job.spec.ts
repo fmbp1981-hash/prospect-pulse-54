@@ -41,6 +41,7 @@ const mocks = vi.hoisted(() => ({
   sendMessageSequence: vi.fn(async () => ({ sent: 1 })),
   resolveLlm: vi.fn(),
   humanizeOrgs: [] as Array<string | undefined>,
+  scenario: 'no_response_long' as string,
 }));
 
 vi.mock('@/lib/repositories/lead.repository', () => ({
@@ -71,7 +72,7 @@ vi.mock('@/lib/services/long-followup-rules.service', async (importOriginal) => 
   return {
     ...actual,
     isWithinBusinessHours: () => true,
-    detectFollowUpScenario: () => 'no_response_long',
+    detectFollowUpScenario: () => mocks.scenario,
   };
 });
 
@@ -90,12 +91,12 @@ const factory = vi.fn(async (orgId: string): Promise<OrgWhatsApp> => {
   throw new ConnectionNotConfiguredError(orgId, 'whatsapp');
 });
 
-function schedule(userId: string, instanceName: string) {
+function schedule(userId: string, instanceName: string, scenario = 'no_response_long', stepNumber = 1) {
   return {
     id: 'sched-1',
     lead_id: LEAD_A,
-    scenario: 'no_response_long',
-    step_number: 1,
+    scenario,
+    step_number: stepNumber,
     due_at: '2026-10-30T12:00:00Z',
     status: 'pending',
     instance_name: instanceName,
@@ -108,6 +109,8 @@ const LEAD = {
   organization_id: ORG_A as string | null,
   user_id: USER_A,
   whatsapp: '+5581999990001',
+  contato: 'Maria Souza',
+  empresa: 'Padaria Boa Massa',
   status_msg_wa: 'sent',
   estagio_pipeline: 'Contato Inicial',
   data_ultima_interacao: null,
@@ -123,6 +126,7 @@ beforeEach(() => {
     id === LEAD_A && uid === USER_A ? LEAD : null
   );
   mocks.humanizeOrgs.length = 0;
+  mocks.scenario = 'no_response_long';
   mocks.resolveLlm.mockImplementation(async (orgId: string, category: string) => {
     if (category !== 'llm') throw new Error(`categoria inesperada: ${category}`);
     return {
@@ -200,5 +204,54 @@ describe('F-11 — runLongFollowUpJob', () => {
     const sent = (mocks.sendMessageSequence.mock.calls[0] as unknown[])[2] as string[];
     expect(sent).toHaveLength(1);
     expect(sent[0]).not.toContain('(humanizada)');
+  });
+
+  describe('placeholders e passos com template (fix C1)', () => {
+    const sentTexts = () =>
+      mocks.sendMessageSequence.mock.calls.flatMap((c) => (c as unknown[])[2] as string[]);
+    const skipReason = () =>
+      (fake.calls.find((c) => c.table === 'followup_schedules' && c.op === 'update')?.payload as
+        | { status: string; skip_reason?: string }
+        | undefined);
+
+    beforeEach(() => {
+      mocks.scenario = 'qualified_not_scheduled';
+    });
+
+    it('substitui {{1}} pelo primeiro nome do contato e {{2}} pela empresa', async () => {
+      schedules = [schedule(USER_A, 'inst-org-a', 'qualified_not_scheduled', 1)];
+      await runLongFollowUpJob();
+      expect(mocks.sendMessageSequence).toHaveBeenCalledTimes(1);
+      const [text] = sentTexts();
+      expect(text).toMatch(/^Maria, separei/);
+      expect(text).toContain('Padaria Boa Massa');
+      expect(text).not.toContain('{{');
+    });
+
+    it('sem nome nem empresa usa fallback neutro e nenhum {{ chega ao provider', async () => {
+      mocks.findByIdForUser.mockResolvedValueOnce({ ...LEAD, contato: null, empresa: '' });
+      schedules = [schedule(USER_A, 'inst-org-a', 'qualified_not_scheduled', 1)];
+      await runLongFollowUpJob();
+      const [text] = sentTexts();
+      expect(text).toMatch(/^Olá, separei/);
+      expect(text).toContain('sua empresa');
+      expect(text).not.toContain('{{');
+    });
+
+    it('passo requiresTemplate → skipped template_required, sem envio', async () => {
+      schedules = [schedule(USER_A, 'inst-org-a', 'qualified_not_scheduled', 2)];
+      await runLongFollowUpJob();
+      expect(mocks.sendMessageSequence).not.toHaveBeenCalled();
+      expect(skipReason()).toMatchObject({ status: 'skipped', skip_reason: 'template_required' });
+    });
+
+    it('humanização que devolve {{n}} → skipped unresolved_placeholder, sem envio', async () => {
+      const humanizer = await import('@/lib/services/message-humanizer.service');
+      vi.spyOn(humanizer, 'humanizeResponse').mockResolvedValueOnce(['{{3}} oi']);
+      schedules = [schedule(USER_A, 'inst-org-a', 'qualified_not_scheduled', 1)];
+      await runLongFollowUpJob();
+      expect(mocks.sendMessageSequence).not.toHaveBeenCalled();
+      expect(skipReason()).toMatchObject({ status: 'skipped', skip_reason: 'unresolved_placeholder' });
+    });
   });
 });

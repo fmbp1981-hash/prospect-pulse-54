@@ -132,9 +132,6 @@ export class CircuitBreaker {
   get currentState(): CircuitState { return this.state; }
 }
 
-// Singletons para APIs externas
-export const openAICircuit = new CircuitBreaker('OpenAI', { failureThreshold: 3, timeoutMs: 30000 });
-
 // ─── CIRCUITO POR CONEXÃO (provedores de WhatsApp) ─────────────────────────
 // T5-ISO-01: um circuito por conexão, para que falhas de uma organização
 // nunca bloqueiem o envio das outras.
@@ -188,7 +185,49 @@ export function getProviderCircuit(kind: 'evolution' | 'meta', key: string, labe
   return circuit;
 }
 
-/** Apenas para testes: descarta todos os circuitos por conexão. */
+// ─── CIRCUITO POR CONEXÃO (LLM) ─────────────────────────────────────────────
+// Um circuito por conexão `llm`: chave revogada ou sem cota de uma organização
+// nunca bloqueia a IA das outras.
+
+/** Erro HTTP do provedor de LLM; `quotaExceeded` = 429 por falta de cota (não rate limit). */
+export class LlmHttpError extends ProviderHttpError {
+  readonly quotaExceeded: boolean;
+  constructor(message: string, status: number, quotaExceeded = false) {
+    super(message, status);
+    this.name = 'LlmHttpError';
+    this.quotaExceeded = quotaExceeded;
+  }
+}
+
+/**
+ * Erro do pedido ou da credencial da organização (4xx, incluindo 401/403 e 429
+ * por cota), não indisponibilidade do provedor: não conta para o circuito e
+ * não é repetido. 408 e 429 de rate limit contam e podem ser repetidos.
+ */
+export function isLlmRequestOrCredentialError(err: unknown): boolean {
+  if (!(err instanceof ProviderHttpError)) return false;
+  if (err.status < 400 || err.status >= 500 || err.status === 408) return false;
+  if (err.status === 429) return err instanceof LlmHttpError && err.quotaExceeded;
+  return true;
+}
+
+export const countsAsLlmFailure = (err: unknown): boolean => !isLlmRequestOrCredentialError(err);
+export const shouldRetryLlm = (err: Error): boolean => !isLlmRequestOrCredentialError(err);
+
+const llmCircuits = new Map<string, CircuitBreaker>();
+
+/** Circuito da conexão `llm` (connectionId; não é segredo). */
+export function getLlmCircuit(connectionId: string): CircuitBreaker {
+  let circuit = llmCircuits.get(connectionId);
+  if (!circuit) {
+    circuit = new CircuitBreaker(`llm:${connectionId}`, { failureThreshold: 3, timeoutMs: 30000 });
+    llmCircuits.set(connectionId, circuit);
+  }
+  return circuit;
+}
+
+/** Apenas para testes: descarta todos os circuitos por conexão (WhatsApp e LLM). */
 export function resetProviderCircuitsForTests(): void {
   providerCircuits.clear();
+  llmCircuits.clear();
 }

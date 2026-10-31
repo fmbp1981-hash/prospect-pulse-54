@@ -14,11 +14,11 @@ import {
   DEFAULT_SYSTEM_PROMPT_VERSION,
   renderSystemPrompt,
 } from './prompts/default-system-prompt';
-import { getCurrentLlm, recordLlmUsage, type LlmUsage } from './openai-key-context';
+import { getCurrentLlm, recordLlmUsage, toLlmHttpError, type LlmUsage } from './openai-key-context';
 import { buildRagContext } from './rag/rag.service';
 import { updateLeadTool } from './tools/update-lead.tool';
 import { transferConsultantTool } from './tools/transfer-consultant.tool';
-import { openAICircuit, withRetry, withTimeout } from '../utils/resilience';
+import { getLlmCircuit, countsAsLlmFailure, shouldRetryLlm, withRetry, withTimeout } from '../utils/resilience';
 import type { AgentTool, ToolExecutionContext } from './tools/tool.interface';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -130,8 +130,8 @@ async function callOpenAI(
     function: { name: string; arguments: string };
   }>;
 }> {
-  const { apiKey } = getCurrentLlm();
-  return openAICircuit.call(() =>
+  const { apiKey, connectionId } = getCurrentLlm();
+  return getLlmCircuit(connectionId).call(() =>
     withRetry(async () => {
       const body: Record<string, unknown> = {
         model,
@@ -157,10 +157,7 @@ async function callOpenAI(
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) {
-        const err = await response.text();
-        throw new Error(`OpenAI API error: ${response.status} ${err}`);
-      }
+      if (!response.ok) throw await toLlmHttpError(response, 'OpenAI API error');
 
       const data = (await response.json()) as {
         choices: Array<{
@@ -178,7 +175,8 @@ async function callOpenAI(
       await recordLlmUsage(data.usage, 'chat.completions');
 
       return data.choices[0].message;
-    }, { maxAttempts: 2, initialDelayMs: 1500 })
+    }, { maxAttempts: 2, initialDelayMs: 1500, shouldRetry: shouldRetryLlm }),
+    countsAsLlmFailure
   );
 }
 
