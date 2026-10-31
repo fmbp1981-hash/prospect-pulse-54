@@ -910,6 +910,7 @@ export type Database = {
           etapa_funil: string | null
           faturamento_declarado: number | null
           follow_up_count: number | null
+          follow_up_lock_until: string | null
           icp_fit_evaluated_at: string | null
           icp_fit_reason: string | null
           icp_fit_status: string
@@ -963,6 +964,7 @@ export type Database = {
           etapa_funil?: string | null
           faturamento_declarado?: number | null
           follow_up_count?: number | null
+          follow_up_lock_until?: string | null
           icp_fit_evaluated_at?: string | null
           icp_fit_reason?: string | null
           icp_fit_status?: string
@@ -1016,6 +1018,7 @@ export type Database = {
           etapa_funil?: string | null
           faturamento_declarado?: number | null
           follow_up_count?: number | null
+          follow_up_lock_until?: string | null
           icp_fit_evaluated_at?: string | null
           icp_fit_reason?: string | null
           icp_fit_status?: string
@@ -1860,6 +1863,16 @@ export type Database = {
         Returns: Json
       }
       can_write: { Args: never; Returns: boolean }
+      claim_due_follow_ups: {
+        Args: { p_limit?: number }
+        Returns: Database["public"]["Tables"]["leads_prospeccao"]["Row"][]
+        SetofOptions: {
+          from: "*"
+          to: "leads_prospeccao"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       criar_lead_organico: {
         Args: {
           p_categoria?: string

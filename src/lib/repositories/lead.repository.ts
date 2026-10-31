@@ -90,48 +90,39 @@ export const leadRepository = {
   },
 
   /**
-   * Busca leads elegíveis para follow-up.
-   * Equivalente ao node "Buscar Leads para Follow-up" do Fluxo 4.
+   * Reivindica atomicamente os leads vencidos para follow-up.
+   * Equivalente ao node "Buscar Leads para Follow-up" do Fluxo 4, agora com trava:
+   * a RPC claim_due_follow_ups seleciona com FOR UPDATE SKIP LOCKED e grava
+   * follow_up_lock_until = now() + 5 min nas linhas devolvidas, então duas
+   * execuções simultâneas nunca recebem o mesmo lead.
+   * Janelas: 15 min (count=0), 1 h (count=1), 24 h (count=2); mais antigos primeiro.
    */
-  async findLeadsForFollowUp(): Promise<LeadRow[]> {
+  async claimDueFollowUps(limit = 20): Promise<LeadRow[]> {
     const supabase = getServiceClient();
-    const now = new Date();
+    const { data, error } = await supabase.rpc('claim_due_follow_ups', { p_limit: limit });
 
-    // Janelas de follow-up: 15min (count=0), 1h (count=1), 24h (count=2)
-    const thresholds = [
-      { count: 0, minutesAgo: 15 },
-      { count: 1, minutesAgo: 60 },
-      { count: 2, minutesAgo: 1440 }, // 24h
-    ];
-
-    const results: LeadRow[] = [];
-
-    for (const { count, minutesAgo } of thresholds) {
-      const cutoff = new Date(now.getTime() - minutesAgo * 60 * 1000).toISOString();
-
-      const { data, error } = await supabase
-        .from('leads_prospeccao')
-        .select('*')
-        .eq('follow_up_count', count)
-        .eq('modo_atendimento', 'bot')
-        .in('status_msg_wa', ['Em Conversa', 'Qualificando'])
-        .not('whatsapp', 'is', null)
-        .lte('data_ultima_interacao', cutoff)
-        .limit(50);
-
-      if (error) {
-        console.error(`findLeadsForFollowUp error (count=${count}):`, error.message);
-        continue;
-      }
-
-      results.push(...(data ?? []));
-    }
-
-    return results;
+    if (error) throw new Error(`claimDueFollowUps error: ${error.message}`);
+    return data ?? [];
   },
 
   /**
-   * Incrementa o contador de follow-up e atualiza última interação.
+   * Libera a trava de follow-up de um lead que foi reivindicado mas não
+   * recebeu a mensagem (sem instância configurada, falha no envio etc.),
+   * para que a próxima execução possa tentar de novo.
+   */
+  async releaseFollowUpClaim(id: string): Promise<void> {
+    const supabase = getServiceClient();
+    const { error } = await supabase
+      .from('leads_prospeccao')
+      .update({ follow_up_lock_until: null })
+      .eq('id', id);
+
+    if (error) throw new Error(`releaseFollowUpClaim error: ${error.message}`);
+  },
+
+  /**
+   * Incrementa o contador de follow-up, atualiza última interação e libera a
+   * trava de follow-up no mesmo update.
    */
   async incrementFollowUpCount(id: string): Promise<void> {
     const supabase = getServiceClient();
@@ -151,6 +142,7 @@ export const leadRepository = {
         follow_up_count: newCount,
         ...(status ? { status_msg_wa: status } : {}),
         data_ultima_interacao: new Date().toISOString(),
+        follow_up_lock_until: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);

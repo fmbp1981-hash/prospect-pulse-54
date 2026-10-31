@@ -71,6 +71,29 @@ export async function resolveTenantByInstance(
 }
 
 /**
+ * Resolve a instância Evolution de um usuário (dono do lead).
+ * Lê user_settings.evolution_instance_name; devolve null quando o usuário não
+ * tem instância configurada — nunca cai para uma instância global de ambiente,
+ * para não enviar mensagem de uma organização pelo número de outra.
+ */
+export async function resolveInstanceForUser(userId: string): Promise<string | null> {
+  const supabase = getServiceClient();
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('evolution_instance_name')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`[TenantResolver] resolveInstanceForUser error for user "${userId}":`, error.message);
+    return null;
+  }
+
+  const instanceName = data?.evolution_instance_name?.trim();
+  return instanceName ? instanceName : null;
+}
+
+/**
  * Verifica se a conversa está em modo "finalizado" (#finalizado).
  * Equivalente ao node "If Finalizado?" do n8n.
  */
