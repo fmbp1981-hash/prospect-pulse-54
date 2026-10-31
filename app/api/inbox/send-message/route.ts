@@ -9,6 +9,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
+import { resolveInstanceForUser } from '@/lib/services/tenant-resolver.service';
 
 export const runtime = 'nodejs';
 
@@ -52,17 +53,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Lead has no WhatsApp number' }, { status: 400 });
   }
 
-  // 2. Get instance name from user settings
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: settings } = await (serviceSupabase as any)
-    .from('user_settings')
-    .select('evolution_instance_name')
-    .eq('user_id', user.id)
-    .single();
-
-  const instanceName = settings?.evolution_instance_name
-    || process.env.EVOLUTION_INSTANCE_NAME
-    || '';
+  // 2. Instância do próprio usuário. Sem fallback para EVOLUTION_INSTANCE_NAME:
+  //    a mensagem sairia pelo número de outra organização (achado F-12).
+  const instanceName = await resolveInstanceForUser(user.id);
 
   if (!instanceName) {
     return NextResponse.json({

@@ -57,6 +57,23 @@ export const leadRepository = {
   },
 
   /**
+   * Busca lead pelo ID restrito ao dono (service_role: o filtro de tenant é
+   * obrigatório). null quando não existe ou é de outro usuário.
+   */
+  async findByIdForUser(id: string, userId: string): Promise<LeadRow | null> {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase
+      .from('leads_prospeccao')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) throw new Error(`findByIdForUser error: ${error.message}`);
+    return data ?? null;
+  },
+
+  /**
    * Cria novo lead orgânico.
    * Equivalente ao node "Criar_lead" (INSERT).
    */

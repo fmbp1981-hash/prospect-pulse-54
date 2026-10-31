@@ -9,6 +9,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
+import { resolveInstanceForUser } from '@/lib/services/tenant-resolver.service';
 
 export const runtime = 'nodejs';
 
@@ -72,17 +73,9 @@ export async function POST(req: NextRequest) {
   // 5. Send WA notification + save system message (only if not recently taken over)
   if (!recentlyTakenOver && lead.whatsapp) {
     try {
-      // Get instance name from user settings
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: settings } = await (serviceSupabase as any)
-        .from('user_settings')
-        .select('evolution_instance_name')
-        .eq('user_id', user.id)
-        .single();
-
-      const instanceName = settings?.evolution_instance_name
-        || process.env.EVOLUTION_INSTANCE_NAME
-        || '';
+      // Instância do próprio usuário. Sem fallback para EVOLUTION_INSTANCE_NAME
+      // (achado F-12): sem instância, assume a conversa sem notificar o lead.
+      const instanceName = await resolveInstanceForUser(user.id);
 
       if (instanceName) {
         const tagMessage = `[Consultor ${consultantName} entrou na conversa]`;
