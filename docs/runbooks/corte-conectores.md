@@ -183,6 +183,12 @@ verificação DNS no Resend e teste de novo.
 
 Só depois do passo 10 sem incidentes.
 
+0. Portão de tráfego (antes de qualquer merge): logs de 24 h sem
+   requisições em `/api/webhooks/evolution` e
+   `/api/webhooks/evolution/<token>`; toda organização com conexão whatsapp
+   `active` recebeu ao menos um evento pela `/api/webhooks/whatsapp/<key>`
+   (ou confirmação manual no painel do provedor). Senão, voltar ao passo 8
+   dessa organização.
 1. Backups:
    - de `user_settings`, `user_id` + colunas listadas na migration para
      `scripts/legacy/backup-<data>-user-settings-credenciais.json`. **Contém
@@ -200,6 +206,8 @@ Só depois do passo 10 sem incidentes.
 3. Aplicar `supabase/migrations/20261031110000_drop_plaintext_integration_columns.sql`.
    Ela aborta (sem aplicar nada) se alguma outra função do `public` ainda
    citar uma coluna removida, ou se houver view/policy dependente.
+   Aplicar o arquivo inteiro numa única execução (`supabase db push` ou um
+   único Run no SQL Editor), nunca por trechos.
 4. Rodar `tests/db/drop-plaintext-integration-columns.sql`,
    `tests/db/function-privileges.sql` e
    `tests/db/evolution-instance-isolation.sql` (todos ok / 0 violações).
@@ -211,6 +219,12 @@ Só depois do passo 10 sem incidentes.
 Rollback: `supabase/migrations/rollback/20261031110000_drop_plaintext_integration_columns.down.sql`
 recria as colunas (vazias); os dados voltam do backup do item 1. Redeploy do
 código anterior à limpeza.
+
+**Atenção:** depois de aplicada a 20261031110000, os rollbacks mais antigos
+(`20261030120000`, `20261030140000` e `20261030150000` `.down.sql`) não podem
+ser rodados sem antes rodar
+`20261031110000_drop_plaintext_integration_columns.down.sql` (eles citam
+colunas e funções que a limpeza remove).
 
 ## 12. Remoções manuais pelo usuário — [autorização do usuário]
 
