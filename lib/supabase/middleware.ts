@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { shouldBlockPendingUser } from './pending-gate';
 
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -94,80 +95,45 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Verificar pending_setup: redirecionar para /pending se necessário
-  // Admin (email fixo) nunca é redirecionado
-  const ADMIN_EMAIL = 'fmbp1981@gmail.com';
-  if (user && !isPublicRoute && !isPendingRoute && user.email !== ADMIN_EMAIL) {
-    const { data: settings } = await supabase
+  // Settings do usuário (pending_setup + role): uma única consulta por requisição,
+  // reutilizada pelo gate de pending, pelo RBAC de /integrations e pela rota /pending.
+  // Admin é identificado por role (user_settings), nunca por e-mail.
+  let settings: { pending_setup: boolean | null; role: string | null } | null = null;
+  if (user && !isPublicRoute) {
+    const { data } = await supabase
       .from('user_settings')
-      .select('pending_setup')
+      .select('pending_setup, role')
       .eq('user_id', user.id)
       .single();
-
-    // Se não tem settings OU pending_setup é true, bloquear
-    const shouldBlock = !settings || settings.pending_setup === true;
-    if (shouldBlock) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/pending';
-      const redirectResponse = NextResponse.redirect(url);
-      // Propagar cookies de sessão para não deslogar o usuário
-      supabaseResponse.cookies.getAll().forEach(cookie => {
-        redirectResponse.cookies.set(cookie.name, cookie.value);
-      });
-      return redirectResponse;
-    }
+    settings = data;
   }
 
-  // RBAC: /integrations é exclusiva para admins — bloquear server-side
-  const isIntegrationsRoute = pathname.startsWith('/integrations');
-  if (user && isIntegrationsRoute && user.email !== ADMIN_EMAIL) {
-    const { data: roleSettings } = await supabase
-      .from('user_settings')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!roleSettings || roleSettings.role !== 'admin') {
-      const url = request.nextUrl.clone();
-      url.pathname = '/';
-      const redirectResponse = NextResponse.redirect(url);
-      supabaseResponse.cookies.getAll().forEach(cookie => {
-        redirectResponse.cookies.set(cookie.name, cookie.value);
-      });
-      return redirectResponse;
-    }
-  }
-
-  // Admin NUNCA deve ficar em /pending — redirecionar para home incondicionalmente
-  if (user && isPendingRoute && user.email === ADMIN_EMAIL) {
+  const redirectTo = (pathTarget: string) => {
     const url = request.nextUrl.clone();
-    url.pathname = '/';
+    url.pathname = pathTarget;
     const redirectResponse = NextResponse.redirect(url);
+    // Propagar cookies de sessão para não deslogar o usuário
     supabaseResponse.cookies.getAll().forEach(cookie => {
       redirectResponse.cookies.set(cookie.name, cookie.value);
     });
     return redirectResponse;
+  };
+
+  // Verificar pending_setup: redirecionar para /pending se necessário (admin por role nunca é bloqueado)
+  if (user && !isPublicRoute && !isPendingRoute && shouldBlockPendingUser(settings)) {
+    return redirectTo('/pending');
   }
 
-  // Se usuário aprovado tenta acessar /pending, redirecionar para home
-  if (user && isPendingRoute && user.email !== ADMIN_EMAIL) {
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('pending_setup')
-      .eq('user_id', user.id)
-      .single();
+  // RBAC: /integrations é exclusiva para admins — bloquear server-side
+  const isIntegrationsRoute = pathname.startsWith('/integrations');
+  if (user && isIntegrationsRoute && settings?.role !== 'admin') {
+    return redirectTo('/');
+  }
 
-    // Só redireciona para home se settings existe E pending_setup é false (aprovado)
-    // Se settings não existe, mantém em /pending para evitar loop com a verificação acima
-    if (settings && settings.pending_setup === false) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/';
-      const redirectResponse = NextResponse.redirect(url);
-      supabaseResponse.cookies.getAll().forEach(cookie => {
-        redirectResponse.cookies.set(cookie.name, cookie.value);
-      });
-      return redirectResponse;
-    }
+  // Admin (role) ou usuário aprovado em /pending → home.
+  // Se settings não existe, mantém em /pending para evitar loop com a verificação acima.
+  if (user && isPendingRoute && settings && (settings.role === 'admin' || settings.pending_setup === false)) {
+    return redirectTo('/');
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're

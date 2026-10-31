@@ -24,7 +24,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
 
-const ADMIN_EMAIL = 'fmbp1981@gmail.com';
+// E-mail do admin da plataforma vem do ambiente (sem fallback): ausente => ninguém é tratado como admin aqui
+const PLATFORM_ADMIN_EMAIL = process.env.PLATFORM_ADMIN_EMAIL;
 
 export async function POST(req: NextRequest) {
   try {
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
 
     // Verificar se este userId corresponde ao email do admin
     const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
-    const isAdminUser = authUser?.email === ADMIN_EMAIL;
+    const isAdminUser = !!PLATFORM_ADMIN_EMAIL && authUser?.email === PLATFORM_ADMIN_EMAIL;
 
     if (isAdminUser) {
       // Admin: forçar role='admin' e pending_setup=false, mesmo que o registro já exista
