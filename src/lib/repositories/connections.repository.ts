@@ -169,6 +169,21 @@ export const connectionsRepository = {
     return data?.organization_id ?? null;
   },
 
+  /**
+   * Usuário responsável pela organização: o admin mais antigo; sem admin,
+   * o membro mais antigo. Só membros da própria organização.
+   */
+  async findOrganizationResponsibleUserId(organizationId: string): Promise<string | null> {
+    const { data, error } = await getServiceClient()
+      .from('organization_members')
+      .select('user_id, role')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(`findOrganizationResponsibleUserId error: ${error.message}`);
+    const members = data ?? [];
+    return (members.find((m) => m.role === 'admin') ?? members[0])?.user_id ?? null;
+  },
+
   /** Insere um evento de consumo em usage_events (append-only). */
   async insertUsage(e: UsageEventInsert): Promise<void> {
     const { error } = await getServiceClient().from('usage_events').insert({

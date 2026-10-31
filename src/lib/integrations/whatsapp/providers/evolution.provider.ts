@@ -10,7 +10,6 @@ import type {
   SendSequenceResult,
   MediaDownloadResult,
   MediaAttachment,
-  NormalizedWebhookPayload,
 } from '../whatsapp-provider.interface';
 import { WHATSAPP_SEND_TIMEOUT_MS } from '../whatsapp-provider.interface';
 import {
@@ -271,80 +270,4 @@ export class EvolutionProvider implements IWhatsAppProvider {
       countsAsProviderFailure
     );
   }
-
-  normalizeWebhookPayload(payload: unknown): NormalizedWebhookPayload | null {
-    return normalizeEvolutionWebhookPayload(payload);
-  }
-}
-
-/** Normaliza o payload de webhook da Evolution API (não usa credenciais). */
-export function normalizeEvolutionWebhookPayload(payload: unknown): NormalizedWebhookPayload | null {
-  // Evolution API v2 envolve o payload em { event, instance, data: {...} }
-  // Evolution API v1 envia o objeto de mensagem diretamente na raiz
-  const raw = payload as Record<string, unknown>;
-  const inner = (raw?.data ?? raw) as Record<string, unknown>;
-
-  const data = inner as {
-    key?: { remoteJid?: string; fromMe?: boolean; id?: string };
-    pushName?: string;
-    message?: {
-      conversation?: string;
-      extendedTextMessage?: { text?: string };
-      audioMessage?: { url?: string; base64?: string; mimetype?: string };
-      imageMessage?: { url?: string; base64?: string; mimetype?: string; caption?: string };
-      documentMessage?: { url?: string; base64?: string; mimetype?: string; title?: string };
-    };
-    messageTimestamp?: number;
-    instanceName?: string;
-  };
-
-  // instanceName pode estar no wrapper (v2) ou no objeto de mensagem (v1)
-  const instanceName = (raw?.instance as string) || data.instanceName || '';
-
-  if (!data.key?.remoteJid) return null;
-
-  const remoteJid = data.key.remoteJid.replace(/@.*/, '').replace(/\D/g, '');
-  const msg = data.message;
-
-  let messageType: NormalizedWebhookPayload['messageType'] = 'unknown';
-  let content = '';
-  let mediaId: string | undefined;
-  let mediaMimetype: string | undefined;
-  let mediaBase64: string | undefined;
-
-  if (msg?.conversation || msg?.extendedTextMessage) {
-    messageType = 'text';
-    content = msg.conversation || msg.extendedTextMessage?.text || '';
-  } else if (msg?.audioMessage) {
-    messageType = 'audio';
-    content = '[ÁUDIO]';
-    mediaMimetype = msg.audioMessage.mimetype || 'audio/ogg';
-    mediaBase64 = msg.audioMessage.base64;
-  } else if (msg?.imageMessage) {
-    messageType = 'image';
-    content = msg.imageMessage.caption || '[IMAGEM]';
-    mediaMimetype = msg.imageMessage.mimetype || 'image/jpeg';
-    mediaBase64 = msg.imageMessage.base64;
-  } else if (msg?.documentMessage) {
-    messageType = 'document';
-    content = msg.documentMessage.title || '[DOCUMENTO]';
-    mediaMimetype = msg.documentMessage.mimetype || 'application/pdf';
-    mediaBase64 = msg.documentMessage.base64;
-  }
-
-  return {
-    remoteJid: remoteJid.startsWith('55') ? `+${remoteJid}` : `+55${remoteJid}`,
-    pushName: data.pushName || 'Desconhecido',
-    fromMe: data.key.fromMe ?? false,
-    messageType,
-    content,
-    mediaId: data.key.id,
-    mediaMimetype,
-    mediaBase64,
-    instanceName,
-    messageId: data.key.id || '',
-    timestamp: data.messageTimestamp
-      ? new Date(data.messageTimestamp * 1000).toISOString()
-      : new Date().toISOString(),
-  };
 }

@@ -6,7 +6,7 @@
  */
 
 import type { NormalizedMessage } from '../services/message-normalizer.service';
-import { resolveTenantByInstance, isFinalizationCommand } from '../services/tenant-resolver.service';
+import { isFinalizationCommand } from '../services/tenant-resolver.service';
 import type { TenantContext } from '../services/tenant-resolver.service';
 import { leadService } from '../services/lead.service';
 import { processMessageByType } from '../handlers/message-type.handler';
@@ -24,7 +24,6 @@ import { withOpenAIKey } from '../ai/openai-key-context';
 import { randomUUID } from 'crypto';
 
 const STEP_TIMEOUTS = {
-  tenant: 5_000,
   lead: 8_000,
   media: 30_000,
   agent: 60_000,
@@ -33,13 +32,13 @@ const STEP_TIMEOUTS = {
 } as const;
 
 /**
- * @param resolvedTenant tenant já autenticado pelo chamador (webhook resolve
- *   pelo token secreto). Quando informado, o campo `instanceName` do payload
- *   NÃO é usado para descobrir o tenant.
+ * @param tenant contexto de atendimento já resolvido pelo chamador (webhook:
+ *   a partir da organização da conexão autenticada). Nada do payload
+ *   (instância, número) escolhe o tenant.
  */
 export async function runLeadConversationWorkflow(
   normalized: NormalizedMessage,
-  resolvedTenant?: TenantContext
+  tenant: TenantContext
 ): Promise<void> {
   const correlationId = randomUUID();
   const logger = new WorkflowLogger('LeadConversation', correlationId);
@@ -48,18 +47,6 @@ export async function runLeadConversationWorkflow(
     type: normalized.messageType,
     instance: normalized.instanceName,
   });
-
-  // ── STEP 1: RESOLVER TENANT ──────────────────────────────────────────────
-  const tenant = resolvedTenant ?? await withTimeout(
-    resolveTenantByInstance(normalized.instanceName),
-    STEP_TIMEOUTS.tenant,
-    'resolveTenant'
-  ).catch((err) => {
-    logger.error('Tenant resolution failed', { error: err.message });
-    return null;
-  });
-
-  if (!tenant) return;
   logger.info('Tenant resolved', { userId: tenant.userId });
 
   // ── STEP 1A: VERIFICAR SE O AGENTE ESTÁ ATIVO ────────────────────────────
@@ -178,7 +165,7 @@ async function runWorkflowSteps(
 
   // ── STEP 5: PROCESSAR MÍDIA ──────────────────────────────────────────────
   const processed = await withTimeout(
-    processMessageByType(normalized, whatsapp, normalized.messageId),
+    processMessageByType(normalized, whatsapp, normalized.mediaId ?? normalized.messageId),
     STEP_TIMEOUTS.media,
     'processMedia'
   ).catch((err) => {

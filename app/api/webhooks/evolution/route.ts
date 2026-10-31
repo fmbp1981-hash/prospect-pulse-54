@@ -5,12 +5,12 @@
  *   qualquer um podia enviar `instance` de outro tenant e criar leads, rodar o
  *   agente e enviar WhatsApp pelo número dele.
  *   Use POST /api/webhooks/evolution/<webhook_token> (ver Configurações).
- * GET  /api/webhooks/evolution  → verificação Meta (hub.challenge) e health check,
- *   mantidos para não quebrar a verificação já cadastrada na Meta.
+ * GET  /api/webhooks/evolution  → só health check. Sem token não há conexão, logo
+ *   não há verify_token: hub.mode=subscribe → 403 (Sprint 2b, sem env).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { handleWhatsAppVerification } from '@/lib/webhooks/whatsapp-inbound.handler';
+import { handleWebhookHealthCheck } from '@/lib/webhooks/connection-inbound.handler';
 
 export const runtime = 'nodejs';
 
@@ -28,5 +28,5 @@ export async function POST(_req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  return handleWhatsAppVerification(req);
+  return handleWebhookHealthCheck(req);
 }

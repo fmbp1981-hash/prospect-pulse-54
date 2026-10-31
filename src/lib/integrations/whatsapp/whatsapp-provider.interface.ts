@@ -83,24 +83,4 @@ export interface IWhatsAppProvider {
    * Fire-and-forget — provedores que não suportam podem ser no-op.
    */
   markAsRead(instanceOrPhoneId: string, to: string, messageId: string): Promise<void>;
-
-  /**
-   * Normaliza o payload recebido no webhook para o formato padrão.
-   * Cada provedor tem seu próprio formato de webhook.
-   */
-  normalizeWebhookPayload(payload: unknown): NormalizedWebhookPayload | null;
-}
-
-export interface NormalizedWebhookPayload {
-  remoteJid: string;     // número sem formatação
-  pushName: string;
-  fromMe: boolean;
-  messageType: 'text' | 'audio' | 'image' | 'document' | 'unknown';
-  content: string;
-  mediaId?: string;
-  mediaMimetype?: string;
-  mediaBase64?: string;
-  instanceName: string;
-  messageId: string;
-  timestamp: string;
 }

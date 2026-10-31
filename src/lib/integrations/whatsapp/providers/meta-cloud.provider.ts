@@ -14,7 +14,6 @@ import type {
   SendSequenceResult,
   MediaDownloadResult,
   MediaAttachment,
-  NormalizedWebhookPayload,
 } from '../whatsapp-provider.interface';
 import {
   withRetry,
@@ -305,96 +304,4 @@ export class MetaCloudProvider implements IWhatsAppProvider {
 
     return { buffer, mimetype: urlData.mime_type, base64 };
   }
-
-  normalizeWebhookPayload(payload: unknown): NormalizedWebhookPayload | null {
-    return normalizeMetaWebhookPayload(payload);
-  }
-}
-
-/**
- * Normaliza payload do webhook da Meta Cloud API.
- *
- * Formato Meta:
- * {
- *   object: "whatsapp_business_account",
- *   entry: [{ changes: [{ value: { messages: [...], metadata: {...} } }] }]
- * }
- */
-export function normalizeMetaWebhookPayload(payload: unknown): NormalizedWebhookPayload | null {
-  const data = payload as {
-    object?: string;
-    entry?: Array<{
-      changes?: Array<{
-        value?: {
-          messages?: Array<{
-            id: string;
-            from: string;
-            timestamp: string;
-            type: string;
-            text?: { body: string };
-            audio?: { id: string; mime_type: string };
-            image?: { id: string; mime_type: string; caption?: string };
-            document?: { id: string; mime_type: string; filename?: string };
-          }>;
-          contacts?: Array<{ profile?: { name?: string } }>;
-          metadata?: { display_phone_number: string; phone_number_id: string };
-        };
-      }>;
-    }>;
-  };
-
-  if (data.object !== 'whatsapp_business_account') return null;
-
-  const change = data.entry?.[0]?.changes?.[0]?.value;
-  const message = change?.messages?.[0];
-  if (!message) return null;
-
-  const pushName = change?.contacts?.[0]?.profile?.name || 'Desconhecido';
-  const instanceName = change?.metadata?.phone_number_id || '';
-
-  let messageType: NormalizedWebhookPayload['messageType'] = 'unknown';
-  let content = '';
-  let mediaId: string | undefined;
-  let mediaMimetype: string | undefined;
-
-  switch (message.type) {
-    case 'text':
-      messageType = 'text';
-      content = message.text?.body || '';
-      break;
-    case 'audio':
-      messageType = 'audio';
-      content = '[ÁUDIO]';
-      mediaId = message.audio?.id;
-      mediaMimetype = message.audio?.mime_type;
-      break;
-    case 'image':
-      messageType = 'image';
-      content = message.image?.caption || '[IMAGEM]';
-      mediaId = message.image?.id;
-      mediaMimetype = message.image?.mime_type;
-      break;
-    case 'document':
-      messageType = 'document';
-      content = message.document?.filename || '[DOCUMENTO]';
-      mediaId = message.document?.id;
-      mediaMimetype = message.document?.mime_type;
-      break;
-  }
-
-  const phone = message.from;
-  const normalizedPhone = phone.startsWith('55') ? `+${phone}` : `+55${phone}`;
-
-  return {
-    remoteJid: normalizedPhone,
-    pushName,
-    fromMe: false, // Meta não entrega mensagens enviadas pelo bot via webhook de recebimento
-    messageType,
-    content,
-    mediaId,
-    mediaMimetype,
-    instanceName,
-    messageId: message.id,
-    timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-  };
 }
