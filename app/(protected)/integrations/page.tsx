@@ -16,13 +16,13 @@ import {
   Webhook,
   Activity,
   ShieldAlert,
-  MessageSquare,
+  Plug,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getAuditLogs, type AuditAction } from "@/lib/audit";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { userSettingsService } from "@/lib/userSettings";
+import { ConnectionStatusList } from "@/components/connections/ConnectionStatusList";
 
 const ACTION_LABELS: Record<AuditAction, string> = {
   EXPORT_LEADS: "Exportar Leads",
@@ -43,26 +43,14 @@ export default function IntegrationsPage() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [actionFilter, setActionFilter] = useState<AuditAction | "ALL">("ALL");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [whatsappStatus, setWhatsappStatus] = useState<any>(null);
 
   useEffect(() => {
     loadAuditLogs();
-    loadWhatsappStatus();
   }, []);
 
   useEffect(() => {
     loadAuditLogs();
   }, [actionFilter]);
-
-  const loadWhatsappStatus = async () => {
-    try {
-      const settings = await userSettingsService.getUserSettings();
-      setWhatsappStatus(settings);
-    } catch {
-      // silencioso
-    }
-  };
 
   const loadAuditLogs = async () => {
     setIsLoadingLogs(true);
@@ -157,7 +145,7 @@ export default function IntegrationsPage() {
         <TabsList className="grid w-full grid-cols-2 max-w-md">
           <TabsTrigger value="webhooks" className="gap-2">
             <Webhook className="h-4 w-4" />
-            Webhooks
+            Status
           </TabsTrigger>
           <TabsTrigger value="logs" className="gap-2">
             <Activity className="h-4 w-4" />
@@ -167,92 +155,17 @@ export default function IntegrationsPage() {
 
         {/* Webhooks Tab → Status das Integrações */}
         <TabsContent value="webhooks" className="space-y-6">
-          {/* WhatsApp Nativo */}
-          <Card className="p-6">
+          {/* Integrações da organização — somente leitura */}
+          <Card className="p-4 sm:p-6">
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <MessageSquare className="h-6 w-6 text-primary" />
-                <h2 className="text-2xl font-semibold">WhatsApp</h2>
-                {whatsappStatus?.provider === 'meta' ? (
-                  <Badge className="bg-blue-500 text-white">Meta Cloud API</Badge>
-                ) : (
-                  <Badge className="bg-green-600 text-white">Evolution API</Badge>
-                )}
-                {(() => {
-                  const s = whatsappStatus;
-                  const configured = s?.provider === 'meta'
-                    ? !!(s?.business_phone_number_id && s?.business_access_token)
-                    : !!(s?.evolution_api_url && s?.evolution_api_key && s?.evolution_instance_name);
-                  return configured ? (
-                    <Badge className="bg-green-500 text-white gap-1">
-                      <CheckCircle2 className="h-3 w-3" />Configurado
-                    </Badge>
-                  ) : (
-                    <Badge variant="destructive" className="gap-1">
-                      <XCircle className="h-3 w-3" />Não configurado
-                    </Badge>
-                  );
-                })()}
+                <Plug className="h-6 w-6 text-primary" />
+                <h2 className="text-xl sm:text-2xl font-semibold">Integrações da empresa</h2>
               </div>
-
               <p className="text-muted-foreground text-sm">
-                Envio de mensagens via API nativa — sem intermediários. Configure as credenciais em{" "}
-                <strong>Configurações → Integração WhatsApp</strong>.
+                Status de WhatsApp, e-mail, IA e prospecção. A equipe IntelliX configura as integrações da sua empresa.
               </p>
-
-              {whatsappStatus && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  {whatsappStatus.provider !== 'meta' ? (
-                    <>
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">URL da API</p>
-                        <p className="font-mono truncate">
-                          {whatsappStatus.evolution_api_url || <span className="text-destructive">Não definido</span>}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Instância</p>
-                        <p className="font-mono truncate">
-                          {whatsappStatus.evolution_instance_name || <span className="text-destructive">Não definido</span>}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">API Key</p>
-                        <p className="font-mono">
-                          {whatsappStatus.evolution_api_key
-                            ? `${'•'.repeat(8)} (configurada)`
-                            : <span className="text-destructive">Não definida</span>}
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Phone Number ID</p>
-                        <p className="font-mono truncate">
-                          {whatsappStatus.business_phone_number_id || <span className="text-destructive">Não definido</span>}
-                        </p>
-                      </div>
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground mb-1">Access Token</p>
-                        <p className="font-mono">
-                          {whatsappStatus.business_access_token
-                            ? `${'•'.repeat(8)} (configurado)`
-                            : <span className="text-destructive">Não definido</span>}
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              <div className="p-4 bg-muted/50 rounded-lg text-xs text-muted-foreground space-y-1">
-                <p className="font-medium">Endpoint de envio nativo:</p>
-                <code className="block bg-muted px-2 py-1 rounded">POST /api/whatsapp/send</code>
-                <p className="mt-2">Webhook de recebimento (inbound):</p>
-                <code className="block bg-muted px-2 py-1 rounded break-all">POST /api/webhooks/evolution/&lt;seu-token&gt;</code>
-                <p>A URL completa com o seu token está em Configurações → WhatsApp.</p>
-              </div>
+              <ConnectionStatusList />
             </div>
           </Card>
 

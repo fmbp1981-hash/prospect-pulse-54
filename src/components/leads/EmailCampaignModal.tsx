@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Mail, Send, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { NotConfiguredNotice } from '@/components/connections/NotConfiguredNotice';
 import { INTELLIX_EMAIL_TEMPLATES } from '@/lib/email-templates/intellix-email-templates';
 
 interface EmailCampaignModalProps {
@@ -122,6 +123,8 @@ export function EmailCampaignModal({ open, onClose, selectedLeads, preSelectedTe
             <code className="bg-muted px-1 rounded text-xs">{'{{empresa}}'}</code> como variáveis personalizadas.
           </DialogDescription>
         </DialogHeader>
+
+        <NotConfiguredNotice category="email" />
 
         {result ? (
           <div className="space-y-4 py-4">

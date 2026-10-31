@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { InboxHeader } from './InboxHeader';
 import { MessageInput } from './MessageInput';
+import { NotConfiguredNotice } from '@/components/connections/NotConfiguredNotice';
 import type { InboxLead } from './ConversationListItem';
 
 interface Message {
@@ -249,6 +250,7 @@ export function ConversationThread({ lead, onModeChanged }: ConversationThreadPr
         )}
       </ScrollArea>
 
+      <NotConfiguredNotice category="whatsapp" className="rounded-none border-x-0 border-b-0" />
       <MessageInput disabled={!isAssumed} onSend={handleSend} />
     </div>
   );

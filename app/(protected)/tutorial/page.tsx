@@ -243,8 +243,8 @@ function TabSetup() {
   return (
     <div className="space-y-6">
       <TipBox>
-        Siga os passos abaixo na ordem indicada. O sistema só funciona completamente após todas as
-        integrações estarem configuradas.
+        Siga os passos abaixo na ordem indicada. As integrações são configuradas pela equipe IntelliX;
+        o sistema só funciona completamente depois que elas estiverem ativas.
       </TipBox>
 
       <Card>
@@ -260,27 +260,12 @@ function TabSetup() {
             <p className="mt-1">Caminho: <code className="bg-muted px-1 rounded text-xs">Menu lateral → Configurações → aba &quot;Empresa&quot;</code></p>
           </Step>
           <Separator />
-          <Step n={2} title="Configure a chave da OpenAI (opcional por tenant)">
-            <p>Em Configurações → aba &quot;Agente de IA&quot;, cole sua chave de API da OpenAI (<code className="bg-muted px-1 rounded text-xs">sk-...</code>). Sem ela, o agente não consegue gerar respostas inteligentes.</p>
-            <p className="mt-1">Obtenha sua chave em: <span className="text-primary font-medium">platform.openai.com/api-keys</span></p>
+          <Step n={2} title="Integrações (WhatsApp, e-mail, IA e prospecção)">
+            <p>Você não precisa cadastrar chaves de API: a equipe IntelliX configura as integrações da sua empresa.</p>
+            <p className="mt-1">Acompanhe o status em <code className="bg-muted px-1 rounded text-xs">Menu lateral → Integrações</code>. Se algo aparecer como &quot;Não configurado&quot; ou &quot;Com falha&quot;, fale com a equipe IntelliX.</p>
           </Step>
           <Separator />
-          <Step n={3} title="Conecte a Evolution API (WhatsApp)">
-            <p>Acesse <code className="bg-muted px-1 rounded text-xs">Menu lateral → Integrações</code> e configure:</p>
-            <ul className="list-disc list-inside mt-1 space-y-0.5">
-              <li>URL da Evolution API (ex: <code className="bg-muted px-1 rounded text-xs">https://evolution.suaempresa.com</code>)</li>
-              <li>Chave de API (API Key da instância)</li>
-              <li>Nome da instância WhatsApp (definido pelo administrador da plataforma)</li>
-            </ul>
-            <p className="mt-1">Após salvar, escaneie o QR Code para conectar o número WhatsApp.</p>
-          </Step>
-          <Separator />
-          <Step n={4} title="Configure a chave do Google Places (prospecção)">
-            <p>Em Integrações, cole sua chave da Google Places API. Ela é necessária para a prospecção automática de empresas por nicho e cidade.</p>
-            <p className="mt-1">Obtenha em: <span className="text-primary font-medium">console.cloud.google.com → APIs → Places API</span></p>
-          </Step>
-          <Separator />
-          <Step n={5} title="Configure o Prompt do Agente de IA">
+          <Step n={3} title="Configure o Prompt do Agente de IA">
             <p>Em <code className="bg-muted px-1 rounded text-xs">Configurações → aba &quot;Agente de IA&quot;</code>, personalize o prompt do bot com:</p>
             <ul className="list-disc list-inside mt-1 space-y-0.5">
               <li>Nome e identidade do agente</li>
@@ -289,20 +274,11 @@ function TabSetup() {
               <li>Critérios de qualificação de leads</li>
             </ul>
           </Step>
-          <Separator />
-          <Step n={6} title="Registre o webhook na Evolution API">
-            <p>Configure a URL de webhook para que a Evolution API envie as mensagens recebidas ao sistema:</p>
-            <code className="block bg-muted px-3 py-2 rounded text-xs mt-1 break-all">
-              https://seu-dominio/api/webhooks/evolution/&lt;seu-token&gt;
-            </code>
-            <p className="mt-1">Copie a URL completa, com o seu token secreto, em Configurações → WhatsApp.</p>
-            <p className="mt-1">Eventos necessários: <Badge variant="outline" className="text-xs">MESSAGES_UPSERT</Badge></p>
-          </Step>
         </CardContent>
       </Card>
 
       <SuccessBox>
-        <strong>Pronto para usar!</strong> Após concluir os 6 passos, seu sistema está totalmente
+        <strong>Pronto para usar!</strong> Após concluir os 3 passos, seu sistema está totalmente
         operacional. Você pode começar pela prospecção de leads.
       </SuccessBox>
     </div>
@@ -632,7 +608,7 @@ function TabIntegrations() {
             <Key className="h-5 w-5 text-primary" />
             APIs e Integrações Necessárias
           </CardTitle>
-          <CardDescription>Configure todas para o sistema funcionar completamente</CardDescription>
+          <CardDescription>A equipe IntelliX configura as integrações da sua empresa; acompanhe o status em Integrações</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {[
@@ -640,7 +616,7 @@ function TabIntegrations() {
               name: "OpenAI",
               badge: "Obrigatório",
               badgeColor: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-              desc: "Usada pelo agente de IA para gerar respostas, transcrever áudios e analisar imagens. Configure em Configurações → Agente de IA.",
+              desc: "Usada pelo agente de IA para gerar respostas, transcrever áudios e analisar imagens. A equipe IntelliX configura as integrações da sua empresa.",
               key: "sk-proj-...",
               where: "platform.openai.com/api-keys",
             },
@@ -648,7 +624,7 @@ function TabIntegrations() {
               name: "Evolution API (WhatsApp)",
               badge: "Obrigatório",
               badgeColor: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-              desc: "Gateway para enviar e receber mensagens WhatsApp. Configure em Integrações com URL + API Key + nome da instância.",
+              desc: "Gateway para enviar e receber mensagens WhatsApp. A equipe IntelliX configura as integrações da sua empresa.",
               key: "Fornecida pelo seu servidor Evolution",
               where: "evolution.suaempresa.com",
             },
@@ -656,7 +632,7 @@ function TabIntegrations() {
               name: "Google Places API",
               badge: "Para Prospecção",
               badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-              desc: "Usada para buscar empresas por nicho e cidade. Configure em Configurações → API Keys.",
+              desc: "Usada para buscar empresas por nicho e cidade. A equipe IntelliX configura as integrações da sua empresa.",
               key: "AIzaSy...",
               where: "console.cloud.google.com",
             },
@@ -664,7 +640,7 @@ function TabIntegrations() {
               name: "Resend (Email)",
               badge: "Para Campanhas",
               badgeColor: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-              desc: "Usado para disparar campanhas de email em massa. Configure a variável RESEND_API_KEY no Vercel para ativar campanhas de email.",
+              desc: "Usado para disparar campanhas de email em massa. A equipe IntelliX configura as integrações da sua empresa.",
               key: "re_...",
               where: "resend.com/api-keys",
             },
@@ -672,7 +648,7 @@ function TabIntegrations() {
               name: "Firecrawl (opcional)",
               badge: "Opcional",
               badgeColor: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-              desc: "Enriquece leads fazendo scraping dos websites encontrados. Gera um resumo analítico de cada empresa.",
+              desc: "Enriquece leads fazendo scraping dos websites encontrados. Gera um resumo analítico de cada empresa. A equipe IntelliX configura as integrações da sua empresa.",
               key: "fc-...",
               where: "firecrawl.dev",
             },
@@ -709,11 +685,7 @@ function TabIntegrations() {
         <CardContent>
           <div className="bg-muted rounded-lg p-4 font-mono text-xs space-y-1">
             {[
-              ["OPENAI_API_KEY", "Chave OpenAI (obrigatório)"],
               ["SUPABASE_SERVICE_ROLE_KEY", "Chave de serviço Supabase (obrigatório)"],
-              ["EVOLUTION_API_URL", "URL do servidor Evolution API"],
-              ["EVOLUTION_API_KEY", "API Key da instância Evolution"],
-              ["RESEND_API_KEY", "Chave Resend para campanhas de email"],
               ["CRON_SECRET", "Segredo para autenticar chamadas do cron"],
             ].map(([key, desc]) => (
               <div key={key} className="flex gap-2">
@@ -723,9 +695,8 @@ function TabIntegrations() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground mt-3">
-            A instância do WhatsApp não é uma variável de ambiente: cada organização tem a
-            sua, definida pelo administrador da plataforma e exibida em Configurações →
-            Integração WhatsApp (Nome da Instância).
+            Chaves de WhatsApp, e-mail, IA e prospecção não são variáveis de ambiente: a equipe
+            IntelliX configura as integrações da sua empresa, e o status aparece em Integrações.
           </p>
         </CardContent>
       </Card>
@@ -835,11 +806,11 @@ function TabCampanhas() {
               <div className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4 text-primary" />
                 <span className="text-sm font-semibold">Campanhas de WhatsApp</span>
-                <Badge variant="secondary" className="text-xs">Evolution API</Badge>
+                <Badge variant="secondary" className="text-xs">WhatsApp</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
                 Dispare mensagens WhatsApp em lote para leads ou clientes. O sistema usa a
-                Evolution API configurada nas suas integrações.
+                integração de WhatsApp da sua empresa (configurada pela equipe IntelliX).
               </p>
             </div>
           </div>
@@ -892,8 +863,8 @@ function TabCampanhas() {
       </Card>
 
       <WarningBox>
-        Para campanhas de email, configure a variável <code className="bg-muted px-1 rounded text-xs">RESEND_API_KEY</code> no Vercel.
-        Para campanhas de WhatsApp, a Evolution API deve estar conectada e o número ativo.
+        Campanhas de email e de WhatsApp dependem das integrações da organização: a equipe IntelliX
+        configura as integrações da sua empresa. Confira o status em Integrações antes de disparar.
       </WarningBox>
     </div>
   );

@@ -11,6 +11,7 @@ import { supabaseCRM } from "@/lib/supabaseCRM";
 import { auditWhatsAppDispatch } from "@/lib/audit";
 import { leadAutomation } from "@/lib/leadAutomation";
 import { toast } from "sonner";
+import { NotConfiguredNotice } from "@/components/connections/NotConfiguredNotice";
 
 type MediaMode = 'none' | 'upload' | 'url';
 
@@ -312,6 +313,8 @@ export const WhatsAppDispatchModal = ({
         <DialogHeader>
           <DialogTitle>Envio de Mensagens WhatsApp</DialogTitle>
         </DialogHeader>
+
+        <NotConfiguredNotice category="whatsapp" />
 
         {/* Avisos */}
         {(leadsWithoutWhatsApp.length > 0 || leadsWithoutMessage.length > 0 || alreadySent.length > 0) && (

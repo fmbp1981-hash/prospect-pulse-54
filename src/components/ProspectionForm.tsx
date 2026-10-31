@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LocationCascade, LocationData } from "@/components/LocationCascade";
 import { toast } from "sonner";
+import { NotConfiguredNotice } from "@/components/connections/NotConfiguredNotice";
 import {
   Search, Loader2, Target, MapPin, Hash, RotateCcw, X, Package,
   Linkedin, Building2, UserRound, Briefcase, ExternalLink, Sparkles, UserPlus, Check, Copy,
@@ -366,6 +367,12 @@ export const ProspectionForm = ({ onSearch, lastSearch }: ProspectionFormProps) 
             ]}
           />
         </div>
+
+        <NotConfiguredNotice
+          category="prospecting"
+          provider={channel === 'linkedin' ? 'apify' : 'google_places'}
+          className="mb-6"
+        />
 
         {channel === 'gmn' && lastSearch && (!lastSearch.channel || lastSearch.channel === 'gmn') && (
           <div className="mb-6 p-4 rounded-lg bg-muted/50 border border-border">

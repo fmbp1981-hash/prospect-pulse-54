@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, MessageSquare, Eye, EyeOff, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload, Phone, UserCheck, Globe } from "lucide-react";
+import { Loader2, Save, Building2, Settings as SettingsIcon, Trash2, AlertTriangle, History, Clock, RefreshCw, Bot, RotateCcw, BookOpen, FileText, Upload, Phone, UserCheck, Plug, ShieldCheck } from "lucide-react";
 import { userSettingsService } from "@/lib/userSettings";
 import { supabase } from "@/integrations/supabase/client";
 import { RoleGuard } from "@/components/RoleGuard";
@@ -22,7 +22,12 @@ import { historyService } from "@/lib/history";
 import { leadAutomation, type FollowUpConfig } from "@/lib/leadAutomation";
 import { useAuth } from "@/contexts/AuthContext";
 import { WebhookKeysPanel } from '@/components/settings/WebhookKeysPanel';
-import { WhatsAppWebhookUrl } from '@/components/settings/WhatsAppWebhookUrl';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ConnectionStatusList } from '@/components/connections/ConnectionStatusList';
+import { NotConfiguredNotice } from '@/components/connections/NotConfiguredNotice';
+import { OrganizationConnections, useAdminOrganizations } from '@/components/admin/OrganizationConnections';
+import { PlatformCredentials } from '@/components/admin/PlatformCredentials';
+import { useUserRole } from '@/hooks/useUserRole';
 import { ImportHistoryPanel } from '@/components/settings/ImportHistoryPanel';
 import { IcpSettingsPanel } from '@/components/settings/IcpSettingsPanel';
 
@@ -40,44 +45,22 @@ function IntegrationsTabScroller() {
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
+  // Abas do admin da PLATAFORMA: só aparecem se a API de admin responder (403 para os demais).
+  const platformAdmin = useAdminOrganizations(isAdmin);
+  const isPlatformAdmin = platformAdmin.isSuccess;
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingLeads, setIsDeletingLeads] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [isProcessingFollowUp, setIsProcessingFollowUp] = useState(false);
   const [companyName, setCompanyName] = useState("");
-  const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
-  const [evolutionApiKey, setEvolutionApiKey] = useState("");
-  // Somente leitura: definida pelo admin da plataforma (guard no banco, F-04).
-  const [evolutionInstanceName, setEvolutionInstanceName] = useState("");
-  const [webhookToken, setWebhookToken] = useState("");
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [showMetaToken, setShowMetaToken] = useState(false);
-
-  // Provider WhatsApp
-  const [whatsappProvider, setWhatsappProvider] = useState<'evolution' | 'meta'>('evolution');
-  // Meta Cloud API
-  const [metaPhoneNumberId, setMetaPhoneNumberId] = useState("");
-  const [metaAccessToken, setMetaAccessToken] = useState("");
-  const [metaVerifyToken, setMetaVerifyToken] = useState("");
-
   // Consultor para transferências
   const [consultantWhatsapp, setConsultantWhatsapp] = useState("");
 
   // Toggle do agente de IA
   const [agentEnabled, setAgentEnabled] = useState(true);
   const [isSavingAgentToggle, setIsSavingAgentToggle] = useState(false);
-
-  // Configuração da chave OpenAI
-  const [openAiApiKey, setOpenAiApiKey] = useState("");
-  const [showOpenAiKey, setShowOpenAiKey] = useState(false);
-
-
-  // Configuração de prospecção (Firecrawl + Apify)
-  const [firecrawlApiKey, setFirecrawlApiKey] = useState("");
-  const [showFirecrawlKey, setShowFirecrawlKey] = useState(false);
-  const [apifyApiKey, setApifyApiKey] = useState("");
-  const [showApifyKey, setShowApifyKey] = useState(false);
 
   // Configurações de Follow-up automático
   const [followUpEnabled, setFollowUpEnabled] = useState(true);
@@ -128,19 +111,8 @@ export default function SettingsPage() {
       const settings = await userSettingsService.getUserSettings();
       if (settings) {
         setCompanyName(settings.company_name || "");
-        setWhatsappProvider((settings.provider as 'evolution' | 'meta') || 'evolution');
-        setEvolutionApiUrl(settings.evolution_api_url || "");
-        setEvolutionApiKey(settings.evolution_api_key || "");
-        setEvolutionInstanceName(settings.evolution_instance_name || "");
-        setWebhookToken(settings.webhook_token || "");
-        setMetaPhoneNumberId(settings.business_phone_number_id || "");
-        setMetaAccessToken(settings.business_access_token || "");
-        setMetaVerifyToken(settings.meta_verify_token || "");
         setConsultantWhatsapp(settings.consultant_whatsapp || "");
         setAgentEnabled(settings.agent_enabled !== false);
-        setOpenAiApiKey(settings.openai_api_key || "");
-        setFirecrawlApiKey(settings.firecrawl_api_key || "");
-        setApifyApiKey(settings.apify_api_key || "");
       }
 
       // Carregar configurações de Follow-up
@@ -211,18 +183,6 @@ export default function SettingsPage() {
     }
     setIsSavingAgent(true);
     try {
-      // Salva chave OpenAI diretamente em user_settings (update parcial)
-      if (openAiApiKey.trim()) {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
-            .from('user_settings')
-            .update({ openai_api_key: openAiApiKey.trim(), updated_at: new Date().toISOString() })
-            .eq('user_id', currentUser.id);
-        }
-      }
-
       const res = await fetch("/api/agent/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -337,17 +297,8 @@ export default function SettingsPage() {
     try {
       await userSettingsService.saveUserSettings({
         company_name: companyName,
-        provider: whatsappProvider,
-        evolution_api_url: evolutionApiUrl,
-        evolution_api_key: evolutionApiKey,
-        business_phone_number_id: metaPhoneNumberId,
-        business_access_token: metaAccessToken,
-        meta_verify_token: metaVerifyToken,
         consultant_whatsapp: consultantWhatsapp,
         agent_enabled: agentEnabled,
-        openai_api_key: openAiApiKey || undefined,
-        firecrawl_api_key: firecrawlApiKey || undefined,
-        apify_api_key: apifyApiKey || undefined,
       });
 
       // Salvar configurações de Follow-up
@@ -671,41 +622,7 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Chave API OpenAI */}
-            <div className="space-y-2">
-              <Label htmlFor="openai_api_key" className="flex items-center gap-2">
-                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
-                Chave de API OpenAI <span className="text-red-500">*</span>
-              </Label>
-              <div className="flex gap-2 max-w-md">
-                <Input
-                  id="openai_api_key"
-                  type={showOpenAiKey ? "text" : "password"}
-                  placeholder="sk-proj-..."
-                  value={openAiApiKey}
-                  onChange={(e) => setOpenAiApiKey(e.target.value)}
-                  className="font-mono text-sm flex-1"
-                  autoComplete="off"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  onClick={() => setShowOpenAiKey(!showOpenAiKey)}
-                  title={showOpenAiKey ? "Ocultar chave" : "Mostrar chave"}
-                >
-                  {showOpenAiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Chave da sua conta OpenAI (começa com <code className="bg-muted px-1 rounded">sk-proj-</code> ou <code className="bg-muted px-1 rounded">sk-</code>).
-                Obtenha em <span className="font-medium">platform.openai.com/api-keys</span>.
-                Salva via botão &ldquo;Salvar Configurações&rdquo; abaixo.
-              </p>
-              {openAiApiKey && !openAiApiKey.startsWith('sk-') && (
-                <p className="text-xs text-red-500">Formato inválido — a chave deve começar com <code>sk-</code></p>
-              )}
-            </div>
+            <NotConfiguredNotice category="llm" />
 
             <div className="space-y-2">
               <Label htmlFor="agent_model">Modelo de IA</Label>
@@ -948,276 +865,27 @@ export default function SettingsPage() {
               <p className="font-medium">Como o RAG funciona:</p>
               <p>• Documentos são fragmentados em chunks e indexados com embeddings vetoriais (OpenAI)</p>
               <p>• O agente busca automaticamente conhecimento relevante ao responder cada mensagem</p>
-              <p>• Requer a <strong>Chave de API OpenAI</strong> configurada na seção &ldquo;Agente de IA&rdquo; acima</p>
+              <p>• Requer a integração de <strong>IA</strong> ativa para a organização (configurada pela equipe IntelliX)</p>
             </div>
           </CardContent>
         </Card>
       </RoleGuard>
 
-      {/* Integrações WhatsApp - Apenas para Admins */}
-      <RoleGuard allowedRoles={['admin']}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-primary" />
-              <CardTitle>Integração WhatsApp</CardTitle>
-            </div>
-            <CardDescription>
-              Escolha o provedor e configure as credenciais para envio e recebimento de mensagens
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-
-            {/* Selector de Provider */}
-            <div className="space-y-2">
-              <Label>Provedor WhatsApp</Label>
-              <Select value={whatsappProvider} onValueChange={(v) => setWhatsappProvider(v as 'evolution' | 'meta')}>
-                <SelectTrigger className="max-w-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="evolution">Evolution API (não oficial)</SelectItem>
-                  <SelectItem value="meta">Meta Cloud API (oficial)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* ── EVOLUTION API ── */}
-            {whatsappProvider === 'evolution' && (
-              <div className="space-y-4 border rounded-lg p-4">
-                <p className="text-sm font-medium">Configurações Evolution API</p>
-
-                <WhatsAppWebhookUrl token={webhookToken} />
-
-                <div className="space-y-2">
-                  <Label htmlFor="evolution_instance_name">Nome da Instância</Label>
-                  <Input
-                    id="evolution_instance_name"
-                    placeholder="Não definida"
-                    value={evolutionInstanceName}
-                    readOnly
-                    aria-readonly="true"
-                    className="max-w-md bg-muted"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Definida pelo administrador da plataforma. Para alterar, fale com o suporte.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="evolution_api_url">URL da API</Label>
-                  <Input
-                    id="evolution_api_url"
-                    placeholder="https://evolution.seudominio.com.br"
-                    value={evolutionApiUrl}
-                    onChange={(e) => setEvolutionApiUrl(e.target.value)}
-                    className="max-w-2xl"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="evolution_api_key">API Key</Label>
-                  <div className="flex gap-2 max-w-2xl">
-                    <Input
-                      id="evolution_api_key"
-                      type={showApiKey ? "text" : "password"}
-                      placeholder="Sua chave de API da Evolution"
-                      value={evolutionApiKey}
-                      onChange={(e) => setEvolutionApiKey(e.target.value)}
-                      className="flex-1 [&::-ms-reveal]:hidden [&::-webkit-credentials-auto-fill-button]:hidden"
-                    />
-                    <Button type="button" variant="outline" size="sm"
-                      className="px-3 shrink-0"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      title={showApiKey ? "Ocultar chave" : "Mostrar chave"}>
-                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── META CLOUD API (OFICIAL) ── */}
-            {whatsappProvider === 'meta' && (
-              <div className="space-y-4 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium">Configurações Meta Cloud API (Oficial)</p>
-                  <Badge className="bg-blue-500 text-white text-xs">Oficial Meta</Badge>
-                </div>
-
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
-                  <p className="font-medium">Como obter as credenciais:</p>
-                  <p>1. Acesse <strong>developers.facebook.com</strong> → seu App → WhatsApp → Configuração da API</p>
-                  <p>2. Copie o <strong>ID do número de telefone</strong> e o <strong>Token de acesso</strong></p>
-                  <p>3. Defina um Verify Token de sua escolha e configure no webhook da Meta</p>
-                  <p>4. URL do webhook: use a URL abaixo (contém o seu token secreto)</p>
-                </div>
-
-                <WhatsAppWebhookUrl token={webhookToken} />
-
-                <div className="space-y-2">
-                  <Label htmlFor="meta_phone_id">Phone Number ID</Label>
-                  <Input
-                    id="meta_phone_id"
-                    placeholder="Ex: 123456789012345"
-                    value={metaPhoneNumberId}
-                    onChange={(e) => setMetaPhoneNumberId(e.target.value)}
-                    className="max-w-md font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Encontrado em: Meta App → WhatsApp → Configuração da API → ID do número de telefone
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="meta_access_token">Token de Acesso (System User Token)</Label>
-                  <div className="relative max-w-2xl">
-                    <Input
-                      id="meta_access_token"
-                      type={showMetaToken ? "text" : "password"}
-                      placeholder="EAA..."
-                      value={metaAccessToken}
-                      onChange={(e) => setMetaAccessToken(e.target.value)}
-                      className="pr-10 font-mono"
-                    />
-                    <Button type="button" variant="ghost" size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowMetaToken(!showMetaToken)}>
-                      {showMetaToken ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Use um System User Token permanente (não o token temporário de 24h)
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="meta_verify_token">Verify Token (Webhook)</Label>
-                  <Input
-                    id="meta_verify_token"
-                    placeholder="Ex: meu_token_secreto_123"
-                    value={metaVerifyToken}
-                    onChange={(e) => setMetaVerifyToken(e.target.value)}
-                    className="max-w-md font-mono"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Token definido por você. Configure o mesmo valor no painel de webhook da Meta.
-                  </p>
-                </div>
-
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-200">
-                  <p className="font-medium mb-1">Variáveis de ambiente necessárias na Vercel:</p>
-                  <code className="block bg-amber-100 dark:bg-amber-900 p-2 rounded space-y-1">
-                    <span className="block">WHATSAPP_PROVIDER=meta</span>
-                    <span className="block">META_WA_TOKEN={"<Token de Acesso>"}</span>
-                    <span className="block">META_WA_PHONE_NUMBER_ID={"<Phone Number ID>"}</span>
-                    <span className="block">META_WA_VERIFY_TOKEN={"<Verify Token>"}</span>
-                  </code>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </RoleGuard>
-
-      {/* Prospecção — LinkedIn (Apify) e Enriquecimento de Site (Firecrawl) - Apenas para Admins */}
-      <RoleGuard allowedRoles={['admin']}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Globe className="h-5 w-5 text-primary" />
-              <CardTitle>Prospecção — LinkedIn e Enriquecimento</CardTitle>
-            </div>
-            <CardDescription>
-              Chaves de API para o conector de LinkedIn (Apify) e o enriquecimento de site
-              institucional (Firecrawl). Cada cliente configura suas próprias credenciais.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="apify_api_key" className="flex items-center gap-2">
-                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
-                Chave de API Apify (LinkedIn)
-              </Label>
-              <div className="flex gap-2 max-w-md">
-                <Input
-                  id="apify_api_key"
-                  type={showApifyKey ? "text" : "password"}
-                  placeholder="apify_api_..."
-                  value={apifyApiKey}
-                  onChange={(e) => setApifyApiKey(e.target.value)}
-                  className="font-mono text-sm flex-1"
-                  autoComplete="off"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  onClick={() => setShowApifyKey(!showApifyKey)}
-                  title={showApifyKey ? "Ocultar chave" : "Mostrar chave"}
-                >
-                  {showApifyKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Obtenha em <strong>console.apify.com/settings/integrations</strong>. Usada para
-                buscar pessoas/empresas no LinkedIn (camada sem cookies, sem risco de banimento).
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="firecrawl_api_key" className="flex items-center gap-2">
-                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
-                Chave de API Firecrawl (enriquecimento de site)
-              </Label>
-              <div className="flex gap-2 max-w-md">
-                <Input
-                  id="firecrawl_api_key"
-                  type={showFirecrawlKey ? "text" : "password"}
-                  placeholder="fc-..."
-                  value={firecrawlApiKey}
-                  onChange={(e) => setFirecrawlApiKey(e.target.value)}
-                  className="font-mono text-sm flex-1"
-                  autoComplete="off"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  type="button"
-                  onClick={() => setShowFirecrawlKey(!showFirecrawlKey)}
-                  title={showFirecrawlKey ? "Ocultar chave" : "Mostrar chave"}
-                >
-                  {showFirecrawlKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Obtenha em <strong>firecrawl.dev/app/api-keys</strong>. Usada só para achar
-                email/telefone publicados no site da empresa — nunca no canal LinkedIn.
-              </p>
-            </div>
-
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-xs text-blue-800 dark:text-blue-200 space-y-1">
-              <p>As chaves aqui salvas sobrepõem as variáveis de ambiente
-                <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded mx-1">APIFY_API_KEY</code>
-                e
-                <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded mx-1">FIRECRAWL_API_KEY</code>
-                do servidor — cada tenant usa a própria conta e é cobrado por ela.</p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button onClick={handleSave} disabled={isSaving}>
-                {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </RoleGuard>
+      {/* Integrações da organização — status somente leitura (configuradas pela equipe IntelliX) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Plug className="h-5 w-5 text-primary" />
+            <CardTitle>Integrações</CardTitle>
+          </div>
+          <CardDescription>
+            WhatsApp, e-mail, IA e prospecção da sua empresa. A equipe IntelliX configura as integrações da sua empresa.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ConnectionStatusList />
+        </CardContent>
+      </Card>
 
       {/* Agente de Atendimento e Consultor - Admin e Operador */}
       <RoleGuard requiredPermission="canManageAgent">
@@ -1262,25 +930,6 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* WhatsApp do Agente (instância Evolution) */}
-            <div className="space-y-2">
-              <Label htmlFor="agent_instance_name" className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                Instância de Atendimento do Agente
-              </Label>
-              <Input
-                id="agent_instance_name"
-                placeholder="Não definida"
-                value={evolutionInstanceName}
-                readOnly
-                aria-readonly="true"
-                className="max-w-md font-mono bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">
-                Nome da instância Evolution conectada ao número que o bot usa para conversar com leads e enviar notificações ao consultor. Definida pelo administrador da plataforma.
-              </p>
-            </div>
-
             {/* WhatsApp do Consultor */}
             <div className="space-y-2">
               <Label htmlFor="consultant_whatsapp" className="flex items-center gap-2">
@@ -1317,26 +966,6 @@ export default function SettingsPage() {
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Salvando...</> : <><Save className="h-4 w-4 mr-2" />Salvar Configurações</>}
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </RoleGuard>
-
-      {/* Mensagem para usuários não-admin */}
-      <RoleGuard allowedRoles={['operador', 'visualizador']}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-primary" />
-              <CardTitle>Integração WhatsApp</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                As configurações de integração com WhatsApp são gerenciadas pelo administrador do sistema.
-                Entre em contato com o suporte caso precise de ajustes.
-              </p>
             </div>
           </CardContent>
         </Card>
@@ -1417,6 +1046,35 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </RoleGuard>
+
+      {/* Admin da PLATAFORMA: integrações por organização e credenciais da plataforma */}
+      {isPlatformAdmin && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <CardTitle>Administração da plataforma</CardTitle>
+            </div>
+            <CardDescription>
+              Visível só para o admin da plataforma. Configure as integrações de cada organização e as credenciais da IntelliX.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="org-connections">
+              <TabsList className="grid h-auto w-full grid-cols-1 sm:grid-cols-2">
+                <TabsTrigger value="org-connections">Organizações → Integrações</TabsTrigger>
+                <TabsTrigger value="platform-credentials">Credenciais da plataforma</TabsTrigger>
+              </TabsList>
+              <TabsContent value="org-connections" className="mt-4">
+                <OrganizationConnections />
+              </TabsContent>
+              <TabsContent value="platform-credentials" className="mt-4">
+                <PlatformCredentials />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Role Management - Apenas para Admins */}
       <RoleGuard allowedRoles={['admin']}>
