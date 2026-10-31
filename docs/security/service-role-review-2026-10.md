@@ -21,7 +21,7 @@ Contagem: **Critical 2 · High 6 · Medium 7 · Low 5 · Info 3** — **Security
 | F-14 | Medium | CONFIRMED | `list-users` devolve `evolution_api_key` de terceiros | `app/api/admin/list-users/route.ts:47-49` | Task 9 |
 | F-15 | Medium | — | reads/updates por id sem tenant explícito (defesa em profundidade) | `lead.repository.ts`, `conversation.repository.ts`, inbox | Sprint 4 |
 | F-16 | Low/Med | PLAUSIBLE | RAG ingest aceita `agentConfigId` de outro tenant | `app/api/agent/rag/route.ts:96-110` | Task 9 |
-| F-17 | Low | — | `init-user-settings` admin por e-mail | — | Tratado na Task 6 (`PLATFORM_ADMIN_EMAIL`); exigir `email_confirmed_at` → Sprint 2b |
+| F-17 | Low | — | `init-user-settings` admin por e-mail | — | Resolvido na rodada final do Sprint 1: tratamento por e-mail removido; admin da plataforma só via `public.platform_admins` |
 | F-18 | Low | — | CRON_SECRET em query string; comparação não constante | `rag-ingest`, `register-templates`, `test-email` | Task 9 (helper de cron) |
 | F-19 | Low | — | `q` interpolado em `.or()` | `app/api/clientes/route.ts:39-41` | Sprint 4 |
 | F-20 | Low | — | `generate-template-ai` só checa presença do header | `supabase/functions/generate-template-ai/index.ts` | Sprint 4 |
