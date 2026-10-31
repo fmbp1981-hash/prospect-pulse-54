@@ -1,0 +1,66 @@
+-- Rollback de 20261030160000_restrict_row_owner_writes.sql
+--
+-- Restaura o estado logo após 20261030150000_unique_evolution_instance:
+--   * remove as policies RESTRICTIVE "row owner must belong to org (insert|update)"
+--     das 25 tabelas (MT-01) e "org admin only writes (insert|update|delete)"
+--     de agent_configs, rag_documents, rag_document_chunks e icp_settings (MT-03);
+--   * remove public.is_org_member_user(uuid, uuid);
+--   * devolve TRUNCATE, TRIGGER e REFERENCES a anon/authenticated em todas as
+--     tabelas do public (estado de produção antes da 160000) e nos default
+--     privileges do role postgres, e reafirma as exceções que já existiam
+--     antes (20261030130000): sem TRUNCATE em organization_members e
+--     user_settings, e nenhum privilégio em platform_admins para anon/authenticated.
+--
+-- ATENÇÃO: depois do rollback, writers de uma organização voltam a gravar
+-- linhas com user_id de usuários de outras organizações (MT-01), operadores
+-- voltam a alterar agente/RAG/ICP pelo client da sessão (MT-03) e
+-- anon/authenticated voltam a ter TRUNCATE (ignora RLS) nas tabelas do public.
+
+do $$
+declare
+  v_tabela text;
+  v_mt01 constant text[] := array[
+    'agent_configs', 'audit_logs', 'campaign_sends', 'campaigns',
+    'cliente_historico', 'clientes', 'companies', 'contacts', 'enrichment_raw',
+    'followup_schedules', 'icp_settings', 'import_history', 'lead_notes',
+    'leads_prospeccao', 'linkedin_raw', 'linkedin_suppression_list',
+    'message_logs', 'message_templates', 'prospecting_channels',
+    'prospecting_jobs', 'rag_document_chunks', 'rag_documents',
+    'search_history', 'webhook_keys', 'whatsapp_conversations'
+  ];
+  v_mt03 constant text[] := array[
+    'agent_configs', 'rag_documents', 'rag_document_chunks', 'icp_settings'
+  ];
+begin
+  foreach v_tabela in array v_mt01 loop
+    if to_regclass(format('public.%I', v_tabela)) is not null then
+      execute format('drop policy if exists %I on public.%I',
+                     'row owner must belong to org (insert)', v_tabela);
+      execute format('drop policy if exists %I on public.%I',
+                     'row owner must belong to org (update)', v_tabela);
+    end if;
+  end loop;
+
+  foreach v_tabela in array v_mt03 loop
+    if to_regclass(format('public.%I', v_tabela)) is not null then
+      execute format('drop policy if exists %I on public.%I',
+                     'org admin only writes (insert)', v_tabela);
+      execute format('drop policy if exists %I on public.%I',
+                     'org admin only writes (update)', v_tabela);
+      execute format('drop policy if exists %I on public.%I',
+                     'org admin only writes (delete)', v_tabela);
+    end if;
+  end loop;
+end $$;
+
+drop function if exists public.is_org_member_user(uuid, uuid);
+
+grant truncate, trigger, references on all tables in schema public to anon, authenticated;
+
+alter default privileges for role postgres in schema public
+  grant truncate, trigger, references on tables to anon, authenticated;
+
+-- Exceções que já existiam antes da 160000 (20261030130000).
+revoke truncate on public.organization_members from anon, authenticated;
+revoke truncate on public.user_settings from anon, authenticated;
+revoke all on public.platform_admins from public, anon, authenticated;
