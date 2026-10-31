@@ -723,7 +723,7 @@ function TabIntegrations() {
           </div>
           <p className="text-xs text-muted-foreground mt-3">
             A instância do WhatsApp não é uma variável de ambiente: cada organização
-            configura a sua em Configurações → WhatsApp (Nome da Instância).
+            configura a sua em Configurações → Integração WhatsApp (Nome da Instância).
           </p>
         </CardContent>
       </Card>
