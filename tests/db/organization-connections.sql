@@ -92,13 +92,17 @@ declare
   c_ins constant text :=
     'insert into public.organization_connections (id, organization_id, category, provider, credential_source) '
     'values (%L, %L, %L, %L, %L)';
+  -- conexão whatsapp/evolution com config.instanceName = %L
+  c_evo constant text :=
+    'insert into public.organization_connections (organization_id, category, provider, credential_source, config) '
+    'values (%L, ''whatsapp'', ''evolution'', ''own'', jsonb_build_object(''instanceName'', %L::text))';
   -- 'aceito' só se a contagem for exatamente 1 (senão 22012 divisão por zero)
   c_um constant text := 'select 1 / (case when (%s) = 1 then 1 else 0 end)';
   -- 'aceito' só se a contagem for exatamente 0
   c_zero constant text := 'select 1 / (case when (%s) = 0 then 1 else 0 end)';
 begin
   if v_adm is null or v_org_a is null or v_org_b is null then
-    for v_n in 1..20 loop
+    for v_n in 1..24 loop
       perform set_config('teste.c' || v_n || '_ok', '', true);
       perform set_config('teste.c' || v_n || '_det',
         'sem admin de org (fora de platform_admins) e uma segunda organização', true);
@@ -211,7 +215,7 @@ begin
   -- 12. segunda conexão whatsapp na mesma organização → 23505
   v_res := pg_temp.tentar(null, 'postgres', array[
     format(c_ins, gen_random_uuid(), v_org_a, 'whatsapp', 'meta_cloud', 'own'),
-    format(c_ins, gen_random_uuid(), v_org_a, 'whatsapp', 'evolution', 'own')]);
+    format(c_evo, v_org_a, 'teste-inst-c12')]);
   perform set_config('teste.c12_ok', (v_res like '23505%')::text, true);
   perform set_config('teste.c12_det', v_res, true);
 
@@ -262,6 +266,31 @@ begin
   v_res := pg_temp.tentar(null, 'anon', array['select count(*) from public.organization_connections']);
   perform set_config('teste.c20_ok', (v_res like '42501%')::text, true);
   perform set_config('teste.c20_det', v_res, true);
+
+  -- 21. mesma instância Evolution em org A e org B → 23505
+  v_res := pg_temp.tentar(null, 'postgres', array[
+    format(c_evo, v_org_a, 'teste-inst-c21'),
+    format(c_evo, v_org_b, 'teste-inst-c21')]);
+  perform set_config('teste.c21_ok', (v_res like '23505%')::text, true);
+  perform set_config('teste.c21_det', v_res, true);
+
+  -- 22. mesmo nome com espaços em volta (btrim) → 23505
+  v_res := pg_temp.tentar(null, 'postgres', array[
+    format(c_evo, v_org_a, 'teste-inst-c22'),
+    format(c_evo, v_org_b, '  teste-inst-c22 ')]);
+  perform set_config('teste.c22_ok', (v_res like '23505%')::text, true);
+  perform set_config('teste.c22_det', v_res, true);
+
+  -- 23. evolution com instanceName vazio/só espaços → 23514
+  v_res := pg_temp.tentar(null, 'postgres', array[format(c_evo, v_org_a, '   ')]);
+  perform set_config('teste.c23_ok', (v_res like '23514%')::text, true);
+  perform set_config('teste.c23_det', v_res, true);
+
+  -- 24. evolution sem instanceName → 23514
+  v_res := pg_temp.tentar(null, 'postgres', array[
+    format(c_ins, gen_random_uuid(), v_org_a, 'whatsapp', 'evolution', 'own')]);
+  perform set_config('teste.c24_ok', (v_res like '23514%')::text, true);
+  perform set_config('teste.c24_det', v_res, true);
 end $$;
 
 select c.cenario,
@@ -287,7 +316,11 @@ from (values
   (17, '17. platform_credentials ilegível por membro → 42501'),
   (18, '18. usage_events: própria org visível, outra org invisível'),
   (19, '19. usage_events: authenticated não grava → 42501'),
-  (20, '20. anon não lê organization_connections → 42501')
+  (20, '20. anon não lê organization_connections → 42501'),
+  (21, '21. mesma instância Evolution em duas organizações → 23505'),
+  (22, '22. mesma instância Evolution com espaços em volta → 23505'),
+  (23, '23. Evolution com instanceName vazio → 23514'),
+  (24, '24. Evolution sem instanceName → 23514')
 ) as c(n, cenario)
 order by c.n;
 

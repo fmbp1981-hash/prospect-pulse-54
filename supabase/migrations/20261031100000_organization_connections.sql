@@ -24,6 +24,8 @@
 --   * No máximo uma conexão por (organização, categoria) em whatsapp, email e
 --     llm; em prospecting, uma por provedor (google_places, apify, firecrawl).
 --   * WhatsApp é sempre credencial própria (credential_source = 'own').
+--   * Evolution: config.instanceName obrigatório e único entre todas as
+--     conexões (btrim), como user_settings no Sprint 1 (F-04).
 --   * webhook_key: identificador opaco (64 hex) da URL do webhook de entrada,
 --     gerado no banco só para whatsapp. Nunca legível nem gravável por
 --     anon/authenticated.
@@ -84,6 +86,22 @@ alter table public.organization_connections owner to postgres;
 create unique index if not exists organization_connections_org_single_category_key
   on public.organization_connections (organization_id, category)
   where category in ('whatsapp', 'email', 'llm');
+
+-- Evolution (spec 4.2, F-04 do Sprint 1): a API key de um servidor Evolution
+-- acessa qualquer instância dele, então o nome da instância é obrigatório e
+-- pertence a uma única conexão (comparando com btrim: 'inst' = ' inst ').
+alter table public.organization_connections
+  drop constraint if exists organization_connections_evolution_instance_required;
+alter table public.organization_connections
+  add constraint organization_connections_evolution_instance_required
+  check (provider <> 'evolution' or nullif(btrim(config->>'instanceName'), '') is not null);
+
+create unique index if not exists organization_connections_evolution_instance_key
+  on public.organization_connections ((btrim(config->>'instanceName')))
+  where provider = 'evolution' and nullif(btrim(config->>'instanceName'), '') is not null;
+
+comment on index public.organization_connections_evolution_instance_key is
+  'Uma instância Evolution pertence a uma única conexão (spec 4.2), comparando com btrim.';
 
 comment on table public.organization_connections is
   'Conexão de uma organização com um provedor (Sprint 2b). Sem linha = não configurado. '
