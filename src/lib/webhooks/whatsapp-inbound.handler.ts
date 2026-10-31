@@ -6,8 +6,10 @@
  * O campo `instance` do payload nunca escolhe o tenant: na Evolution ele só
  * precisa coincidir com a instância do tenant do token (senão 403).
  *
- *   token malformado / desconhecido          → 401, nada processado
- *   Meta com META_APP_SECRET e assinatura ruim → 401
+ *   token malformado / desconhecido          → 401, nada processado (body não é lido)
+ *   Content-Length ou corpo > 1 MB            → 413
+ *   payload Meta sem META_APP_SECRET          → 503 (fail-closed)
+ *   payload Meta com assinatura inválida      → 401
  *   Evolution com instance de outro tenant    → 403, nada processado
  *
  * Fluxo especial: mensagens fromMe=true durante modo humano são salvas
@@ -27,6 +29,16 @@ import { leadRepository } from '@/lib/repositories/lead.repository';
 import { leadService } from '@/lib/services/lead.service';
 import { conversationRepository } from '@/lib/repositories/conversation.repository';
 import { isWellFormedWebhookToken, safeEqual, verifyMetaSignature } from './webhook-token';
+
+/** Limite do corpo do webhook (1 MB). Mídia chega por URL/ID, não inline grande. */
+const MAX_BODY_BYTES = 1024 * 1024;
+
+function payloadTooLarge() {
+  return NextResponse.json(
+    { error: { code: 'PAYLOAD_TOO_LARGE', message: 'Corpo maior que 1 MB' } },
+    { status: 413 }
+  );
+}
 
 function unauthorized() {
   return NextResponse.json(
@@ -105,22 +117,16 @@ export async function handleWhatsAppInboundPost(
   // Formato inválido nem chega ao banco.
   if (!isWellFormedWebhookToken(token)) return unauthorized();
 
-  const rawBody = await req.text();
-
+  // Tenant ANTES de ler o corpo: requisição sem token válido não consome o body.
   const tenant = await resolveTenantByWebhookToken(token);
   if (!tenant) return unauthorized();
 
-  const isMeta = process.env.WHATSAPP_PROVIDER === 'meta';
-  if (isMeta) {
-    const appSecret = process.env.META_APP_SECRET;
-    if (appSecret) {
-      if (!verifyMetaSignature(rawBody, req.headers.get('x-hub-signature-256'), appSecret)) {
-        return unauthorized();
-      }
-    } else {
-      console.warn('[Webhook] META_APP_SECRET ausente: assinatura X-Hub-Signature-256 não verificada');
-    }
-  }
+  const declaredLength = Number(req.headers.get('content-length') ?? '0');
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) return payloadTooLarge();
+
+  const rawBody = await req.text();
+  // Content-Length pode faltar (chunked): confere também o tamanho lido.
+  if (Buffer.byteLength(rawBody, 'utf8') > MAX_BODY_BYTES) return payloadTooLarge();
 
   let body: unknown;
   try {
@@ -130,6 +136,25 @@ export async function handleWhatsAppInboundPost(
       { error: { code: 'INVALID_JSON', message: 'Corpo JSON inválido' } },
       { status: 400 }
     );
+  }
+
+  // Meta Cloud API: assinatura obrigatória (fail-closed). Vale quando o provider
+  // é meta, quando o payload tem formato Meta ou quando veio X-Hub-Signature-256.
+  const isMetaProvider = process.env.WHATSAPP_PROVIDER === 'meta';
+  const signatureHeader = req.headers.get('x-hub-signature-256');
+  const looksLikeMeta =
+    !!body && typeof body === 'object'
+    && (body as Record<string, unknown>).object === 'whatsapp_business_account';
+  if (isMetaProvider || looksLikeMeta || signatureHeader) {
+    const appSecret = process.env.META_APP_SECRET;
+    if (!appSecret) {
+      console.error('[Webhook] META_APP_SECRET ausente: payload Meta recusado (503)');
+      return NextResponse.json(
+        { error: { code: 'META_SECRET_MISSING', message: 'Webhook Meta indisponível: assinatura não configurada' } },
+        { status: 503 }
+      );
+    }
+    if (!verifyMetaSignature(rawBody, signatureHeader, appSecret)) return unauthorized();
   }
 
   // Ignora payloads nulos ou não-objetos (ex: body = null, body = 42)
@@ -148,7 +173,7 @@ export async function handleWhatsAppInboundPost(
 
   // Evolution: a instância do payload tem de ser a do tenant do token.
   // Meta: o número é único por app (META_WA_PHONE_NUMBER_ID); o token já define o tenant.
-  if (!isMeta && (!tenant.instanceName || normalizedPayload.instanceName !== tenant.instanceName)) {
+  if (!isMetaProvider && (!tenant.instanceName || normalizedPayload.instanceName !== tenant.instanceName)) {
     console.warn(`[Webhook] instance do payload não pertence ao tenant ${tenant.userId}`);
     return NextResponse.json(
       { error: { code: 'FORBIDDEN', message: 'Instância não pertence a este webhook' } },

@@ -10,6 +10,15 @@
  *   6. Comando #finalizado retoma o bot
  *
  * Executar: npx tsx tests/simulation/agent-flow.simulation.ts
+ *
+ * Bloco 6 (webhook HTTP real) usa a rota autenticada por token
+ * POST /api/webhooks/evolution/<webhook_token>. Variáveis de ambiente:
+ *   SIM_WEBHOOK_TOKEN     webhook_token do tenant de teste (user_settings.webhook_token,
+ *                         visível em Configurações → WhatsApp). Sem ele, os POSTs
+ *                         autenticados são pulados.
+ *   SIM_WEBHOOK_INSTANCE  instância Evolution desse tenant (padrão: WA-Pessoal)
+ *   SIM_WEBHOOK_BASE_URL  origem do deploy (padrão: https://prospect-pulse-54.vercel.app)
+ * A rota antiga POST /api/webhooks/evolution (sem token) não é mais chamada.
  */
 
 import { test, describe } from 'node:test';
@@ -456,9 +465,24 @@ describe('🤖 Bloco 5 — Simulação Completa (workflow mockado)', () => {
 
 describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
 
-  const WEBHOOK_URL = 'https://prospect-pulse-54.vercel.app/api/webhooks/evolution';
+  const BASE_URL = process.env.SIM_WEBHOOK_BASE_URL || 'https://prospect-pulse-54.vercel.app';
+  const TOKEN = process.env.SIM_WEBHOOK_TOKEN || '';
+  const INSTANCE = process.env.SIM_WEBHOOK_INSTANCE || 'WA-Pessoal';
+  const WEBHOOK_URL = `${BASE_URL}/api/webhooks/evolution/${TOKEN}`;
+  const SKIP_AUTH = TOKEN ? false : 'SIM_WEBHOOK_TOKEN não definido';
 
-  test('GET /health retorna status ok', async () => {
+  test('POST com token inexistente retorna 401', async () => {
+    const res = await fetch(`${BASE_URL}/api/webhooks/evolution/${'0'.repeat(64)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+      signal: AbortSignal.timeout(8000),
+    });
+    assert.equal(res.status, 401);
+    log(GREEN, 'Token desconhecido recusado (401)');
+  });
+
+  test('GET /health retorna status ok', { skip: SKIP_AUTH }, async () => {
     const res = await fetch(WEBHOOK_URL, { method: 'GET', signal: AbortSignal.timeout(8000) });
     const json = await res.json() as Record<string, unknown>;
 
@@ -467,7 +491,7 @@ describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
     log(GREEN, 'Endpoint ativo', `status=${json.status}, provider=${json.provider}`);
   });
 
-  test('POST com payload inválido (null) retorna 200 ignorado', async () => {
+  test('POST com payload inválido (null) retorna 200 ignorado', { skip: SKIP_AUTH }, async () => {
     const res = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -481,13 +505,13 @@ describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
     log(GREEN, 'Payload nulo ignorado graciosamente');
   });
 
-  test('POST fromMe=true retorna 200 (anti-loop + captura consultor)', async () => {
+  test('POST fromMe=true retorna 200 (anti-loop + captura consultor)', { skip: SKIP_AUTH }, async () => {
     const payload = {
       key: { remoteJid: '5581900000099@s.whatsapp.net', fromMe: true, id: 'SIM-001' },
       pushName: 'WA-Pessoal',
       message: { conversation: '[Teste] Mensagem do consultor' },
       messageType: 'conversation',
-      instance: 'WA-Pessoal',
+      instance: INSTANCE,
     };
 
     const res = await fetch(WEBHOOK_URL, {
@@ -503,11 +527,11 @@ describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
     log(GREEN, 'fromMe tratado corretamente (source=fromMe)');
   });
 
-  test('POST mensagem de grupo é ignorada', async () => {
+  test('POST mensagem de grupo é ignorada', { skip: SKIP_AUTH }, async () => {
     // Formato Evolution API v2: wrapper { event, instance, data: {...} }
     const payload = {
       event: 'messages.upsert',
-      instance: 'WA-Pessoal',
+      instance: INSTANCE,
       data: {
         key: { remoteJid: '120363000000000@g.us', fromMe: false, id: 'SIM-002' },
         pushName: 'Grupo Exemplo',
@@ -532,10 +556,10 @@ describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
     log(GREEN, outcome, `response=${JSON.stringify(json)}`);
   });
 
-  test('POST mensagem real de lead → aceita e processa async (fire-and-forget)', async () => {
+  test('POST mensagem real de lead → aceita e processa async (fire-and-forget)', { skip: SKIP_AUTH }, async () => {
     const payload = {
       event: 'messages.upsert',
-      instance: 'WA-Pessoal',
+      instance: INSTANCE,
       data: {
         key: { remoteJid: '5511999998888@s.whatsapp.net', fromMe: false, id: 'SIM-003' },
         pushName: 'Lead Simulado',

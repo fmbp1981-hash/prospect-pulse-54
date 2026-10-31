@@ -80,6 +80,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   delete process.env.WHATSAPP_PROVIDER;
   delete process.env.META_APP_SECRET;
+  delete process.env.META_WA_VERIFY_TOKEN;
 });
 
 describe('isWellFormedWebhookToken', () => {
@@ -130,6 +131,47 @@ describe('POST /api/webhooks/evolution/[token]', () => {
     );
     expect(res.status).toBe(403);
     expect(runLeadConversationWorkflow).not.toHaveBeenCalled();
+    expect(pending).toHaveLength(0);
+  });
+
+  it('tenant sem instância configurada → 403 e nada processado', async () => {
+    resolveTenantByWebhookToken.mockResolvedValueOnce({ ...TENANT_A, instanceName: '' });
+    const res = await handleWhatsAppInboundPost(
+      req(`http://x/api/webhooks/evolution/${TOKEN_A}`, evolutionPayload('')),
+      TOKEN_A
+    );
+    expect(res.status).toBe(403);
+    expect(runLeadConversationWorkflow).not.toHaveBeenCalled();
+    expect(pending).toHaveLength(0);
+  });
+
+  it('token desconhecido → 401 antes de ler o corpo', async () => {
+    resolveTenantByWebhookToken.mockResolvedValueOnce(null);
+    const r = req(`http://x/api/webhooks/evolution/${TOKEN_A}`, evolutionPayload('instancia-a'));
+    const res = await handleWhatsAppInboundPost(r, TOKEN_A);
+    expect(res.status).toBe(401);
+    expect(r.bodyUsed).toBe(false);
+  });
+
+  it('Content-Length > 1 MB → 413 sem ler o corpo', async () => {
+    resolveTenantByWebhookToken.mockResolvedValueOnce(TENANT_A);
+    const r = req(`http://x/api/webhooks/evolution/${TOKEN_A}`, evolutionPayload('instancia-a'), {
+      'content-length': String(1024 * 1024 + 1),
+    });
+    const res = await handleWhatsAppInboundPost(r, TOKEN_A);
+    expect(res.status).toBe(413);
+    expect(r.bodyUsed).toBe(false);
+    expect(pending).toHaveLength(0);
+  });
+
+  it('corpo > 1 MB sem Content-Length confiável → 413', async () => {
+    resolveTenantByWebhookToken.mockResolvedValueOnce(TENANT_A);
+    const big = JSON.stringify({ ...evolutionPayload('instancia-a'), pad: 'x'.repeat(1024 * 1024) });
+    const res = await handleWhatsAppInboundPost(
+      req(`http://x/api/webhooks/evolution/${TOKEN_A}`, big, { 'content-length': '10' }),
+      TOKEN_A
+    );
+    expect(res.status).toBe(413);
     expect(pending).toHaveLength(0);
   });
 
@@ -206,6 +248,39 @@ describe('Meta: X-Hub-Signature-256', () => {
     expect(verifyMetaSignature(body, sig('outro'), 's3cr3t')).toBe(false);
     expect(verifyMetaSignature(body, null, 's3cr3t')).toBe(false);
     expect(verifyMetaSignature(body, 'sha256=zz', 's3cr3t')).toBe(false);
+  });
+
+  it('provider meta com assinatura válida → 200 (passa a autenticação)', async () => {
+    process.env.WHATSAPP_PROVIDER = 'meta';
+    process.env.META_APP_SECRET = 's3cr3t';
+    resolveTenantByWebhookToken.mockResolvedValueOnce(TENANT_A);
+    const res = await handleWhatsAppInboundPost(
+      req(`http://x/api/webhooks/evolution/${TOKEN_A}`, body, { 'x-hub-signature-256': sig('s3cr3t') }),
+      TOKEN_A
+    );
+    expect(res.status).toBe(200);
+    expect(resolveTenantByWebhookToken).toHaveBeenCalledWith(TOKEN_A);
+  });
+
+  it('payload Meta sem META_APP_SECRET → 503 e nada processado (fail-closed)', async () => {
+    resolveTenantByWebhookToken.mockResolvedValueOnce(TENANT_A);
+    const res = await handleWhatsAppInboundPost(
+      req(`http://x/api/webhooks/evolution/${TOKEN_A}`, body, { 'x-hub-signature-256': sig('s3cr3t') }),
+      TOKEN_A
+    );
+    expect(res.status).toBe(503);
+    expect(pending).toHaveLength(0);
+  });
+
+  it('provider meta sem META_APP_SECRET → 503 mesmo sem header de assinatura', async () => {
+    process.env.WHATSAPP_PROVIDER = 'meta';
+    resolveTenantByWebhookToken.mockResolvedValueOnce(TENANT_A);
+    const res = await handleWhatsAppInboundPost(
+      req(`http://x/api/webhooks/evolution/${TOKEN_A}`, evolutionPayload('instancia-a')),
+      TOKEN_A
+    );
+    expect(res.status).toBe(503);
+    expect(pending).toHaveLength(0);
   });
 
   it('provider meta com META_APP_SECRET e assinatura inválida → 401', async () => {

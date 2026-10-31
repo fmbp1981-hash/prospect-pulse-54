@@ -126,9 +126,7 @@ Empresas B2B precisam automatizar e escalar o processo comercial. O problema cen
 - **Execução:** Cron Vercel diário às 9h BRT (`/api/cron/long-followup`)
 
 #### F7 — Disparo em Massa (Bulk WhatsApp)
-- **Descrição:** Envio em lote de mensagens WhatsApp para múltiplos leads com delay configurável entre envios.
-- **Trigger:** `POST /api/webhooks/bulk-message`
-- **Controle:** `delayMs` configurável, retorna `jobId` para rastreamento
+- **Removido em 2026-10-30 (segurança):** o endpoint público `POST /api/webhooks/bulk-message` e o `bulk-sender.job.ts` foram apagados (permitiam disparo em massa anônimo por qualquer instância). Disparos em lote seguem pelas campanhas autenticadas.
 
 #### F8 — Dashboard Analítico
 - **Descrição:** Métricas de performance do pipeline com gráficos.
@@ -391,8 +389,7 @@ prospect-pulse-54/
 │   │   │   ├── long-followup/route.ts # Follow-up longo prazo (diário)
 │   │   │   └── keepalive/route.ts    # Keep-alive Supabase (a cada 5 dias)
 │   │   ├── webhooks/
-│   │   │   ├── evolution/route.ts    # Webhook principal WhatsApp
-│   │   │   └── bulk-message/route.ts # Disparos em massa
+│   │   │   └── evolution/[token]/route.ts # Webhook WhatsApp (token do tenant)
 │   │   └── whatsapp/
 │   │       └── send/route.ts         # Envio manual de mensagens
 │   │
@@ -465,7 +462,6 @@ prospect-pulse-54/
 │   │   ├── jobs/
 │   │   │   ├── follow-up.job.ts      # Follow-up curto prazo
 │   │   │   ├── long-followup.job.ts  # Follow-up longo prazo
-│   │   │   ├── bulk-sender.job.ts    # Disparos em massa
 │   │   │   └── supabase-keepalive.job.ts # Keep-alive
 │   │   │
 │   │   ├── repositories/
@@ -534,7 +530,6 @@ prospect-pulse-54/
 │  /api/agent/config         → Gestão de prompts               │
 │  /api/agent/rag            → Base de conhecimento            │
 │  /api/cron/*               → Jobs agendados                  │
-│  /api/webhooks/bulk-message → Disparos em massa              │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
@@ -905,14 +900,6 @@ Follow-up de longo prazo. Executado diariamente às 9h BRT.
 
 ### `GET /api/cron/keepalive`
 Previne o Supabase de entrar em modo de hibernação. Executado a cada 5 dias.
-
----
-
-### `POST /api/webhooks/bulk-message`
-Disparo em massa de mensagens WhatsApp.
-
-**Body:** `{ messages: [{whatsapp, message}], instanceName, delayMs }`
-**Retorna:** `{ queued: true, jobId, count }`
 
 ---
 
