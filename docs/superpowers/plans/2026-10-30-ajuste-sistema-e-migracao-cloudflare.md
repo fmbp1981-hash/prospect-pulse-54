@@ -272,6 +272,7 @@ Achados de 2026-10-30: `src/lib/jobs/follow-up.job.ts` envia **todos** os follow
 - Registro de provedores por categoria (portas + adapters): WhatsApp (`meta_cloud` preferencial, `evolution` para teste), e-mail (`resend` padrão; interface pronta para SMTP/SES/outros), LLM (`openai` hoje), enriquecimento (`apify`, `firecrawl`).
 - Resolução por organização: `getWhatsAppProvider(orgId)` / `getEmailProvider(orgId)` substituem a factory global; follow-up (Task 4), inbox, campanhas, agente e crons passam a usar a conexão da organização do lead.
 - Webhook por conexão (`/api/webhooks/whatsapp/[connectionId]`) com verificação de assinatura (Meta `X-Hub-Signature-256`, Evolution apikey/token), substituindo o endpoint único.
+- **Recebimento pela Meta Cloud API de ponta a ponta** (achado da Task 8: hoje o payload Meta passa pela autenticação mas o processamento só entende o formato da Evolution e descarta a mensagem como "tipo não suportado").
 - Tela de Integrações nas configurações: escolher provedor, informar credenciais, botão "testar conexão".
 - Migração dos dados: mover as chaves hoje em `user_settings` para `organization_connections` criptografadas e remover as colunas em texto puro.
 
