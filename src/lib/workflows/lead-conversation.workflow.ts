@@ -30,7 +30,15 @@ const STEP_TIMEOUTS = {
   send: 30_000,
 } as const;
 
-export async function runLeadConversationWorkflow(normalized: NormalizedMessage): Promise<void> {
+/**
+ * @param resolvedTenant tenant já autenticado pelo chamador (webhook resolve
+ *   pelo token secreto). Quando informado, o campo `instanceName` do payload
+ *   NÃO é usado para descobrir o tenant.
+ */
+export async function runLeadConversationWorkflow(
+  normalized: NormalizedMessage,
+  resolvedTenant?: TenantContext
+): Promise<void> {
   const correlationId = randomUUID();
   const logger = new WorkflowLogger('LeadConversation', correlationId);
 
@@ -41,7 +49,7 @@ export async function runLeadConversationWorkflow(normalized: NormalizedMessage)
   });
 
   // ── STEP 1: RESOLVER TENANT ──────────────────────────────────────────────
-  const tenant = await withTimeout(
+  const tenant = resolvedTenant ?? await withTimeout(
     resolveTenantByInstance(normalized.instanceName),
     STEP_TIMEOUTS.tenant,
     'resolveTenant'

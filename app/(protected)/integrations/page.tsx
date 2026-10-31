@@ -250,7 +250,8 @@ export default function IntegrationsPage() {
                 <p className="font-medium">Endpoint de envio nativo:</p>
                 <code className="block bg-muted px-2 py-1 rounded">POST /api/whatsapp/send</code>
                 <p className="mt-2">Webhook de recebimento (inbound):</p>
-                <code className="block bg-muted px-2 py-1 rounded">POST /api/webhooks/evolution</code>
+                <code className="block bg-muted px-2 py-1 rounded break-all">POST /api/webhooks/evolution/&lt;seu-token&gt;</code>
+                <p>A URL completa com o seu token está em Configurações → WhatsApp.</p>
               </div>
             </div>
           </Card>

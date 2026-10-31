@@ -9,6 +9,8 @@ export interface UserSettings {
   evolution_api_url?: string;
   evolution_api_key?: string;
   evolution_instance_name?: string;
+  // Token secreto do webhook do WhatsApp (gerado no banco, somente leitura no client)
+  webhook_token?: string;
   // WhatsApp provider selector
   provider?: string;
   // Meta Cloud API (WhatsApp Business Oficial)

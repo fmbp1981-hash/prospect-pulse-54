@@ -22,6 +22,7 @@ import { historyService } from "@/lib/history";
 import { leadAutomation, type FollowUpConfig } from "@/lib/leadAutomation";
 import { useAuth } from "@/contexts/AuthContext";
 import { WebhookKeysPanel } from '@/components/settings/WebhookKeysPanel';
+import { WhatsAppWebhookUrl } from '@/components/settings/WhatsAppWebhookUrl';
 import { ImportHistoryPanel } from '@/components/settings/ImportHistoryPanel';
 import { IcpSettingsPanel } from '@/components/settings/IcpSettingsPanel';
 
@@ -48,6 +49,7 @@ export default function SettingsPage() {
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
   const [evolutionInstanceName, setEvolutionInstanceName] = useState("");
+  const [webhookToken, setWebhookToken] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [showMetaToken, setShowMetaToken] = useState(false);
 
@@ -133,6 +135,7 @@ export default function SettingsPage() {
         setEvolutionApiUrl(settings.evolution_api_url || "");
         setEvolutionApiKey(settings.evolution_api_key || "");
         setEvolutionInstanceName(settings.evolution_instance_name || "");
+        setWebhookToken(settings.webhook_token || "");
         setMetaPhoneNumberId(settings.business_phone_number_id || "");
         setMetaAccessToken(settings.business_access_token || "");
         setMetaVerifyToken(settings.meta_verify_token || "");
@@ -992,6 +995,8 @@ export default function SettingsPage() {
               <div className="space-y-4 border rounded-lg p-4">
                 <p className="text-sm font-medium">Configurações Evolution API</p>
 
+                <WhatsAppWebhookUrl token={webhookToken} />
+
                 <div className="space-y-2">
                   <Label htmlFor="evolution_instance_name">Nome da Instância</Label>
                   <Input
@@ -1049,8 +1054,10 @@ export default function SettingsPage() {
                   <p>1. Acesse <strong>developers.facebook.com</strong> → seu App → WhatsApp → Configuração da API</p>
                   <p>2. Copie o <strong>ID do número de telefone</strong> e o <strong>Token de acesso</strong></p>
                   <p>3. Defina um Verify Token de sua escolha e configure no webhook da Meta</p>
-                  <p>4. URL do webhook: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">/api/webhooks/evolution</code></p>
+                  <p>4. URL do webhook: use a URL abaixo (contém o seu token secreto)</p>
                 </div>
+
+                <WhatsAppWebhookUrl token={webhookToken} />
 
                 <div className="space-y-2">
                   <Label htmlFor="meta_phone_id">Phone Number ID</Label>

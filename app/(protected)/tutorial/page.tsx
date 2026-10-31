@@ -293,8 +293,9 @@ function TabSetup() {
           <Step n={6} title="Registre o webhook na Evolution API">
             <p>Configure a URL de webhook para que a Evolution API envie as mensagens recebidas ao sistema:</p>
             <code className="block bg-muted px-3 py-2 rounded text-xs mt-1 break-all">
-              https://seu-dominio.vercel.app/api/webhooks/evolution
+              https://seu-dominio/api/webhooks/evolution/&lt;seu-token&gt;
             </code>
+            <p className="mt-1">Copie a URL completa, com o seu token secreto, em Configurações → WhatsApp.</p>
             <p className="mt-1">Eventos necessários: <Badge variant="outline" className="text-xs">MESSAGES_UPSERT</Badge></p>
           </Step>
         </CardContent>
