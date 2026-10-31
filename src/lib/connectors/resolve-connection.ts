@@ -47,11 +47,25 @@ async function buildResolved(row: ConnectionRow): Promise<ResolvedConnection> {
   } as ResolvedConnection;
 }
 
+export function resolveConnection<P extends ProviderId>(
+  organizationId: string,
+  category: 'prospecting',
+  provider: P
+): Promise<ResolvedConnection<P>>;
+export function resolveConnection<P extends ProviderId>(
+  organizationId: string,
+  category: Exclude<ConnectorCategory, 'prospecting'>,
+  provider?: P
+): Promise<ResolvedConnection<P>>;
 export async function resolveConnection<P extends ProviderId>(
   organizationId: string,
   category: ConnectorCategory,
   provider?: P
 ): Promise<ResolvedConnection<P>> {
+  // prospecting admite várias conexões ativas (uma por provedor): sem provedor é ambíguo.
+  if (category === 'prospecting' && !provider) {
+    throw new Error('resolveConnection: provider é obrigatório para a categoria prospecting');
+  }
   const row = await connectionsRepository.findActive(organizationId, category, provider);
   if (!row) throw new ConnectionNotConfiguredError(organizationId, category, provider);
   return (await buildResolved(row)) as ResolvedConnection<P>;

@@ -36,6 +36,16 @@ export interface UpsertConnectionInput {
   configuredBy?: string | null;
 }
 
+export interface UsageEventInsert {
+  organizationId: string;
+  category: ConnectorCategory;
+  provider: ProviderId;
+  operation: string;
+  quantity: number;
+  unit: string;
+  connectionId?: string;
+}
+
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -57,7 +67,13 @@ export const connectionsRepository = {
       .eq('status', 'active');
     if (provider) query = query.eq('provider', provider);
     const { data, error } = await query.maybeSingle();
-    if (error) throw new Error(`findActive error: ${error.message}`);
+    if (error) {
+      // PGRST116: mais de uma linha para maybeSingle (ex.: prospecting sem provedor).
+      if (error.code === 'PGRST116') {
+        throw new Error('findActive: mais de uma conexão ativa; informe o provedor');
+      }
+      throw new Error(`findActive error: ${error.message}`);
+    }
     return data ?? null;
   },
 
@@ -151,5 +167,19 @@ export const connectionsRepository = {
       .maybeSingle();
     if (error) throw new Error(`findOrganizationIdForUser error: ${error.message}`);
     return data?.organization_id ?? null;
+  },
+
+  /** Insere um evento de consumo em usage_events (append-only). */
+  async insertUsage(e: UsageEventInsert): Promise<void> {
+    const { error } = await getServiceClient().from('usage_events').insert({
+      organization_id: e.organizationId,
+      category: e.category,
+      provider: e.provider,
+      operation: e.operation,
+      quantity: e.quantity,
+      unit: e.unit,
+      connection_id: e.connectionId ?? null,
+    });
+    if (error) throw new Error(`insertUsage error: ${error.message}`);
   },
 };

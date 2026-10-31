@@ -17,3 +17,8 @@ RED não registrado: implementação foi escrita antes dos testes (desvio do pas
 - Linhas do DB mapeadas para ResolvedConnection com um cast único em buildResolved (tipos do DB são `string`).
 - Em `repository.upsert` o retorno é o resumo seguro (sem secret).
 - Erros de decifragem/Zod propagam (ZodError), não viram ConnectionNotConfiguredError.
+
+## Fix round 1
+- I1: `resolveConnection` ganhou overloads (provider obrigatório em tipo para `prospecting`) e checagem em runtime com erro claro, sem consultar o banco. `findActive` converte PGRST116 (múltiplas linhas) em erro explícito "mais de uma conexão ativa; informe o provedor". +3 testes.
+- I2: insert movido para `connectionsRepository.insertUsage`; `recordUsage` só faz try/catch + log mascarado.
+- Comando: `npx vitest run tests/unit/connectors-resolve.spec.ts tests/unit/connectors-usage.spec.ts` -> 20/20 passam; `npx tsc --noEmit` sem erros.

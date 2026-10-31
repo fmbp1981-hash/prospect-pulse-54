@@ -144,6 +144,37 @@ describe('resolveConnection', () => {
   });
 });
 
+describe('resolveConnection — prospecting', () => {
+  it('sem provedor lança erro claro e nem consulta o banco', async () => {
+    const fake = setup({ organization_connections: null });
+    // @ts-expect-error provider é obrigatório para prospecting (checagem de tipo)
+    await expect(resolveConnection(ORG, 'prospecting')).rejects.toThrow(/provider é obrigatório/);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('com provedor filtra por provider', async () => {
+    const fake = setup({
+      organization_connections: await connRow({
+        category: 'prospecting',
+        provider: 'apify',
+        config: {},
+        secret: await encryptJson({ apiToken: 't' }),
+      }),
+    });
+    const conn = await resolveConnection(ORG, 'prospecting', 'apify');
+    expect(conn.secret).toEqual({ apiToken: 't' });
+    expect(filterValue(fake.calls[0], 'provider')).toBe('apify');
+  });
+
+  it('múltiplas linhas ativas viram erro explícito', async () => {
+    state.fake = createFakeSupabase(() => ({
+      data: null,
+      error: { message: 'multiple rows', code: 'PGRST116' },
+    }));
+    await expect(resolveConnection(ORG, 'whatsapp')).rejects.toThrow(/mais de uma conexão ativa/);
+  });
+});
+
 describe('resolveConnectionByWebhookKey', () => {
   it('resolve conexão de WhatsApp e não filtra por status active, mas exclui disabled', async () => {
     const fake = setup({
