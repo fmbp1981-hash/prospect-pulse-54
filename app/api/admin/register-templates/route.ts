@@ -1,5 +1,5 @@
 /**
- * GET /api/admin/register-templates?secret=CRON_SECRET
+ * GET /api/admin/register-templates  (Authorization: Bearer CRON_SECRET)
  *
  * Registra os 9 templates de WhatsApp da campanha IntelliX diretamente
  * na Meta Graph API. Idempotente — pula templates já existentes.
@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type User } from '@supabase/supabase-js';
+import { verifyCronRequest } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -105,12 +106,8 @@ async function createTemplate(wabaId: string, token: string, name: string, body:
 }
 
 export async function GET(req: NextRequest) {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  if (!CRON_SECRET) return NextResponse.json({ error: 'CRON_SECRET not set' }, { status: 500 });
-
-  const secret = req.nextUrl.searchParams.get('secret');
-  const authHeader = req.headers.get('authorization');
-  if (secret !== CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  // Authorization: Bearer <CRON_SECRET> (sem query string; sem CRON_SECRET → 401)
+  if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

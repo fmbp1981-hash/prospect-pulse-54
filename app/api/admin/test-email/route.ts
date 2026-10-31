@@ -1,21 +1,18 @@
 /**
- * GET /api/admin/test-email?secret=CRON_SECRET&to=email@exemplo.com
+ * GET /api/admin/test-email?to=email@exemplo.com  (Authorization: Bearer CRON_SECRET)
  *
  * Envia um email de teste com as credenciais Resend do tenant IntelliX.
  * Útil para validar a integração sem precisar disparar uma campanha real.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type User } from '@supabase/supabase-js';
+import { verifyCronRequest } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: NextRequest) {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  if (!CRON_SECRET) return NextResponse.json({ error: 'CRON_SECRET not set' }, { status: 500 });
-
-  const secret    = req.nextUrl.searchParams.get('secret');
-  const authHeader = req.headers.get('authorization');
-  if (secret !== CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  // Authorization: Bearer <CRON_SECRET> (sem query string; sem CRON_SECRET → 401)
+  if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
