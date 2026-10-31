@@ -1643,6 +1643,7 @@ export type Database = {
           updated_at: string | null
           user_id: string
           user_webhook_url: string | null
+          webhook_token: string
           welcome_message: string | null
           whatsapp_webhook_url: string | null
           zapi_instance_id: string | null
@@ -1681,6 +1682,7 @@ export type Database = {
           updated_at?: string | null
           user_id: string
           user_webhook_url?: string | null
+          webhook_token?: string
           welcome_message?: string | null
           whatsapp_webhook_url?: string | null
           zapi_instance_id?: string | null
@@ -1719,6 +1721,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           user_webhook_url?: string | null
+          webhook_token?: string
           welcome_message?: string | null
           whatsapp_webhook_url?: string | null
           zapi_instance_id?: string | null
