@@ -1,46 +1,66 @@
 /**
- * T9-C1 (Crítico) — POST /api/whatsapp/send misturava credenciais do usuário
- * com as globais: com evolution_api_url do usuário apontando para um host do
- * atacante e a chave vazia, o servidor enviava a EVOLUTION_API_KEY global para
- * esse host; sem instância própria, a mensagem saía pelo número da plataforma.
- * Agora: instância = resolveInstanceForUser (null → 400); URL+chave do usuário
- * juntas OU URL+chave globais juntas (nunca misturadas; '' conta como ausente);
- * Meta exige credenciais do próprio tenant (sem fallback para META_WA_*).
+ * POST /api/whatsapp/send — envio pela conexão de WhatsApp da organização.
+ *
+ * Histórico: T9-C1 (credenciais do usuário misturadas com as globais) e S1-F-01
+ * (SSRF pela URL Evolution do tenant). Sprint 2b (Task 5): a rota não lê mais
+ * user_settings nem variáveis de ambiente; a organização vem de
+ * resolveOrganizationIdForUser(user.id) e o envio sai pela conexão ativa dela
+ * (getWhatsAppForOrganization). Sem conexão → 409 WHATSAPP_NOT_CONFIGURED.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
+import type { OrgWhatsApp } from '@/lib/integrations/whatsapp/org-whatsapp';
+import { ConnectionNotConfiguredError } from '@/lib/connectors/types';
 
 const USER = '00000000-0000-0000-0000-00000000000a';
-let settings: Record<string, unknown> | null = null;
+const ORG_A = '0a0a0a0a-0000-0000-0000-00000000000a';
+const ORG_META = '0d0d0d0d-0000-0000-0000-00000000000d';
+const ORG_SEM_WA = '0c0c0c0c-0000-0000-0000-00000000000c';
 
-const mocks = vi.hoisted(() => ({ resolveInstanceForUser: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  findOrgForUser: vi.fn(),
+  sendText: vi.fn(),
+  sendMedia: vi.fn(),
+  userSettingsRead: vi.fn(),
+}));
 
 vi.mock('@supabase/ssr', () => ({
-  createServerClient: () => {
-    const chain = {
-      select: () => chain,
-      eq: () => chain,
-      single: async () => ({ data: settings, error: null }),
-      maybeSingle: async () => ({ data: settings, error: null }),
-    };
-    return {
-      auth: { getUser: async () => ({ data: { user: { id: USER } } }) },
-      from: () => chain,
-    };
-  },
+  createServerClient: () => ({
+    auth: { getUser: async () => ({ data: { user: { id: USER } } }) },
+    from: (table: string) => {
+      mocks.userSettingsRead(table);
+      throw new Error(`leitura inesperada de ${table}`);
+    },
+  }),
 }));
 vi.mock('next/headers', () => ({ cookies: () => ({ getAll: () => [] }) }));
 // RBAC (F-13) é coberto em require-writer.spec.ts / viewer-write-routes.spec.ts.
 vi.mock('@/lib/auth/require-writer', async (orig) => ({
   ...(await orig<typeof import('@/lib/auth/require-writer')>()),
   requireWriter: async () => true,
-  requireOrgAdmin: async () => true,
 }));
-vi.mock('@/lib/services/tenant-resolver.service', () => ({
-  resolveInstanceForUser: mocks.resolveInstanceForUser,
+vi.mock('@/lib/repositories/connections.repository', () => ({
+  connectionsRepository: { findOrganizationIdForUser: mocks.findOrgForUser },
 }));
 
 import { POST } from '../../app/api/whatsapp/send/route';
+import { setWhatsAppProviderFactoryForTests } from '@/lib/integrations/whatsapp/org-whatsapp';
+
+const factory = vi.fn(async (orgId: string): Promise<OrgWhatsApp> => {
+  if (orgId === ORG_A || orgId === ORG_META) {
+    return {
+      provider: {
+        name: orgId === ORG_A ? 'evolution' : 'meta-cloud',
+        sendText: mocks.sendText,
+        sendMedia: mocks.sendMedia,
+      } as unknown as OrgWhatsApp['provider'],
+      target: orgId === ORG_A ? 'inst-org-a' : 'phone-id-meta',
+      connectionId: `conn-${orgId}`,
+      organizationId: orgId,
+    };
+  }
+  throw new ConnectionNotConfiguredError(orgId, 'whatsapp');
+});
 
 const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
 
@@ -56,108 +76,115 @@ const BODY = { whatsapp: '+55 81 99999-0001', message: 'oi' };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal('fetch', fetchMock);
+  setWhatsAppProviderFactoryForTests(factory);
   process.env.EVOLUTION_API_URL = 'https://evolution-global.plataforma';
   process.env.EVOLUTION_API_KEY = 'CHAVE-GLOBAL-SECRETA';
-  process.env.EVOLUTION_INSTANCE_NAME = 'inst-global';
-  process.env.META_WA_PHONE_NUMBER_ID = 'phone-global';
-  process.env.META_WA_TOKEN = 'TOKEN-GLOBAL-META';
+  process.env.WHATSAPP_PROVIDER = 'evolution';
+  mocks.findOrgForUser.mockResolvedValue(ORG_A);
+  mocks.sendText.mockResolvedValue({ success: true, messageId: 'm1' });
+  mocks.sendMedia.mockResolvedValue({ success: true, messageId: 'm2' });
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+  setWhatsAppProviderFactoryForTests(null);
   delete process.env.WHATSAPP_PROVIDER;
-  mocks.resolveInstanceForUser.mockResolvedValue('inst-org-a');
-  settings = { provider: 'evolution', evolution_api_url: '', evolution_api_key: '', evolution_instance_name: 'inst-org-a' };
 });
-afterEach(() => vi.unstubAllGlobals());
 
-describe('T9-C1 — Evolution', () => {
-  it('(a) URL do usuário + chave vazia → 400 e nenhum fetch (chave global nunca vai ao host do usuário)', async () => {
-    settings = { ...settings, evolution_api_url: 'https://x.test', evolution_api_key: '' };
-    const res = await POST(post(BODY));
-    expect(res.status).toBe(400);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('chave do usuário sem URL própria → 400 e nenhum fetch', async () => {
-    settings = { ...settings, evolution_api_url: '  ', evolution_api_key: 'chave-do-usuario' };
-    const res = await POST(post(BODY));
-    expect(res.status).toBe(400);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('(b) usuário sem instância → 400 e nenhum fetch (sem EVOLUTION_INSTANCE_NAME)', async () => {
-    mocks.resolveInstanceForUser.mockResolvedValue(null);
-    settings = { ...settings, evolution_instance_name: null };
-    const res = await POST(post(BODY));
-    expect(res.status).toBe(400);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('URL + chave do usuário → usa as duas juntas, com a instância protegida', async () => {
-    settings = { ...settings, evolution_api_url: 'https://evo.cliente/', evolution_api_key: 'chave-do-usuario' };
+describe('envio pela conexão da organização', () => {
+  it('texto → sendText no alvo da conexão da org do usuário, número só com dígitos', async () => {
     const res = await POST(post(BODY));
     expect(res.status).toBe(200);
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://evo.cliente/message/sendText/inst-org-a');
-    expect((init.headers as Record<string, string>).apikey).toBe('chave-do-usuario');
+    expect(await res.json()).toEqual({ success: true });
+    expect(mocks.findOrgForUser).toHaveBeenCalledWith(USER);
+    expect(factory).toHaveBeenCalledWith(ORG_A);
+    expect(mocks.sendText).toHaveBeenCalledWith('inst-org-a', '5581999990001', 'oi');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.userSettingsRead).not.toHaveBeenCalled();
   });
 
-  it('sem URL/chave próprias → URL + chave globais juntas, com a instância protegida', async () => {
-    const res = await POST(post(BODY));
+  it('mídia → sendMedia com legenda e metadados', async () => {
+    const res = await POST(post({
+      whatsapp: '5581999990001',
+      message: 'legenda',
+      mediaBase64: 'AAAA',
+      mediaMimetype: 'image/png',
+      mediaFileName: 'a.png',
+      mediaType: 'image',
+    }));
     expect(res.status).toBe(200);
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe('https://evolution-global.plataforma/message/sendText/inst-org-a');
-    expect((init.headers as Record<string, string>).apikey).toBe('CHAVE-GLOBAL-SECRETA');
+    expect(mocks.sendMedia).toHaveBeenCalledWith('inst-org-a', '5581999990001', {
+      type: 'image',
+      base64: 'AAAA',
+      url: undefined,
+      mimetype: 'image/png',
+      fileName: 'a.png',
+      caption: 'legenda',
+    });
+    expect(mocks.sendText).not.toHaveBeenCalled();
+  });
+
+  it('conexão Meta com mídia sem URL pública → 400 e nada enviado', async () => {
+    mocks.findOrgForUser.mockResolvedValue(ORG_META);
+    const res = await POST(post({ whatsapp: '5581999990001', mediaBase64: 'AAAA' }));
+    expect(res.status).toBe(400);
+    expect(mocks.sendMedia).not.toHaveBeenCalled();
   });
 });
 
-describe('T9-C1 — Meta', () => {
-  it('(c) tenant Meta sem credenciais próprias → 400 e nenhum fetch (sem META_WA_*)', async () => {
-    settings = { provider: 'meta', business_phone_number_id: '', business_access_token: null };
+describe('sem conexão', () => {
+  it('org sem conexão de WhatsApp → 409 WHATSAPP_NOT_CONFIGURED e nada enviado (sem env)', async () => {
+    mocks.findOrgForUser.mockResolvedValue(ORG_SEM_WA);
     const res = await POST(post(BODY));
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'WHATSAPP_NOT_CONFIGURED',
+        message: 'WhatsApp não configurado para esta organização. Fale com a equipe IntelliX.',
+      },
+    });
+    expect(mocks.sendText).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('tenant Meta com credenciais próprias → envia com elas', async () => {
-    settings = { provider: 'meta', business_phone_number_id: 'phone-tenant', business_access_token: 'token-tenant' };
+  it('usuário sem organização → 409 e nada enviado', async () => {
+    mocks.findOrgForUser.mockResolvedValue(null);
     const res = await POST(post(BODY));
-    expect(res.status).toBe(200);
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toContain('/phone-tenant/messages');
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer token-tenant');
+    expect(res.status).toBe(409);
+    expect(factory).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
-describe('S1-F-01 — SSRF e vazamento de erro', () => {
+describe('validação e vazamento de erro', () => {
   it.each([
-    'https://169.254.169.254',
-    'https://127.0.0.1:8080',
-    'https://localhost',
-    'http://evo.cliente.com.br',
-    'https://evo.interna.internal',
-    'https://user:senha@evo.cliente.com.br',
-  ])('URL do tenant insegura (%s) → 400 e nenhum fetch', async (url) => {
-    settings = { ...settings, evolution_api_url: url, evolution_api_key: 'chave-do-usuario' };
-    const res = await POST(post(BODY));
+    [{ message: 'oi' }],
+    [{ whatsapp: '  ', message: 'oi' }],
+    [{ whatsapp: '5581999990001' }],
+    [{ whatsapp: '5581999990001', message: 'oi', mediaType: 'audio', mediaUrl: 'https://x.test/a' }],
+  ])('corpo inválido %j → 400', async (body) => {
+    const res = await POST(post(body));
     expect(res.status).toBe(400);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.sendText).not.toHaveBeenCalled();
   });
 
-  it('erro do provedor → 500 com mensagem genérica (detalhe só no log)', async () => {
+  it('falha do provedor → 500 com mensagem genérica; log sem telefone nem detalhe', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    fetchMock.mockResolvedValueOnce(new Response('DETALHE-INTERNO-DO-PROVEDOR', { status: 502 }));
+    mocks.sendText.mockResolvedValue({ success: false, error: 'Evolution sendText failed: 502 DETALHE-INTERNO' });
     const res = await POST(post(BODY));
     expect(res.status).toBe(500);
     const text = await res.text();
-    expect(text).not.toContain('DETALHE-INTERNO-DO-PROVEDOR');
-    expect(text).not.toContain('Evolution API 502');
-    expect(errSpy).toHaveBeenCalled();
+    expect(text).not.toContain('DETALHE-INTERNO');
+    const logged = JSON.stringify(errSpy.mock.calls);
+    expect(logged).toContain(ORG_A);
+    expect(logged).not.toContain('99999');
     errSpy.mockRestore();
   });
 
-  it('exceção de rede → 500 genérico, sem a mensagem do erro', async () => {
+  it('exceção ao resolver a conexão → 503 genérico, sem a mensagem do erro', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    fetchMock.mockRejectedValueOnce(new Error('connect ECONNREFUSED 10.0.0.5:8080'));
+    factory.mockRejectedValueOnce(new Error('connect ECONNREFUSED 10.0.0.5:8080'));
     const res = await POST(post(BODY));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
     expect(await res.text()).not.toContain('ECONNREFUSED');
     errSpy.mockRestore();
   });

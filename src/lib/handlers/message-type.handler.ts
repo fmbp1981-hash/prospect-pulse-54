@@ -5,7 +5,7 @@
  */
 
 import type { NormalizedMessage } from '../services/message-normalizer.service';
-import { evolutionMediaClient } from '../integrations/evolution/media.client';
+import type { OrgWhatsApp } from '../integrations/whatsapp/org-whatsapp';
 import { transcribeAudio } from '../integrations/openai/whisper.service';
 import { analyzeImage } from '../integrations/openai/vision.service';
 import { analyzePdf } from '../services/pdf-analyzer.service';
@@ -15,9 +15,18 @@ export interface ProcessedMessage {
   messageType: string;
 }
 
+/** Conexão de WhatsApp da organização usada para baixar a mídia (null = sem conexão). */
+export type MediaSource = Pick<OrgWhatsApp, 'provider' | 'target'> | null;
+
+async function downloadMediaBuffer(media: MediaSource, messageId: string): Promise<Buffer | null> {
+  if (!media) return null;
+  const dl = await media.provider.downloadMedia(media.target, messageId);
+  return Buffer.from(dl.base64, 'base64');
+}
+
 export async function processMessageByType(
   message: NormalizedMessage,
-  instanceName: string,
+  media: MediaSource,
   messageId?: string
 ): Promise<ProcessedMessage> {
   switch (message.messageType) {
@@ -25,14 +34,13 @@ export async function processMessageByType(
       return { content: message.mensagem, messageType: 'text' };
 
     case 'audio': {
-      let buffer: Buffer;
+      const buffer = message.mediaBase64
+        ? Buffer.from(message.mediaBase64, 'base64')
+        : messageId
+          ? await downloadMediaBuffer(media, messageId)
+          : null;
 
-      if (message.mediaBase64) {
-        buffer = Buffer.from(message.mediaBase64, 'base64');
-      } else if (messageId) {
-        const dl = await evolutionMediaClient.downloadAudio(instanceName, messageId);
-        buffer = dl.buffer;
-      } else {
+      if (!buffer) {
         return { content: '[Áudio recebido — não foi possível processar]', messageType: 'audio' };
       }
 
@@ -41,14 +49,13 @@ export async function processMessageByType(
     }
 
     case 'image': {
-      let buffer: Buffer;
+      const buffer = message.mediaBase64
+        ? Buffer.from(message.mediaBase64, 'base64')
+        : messageId
+          ? await downloadMediaBuffer(media, messageId)
+          : null;
 
-      if (message.mediaBase64) {
-        buffer = Buffer.from(message.mediaBase64, 'base64');
-      } else if (messageId) {
-        const dl = await evolutionMediaClient.downloadImage(instanceName, messageId);
-        buffer = dl.buffer;
-      } else {
+      if (!buffer) {
         return { content: '[Imagem recebida — não foi possível analisar]', messageType: 'image' };
       }
 
@@ -59,14 +66,13 @@ export async function processMessageByType(
     }
 
     case 'document': {
-      let buffer: Buffer;
+      const buffer = message.mediaBase64
+        ? Buffer.from(message.mediaBase64, 'base64')
+        : messageId
+          ? await downloadMediaBuffer(media, messageId)
+          : null;
 
-      if (message.mediaBase64) {
-        buffer = Buffer.from(message.mediaBase64, 'base64');
-      } else if (messageId) {
-        const dl = await evolutionMediaClient.downloadDocument(instanceName, messageId);
-        buffer = dl.buffer;
-      } else {
+      if (!buffer) {
         return { content: '[Documento recebido — não foi possível extrair]', messageType: 'document' };
       }
 

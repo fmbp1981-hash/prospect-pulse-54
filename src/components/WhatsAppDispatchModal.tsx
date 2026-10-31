@@ -14,6 +14,16 @@ import { toast } from "sonner";
 
 type MediaMode = 'none' | 'upload' | 'url';
 
+/** /api/whatsapp/send devolve `error` como texto ou como `{ code, message }` (ex.: 409 WHATSAPP_NOT_CONFIGURED). */
+function sendErrorMessage(result: { error?: unknown }, status: number): string {
+  const err = result?.error;
+  if (typeof err === 'string' && err) return err;
+  if (err && typeof err === 'object' && typeof (err as { message?: unknown }).message === 'string') {
+    return (err as { message: string }).message;
+  }
+  return `Erro ${status}`;
+}
+
 interface DispatchStatus {
   leadId: string;
   leadName: string;
@@ -168,7 +178,7 @@ export const WhatsAppDispatchModal = ({
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || `Erro ${response.status}`);
+        throw new Error(sendErrorMessage(result, response.status));
       }
 
       setStatuses([{
@@ -262,7 +272,7 @@ export const WhatsAppDispatchModal = ({
             ? {
               ...s,
               status: isSuccess ? "sent" : "failed",
-              error: isSuccess ? undefined : (result.error || `Erro ${response.status}`),
+              error: isSuccess ? undefined : sendErrorMessage(result, response.status),
               message: messageToSend,
             }
             : s

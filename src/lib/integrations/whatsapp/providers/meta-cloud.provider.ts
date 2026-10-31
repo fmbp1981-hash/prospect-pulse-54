@@ -19,6 +19,7 @@ import type {
 import { metaCircuit, withRetry } from '@/lib/utils/resilience';
 import { delay } from '@/lib/utils/delay';
 import { recordUsage } from '@/lib/connectors/usage';
+import { WHATSAPP_SEND_TIMEOUT_MS } from '../whatsapp-provider.interface';
 
 export interface MetaCloudProviderOptions {
   accessToken: string;
@@ -35,39 +36,71 @@ function normalizePhoneForMeta(phone: string): string {
   return phone.replace(/\D/g, '').replace(/^0+/, '');
 }
 
+function sendErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.name === 'TimeoutError') {
+    return `Timeout após ${WHATSAPP_SEND_TIMEOUT_MS} ms`;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export class MetaCloudProvider implements IWhatsAppProvider {
   readonly name = 'meta-cloud';
-  private readonly token: string;
-  private readonly phoneNumberId: string;
-  private readonly apiVersion: string;
-  readonly appSecret: string;
-  readonly verifyToken: string;
-  private readonly usage?: { organizationId: string; connectionId: string };
+  // Campos privados de verdade (#): não aparecem em JSON, inspect nem Object.keys.
+  // appSecret/verifyToken ficam guardados para a validação do webhook (Task 6).
+  readonly #token: string;
+  readonly #phoneNumberId: string;
+  readonly #apiVersion: string;
+  readonly #appSecret: string;
+  readonly #verifyToken: string;
+  readonly #usage?: { organizationId: string; connectionId: string };
 
   constructor(options: MetaCloudProviderOptions) {
-    this.token = options.accessToken;
-    this.phoneNumberId = options.phoneNumberId;
-    this.apiVersion = options.apiVersion;
-    this.appSecret = options.appSecret;
-    this.verifyToken = options.verifyToken;
-    this.usage = options.usage;
+    this.#token = options.accessToken;
+    this.#phoneNumberId = options.phoneNumberId;
+    this.#apiVersion = options.apiVersion;
+    this.#appSecret = options.appSecret;
+    this.#verifyToken = options.verifyToken;
+    this.#usage = options.usage;
+  }
+
+  /** Serialização/log nunca expõe credenciais. */
+  toJSON(): { name: string } {
+    return { name: this.name };
+  }
+
+  [Symbol.for('nodejs.util.inspect.custom')](): string {
+    return `MetaCloudProvider { name: '${this.name}' }`;
   }
 
   private apiUrl(path: string): string {
-    return `https://graph.facebook.com/${this.apiVersion}${path}`;
+    return `https://graph.facebook.com/${this.#apiVersion}${path}`;
   }
 
-  private async trackSend(operation: 'send_text' | 'send_media'): Promise<void> {
-    if (!this.usage) return;
-    await recordUsage({
-      organizationId: this.usage.organizationId,
-      connectionId: this.usage.connectionId,
-      category: 'whatsapp',
-      provider: 'meta_cloud',
-      operation,
-      quantity: 1,
-      unit: 'messages',
-    });
+  /**
+   * Registro de consumo fire-and-forget: não atrasa o envio e uma falha
+   * nunca transforma um envio bem-sucedido em falha.
+   */
+  private trackSend(operation: 'send_text' | 'send_media'): void {
+    const usage = this.#usage;
+    if (!usage) return;
+    void Promise.resolve()
+      .then(() =>
+        recordUsage({
+          organizationId: usage.organizationId,
+          connectionId: usage.connectionId,
+          category: 'whatsapp',
+          provider: 'meta_cloud',
+          operation,
+          quantity: 1,
+          unit: 'messages',
+        })
+      )
+      .catch(() => {
+        console.error('[whatsapp] falha ao registrar consumo', {
+          organization_id: usage.organizationId,
+          code: 'usage_record_failed',
+        });
+      });
   }
 
   async sendText(
@@ -75,7 +108,8 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     to: string,
     text: string
   ): Promise<SendTextResult> {
-    const { token, phoneNumberId } = { token: this.token, phoneNumberId: this.phoneNumberId };
+    const token = this.#token;
+    const phoneNumberId = this.#phoneNumberId;
 
     return metaCircuit.call(() =>
       withRetry(async () => {
@@ -94,6 +128,7 @@ export class MetaCloudProvider implements IWhatsAppProvider {
               type: 'text',
               text: { preview_url: false, body: text },
             }),
+            signal: AbortSignal.timeout(WHATSAPP_SEND_TIMEOUT_MS),
           }
         );
 
@@ -112,11 +147,13 @@ export class MetaCloudProvider implements IWhatsAppProvider {
         return { success: true, messageId: data.messages?.[0]?.id };
       }, { maxAttempts: 2, initialDelayMs: 1000 })
     )
-      .then(async (result) => {
-        await this.trackSend('send_text');
-        return result;
-      })
-      .catch((err: Error) => ({ success: false, error: err.message }));
+      .then(
+        (result): SendTextResult => {
+          this.trackSend('send_text');
+          return result;
+        },
+        (err: unknown): SendTextResult => ({ success: false, error: sendErrorMessage(err) })
+      );
   }
 
   async sendMedia(
@@ -124,7 +161,8 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     to: string,
     media: MediaAttachment
   ): Promise<SendMediaResult> {
-    const { token, phoneNumberId } = { token: this.token, phoneNumberId: this.phoneNumberId };
+    const token = this.#token;
+    const phoneNumberId = this.#phoneNumberId;
 
     if (!media.url) {
       return { success: false, error: 'Meta Cloud API requer URL pública para envio de mídia. Faça upload da imagem em um servidor público primeiro.' };
@@ -150,6 +188,7 @@ export class MetaCloudProvider implements IWhatsAppProvider {
                 ...(media.caption ? { caption: media.caption } : {}),
               },
             }),
+            signal: AbortSignal.timeout(WHATSAPP_SEND_TIMEOUT_MS),
           }
         );
 
@@ -167,11 +206,13 @@ export class MetaCloudProvider implements IWhatsAppProvider {
         return { success: true, messageId: data.messages?.[0]?.id };
       }, { maxAttempts: 2, initialDelayMs: 1000 })
     )
-      .then(async (result) => {
-        await this.trackSend('send_media');
-        return result;
-      })
-      .catch((err: Error) => ({ success: false, error: err.message }));
+      .then(
+        (result): SendMediaResult => {
+          this.trackSend('send_media');
+          return result;
+        },
+        (err: unknown): SendMediaResult => ({ success: false, error: sendErrorMessage(err) })
+      );
   }
 
   async sendMessageSequence(
@@ -217,7 +258,7 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     _instanceOrPhoneId: string,
     mediaId: string
   ): Promise<MediaDownloadResult> {
-    const token = this.token;
+    const token = this.#token;
 
     // 1. Obter URL do media
     const urlResponse = await fetch(this.apiUrl(`/${mediaId}`), {
@@ -250,91 +291,95 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     return { buffer, mimetype: urlData.mime_type, base64 };
   }
 
-  /**
-   * Normaliza payload do webhook da Meta Cloud API.
-   *
-   * Formato Meta:
-   * {
-   *   object: "whatsapp_business_account",
-   *   entry: [{ changes: [{ value: { messages: [...], metadata: {...} } }] }]
-   * }
-   */
   normalizeWebhookPayload(payload: unknown): NormalizedWebhookPayload | null {
-    const data = payload as {
-      object?: string;
-      entry?: Array<{
-        changes?: Array<{
-          value?: {
-            messages?: Array<{
-              id: string;
-              from: string;
-              timestamp: string;
-              type: string;
-              text?: { body: string };
-              audio?: { id: string; mime_type: string };
-              image?: { id: string; mime_type: string; caption?: string };
-              document?: { id: string; mime_type: string; filename?: string };
-            }>;
-            contacts?: Array<{ profile?: { name?: string } }>;
-            metadata?: { display_phone_number: string; phone_number_id: string };
-          };
-        }>;
-      }>;
-    };
-
-    if (data.object !== 'whatsapp_business_account') return null;
-
-    const change = data.entry?.[0]?.changes?.[0]?.value;
-    const message = change?.messages?.[0];
-    if (!message) return null;
-
-    const pushName = change?.contacts?.[0]?.profile?.name || 'Desconhecido';
-    const instanceName = change?.metadata?.phone_number_id || '';
-
-    let messageType: NormalizedWebhookPayload['messageType'] = 'unknown';
-    let content = '';
-    let mediaId: string | undefined;
-    let mediaMimetype: string | undefined;
-
-    switch (message.type) {
-      case 'text':
-        messageType = 'text';
-        content = message.text?.body || '';
-        break;
-      case 'audio':
-        messageType = 'audio';
-        content = '[ÁUDIO]';
-        mediaId = message.audio?.id;
-        mediaMimetype = message.audio?.mime_type;
-        break;
-      case 'image':
-        messageType = 'image';
-        content = message.image?.caption || '[IMAGEM]';
-        mediaId = message.image?.id;
-        mediaMimetype = message.image?.mime_type;
-        break;
-      case 'document':
-        messageType = 'document';
-        content = message.document?.filename || '[DOCUMENTO]';
-        mediaId = message.document?.id;
-        mediaMimetype = message.document?.mime_type;
-        break;
-    }
-
-    const phone = message.from;
-    const normalizedPhone = phone.startsWith('55') ? `+${phone}` : `+55${phone}`;
-
-    return {
-      remoteJid: normalizedPhone,
-      pushName,
-      fromMe: false, // Meta não entrega mensagens enviadas pelo bot via webhook de recebimento
-      messageType,
-      content,
-      mediaId,
-      mediaMimetype,
-      instanceName,
-      messageId: message.id,
-      timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-    };
+    return normalizeMetaWebhookPayload(payload);
   }
+}
+
+/**
+ * Normaliza payload do webhook da Meta Cloud API.
+ *
+ * Formato Meta:
+ * {
+ *   object: "whatsapp_business_account",
+ *   entry: [{ changes: [{ value: { messages: [...], metadata: {...} } }] }]
+ * }
+ */
+export function normalizeMetaWebhookPayload(payload: unknown): NormalizedWebhookPayload | null {
+  const data = payload as {
+    object?: string;
+    entry?: Array<{
+      changes?: Array<{
+        value?: {
+          messages?: Array<{
+            id: string;
+            from: string;
+            timestamp: string;
+            type: string;
+            text?: { body: string };
+            audio?: { id: string; mime_type: string };
+            image?: { id: string; mime_type: string; caption?: string };
+            document?: { id: string; mime_type: string; filename?: string };
+          }>;
+          contacts?: Array<{ profile?: { name?: string } }>;
+          metadata?: { display_phone_number: string; phone_number_id: string };
+        };
+      }>;
+    }>;
+  };
+
+  if (data.object !== 'whatsapp_business_account') return null;
+
+  const change = data.entry?.[0]?.changes?.[0]?.value;
+  const message = change?.messages?.[0];
+  if (!message) return null;
+
+  const pushName = change?.contacts?.[0]?.profile?.name || 'Desconhecido';
+  const instanceName = change?.metadata?.phone_number_id || '';
+
+  let messageType: NormalizedWebhookPayload['messageType'] = 'unknown';
+  let content = '';
+  let mediaId: string | undefined;
+  let mediaMimetype: string | undefined;
+
+  switch (message.type) {
+    case 'text':
+      messageType = 'text';
+      content = message.text?.body || '';
+      break;
+    case 'audio':
+      messageType = 'audio';
+      content = '[ÁUDIO]';
+      mediaId = message.audio?.id;
+      mediaMimetype = message.audio?.mime_type;
+      break;
+    case 'image':
+      messageType = 'image';
+      content = message.image?.caption || '[IMAGEM]';
+      mediaId = message.image?.id;
+      mediaMimetype = message.image?.mime_type;
+      break;
+    case 'document':
+      messageType = 'document';
+      content = message.document?.filename || '[DOCUMENTO]';
+      mediaId = message.document?.id;
+      mediaMimetype = message.document?.mime_type;
+      break;
+  }
+
+  const phone = message.from;
+  const normalizedPhone = phone.startsWith('55') ? `+${phone}` : `+55${phone}`;
+
+  return {
+    remoteJid: normalizedPhone,
+    pushName,
+    fromMe: false, // Meta não entrega mensagens enviadas pelo bot via webhook de recebimento
+    messageType,
+    content,
+    mediaId,
+    mediaMimetype,
+    instanceName,
+    messageId: message.id,
+    timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+  };
 }

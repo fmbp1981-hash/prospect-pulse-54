@@ -57,3 +57,9 @@ export async function getWhatsAppForOrganization(organizationId: string): Promis
     organizationId: c.organizationId,
   };
 }
+
+/** Corpo do erro devolvido pelas rotas quando a organização não tem WhatsApp ativo (HTTP 409). */
+export const WHATSAPP_NOT_CONFIGURED_ERROR = {
+  code: 'WHATSAPP_NOT_CONFIGURED',
+  message: 'WhatsApp não configurado para esta organização. Fale com a equipe IntelliX.',
+} as const;

@@ -8,10 +8,11 @@
  * 1. Busca schedules com due_at <= agora e status = 'pending'
  * 2. Para cada schedule: busca lead, valida cenário ainda aplicável
  * 3. Humaniza a mensagem template
- * 4. Envia via WhatsApp provider, pela instância do DONO do schedule
- *    (resolveInstanceForUser). A coluna followup_schedules.instance_name é
+ * 4. Envia pela conexão de WhatsApp ativa da organização do lead
+ *    (getWhatsAppForOrganization). A coluna followup_schedules.instance_name é
  *    ignorada: é gravável pelo dono via REST e podia apontar para a instância
- *    de outra organização (achado F-11).
+ *    de outra organização (achado F-11). Org sem conexão → skipped
+ *    (`whatsapp_not_configured`), sem envio.
  * 5. Agenda próximo step (se houver) ou marca como concluído
  */
 
@@ -23,11 +24,12 @@ import {
   normalizeToBusinessHours,
 } from '../services/long-followup-rules.service';
 import type { FollowUpScenario } from '../services/long-followup-rules.service';
-import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
+import { getWhatsAppForOrganization, type OrgWhatsApp } from '../integrations/whatsapp/org-whatsapp';
+import { ConnectionNotConfiguredError } from '../connectors/types';
+import { resolveLeadOrganizationId } from '../connectors/org-context';
 import { humanizeResponse } from '../services/message-humanizer.service';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { leadRepository } from '../repositories/lead.repository';
-import { resolveInstanceForUser } from '../services/tenant-resolver.service';
 import { delay } from '../utils/delay';
 import { randomUUID } from 'crypto';
 
@@ -81,15 +83,21 @@ export async function runLongFollowUpJob(): Promise<void> {
   }
 
   logger.info(`Processing ${schedules.length} schedules`);
-  let provider: ReturnType<typeof getWhatsAppProvider>;
-  try {
-    provider = getWhatsAppProvider();
-  } catch (err) {
-    logger.error('WhatsApp provider unavailable — follow-ups mantidos pendentes', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
+
+  // Cache por execução: uma resolução de conexão por organização (null = sem conexão ativa).
+  const whatsappByOrg = new Map<string, Promise<OrgWhatsApp | null>>();
+  const whatsappFor = (organizationId: string): Promise<OrgWhatsApp | null> => {
+    let cached = whatsappByOrg.get(organizationId);
+    if (!cached) {
+      cached = getWhatsAppForOrganization(organizationId).catch((err: unknown) => {
+        if (err instanceof ConnectionNotConfiguredError) return null;
+        whatsappByOrg.delete(organizationId);
+        throw err;
+      });
+      whatsappByOrg.set(organizationId, cached);
+    }
+    return cached;
+  };
 
   for (const schedule of schedules as FollowUpScheduleRow[]) {
     try {
@@ -128,10 +136,24 @@ export async function runLongFollowUpJob(): Promise<void> {
         continue;
       }
 
-      // 5. Instância do dono do schedule — nunca a coluna instance_name da linha
-      const instanceName = await resolveInstanceForUser(schedule.user_id);
-      if (!instanceName) {
-        await markSchedule(supabase, schedule.id, 'skipped', 'Usuário sem instância WhatsApp configurada');
+      // 5. Conexão da organização do lead — nunca a coluna instance_name da linha
+      const organizationId = await resolveLeadOrganizationId(lead);
+      if (!organizationId) {
+        logger.warn('Lead sem organização — follow-up não enviado', {
+          scheduleId: schedule.id,
+          code: 'lead_without_organization',
+        });
+        await markSchedule(supabase, schedule.id, 'skipped', 'lead_without_organization');
+        continue;
+      }
+      const whatsapp = await whatsappFor(organizationId);
+      if (!whatsapp) {
+        logger.warn('WhatsApp não configurado para a organização — follow-up não enviado', {
+          scheduleId: schedule.id,
+          organization_id: organizationId,
+          code: 'whatsapp_not_configured',
+        });
+        await markSchedule(supabase, schedule.id, 'skipped', 'whatsapp_not_configured');
         continue;
       }
 
@@ -139,8 +161,8 @@ export async function runLongFollowUpJob(): Promise<void> {
       const messages = await humanizeResponse(step.message).catch(() => [step.message]);
 
       // 7. Envia
-      const { sent } = await provider.sendMessageSequence(
-        instanceName,
+      const { sent } = await whatsapp.provider.sendMessageSequence(
+        whatsapp.target,
         lead.whatsapp,
         messages,
         2000
@@ -171,7 +193,7 @@ export async function runLongFollowUpJob(): Promise<void> {
               step_number: nextStep.stepNumber,
               due_at: nextDue.toISOString(),
               status: 'pending',
-              instance_name: instanceName,
+              instance_name: whatsapp.target, // coluna legada (NOT NULL); ignorada no envio
               user_id: schedule.user_id,
             });
           }

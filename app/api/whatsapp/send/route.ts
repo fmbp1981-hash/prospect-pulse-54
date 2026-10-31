@@ -1,26 +1,48 @@
 /**
  * POST /api/whatsapp/send
- * Envia mensagem WhatsApp nativamente via Evolution API ou Meta Cloud API,
- * usando as credenciais salvas nas configurações do usuário.
+ * Envia mensagem WhatsApp (texto ou mídia) pela conexão de WhatsApp ativa da
+ * organização do usuário (Sprint 2b): não lê user_settings nem variáveis de
+ * ambiente. Organização = resolveOrganizationIdForUser(user.id); sem conexão
+ * ativa → 409 WHATSAPP_NOT_CONFIGURED (nunca fallback para outra conexão/env).
+ * Erros de envio voltam ao cliente só com mensagem genérica; o log leva apenas
+ * organization_id e um código (sem telefone nem texto da mensagem).
  *
- * Segurança (T9-C1): a instância vem só de resolveInstanceForUser (coluna
- * protegida); URL e chave Evolution são do tenant OU globais, nunca misturadas;
- * Meta exige Phone Number ID e token do próprio tenant (sem META_WA_*).
- * S1-F-01: a URL Evolution do tenant passa por assertSafeOutboundUrl antes do
- * fetch (inválida → 400) e erros de envio voltam ao cliente só com mensagem
- * genérica (detalhe apenas no log).
- *
- * Body: { whatsapp: string; message: string }
- * Response: { success: true } | { success: false; error: string }
+ * Body: { whatsapp, message?, mediaUrl?, mediaBase64?, mediaType?, mediaMimetype?, mediaFileName? }
+ * Response: { success: true } | { success: false; error: string } | { error: { code, message } }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { resolveInstanceForUser } from '@/lib/services/tenant-resolver.service';
-import { resolveEvolutionEndpoint } from '@/lib/integrations/whatsapp/evolution-credentials';
+import { z } from 'zod';
 import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
-import { assertSafeOutboundUrl } from '@/lib/security/outbound-url';
+import { resolveOrganizationIdForUser } from '@/lib/connectors/org-context';
+import { ConnectionNotConfiguredError } from '@/lib/connectors/types';
+import {
+  getWhatsAppForOrganization,
+  WHATSAPP_NOT_CONFIGURED_ERROR,
+  type OrgWhatsApp,
+} from '@/lib/integrations/whatsapp/org-whatsapp';
+
+const bodySchema = z
+  .object({
+    whatsapp: z.string().refine((v) => v.replace(/\D/g, '').length > 0, 'whatsapp é obrigatório'),
+    message: z.string().max(4096).optional(),
+    mediaUrl: z.string().url().optional(),
+    mediaBase64: z.string().min(1).optional(),
+    mediaType: z.enum(['image', 'document', 'video']).optional(),
+    mediaMimetype: z.string().max(255).optional(),
+    mediaFileName: z.string().max(255).optional(),
+  })
+  .refine((b) => !!b.message?.trim() || !!b.mediaUrl || !!b.mediaBase64, 'message ou mídia são obrigatórios');
+
+function badRequest(error: string) {
+  return NextResponse.json({ success: false, error }, { status: 400 });
+}
+
+function notConfigured() {
+  return NextResponse.json({ error: WHATSAPP_NOT_CONFIGURED_ERROR }, { status: 409 });
+}
 
 export async function POST(req: NextRequest) {
   // 1. Autenticação
@@ -37,164 +59,66 @@ export async function POST(req: NextRequest) {
   if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   // 2. Body
-  const body = await req.json() as {
-    whatsapp?: string;
-    message?: string;
-    mediaUrl?: string;
-    mediaBase64?: string;
-    mediaType?: 'image' | 'document' | 'video';
-    mediaMimetype?: string;
-    mediaFileName?: string;
-  };
-  const { whatsapp, message, mediaUrl, mediaBase64, mediaType, mediaMimetype, mediaFileName } = body;
-
-  if (!whatsapp?.trim()) {
-    return NextResponse.json(
-      { success: false, error: 'whatsapp é obrigatório' },
-      { status: 400 }
-    );
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return badRequest(parsed.error.issues[0]?.message ?? 'Corpo inválido');
   }
-  if (!message?.trim() && !mediaUrl && !mediaBase64) {
-    return NextResponse.json(
-      { success: false, error: 'message ou mídia são obrigatórios' },
-      { status: 400 }
-    );
-  }
-
+  const { whatsapp, message, mediaUrl, mediaBase64, mediaType, mediaMimetype, mediaFileName } = parsed.data;
+  const phone = whatsapp.replace(/\D/g, '');
   const hasMedia = !!(mediaUrl || mediaBase64);
 
-  // Normaliza: apenas dígitos
-  const phone = whatsapp.replace(/\D/g, '');
+  // 3. Conexão de WhatsApp da organização do usuário
+  const organizationId = await resolveOrganizationIdForUser(user.id);
+  if (!organizationId) return notConfigured();
 
-  // 3. Busca configurações do usuário
-  const { data: settings } = await supabase
-    .from('user_settings')
-    .select('provider, evolution_api_url, evolution_api_key, business_phone_number_id, business_access_token')
-    .eq('user_id', user.id)
-    .single();
-
-  const provider = settings?.provider || process.env.WHATSAPP_PROVIDER || 'evolution';
-
+  let conn: OrgWhatsApp;
   try {
-    if (provider === 'meta') {
-      // ── Meta Cloud API ────────────────────────────────────────────────────
-      // Credenciais do próprio tenant; sem fallback para META_WA_* (número da plataforma).
-      const phoneNumberId = (settings?.business_phone_number_id ?? '').trim();
-      const token = (settings?.business_access_token ?? '').trim();
-      const version = process.env.META_WA_VERSION || 'v20.0';
-
-      if (!phoneNumberId || !token) {
-        return NextResponse.json({
-          success: false,
-          error: 'Meta Cloud API não configurada. Acesse Configurações → Integração WhatsApp e preencha o Phone Number ID e o Token de Acesso.',
-        }, { status: 400 });
-      }
-
-      if (hasMedia) {
-        if (!mediaUrl) {
-          return NextResponse.json({ success: false, error: 'Meta Cloud API requer URL pública para envio de mídia.' }, { status: 400 });
-        }
-        const type = mediaType || 'image';
-        const res = await fetch(
-          `https://graph.facebook.com/${version}/${phoneNumberId}/messages`,
-          {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              recipient_type: 'individual',
-              to: phone,
-              type,
-              [type]: { link: mediaUrl, ...(message ? { caption: message } : {}) },
-            }),
-          }
-        );
-        if (!res.ok) { const err = await res.text(); throw new Error(`Meta API ${res.status}: ${err}`); }
-      } else {
-        const res = await fetch(
-          `https://graph.facebook.com/${version}/${phoneNumberId}/messages`,
-          {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              messaging_product: 'whatsapp',
-              recipient_type: 'individual',
-              to: phone,
-              type: 'text',
-              text: { preview_url: false, body: message },
-            }),
-          }
-        );
-        if (!res.ok) { const err = await res.text(); throw new Error(`Meta API ${res.status}: ${err}`); }
-      }
-    } else {
-      // ── Evolution API (padrão) ─────────────────────────────────────────────
-      // Instância protegida do próprio usuário (nunca EVOLUTION_INSTANCE_NAME).
-      const instanceName = await resolveInstanceForUser(user.id);
-      if (!instanceName) {
-        return NextResponse.json({
-          success: false,
-          error: 'Instância WhatsApp não definida para sua conta. Fale com o administrador da plataforma.',
-        }, { status: 400 });
-      }
-
-      // S1-F-01: URL configurada pelo tenant não pode apontar para a rede interna.
-      const tenantUrl = (settings?.evolution_api_url ?? '').trim();
-      if (tenantUrl) {
-        try {
-          assertSafeOutboundUrl(tenantUrl);
-        } catch (err) {
-          console.warn('[/api/whatsapp/send] URL Evolution do tenant recusada:', err instanceof Error ? err.message : 'erro');
-          return NextResponse.json({
-            success: false,
-            error: 'URL da Evolution API inválida. Use um endereço https público, sem usuário/senha, query ou fragmento.',
-          }, { status: 400 });
-        }
-      }
-
-      // URL + chave do tenant juntas, ou URL + chave globais juntas — nunca misturadas.
-      const endpoint = resolveEvolutionEndpoint(settings?.evolution_api_url, settings?.evolution_api_key);
-      if (!endpoint) {
-        return NextResponse.json({
-          success: false,
-          error: 'Evolution API não configurada. Em Configurações → Integração WhatsApp preencha a URL e a API Key juntas (ou deixe as duas em branco para usar o servidor padrão).',
-        }, { status: 400 });
-      }
-      const { apiUrl, apiKey } = endpoint;
-
-      if (hasMedia) {
-        const type = mediaType || 'image';
-        const mime = mediaMimetype || 'image/jpeg';
-        const ext = mime.split('/')[1] || 'jpg';
-        const res = await fetch(`${apiUrl}/message/sendMedia/${instanceName}`, {
-          method: 'POST',
-          headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            number: phone,
-            mediatype: type,
-            mimetype: mime,
-            caption: message || '',
-            media: mediaBase64 || mediaUrl,
-            fileName: mediaFileName || `imagem.${ext}`,
-          }),
-        });
-        if (!res.ok) { const err = await res.text(); throw new Error(`Evolution API ${res.status}: ${err}`); }
-      } else {
-        const res = await fetch(`${apiUrl}/message/sendText/${instanceName}`, {
-          method: 'POST',
-          headers: { apikey: apiKey, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ number: phone, text: message }),
-        });
-        if (!res.ok) { const err = await res.text(); throw new Error(`Evolution API ${res.status}: ${err}`); }
-      }
+    conn = await getWhatsAppForOrganization(organizationId);
+  } catch (err) {
+    if (err instanceof ConnectionNotConfiguredError) {
+      console.warn('[/api/whatsapp/send] WhatsApp não configurado', {
+        organization_id: organizationId,
+        code: 'whatsapp_not_configured',
+      });
+      return notConfigured();
     }
+    console.error('[/api/whatsapp/send] falha ao resolver conexão', {
+      organization_id: organizationId,
+      code: 'whatsapp_connection_error',
+    });
+    return NextResponse.json(
+      { success: false, error: 'WhatsApp indisponível no momento. Tente novamente mais tarde.' },
+      { status: 503 }
+    );
+  }
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('[/api/whatsapp/send] Falha no envio:', error instanceof Error ? error.message : 'erro');
+  // Meta Cloud API só envia mídia por URL pública.
+  if (hasMedia && !mediaUrl && conn.provider.name === 'meta-cloud') {
+    return badRequest('Meta Cloud API requer URL pública para envio de mídia.');
+  }
+
+  // 4. Envio
+  const result = hasMedia
+    ? await conn.provider.sendMedia(conn.target, phone, {
+        type: mediaType ?? 'image',
+        base64: mediaBase64,
+        url: mediaUrl,
+        mimetype: mediaMimetype ?? 'image/jpeg',
+        fileName: mediaFileName,
+        caption: message ?? '',
+      })
+    : await conn.provider.sendText(conn.target, phone, message ?? '');
+
+  if (!result.success) {
+    console.error('[/api/whatsapp/send] envio falhou', {
+      organization_id: organizationId,
+      code: 'whatsapp_send_failed',
+    });
     return NextResponse.json(
       { success: false, error: 'Falha ao enviar a mensagem. Tente novamente mais tarde.' },
       { status: 500 }
     );
   }
+
+  return NextResponse.json({ success: true });
 }

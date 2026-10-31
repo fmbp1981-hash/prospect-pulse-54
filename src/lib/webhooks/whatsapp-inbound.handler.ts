@@ -20,7 +20,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { normalizeMessage, type NormalizedMessage } from '@/lib/services/message-normalizer.service';
 import { runLeadConversationWorkflow } from '@/lib/workflows/lead-conversation.workflow';
-import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
+import { getWhatsAppForOrganization } from '@/lib/integrations/whatsapp/org-whatsapp';
+import { normalizeEvolutionWebhookPayload } from '@/lib/integrations/whatsapp/providers/evolution.provider';
+import { normalizeMetaWebhookPayload } from '@/lib/integrations/whatsapp/providers/meta-cloud.provider';
+import { ConnectionNotConfiguredError } from '@/lib/connectors/types';
+import { resolveLeadOrganizationId } from '@/lib/connectors/org-context';
 import {
   resolveTenantByWebhookToken,
   type TenantContext,
@@ -69,28 +73,36 @@ async function captureConsultantMessage(
       && (Date.now() - new Date(lastAction).getTime()) < 60_000;
 
     if (!recentlyActive && lead.whatsapp) {
+      // Sai pela conexão de WhatsApp da organização do lead (Sprint 2b).
+      // Logs só com código + organization_id (strings): nada de telefone/payload.
+      let organizationId: string | null = null;
       try {
         const consultantName = lead.consultor_responsavel || tenant.companyName || 'Consultor';
         const tagMessage = `[Consultor ${consultantName} entrou na conversa]`;
         const phone = String(lead.whatsapp).replace(/\D/g, '');
 
-        const provider = getWhatsAppProvider();
-        await provider.sendText(tenant.instanceName, phone, tagMessage);
-
-        await conversationRepository.saveLeadMessage({
-          lead_id: lead.id,
-          message: tagMessage,
-          from_lead: false,
-          ai_generated: false,
-          user_id: tenant.userId,
-        });
-
-        console.log(`[Webhook] Tag de entrada do consultor enviada — lead ${lead.id}`);
+        organizationId = await resolveLeadOrganizationId(lead);
+        if (!organizationId) {
+          console.warn('[Webhook] Tag de entrada do consultor não enviada:', 'lead_without_organization');
+        } else {
+          const whatsapp = await getWhatsAppForOrganization(organizationId);
+          const sent = await whatsapp.provider.sendText(whatsapp.target, phone, tagMessage);
+          if (!sent.success) {
+            console.warn('[Webhook] Tag de entrada do consultor não enviada:', 'whatsapp_send_failed', organizationId);
+          } else {
+            await conversationRepository.saveLeadMessage({
+              lead_id: lead.id,
+              message: tagMessage,
+              from_lead: false,
+              ai_generated: false,
+              user_id: tenant.userId,
+            });
+            console.log(`[Webhook] Tag de entrada do consultor enviada — lead ${lead.id}`);
+          }
+        }
       } catch (tagErr) {
-        console.warn(
-          '[Webhook] Falha ao enviar tag de entrada do consultor:',
-          tagErr instanceof Error ? tagErr.message : String(tagErr)
-        );
+        const code = tagErr instanceof ConnectionNotConfiguredError ? 'whatsapp_not_configured' : 'whatsapp_tag_error';
+        console.warn('[Webhook] Falha ao enviar tag de entrada do consultor:', code, organizationId ?? '');
         // Não impede o salvamento da mensagem abaixo
       }
     }
@@ -169,17 +181,11 @@ export async function handleWhatsAppInboundPost(
     return NextResponse.json({ ignored: true }, { status: 200 });
   }
 
-  let provider: ReturnType<typeof getWhatsAppProvider>;
-  try {
-    provider = getWhatsAppProvider();
-  } catch (err) {
-    // Ex.: WHATSAPP_PROVIDER=meta (desativado até o Sprint 2b). Nada é processado.
-    console.error('[Webhook] Provider de WhatsApp indisponível:', err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: { code: 'PROVIDER_UNAVAILABLE', message: 'Provider de WhatsApp indisponível' } }, { status: 503 });
-  }
-
-  // Usa o provider para normalizar o payload (cada um tem seu formato)
-  const normalizedPayload = provider.normalizeWebhookPayload(body);
+  // Normaliza o payload pelo formato do provedor (não usa credenciais).
+  // A Task 6 do Sprint 2b troca esta rota pela entrada por conexão.
+  const normalizedPayload = isMetaProvider || looksLikeMeta
+    ? normalizeMetaWebhookPayload(body)
+    : normalizeEvolutionWebhookPayload(body);
   if (!normalizedPayload) {
     // Evento de status de mensagem (ack, delivery) — ignorar silenciosamente
     return NextResponse.json({ ignored: true }, { status: 200 });

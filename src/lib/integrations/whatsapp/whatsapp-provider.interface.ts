@@ -3,6 +3,9 @@
  * Cada provedor recebe as credenciais da conexão da organização (sem variáveis de ambiente).
  */
 
+/** Tempo máximo de um envio (texto/mídia); estourou → envio falho, nunca exceção. */
+export const WHATSAPP_SEND_TIMEOUT_MS = 10_000;
+
 export interface SendTextResult {
   success: boolean;
   messageId?: string;

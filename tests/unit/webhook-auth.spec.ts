@@ -43,6 +43,8 @@ vi.mock('@/lib/services/lead.service', () => ({
 }));
 
 import { isWellFormedWebhookToken, verifyMetaSignature } from '@/lib/webhooks/webhook-token';
+import { setWhatsAppProviderFactoryForTests, type OrgWhatsApp } from '@/lib/integrations/whatsapp/org-whatsapp';
+import { ConnectionNotConfiguredError } from '@/lib/connectors/types';
 import { handleWhatsAppInboundPost } from '@/lib/webhooks/whatsapp-inbound.handler';
 import { POST as legacyPost } from '../../app/api/webhooks/evolution/route';
 import { POST as tokenPost, GET as tokenGet } from '../../app/api/webhooks/evolution/[token]/route';
@@ -327,3 +329,60 @@ describe('obs. de log (LGPD-S1-01) — falha ao capturar mensagem do consultor',
     warn.mockRestore();
   });
 });
+
+describe('Sprint 2b — tag de entrada do consultor sai pela conexão da organização do lead', () => {
+  const ORG_A = '0a0a0a0a-0000-0000-0000-00000000000a';
+  const sendText = vi.fn(async () => ({ success: true }));
+  const humanLead = (organization_id: string) => ({
+    id: 'lead-1',
+    whatsapp: '+5511999990000',
+    modo_atendimento: 'humano',
+    consultor_responsavel: 'Ana',
+    data_ultima_acao_consultor: null,
+    organization_id,
+    user_id: TENANT_A.userId,
+  });
+
+  beforeEach(() => {
+    sendText.mockClear();
+    setWhatsAppProviderFactoryForTests(async (orgId: string): Promise<OrgWhatsApp> => {
+      if (orgId !== ORG_A) throw new ConnectionNotConfiguredError(orgId, 'whatsapp');
+      return {
+        provider: { sendText } as unknown as OrgWhatsApp['provider'],
+        target: 'inst-da-conexao',
+        connectionId: 'conn-a',
+        organizationId: ORG_A,
+      };
+    });
+  });
+
+  it('envia a tag pelo alvo da conexão (não pela instância do tenant)', async () => {
+    resolveTenantByWebhookToken.mockResolvedValueOnce(TENANT_A);
+    findByWhatsApp.mockResolvedValueOnce(humanLead(ORG_A));
+    await handleWhatsAppInboundPost(
+      req(`http://x/api/webhooks/evolution/${TOKEN_A}`, evolutionPayload('instancia-a', true)),
+      TOKEN_A
+    );
+    await Promise.all(pending);
+    expect(sendText).toHaveBeenCalledWith('inst-da-conexao', '5511999990000', '[Consultor Ana entrou na conversa]');
+    setWhatsAppProviderFactoryForTests(null);
+  });
+
+  it('organização sem conexão → não envia a tag, mas salva a mensagem do consultor', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    resolveTenantByWebhookToken.mockResolvedValueOnce(TENANT_A);
+    findByWhatsApp.mockResolvedValueOnce(humanLead('0c0c0c0c-0000-0000-0000-00000000000c'));
+    await handleWhatsAppInboundPost(
+      req(`http://x/api/webhooks/evolution/${TOKEN_A}`, evolutionPayload('instancia-a', true)),
+      TOKEN_A
+    );
+    await Promise.all(pending);
+    expect(sendText).not.toHaveBeenCalled();
+    expect(saveLeadMessage).toHaveBeenCalledWith(expect.objectContaining({ message: '[Consultor] oi' }));
+    expect(JSON.stringify(warn.mock.calls)).toContain('whatsapp_not_configured');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('5511999990000');
+    warn.mockRestore();
+    setWhatsAppProviderFactoryForTests(null);
+  });
+});
+

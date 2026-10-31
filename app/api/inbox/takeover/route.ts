@@ -2,15 +2,23 @@
  * POST /api/inbox/takeover
  * Consultant assumes a conversation — sets modo_atendimento='humano',
  * sends WA notification, records system message.
+ *
+ * Sprint 2b: o lead tem de ser da organização do usuário (senão 404). A
+ * notificação sai pela conexão de WhatsApp ativa da organização; sem conexão,
+ * assume a conversa sem notificar o lead (log whatsapp_not_configured).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
-import { resolveInstanceForUser } from '@/lib/services/tenant-resolver.service';
+import { z } from 'zod';
+import { getWhatsAppForOrganization } from '@/lib/integrations/whatsapp/org-whatsapp';
+import { ConnectionNotConfiguredError } from '@/lib/connectors/types';
+import { resolveLeadOrganizationId, resolveOrganizationIdForUser } from '@/lib/connectors/org-context';
 import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
+
+const bodySchema = z.object({ leadId: z.string().trim().min(1) });
 
 export const runtime = 'nodejs';
 
@@ -28,10 +36,14 @@ export async function POST(req: NextRequest) {
   }
   if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
-  const body = await req.json() as { leadId?: string };
-  if (!body.leadId) {
-    return NextResponse.json({ error: 'leadId required' }, { status: 400 });
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: { code: 'INVALID_INPUT', message: 'leadId required' } },
+      { status: 400 }
+    );
   }
+  const body = parsed.data;
 
   const serviceSupabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,12 +54,18 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lead, error: leadErr } = await (serviceSupabase as any)
     .from('leads_prospeccao')
-    .select('id, whatsapp, modo_atendimento, data_ultima_acao_consultor, user_id')
+    .select('id, whatsapp, modo_atendimento, data_ultima_acao_consultor, user_id, organization_id')
     .eq('id', body.leadId)
     .eq('user_id', user.id)
     .single();
 
   if (leadErr || !lead) {
+    return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+  }
+
+  // Organização do usuário; o lead tem de ser dela.
+  const organizationId = await resolveOrganizationIdForUser(user.id);
+  if ((await resolveLeadOrganizationId(lead)) !== organizationId) {
     return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
   }
 
@@ -73,19 +91,19 @@ export async function POST(req: NextRequest) {
     .eq('id', body.leadId);
 
   // 5. Send WA notification + save system message (only if not recently taken over)
-  if (!recentlyTakenOver && lead.whatsapp) {
+  if (!recentlyTakenOver && lead.whatsapp && organizationId) {
     try {
-      // Instância do próprio usuário. Sem fallback para EVOLUTION_INSTANCE_NAME
-      // (achado F-12): sem instância, assume a conversa sem notificar o lead.
-      const instanceName = await resolveInstanceForUser(user.id);
+      const whatsapp = await getWhatsAppForOrganization(organizationId);
+      const tagMessage = `[Consultor ${consultantName} entrou na conversa]`;
+      const phone = String(lead.whatsapp).replace(/\D/g, '');
 
-      if (instanceName) {
-        const tagMessage = `[Consultor ${consultantName} entrou na conversa]`;
-        const phone = String(lead.whatsapp).replace(/\D/g, '');
-
-        const provider = getWhatsAppProvider();
-        await provider.sendText(instanceName, phone, tagMessage);
-
+      const result = await whatsapp.provider.sendText(whatsapp.target, phone, tagMessage);
+      if (!result.success) {
+        console.error('[inbox/takeover] notificação não enviada', {
+          organization_id: organizationId,
+          code: 'whatsapp_send_failed',
+        });
+      } else {
         // Save system message to conversation history
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (serviceSupabase as any)
@@ -101,9 +119,15 @@ export async function POST(req: NextRequest) {
           });
       }
     } catch (err) {
-      console.error('[inbox/takeover] WA notification failed:', err);
-      // Don't fail the takeover if WA notification fails
+      // Não falha o takeover se a notificação não sair.
+      const code = err instanceof ConnectionNotConfiguredError ? 'whatsapp_not_configured' : 'whatsapp_notification_error';
+      console.warn('[inbox/takeover] notificação WhatsApp não enviada', { organization_id: organizationId, code });
     }
+  } else if (!organizationId) {
+    console.warn('[inbox/takeover] notificação WhatsApp não enviada', {
+      organization_id: null,
+      code: 'whatsapp_not_configured',
+    });
   }
 
   return NextResponse.json({ success: true });

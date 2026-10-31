@@ -10,15 +10,17 @@
  *
  * Idempotência: os leads são reivindicados com trava atômica no banco
  * (claimDueFollowUps → RPC claim_due_follow_ups), então execuções simultâneas
- * nunca enviam a mesma mensagem duas vezes. Cada lead sai pela instância
- * Evolution da organização dona dele; sem instância, não envia.
+ * nunca enviam a mesma mensagem duas vezes. Cada lead sai pela conexão de
+ * WhatsApp ativa da organização dona dele (getWhatsAppForOrganization); sem
+ * conexão, não envia e loga `whatsapp_not_configured` com o organization_id.
  * Lead que não recebeu a mensagem volta com backoff de 15 min
  * (releaseFollowUpClaim), para não ocupar o lote de toda execução.
  */
 
 import { leadRepository } from '../repositories/lead.repository';
-import { resolveInstanceForUser } from '../services/tenant-resolver.service';
-import { sendWhatsAppText } from '../integrations/evolution/messaging.client';
+import { resolveLeadOrganizationId } from '../connectors/org-context';
+import { ConnectionNotConfiguredError } from '../connectors/types';
+import { getWhatsAppForOrganization, type OrgWhatsApp } from '../integrations/whatsapp/org-whatsapp';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { randomUUID } from 'crypto';
 
@@ -50,8 +52,21 @@ export async function runFollowUpJob(options: FollowUpJobOptions = {}): Promise<
 
   logger.info(`Claimed ${leads.length} leads for follow-up`);
 
-  // Cache por execução: vários leads do mesmo dono resolvem a instância uma vez.
-  const instanceByUser = new Map<string, string | null>();
+  // Cache por execução: vários leads da mesma organização resolvem a conexão uma vez.
+  // null = organização sem conexão de WhatsApp ativa.
+  const whatsappByOrg = new Map<string, Promise<OrgWhatsApp | null>>();
+  const whatsappFor = (organizationId: string): Promise<OrgWhatsApp | null> => {
+    let cached = whatsappByOrg.get(organizationId);
+    if (!cached) {
+      cached = getWhatsAppForOrganization(organizationId).catch((err: unknown) => {
+        if (err instanceof ConnectionNotConfiguredError) return null;
+        whatsappByOrg.delete(organizationId); // erro transitório: tenta de novo no próximo lead
+        throw err;
+      });
+      whatsappByOrg.set(organizationId, cached);
+    }
+    return cached;
+  };
 
   const release = async (leadId: string): Promise<void> => {
     try {
@@ -84,31 +99,28 @@ export async function runFollowUpJob(options: FollowUpJobOptions = {}): Promise<
         continue;
       }
 
-      if (!lead.user_id) {
-        logger.warn('Lead has no owner — cannot resolve instance', { leadId: lead.id });
-        await release(lead.id);
-        continue;
-      }
-
-      let instanceName = instanceByUser.get(lead.user_id);
-      if (instanceName === undefined) {
-        instanceName = await resolveInstanceForUser(lead.user_id);
-        instanceByUser.set(lead.user_id, instanceName);
-      }
-
-      if (!instanceName) {
-        logger.warn('No Evolution instance configured for lead owner — skipping', {
+      const organizationId = await resolveLeadOrganizationId(lead);
+      if (!organizationId) {
+        logger.warn('Lead sem organização — follow-up não enviado', {
           leadId: lead.id,
+          code: 'lead_without_organization',
         });
         await release(lead.id);
         continue;
       }
 
-      const result = await sendWhatsAppText({
-        instanceName,
-        to: lead.whatsapp,
-        text: message,
-      });
+      const whatsapp = await whatsappFor(organizationId);
+      if (!whatsapp) {
+        logger.warn('WhatsApp não configurado para a organização — follow-up não enviado', {
+          leadId: lead.id,
+          organization_id: organizationId,
+          code: 'whatsapp_not_configured',
+        });
+        await release(lead.id);
+        continue;
+      }
+
+      const result = await whatsapp.provider.sendText(whatsapp.target, lead.whatsapp, message);
 
       if (result.success) {
         sent = true;
@@ -118,7 +130,11 @@ export async function runFollowUpJob(options: FollowUpJobOptions = {}): Promise<
           followUpCount: followUpCount + 1,
         });
       } else {
-        logger.error('Follow-up send failed', { leadId: lead.id, error: result.error });
+        logger.error('Follow-up send failed', {
+          leadId: lead.id,
+          organization_id: organizationId,
+          code: 'whatsapp_send_failed',
+        });
         await release(lead.id);
       }
 
