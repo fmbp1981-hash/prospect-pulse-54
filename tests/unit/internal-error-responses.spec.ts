@@ -24,7 +24,7 @@ function handler(call: FakeCall): FakeResult | undefined {
   }
   if (call.table === 'user_settings') {
     return {
-      data: { business_phone_number_id: 'phone-1', business_access_token: 'tok-1', openai_api_key: 'sk-teste' },
+      data: { business_phone_number_id: 'phone-1', business_access_token: 'tok-1' },
       error: null,
     };
   }
@@ -58,8 +58,9 @@ vi.mock('@/lib/auth/require-writer', async (orig) => ({
 }));
 vi.mock('@/lib/auth/cron-auth', () => ({ verifyCronRequest: () => true }));
 vi.mock('@/lib/ai/rag/rag.service', () => ({ ingestDocument: mocks.ingestDocument }));
-vi.mock('@/lib/ai/openai-key-context', () => ({
-  withOpenAIKey: async (_key: string, fn: () => Promise<void>) => fn(),
+vi.mock('@/lib/ai/openai-key-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/ai/openai-key-context')>()),
+  resolveLlmForUser: async () => ({ organizationId: 'org-1', connectionId: 'conn-llm', apiKey: 'chave-teste' }),
 }));
 
 import { PATCH as clientePatch, DELETE as clienteDelete } from '../../app/api/clientes/[id]/route';

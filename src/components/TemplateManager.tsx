@@ -220,7 +220,11 @@ export function TemplateManager({ isOpen, onClose }: TemplateManagerProps) {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Erro ao personalizar');
+        // `error` pode vir como texto ou como `{ code, message }` (ex.: 409 LLM_NOT_CONFIGURED)
+        const apiError = data.error as string | { message?: string } | undefined;
+        throw new Error(
+          (typeof apiError === 'string' ? apiError : apiError?.message) || 'Erro ao personalizar'
+        );
       }
       setPersonalizedBody(data.personalizedBody);
       toast.success('Mensagem personalizada com IA!', {

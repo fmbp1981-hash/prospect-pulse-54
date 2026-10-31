@@ -4,9 +4,7 @@
  * Divide a resposta do agente em mensagens menores e mais naturais (≤ 240 chars).
  */
 
-import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
-
-const OPENAI_API_KEY = () => getCurrentOpenAIKey();
+import { getCurrentLlm, recordLlmUsage, type LlmUsage } from '@/lib/ai/openai-key-context';
 const HUMANIZER_MODEL = 'gpt-4.1-mini';
 const MAX_CHARS_PER_MESSAGE = 240;
 
@@ -23,10 +21,12 @@ export async function humanizeResponse(response: string): Promise<string[]> {
   }
 
   try {
+    // Sem conexão de LLM no contexto lança → fallback de split local, sem chamar a API.
+    const { apiKey } = getCurrentLlm();
     const result = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY()}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -59,7 +59,9 @@ Regras:
 
     const data = (await result.json()) as {
       choices: Array<{ message: { content: string } }>;
+      usage?: LlmUsage;
     };
+    await recordLlmUsage(data.usage, 'humanizer');
 
     const parsed = JSON.parse(data.choices[0].message.content) as {
       messages: string[];
@@ -69,7 +71,7 @@ Regras:
       return parsed.messages.filter((m) => m.trim().length > 0);
     }
   } catch (err) {
-    console.warn('[Humanizer] Failed to humanize, using fallback split:', err);
+    console.warn('[Humanizer] Failed to humanize, using fallback split:', err instanceof Error ? err.message : 'erro');
   }
 
   // Fallback: split simples por parágrafo

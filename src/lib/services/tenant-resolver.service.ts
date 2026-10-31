@@ -13,7 +13,6 @@ export interface TenantContext {
   userId: string;
   companyName: string;
   agentEnabled: boolean;
-  openaiApiKey?: string;
 }
 
 function getServiceClient() {
@@ -33,7 +32,7 @@ export async function resolveTenantByWebhookToken(
   const supabase = getServiceClient();
   const { data: row, error } = await supabase
     .from('user_settings')
-    .select('user_id, company_name, agent_enabled, openai_api_key')
+    .select('user_id, company_name, agent_enabled')
     .eq('webhook_token', token)
     .maybeSingle();
 
@@ -48,7 +47,6 @@ export async function resolveTenantByWebhookToken(
     userId: row.user_id,
     companyName: row.company_name || '',
     agentEnabled: row.agent_enabled ?? true,
-    openaiApiKey: row.openai_api_key || undefined,
   };
 }
 
@@ -65,7 +63,7 @@ export async function resolveTenantByOrganization(
 
   const { data: row, error } = await getServiceClient()
     .from('user_settings')
-    .select('company_name, agent_enabled, openai_api_key')
+    .select('company_name, agent_enabled')
     .eq('user_id', userId)
     .maybeSingle();
   if (error) throw new Error(`resolveTenantByOrganization error: ${error.message}`);
@@ -74,7 +72,6 @@ export async function resolveTenantByOrganization(
     userId,
     companyName: row?.company_name || '',
     agentEnabled: row?.agent_enabled ?? true,
-    openaiApiKey: row?.openai_api_key || undefined,
   };
 }
 

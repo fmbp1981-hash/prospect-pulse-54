@@ -62,6 +62,15 @@ vi.mock('@/lib/ai/rag/rag.service', async (importOriginal) => {
   return { ...actual, ingestDocument };
 });
 
+// Conexão `llm` da organização (Task 8): resolvida pelo contexto; null = não configurada.
+const llmState = vi.hoisted(() => ({
+  ctx: { organizationId: 'org-a', connectionId: 'conn-llm', apiKey: 'chave-teste' } as unknown,
+}));
+vi.mock('@/lib/ai/openai-key-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/openai-key-context')>();
+  return { ...actual, resolveLlmForUser: async () => llmState.ctx };
+});
+
 import { deleteDocument } from '@/lib/ai/rag/rag.service';
 import { DELETE as ragDelete, POST as ragPost } from '../../app/api/agent/rag/route';
 
@@ -72,6 +81,7 @@ beforeEach(() => {
   failChunkDelete = false;
   ingestDocument.mockClear();
   currentUser = { id: USER_A };
+  llmState.ctx = { organizationId: 'org-a', connectionId: 'conn-llm', apiKey: 'chave-teste' };
 });
 
 describe('F-05 — deleteDocument', () => {
@@ -129,6 +139,19 @@ describe('F-16 — POST /api/agent/rag com agentConfigId', () => {
     const res = await ragPost(postJson({ content: CONTENT, agentConfigId: CFG_A }));
     expect(res.status).toBe(201);
     expect(ingestDocument).toHaveBeenCalledWith(USER_A, CFG_A, expect.any(String), CONTENT, 'text/plain');
+  });
+
+  it('organização sem conexão llm → 409 LLM_NOT_CONFIGURED e nada ingerido', async () => {
+    llmState.ctx = null;
+    const res = await ragPost(postJson({ content: CONTENT, agentConfigId: CFG_A }));
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'LLM_NOT_CONFIGURED',
+        message: 'IA não configurada para esta organização. Fale com a equipe IntelliX.',
+      },
+    });
+    expect(ingestDocument).not.toHaveBeenCalled();
   });
 
   it('sem agentConfigId continua funcionando (config padrão)', async () => {

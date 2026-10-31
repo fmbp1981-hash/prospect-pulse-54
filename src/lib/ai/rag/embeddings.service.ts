@@ -4,7 +4,7 @@
  */
 
 import { openAICircuit, withRetry } from '@/lib/utils/resilience';
-import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+import { getCurrentLlm, recordLlmUsage, type LlmUsage } from '@/lib/ai/openai-key-context';
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
 const EMBEDDING_DIMENSIONS = 1536;
@@ -12,12 +12,13 @@ const EMBEDDING_DIMENSIONS = 1536;
 export { EMBEDDING_DIMENSIONS };
 
 export async function generateEmbedding(text: string): Promise<number[]> {
+  const { apiKey } = getCurrentLlm();
   return openAICircuit.call(() =>
     withRetry(async () => {
       const response = await fetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${getCurrentOpenAIKey()}`,
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -33,7 +34,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
       const data = (await response.json()) as {
         data: Array<{ embedding: number[] }>;
+        usage?: LlmUsage;
       };
+      await recordLlmUsage(data.usage, 'embeddings');
 
       return data.data[0].embedding;
     }, { maxAttempts: 2 })
@@ -44,12 +47,13 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  * Gera embeddings para múltiplos textos em lote.
  */
 export async function generateEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+  const { apiKey } = getCurrentLlm();
   return openAICircuit.call(() =>
     withRetry(async () => {
       const response = await fetch('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${getCurrentOpenAIKey()}`,
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -65,7 +69,9 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<number[]
 
       const data = (await response.json()) as {
         data: Array<{ embedding: number[]; index: number }>;
+        usage?: LlmUsage;
       };
+      await recordLlmUsage(data.usage, 'embeddings');
 
       // Garante ordem correta
       return data.data

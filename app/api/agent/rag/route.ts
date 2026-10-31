@@ -17,6 +17,7 @@ import {
   isAgentConfigOwnedBy,
 } from '@/lib/ai/rag/rag.service';
 import { requireOrgAdmin, forbiddenAdminResponse } from '@/lib/auth/require-writer';
+import { resolveLlmForUser, runWithLlm, LLM_NOT_CONFIGURED_ERROR } from '@/lib/ai/openai-key-context';
 
 const MAX_FILE_SIZE_MB = 10;
 const DEFAULT_AGENT_CONFIG = 'default';
@@ -126,13 +127,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Embeddings pela conexão `llm` da organização do usuário (sem fallback de chave)
+  const llm = await resolveLlmForUser(user.id);
+  if (!llm) {
+    return NextResponse.json({ error: LLM_NOT_CONFIGURED_ERROR }, { status: 409 });
+  }
+
   try {
-    const result = await ingestDocument(
-      user.id,
-      agentConfigId || DEFAULT_AGENT_CONFIG,
-      filename,
-      content,
-      mimetype
+    const result = await runWithLlm(llm, () =>
+      ingestDocument(
+        user.id,
+        agentConfigId || DEFAULT_AGENT_CONFIG,
+        filename,
+        content,
+        mimetype
+      )
     );
 
     return NextResponse.json(
@@ -145,9 +154,10 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    console.error('[RAG] Ingest error:', err);
+    // Detalhe só no log: a mensagem do provedor pode citar trecho da credencial.
+    console.error('[RAG] Ingest error:', err instanceof Error ? err.message : 'erro');
     return NextResponse.json(
-      { error: 'Failed to process document', details: String(err) },
+      { error: 'Failed to process document' },
       { status: 500 }
     );
   }

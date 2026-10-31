@@ -7,7 +7,8 @@
  * Fluxo:
  * 1. Busca schedules com due_at <= agora e status = 'pending'
  * 2. Para cada schedule: busca lead, valida cenário ainda aplicável
- * 3. Humaniza a mensagem template
+ * 3. Humaniza a mensagem template (IA pela conexão `llm` da organização do lead;
+ *    sem conexão, envia o texto do passo sem humanizar)
  * 4. Envia pela conexão de WhatsApp ativa da organização do lead
  *    (getWhatsAppForOrganization). A coluna followup_schedules.instance_name é
  *    ignorada: é gravável pelo dono via REST e podia apontar para a instância
@@ -28,6 +29,7 @@ import { getWhatsAppForOrganization, type OrgWhatsApp } from '../integrations/wh
 import { ConnectionNotConfiguredError } from '../connectors/types';
 import { resolveLeadOrganizationId } from '../connectors/org-context';
 import { humanizeResponse } from '../services/message-humanizer.service';
+import { withLlmForOrganization } from '../ai/openai-key-context';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { leadRepository } from '../repositories/lead.repository';
 import { delay } from '../utils/delay';
@@ -117,7 +119,6 @@ export async function runLongFollowUpJob(): Promise<void> {
         estagio_pipeline: lead.estagio_pipeline,
         data_ultima_interacao: lead.data_ultima_interacao,
         follow_up_count: lead.follow_up_count as number | null,
-        tenant_id: (leadRecord.tenant_id as string | null) ?? null,
         opt_out: (leadRecord.opt_out as boolean | null) ?? null,
       });
 
@@ -157,8 +158,10 @@ export async function runLongFollowUpJob(): Promise<void> {
         continue;
       }
 
-      // 6. Humaniza a mensagem
-      const messages = await humanizeResponse(step.message).catch(() => [step.message]);
+      // 6. Humaniza a mensagem com a IA da organização; sem conexão `llm`
+      //    (ou falha) envia o texto do passo como está — nunca bloqueia o envio.
+      const messages = await withLlmForOrganization(organizationId, () => humanizeResponse(step.message))
+        .catch(() => [step.message]);
 
       // 7. Envia
       const { sent } = await whatsapp.provider.sendMessageSequence(

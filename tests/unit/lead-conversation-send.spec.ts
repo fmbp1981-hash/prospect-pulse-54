@@ -13,6 +13,7 @@ import { ConnectionNotConfiguredError } from '@/lib/connectors/types';
 const USER_A = '00000000-0000-0000-0000-00000000000a';
 const ORG_A = '0a0a0a0a-0000-0000-0000-00000000000a';
 const ORG_SEM_WA = '0c0c0c0c-0000-0000-0000-00000000000c';
+const ORG_SEM_LLM = '0d0d0d0d-0000-0000-0000-00000000000d';
 
 const mocks = vi.hoisted(() => ({
   findOrCreate: vi.fn(),
@@ -24,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   sendMessageSequence: vi.fn(),
   markAsRead: vi.fn(async () => undefined),
   sendTyping: vi.fn(async () => undefined),
+  resolveLlm: vi.fn(),
+  llmOrgDuringAgent: [] as Array<string | undefined>,
 }));
 
 vi.mock('@/lib/services/lead.service', () => ({
@@ -50,15 +53,18 @@ vi.mock('@/lib/repositories/lead.repository', () => ({
 vi.mock('@/lib/repositories/connections.repository', () => ({
   connectionsRepository: { findOrganizationIdForUser: mocks.findOrgForUser },
 }));
-vi.mock('@/lib/ai/openai-key-context', () => ({
-  withOpenAIKey: (_k: string, fn: () => unknown) => fn(),
+// Conexão `llm` resolvida pela organização do lead (Task 8); o resto do contexto é real.
+vi.mock('@/lib/ai/openai-key-context', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/ai/openai-key-context')>()),
+  resolveLlmForOrganization: mocks.resolveLlm,
 }));
 
 import { runLeadConversationWorkflow } from '@/lib/workflows/lead-conversation.workflow';
+import { getCurrentLlm } from '@/lib/ai/openai-key-context';
 import { setWhatsAppProviderFactoryForTests } from '@/lib/integrations/whatsapp/org-whatsapp';
 
 const factory = vi.fn(async (orgId: string): Promise<OrgWhatsApp> => {
-  if (orgId === ORG_A) {
+  if (orgId === ORG_A || orgId === ORG_SEM_LLM) {
     return {
       provider: {
         sendMessageSequence: mocks.sendMessageSequence,
@@ -67,7 +73,7 @@ const factory = vi.fn(async (orgId: string): Promise<OrgWhatsApp> => {
       } as unknown as OrgWhatsApp['provider'],
       target: 'inst-da-conexao',
       connectionId: 'conn-a',
-      organizationId: ORG_A,
+      organizationId: orgId,
     };
   }
   throw new ConnectionNotConfiguredError(orgId, 'whatsapp');
@@ -78,7 +84,6 @@ const TENANT: TenantContext = {
   companyName: 'Org A',
   instanceName: 'inst-do-user-settings',
   agentEnabled: true,
-  openaiApiKey: 'sk-test',
 };
 
 const MSG = {
@@ -104,7 +109,15 @@ beforeEach(() => {
     lead: { id: 'lead-1', organization_id: ORG_A, user_id: USER_A, estagio_pipeline: 'Contato Inicial' },
     isNew: false,
   });
-  mocks.executeAIAgent.mockResolvedValue({ output: 'Olá! Como posso ajudar?', toolCalls: [], iterations: 1 });
+  mocks.llmOrgDuringAgent.length = 0;
+  mocks.executeAIAgent.mockImplementation(async () => {
+    mocks.llmOrgDuringAgent.push(getCurrentLlm().organizationId);
+    return { output: 'Olá! Como posso ajudar?', toolCalls: [], iterations: 1 };
+  });
+  mocks.resolveLlm.mockImplementation(async (orgId: string) => {
+    if (orgId === ORG_SEM_LLM) throw new ConnectionNotConfiguredError(orgId, 'llm');
+    return { organizationId: orgId, connectionId: `llm-${orgId.slice(0, 4)}`, apiKey: 'chave-teste' };
+  });
   mocks.sendMessageSequence.mockResolvedValue({ sent: 1, failed: 0, errors: [] });
   mocks.findOrgForUser.mockResolvedValue(ORG_A);
   logSpies = [
@@ -131,6 +144,12 @@ describe('runLeadConversationWorkflow — envio pela conexão da organização',
     expect(mocks.saveAgentResponse).toHaveBeenCalled();
   });
 
+  it('o agente roda no contexto de LLM da organização do lead', async () => {
+    await runLeadConversationWorkflow(MSG, TENANT);
+    expect(mocks.resolveLlm).toHaveBeenCalledWith(ORG_A);
+    expect(mocks.llmOrgDuringAgent).toEqual([ORG_A]);
+  });
+
   it('lead com organization_id nulo → usa a organização do dono', async () => {
     mocks.findOrCreate.mockResolvedValue({
       lead: { id: 'ORG-1', organization_id: null, user_id: USER_A, estagio_pipeline: 'Novo Lead' },
@@ -154,5 +173,23 @@ describe('runLeadConversationWorkflow — envio pela conexão da organização',
     expect(out).toContain('whatsapp_not_configured');
     expect(out).toContain(ORG_SEM_WA);
     expect(out).not.toContain('99999');
+  });
+
+  it('organização sem conexão llm → salva a mensagem do lead, não roda o agente nem envia; log llm_not_configured', async () => {
+    mocks.findOrCreate.mockResolvedValue({
+      lead: { id: 'lead-1', organization_id: ORG_SEM_LLM, user_id: USER_A },
+      isNew: false,
+    });
+    await runLeadConversationWorkflow(MSG, TENANT);
+    expect(mocks.saveLeadMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ lead_id: 'lead-1', message: 'oi', from_lead: true })
+    );
+    expect(mocks.executeAIAgent).not.toHaveBeenCalled();
+    expect(mocks.sendMessageSequence).not.toHaveBeenCalled();
+    const out = JSON.stringify(logSpies.flatMap((s) => s.mock.calls));
+    expect(out).toContain('llm_not_configured');
+    expect(out).toContain(ORG_SEM_LLM);
+    expect(out).not.toContain('99999');
+    expect(out).not.toContain('"oi"');
   });
 });

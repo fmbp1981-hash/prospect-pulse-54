@@ -307,7 +307,7 @@ describe('🤖 Bloco 5 — Simulação Completa (workflow mockado)', () => {
   async function runMockWorkflow(msg: {
     whatsapp: string; nome: string; texto: string; messageId?: string;
   }) {
-    const tenant = { userId: 'user-exemplo', openaiApiKey: null };
+    const tenant = { userId: 'user-exemplo' };
 
     // Step 3: busca ou cria lead
     const { lead, isNew } = mockFindOrCreate(msg.whatsapp, msg.nome);

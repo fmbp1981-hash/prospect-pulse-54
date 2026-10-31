@@ -39,6 +39,8 @@ const mocks = vi.hoisted(() => ({
   leadUpdate: vi.fn(async () => ({})),
   findOrgForUser: vi.fn(),
   sendMessageSequence: vi.fn(async () => ({ sent: 1 })),
+  resolveLlm: vi.fn(),
+  humanizeOrgs: [] as Array<string | undefined>,
 }));
 
 vi.mock('@/lib/repositories/lead.repository', () => ({
@@ -51,9 +53,18 @@ vi.mock('@/lib/repositories/lead.repository', () => ({
 vi.mock('@/lib/repositories/connections.repository', () => ({
   connectionsRepository: { findOrganizationIdForUser: mocks.findOrgForUser },
 }));
-vi.mock('@/lib/services/message-humanizer.service', () => ({
-  humanizeResponse: async (m: string) => [m],
-}));
+// Humanização pela conexão `llm` da organização do lead (Task 8): o mock
+// registra a organização do contexto de LLM ativo em cada chamada.
+vi.mock('@/lib/connectors/resolve-connection', () => ({ resolveConnection: mocks.resolveLlm }));
+vi.mock('@/lib/services/message-humanizer.service', async () => {
+  const { getCurrentLlm } = await import('@/lib/ai/openai-key-context');
+  return {
+    humanizeResponse: async (m: string) => {
+      mocks.humanizeOrgs.push(getCurrentLlm().organizationId);
+      return [`${m} (humanizada)`];
+    },
+  };
+});
 vi.mock('@/lib/utils/delay', () => ({ delay: async () => undefined }));
 vi.mock('@/lib/services/long-followup-rules.service', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/services/long-followup-rules.service')>();
@@ -111,6 +122,19 @@ beforeEach(() => {
   mocks.findByIdForUser.mockImplementation(async (id: string, uid: string) =>
     id === LEAD_A && uid === USER_A ? LEAD : null
   );
+  mocks.humanizeOrgs.length = 0;
+  mocks.resolveLlm.mockImplementation(async (orgId: string, category: string) => {
+    if (category !== 'llm') throw new Error(`categoria inesperada: ${category}`);
+    return {
+      id: 'llm-a',
+      organizationId: orgId,
+      category: 'llm',
+      provider: 'openai',
+      credentialSource: 'platform',
+      config: {},
+      secret: { apiKey: 'chave-teste' },
+    };
+  });
 });
 afterEach(() => setWhatsAppProviderFactoryForTests(null));
 
@@ -155,5 +179,26 @@ describe('F-11 — runLongFollowUpJob', () => {
     expect(out).toContain(ORG_SEM_WA);
     expect(out).not.toContain('99999');
     warn.mockRestore();
+  });
+
+  it('humaniza no contexto de LLM da organização do lead', async () => {
+    schedules = [schedule(USER_A, 'inst-org-a')];
+    await runLongFollowUpJob();
+    expect(mocks.resolveLlm).toHaveBeenCalledWith(ORG_A, 'llm', 'openai');
+    expect(mocks.humanizeOrgs).toEqual([ORG_A]);
+    expect((mocks.sendMessageSequence.mock.calls[0] as unknown[])[2]).toEqual([
+      expect.stringContaining('(humanizada)'),
+    ]);
+  });
+
+  it('org sem conexão llm → envia o texto do passo sem humanizar (não bloqueia)', async () => {
+    mocks.resolveLlm.mockRejectedValue(new ConnectionNotConfiguredError(ORG_A, 'llm'));
+    schedules = [schedule(USER_A, 'inst-org-a')];
+    await runLongFollowUpJob();
+    expect(mocks.humanizeOrgs).toEqual([]);
+    expect(mocks.sendMessageSequence).toHaveBeenCalledTimes(1);
+    const sent = (mocks.sendMessageSequence.mock.calls[0] as unknown[])[2] as string[];
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).not.toContain('(humanizada)');
   });
 });

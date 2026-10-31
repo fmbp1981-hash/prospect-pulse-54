@@ -14,7 +14,7 @@ import {
   DEFAULT_SYSTEM_PROMPT_VERSION,
   renderSystemPrompt,
 } from './prompts/default-system-prompt';
-import { getCurrentOpenAIKey } from './openai-key-context';
+import { getCurrentLlm, recordLlmUsage, type LlmUsage } from './openai-key-context';
 import { buildRagContext } from './rag/rag.service';
 import { updateLeadTool } from './tools/update-lead.tool';
 import { transferConsultantTool } from './tools/transfer-consultant.tool';
@@ -130,6 +130,7 @@ async function callOpenAI(
     function: { name: string; arguments: string };
   }>;
 }> {
+  const { apiKey } = getCurrentLlm();
   return openAICircuit.call(() =>
     withRetry(async () => {
       const body: Record<string, unknown> = {
@@ -150,7 +151,7 @@ async function callOpenAI(
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${getCurrentOpenAIKey()}`,
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
@@ -172,7 +173,9 @@ async function callOpenAI(
             }>;
           };
         }>;
+        usage?: LlmUsage;
       };
+      await recordLlmUsage(data.usage, 'chat.completions');
 
       return data.choices[0].message;
     }, { maxAttempts: 2, initialDelayMs: 1500 })
@@ -182,10 +185,14 @@ async function callOpenAI(
 export async function executeAIAgent(
   input: AgentExecutionInput
 ): Promise<AgentExecutionResult> {
+  // 0. Conexão de LLM da organização (lança ConnectionNotConfiguredError fora do contexto)
+  const llm = getCurrentLlm();
+
   // 1. Carrega configuração do agente (prompt + modelo configuráveis por tenant)
   const config = await agentConfigService.getActive(input.tenant.userId).catch(() => null);
 
-  const model = config?.model ?? 'gpt-4.1';
+  // Modelo: o do agente; senão o da conexão da organização; senão o padrão.
+  const model = config?.model ?? llm.model ?? 'gpt-4.1';
   const temperature = config?.temperature ?? 0.7;
   const maxIterations = config?.maxIterations ?? 5;
   const promptVersion = config?.promptVersion ?? DEFAULT_SYSTEM_PROMPT_VERSION;
