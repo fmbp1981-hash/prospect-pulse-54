@@ -1,6 +1,6 @@
 /**
  * Interface de abstração para provedores WhatsApp.
- * Permite trocar de Evolution API → Meta Cloud API apenas com variáveis de ambiente.
+ * Cada provedor recebe as credenciais da conexão da organização (sem variáveis de ambiente).
  */
 
 export interface SendTextResult {
@@ -22,7 +22,7 @@ export interface SendSequenceResult {
 }
 
 export interface MediaDownloadResult {
-  buffer: Buffer;
+  buffer: Uint8Array;
   mimetype: string;
   base64: string;
 }

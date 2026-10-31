@@ -1,4 +1,8 @@
 /**
+ * @deprecated Shim legado (lê EVOLUTION_API_URL/EVOLUTION_API_KEY). A Task 5 do
+ * Sprint 2b migra os chamadores para `getWhatsAppForOrganization`
+ * (org-whatsapp.ts) e remove este arquivo. Não use em código novo.
+ *
  * Factory de WhatsApp Provider.
  *
  * Configurar via variável de ambiente:
@@ -29,7 +33,10 @@ export function getWhatsAppProvider(): IWhatsAppProvider {
       );
     case 'evolution':
     default:
-      _instance = new EvolutionProvider();
+      _instance = new EvolutionProvider({
+        baseUrl: process.env.EVOLUTION_API_URL ?? '',
+        apiKey: process.env.EVOLUTION_API_KEY ?? '',
+      });
   }
 
   console.log(`[WhatsAppFactory] Using provider: ${_instance.name}`);

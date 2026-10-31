@@ -14,12 +14,20 @@ import type {
 } from '../whatsapp-provider.interface';
 import { evolutionCircuit, withRetry } from '@/lib/utils/resilience';
 import { delay } from '@/lib/utils/delay';
+import { recordUsage } from '@/lib/connectors/usage';
 
-function getEvolutionConfig() {
-  return {
-    url: process.env.EVOLUTION_API_URL!,
-    key: process.env.EVOLUTION_API_KEY!,
-  };
+export interface EvolutionProviderOptions {
+  baseUrl: string;
+  apiKey: string;
+  /** Quando informado, envios bem-sucedidos registram consumo da organização. */
+  usage?: { organizationId: string; connectionId: string };
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
 }
 
 function normalizeNumber(to: string): string {
@@ -28,9 +36,31 @@ function normalizeNumber(to: string): string {
 
 export class EvolutionProvider implements IWhatsAppProvider {
   readonly name = 'evolution';
+  private readonly url: string;
+  private readonly key: string;
+  private readonly usage?: { organizationId: string; connectionId: string };
+
+  constructor(options: EvolutionProviderOptions) {
+    this.url = options.baseUrl.replace(/\/$/, '');
+    this.key = options.apiKey;
+    this.usage = options.usage;
+  }
+
+  private async trackSend(operation: 'send_text' | 'send_media'): Promise<void> {
+    if (!this.usage) return;
+    await recordUsage({
+      organizationId: this.usage.organizationId,
+      connectionId: this.usage.connectionId,
+      category: 'whatsapp',
+      provider: 'evolution',
+      operation,
+      quantity: 1,
+      unit: 'messages',
+    });
+  }
 
   async sendText(instance: string, to: string, text: string): Promise<SendTextResult> {
-    const { url, key } = getEvolutionConfig();
+    const { url, key } = { url: this.url, key: this.key };
 
     return evolutionCircuit.call(() =>
       withRetry(async () => {
@@ -48,11 +78,16 @@ export class EvolutionProvider implements IWhatsAppProvider {
         const data = (await response.json()) as { key?: { id?: string } };
         return { success: true, messageId: data.key?.id };
       }, { maxAttempts: 2, initialDelayMs: 1000 })
-    ).catch((err: Error) => ({ success: false, error: err.message }));
+    )
+      .then(async (result) => {
+        await this.trackSend('send_text');
+        return result;
+      })
+      .catch((err: Error) => ({ success: false, error: err.message }));
   }
 
   async sendMedia(instance: string, to: string, media: MediaAttachment): Promise<SendMediaResult> {
-    const { url, key } = getEvolutionConfig();
+    const { url, key } = { url: this.url, key: this.key };
 
     if (!media.url && !media.base64) {
       return { success: false, error: 'URL ou base64 são obrigatórios para envio de mídia' };
@@ -81,7 +116,12 @@ export class EvolutionProvider implements IWhatsAppProvider {
         const data = (await response.json()) as { key?: { id?: string } };
         return { success: true, messageId: data.key?.id };
       }, { maxAttempts: 2, initialDelayMs: 1000 })
-    ).catch((err: Error) => ({ success: false, error: err.message }));
+    )
+      .then(async (result) => {
+        await this.trackSend('send_media');
+        return result;
+      })
+      .catch((err: Error) => ({ success: false, error: err.message }));
   }
 
   async sendMessageSequence(
@@ -115,7 +155,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
   }
 
   async sendTyping(instance: string, to: string, durationMs: number): Promise<void> {
-    const { url, key } = getEvolutionConfig();
+    const { url, key } = { url: this.url, key: this.key };
     const number = normalizeNumber(to);
 
     try {
@@ -131,7 +171,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
   }
 
   async markAsRead(instance: string, to: string, messageId: string): Promise<void> {
-    const { url, key } = getEvolutionConfig();
+    const { url, key } = { url: this.url, key: this.key };
     const number = normalizeNumber(to);
 
     try {
@@ -146,7 +186,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
   }
 
   async downloadMedia(instance: string, messageId: string): Promise<MediaDownloadResult> {
-    const { url, key } = getEvolutionConfig();
+    const { url, key } = { url: this.url, key: this.key };
 
     return evolutionCircuit.call(() =>
       withRetry(async () => {
@@ -165,7 +205,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
 
         const data = (await response.json()) as { base64: string; mimetype: string };
         return {
-          buffer: Buffer.from(data.base64, 'base64'),
+          buffer: base64ToBytes(data.base64),
           mimetype: data.mimetype,
           base64: data.base64,
         };

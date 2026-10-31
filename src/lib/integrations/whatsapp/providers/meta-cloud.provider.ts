@@ -3,17 +3,8 @@
  *
  * Documentação: https://developers.facebook.com/docs/whatsapp/cloud-api
  *
- * Para ativar: definir no .env:
- *   WHATSAPP_PROVIDER=meta
- *   META_WA_TOKEN=EAA...              (System User Token ou Page Access Token)
- *   META_WA_PHONE_NUMBER_ID=123456789 (ID do número de telefone no Meta)
- *   META_WA_VERSION=v20.0             (versão da Graph API, padrão: v20.0)
- *
- * Para receber webhooks da Meta, configure o endpoint:
- *   POST /api/webhooks/evolution/<webhook_token>  (mesmo endpoint da Evolution,
- *        normalizeWebhookPayload diferencia; token em Configurações)
- *   Verificação: GET /api/webhooks/evolution/<webhook_token>?hub.verify_token=...
- *   Assinatura: defina META_APP_SECRET para validar X-Hub-Signature-256
+ * Recebe as credenciais da conexão da organização (accessToken, phoneNumberId,
+ * apiVersion, appSecret, verifyToken); não lê variáveis de ambiente.
  */
 
 import type {
@@ -27,19 +18,16 @@ import type {
 } from '../whatsapp-provider.interface';
 import { metaCircuit, withRetry } from '@/lib/utils/resilience';
 import { delay } from '@/lib/utils/delay';
+import { recordUsage } from '@/lib/connectors/usage';
 
-function getMetaConfig() {
-  return {
-    token: process.env.META_WA_TOKEN!,
-    phoneNumberId: process.env.META_WA_PHONE_NUMBER_ID!,
-    version: process.env.META_WA_VERSION || 'v20.0',
-    verifyToken: process.env.META_WA_VERIFY_TOKEN || '',
-  };
-}
-
-function metaApiUrl(path: string) {
-  const { version } = getMetaConfig();
-  return `https://graph.facebook.com/${version}${path}`;
+export interface MetaCloudProviderOptions {
+  accessToken: string;
+  phoneNumberId: string;
+  apiVersion: string;
+  appSecret: string;
+  verifyToken: string;
+  /** Quando informado, envios bem-sucedidos registram consumo da organização. */
+  usage?: { organizationId: string; connectionId: string };
 }
 
 function normalizePhoneForMeta(phone: string): string {
@@ -49,18 +37,50 @@ function normalizePhoneForMeta(phone: string): string {
 
 export class MetaCloudProvider implements IWhatsAppProvider {
   readonly name = 'meta-cloud';
+  private readonly token: string;
+  private readonly phoneNumberId: string;
+  private readonly apiVersion: string;
+  readonly appSecret: string;
+  readonly verifyToken: string;
+  private readonly usage?: { organizationId: string; connectionId: string };
+
+  constructor(options: MetaCloudProviderOptions) {
+    this.token = options.accessToken;
+    this.phoneNumberId = options.phoneNumberId;
+    this.apiVersion = options.apiVersion;
+    this.appSecret = options.appSecret;
+    this.verifyToken = options.verifyToken;
+    this.usage = options.usage;
+  }
+
+  private apiUrl(path: string): string {
+    return `https://graph.facebook.com/${this.apiVersion}${path}`;
+  }
+
+  private async trackSend(operation: 'send_text' | 'send_media'): Promise<void> {
+    if (!this.usage) return;
+    await recordUsage({
+      organizationId: this.usage.organizationId,
+      connectionId: this.usage.connectionId,
+      category: 'whatsapp',
+      provider: 'meta_cloud',
+      operation,
+      quantity: 1,
+      unit: 'messages',
+    });
+  }
 
   async sendText(
-    _instanceOrPhoneId: string, // ignorado — usa META_WA_PHONE_NUMBER_ID
+    _instanceOrPhoneId: string, // ignorado — usa o phoneNumberId da conexão
     to: string,
     text: string
   ): Promise<SendTextResult> {
-    const { token, phoneNumberId } = getMetaConfig();
+    const { token, phoneNumberId } = { token: this.token, phoneNumberId: this.phoneNumberId };
 
     return metaCircuit.call(() =>
       withRetry(async () => {
         const response = await fetch(
-          metaApiUrl(`/${phoneNumberId}/messages`),
+          this.apiUrl(`/${phoneNumberId}/messages`),
           {
             method: 'POST',
             headers: {
@@ -91,7 +111,12 @@ export class MetaCloudProvider implements IWhatsAppProvider {
 
         return { success: true, messageId: data.messages?.[0]?.id };
       }, { maxAttempts: 2, initialDelayMs: 1000 })
-    ).catch((err: Error) => ({ success: false, error: err.message }));
+    )
+      .then(async (result) => {
+        await this.trackSend('send_text');
+        return result;
+      })
+      .catch((err: Error) => ({ success: false, error: err.message }));
   }
 
   async sendMedia(
@@ -99,7 +124,7 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     to: string,
     media: MediaAttachment
   ): Promise<SendMediaResult> {
-    const { token, phoneNumberId } = getMetaConfig();
+    const { token, phoneNumberId } = { token: this.token, phoneNumberId: this.phoneNumberId };
 
     if (!media.url) {
       return { success: false, error: 'Meta Cloud API requer URL pública para envio de mídia. Faça upload da imagem em um servidor público primeiro.' };
@@ -108,7 +133,7 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     return metaCircuit.call(() =>
       withRetry(async () => {
         const response = await fetch(
-          metaApiUrl(`/${phoneNumberId}/messages`),
+          this.apiUrl(`/${phoneNumberId}/messages`),
           {
             method: 'POST',
             headers: {
@@ -141,7 +166,12 @@ export class MetaCloudProvider implements IWhatsAppProvider {
 
         return { success: true, messageId: data.messages?.[0]?.id };
       }, { maxAttempts: 2, initialDelayMs: 1000 })
-    ).catch((err: Error) => ({ success: false, error: err.message }));
+    )
+      .then(async (result) => {
+        await this.trackSend('send_media');
+        return result;
+      })
+      .catch((err: Error) => ({ success: false, error: err.message }));
   }
 
   async sendMessageSequence(
@@ -187,10 +217,10 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     _instanceOrPhoneId: string,
     mediaId: string
   ): Promise<MediaDownloadResult> {
-    const { token } = getMetaConfig();
+    const token = this.token;
 
     // 1. Obter URL do media
-    const urlResponse = await fetch(metaApiUrl(`/${mediaId}`), {
+    const urlResponse = await fetch(this.apiUrl(`/${mediaId}`), {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -212,8 +242,10 @@ export class MetaCloudProvider implements IWhatsAppProvider {
       throw new Error(`Meta downloadMedia failed: ${mediaResponse.status}`);
     }
 
-    const buffer = Buffer.from(await mediaResponse.arrayBuffer());
-    const base64 = buffer.toString('base64');
+    const buffer = new Uint8Array(await mediaResponse.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < buffer.length; i++) bin += String.fromCharCode(buffer[i]);
+    const base64 = btoa(bin);
 
     return { buffer, mimetype: urlData.mime_type, base64 };
   }
