@@ -273,6 +273,7 @@ Achados de 2026-10-30: `src/lib/jobs/follow-up.job.ts` envia **todos** os follow
 - Resolução por organização: `getWhatsAppProvider(orgId)` / `getEmailProvider(orgId)` substituem a factory global; follow-up (Task 4), inbox, campanhas, agente e crons passam a usar a conexão da organização do lead.
 - Webhook por conexão (`/api/webhooks/whatsapp/[connectionId]`) com verificação de assinatura (Meta `X-Hub-Signature-256`, Evolution apikey/token), substituindo o endpoint único.
 - **Recebimento pela Meta Cloud API de ponta a ponta** (achado da Task 8: hoje o payload Meta passa pela autenticação mas o processamento só entende o formato da Evolution e descarta a mensagem como "tipo não suportado").
+- **Provedor primeiro, credenciais depois (decisão de 2026-10-31):** organização nova nasce sem conexão de WhatsApp (estado "não configurado"); envio, follow-up, campanhas e agente ficam desligados com aviso claro até a organização escolher o provedor e salvar credenciais que passem no teste. Nenhuma instância, número ou provedor padrão no código, no ambiente ou no banco (nada de instância fixa como a antiga `WA-Pessoal`); `evolution_instance_name` em `user_settings` deixa de existir na migração de dados.
 - Tela de Integrações nas configurações: escolher provedor, informar credenciais, botão "testar conexão".
 - Migração dos dados: mover as chaves hoje em `user_settings` para `organization_connections` criptografadas e remover as colunas em texto puro.
 
@@ -281,7 +282,7 @@ Achados de 2026-10-30: `src/lib/jobs/follow-up.job.ts` envia **todos** os follow
 # SPRINT 3 — Migração Vercel → Cloudflare (marco)
 
 **Escopo** (fases pendentes do `CLOUDFLARE_MIGRATION_PLAN.md`):
-- Fase 3: usuário roda `npx wrangler login`; executor roda `scripts/cloudflare-secrets-sync.sh --dry-run`, revisa com o usuário, depois envio real (incluindo `PLATFORM_ADMIN_EMAIL`).
+- Fase 3: usuário roda `npx wrangler login`; executor roda `scripts/cloudflare-secrets-sync.sh --dry-run`, revisa com o usuário, depois envio real (sem `PLATFORM_ADMIN_EMAIL`, substituída pela allowlist `platform_admins` no Sprint 1; sem `EVOLUTION_DEFAULT_INSTANCE`/`EVOLUTION_INSTANCE_NAME`, que não existem mais).
 - Fase 5: usuário conecta Workers Builds ao repo (build `npm run cf:build`, deploy `npx wrangler deploy`, worker `prospect-pulse-54`).
 - Fase 6: staging (`wrangler versions upload` / preview do Workers Builds) — validar login, prospecção Google/LinkedIn, kanban, envio WhatsApp, 4 crons (`wrangler dev --test-scheduled`), `pdf-parse` no runtime Workers, middleware; `intellix:test-e2e` + `devsecops:security-gate`.
 - **Agendamento nativo — substitui os 3 workflows do n8n** (decisão de arquitetura, ver ADR abaixo):

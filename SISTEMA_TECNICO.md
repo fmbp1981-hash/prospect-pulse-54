@@ -2185,7 +2185,7 @@ Evolution API (instância WA-Pessoal)
 
 ### 17.1 Contexto
 
-Após a sessão de 2026-03-18 (seção 16), o agente nativo foi confirmado funcionando via curl direto (37s de execução, lead criado, resposta gerada: *"Boa noite! Tudo bem? Obrigado por entrar em contato..."*). Porém, mensagens reais enviadas pelo WhatsApp (do número 8137889757 para o WA-Pessoal 81988514775) não recebiam resposta. O sistema continuava silencioso.
+Após a sessão de 2026-03-18 (seção 16), o agente nativo foi confirmado funcionando via curl direto (37s de execução, lead criado, resposta gerada: *"Boa noite! Tudo bem? Obrigado por entrar em contato..."*). Porém, mensagens reais enviadas pelo WhatsApp (do número 81XXXXXXXXX para o WA-Pessoal 81XXXXXXXXX) não recebiam resposta. O sistema continuava silencioso.
 
 ---
 
@@ -2317,8 +2317,8 @@ curl https://evolution.intellixai.com.br/webhook/find/WA-Business \
 ### 17.6 Confirmacao de funcionamento end-to-end (2026-03-19 07:05 BRT)
 
 **Teste real com WhatsApp:**
-- Numero remetente: 8137889757
-- Instancia destino: WA-Pessoal (81988514775)
+- Numero remetente: 81XXXXXXXXX
+- Instancia destino: WA-Pessoal (81XXXXXXXXX)
 - Mensagem enviada: "teste 2"
 - Workflow executou completo
 - Lead `ORG-1773885992910-82dst8` criado/encontrado no banco

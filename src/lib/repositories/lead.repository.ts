@@ -23,8 +23,8 @@ export const leadRepository = {
    * Equivalente ao node "Encontrar_lead" (filtro: whatsapp = ClienteWhatsApp)
    *
    * Usa regexp_replace no Postgres para remover todos os não-dígitos antes de comparar.
-   * Isso resolve o mismatch entre o formato do Google Places ("+55 81 3788-9757")
-   * e o formato do webhook Evolution API ("+558137889757").
+   * Isso resolve o mismatch entre o formato do Google Places ("+55 81 99999-0001")
+   * e o formato do webhook Evolution API ("+5581999990001").
    *
    * A comparação é feita com os últimos 8+ dígitos para máxima compatibilidade entre
    * números fixos (10 dígitos locais) e celulares (11 dígitos locais).
@@ -42,7 +42,7 @@ export const leadRepository = {
     const localDigits = digits.length >= 11 ? digits.slice(-11) : digits.slice(-8);
 
     // Chama a RPC que usa regexp_replace no Postgres — único jeito de comparar
-    // "+55 81 3788-9757" com "558137889757" de forma correta.
+    // "+55 81 99999-0001" com "5581999990001" de forma correta.
     const { data, error } = await (supabase as any)
       .rpc('find_lead_by_phone_digits', {
         p_digits: localDigits,

@@ -16,7 +16,7 @@
  *   SIM_WEBHOOK_TOKEN     webhook_token do tenant de teste (user_settings.webhook_token,
  *                         visível em Configurações → WhatsApp). Sem ele, os POSTs
  *                         autenticados são pulados.
- *   SIM_WEBHOOK_INSTANCE  instância Evolution desse tenant (padrão: WA-Pessoal)
+ *   SIM_WEBHOOK_INSTANCE  instância Evolution desse tenant (padrão: instancia-teste)
  *   SIM_WEBHOOK_BASE_URL  origem do deploy (padrão: https://prospect-pulse-54.vercel.app)
  * A rota antiga POST /api/webhooks/evolution (sem token) não é mais chamada.
  */
@@ -136,25 +136,25 @@ describe('📨 Bloco 2 — Normalização de Payload (Evolution API)', () => {
       message: { conversation: 'Olá, quero saber sobre maquininhas' },
     };
 
-    const n = normalizeEvolutionPayload(payload, 'WA-Pessoal');
+    const n = normalizeEvolutionPayload(payload, 'instancia-teste');
 
     assert.equal(n.clienteNome, 'Carlos Silva');
     assert.equal(n.clienteWhatsApp, '+5581912345678');
     assert.equal(n.mensagem, 'Olá, quero saber sobre maquininhas');
     assert.equal(n.messageType, 'text');
     assert.equal(n.fromMe, false);
-    assert.equal(n.instanceName, 'WA-Pessoal');
+    assert.equal(n.instanceName, 'instancia-teste');
     log(GREEN, 'Texto simples normalizado', `nome=${n.clienteNome}, wa=${n.clienteWhatsApp}`);
   });
 
   test('mensagem fromMe é identificada corretamente (anti-loop)', () => {
     const payload = {
       key: { remoteJid: '5581912345678@s.whatsapp.net', fromMe: true, id: 'MSG002' },
-      pushName: 'WA-Pessoal',
+      pushName: 'instancia-teste',
       message: { conversation: 'Resposta do bot ou consultor' },
     };
 
-    const n = normalizeEvolutionPayload(payload, 'WA-Pessoal');
+    const n = normalizeEvolutionPayload(payload, 'instancia-teste');
     assert.equal(n.fromMe, true);
     log(GREEN, 'fromMe=true detectado (bloqueia loop)', `fromMe=${n.fromMe}`);
   });
@@ -165,7 +165,7 @@ describe('📨 Bloco 2 — Normalização de Payload (Evolution API)', () => {
       message: { conversation: 'Mensagem no grupo' },
     };
 
-    const n = normalizeEvolutionPayload(payload, 'WA-Pessoal');
+    const n = normalizeEvolutionPayload(payload, 'instancia-teste');
     const isGroup = n.clienteWhatsApp.includes('@g.us') || n.clienteTelefone.includes('@g.us');
     assert.equal(isGroup, true);
     log(GREEN, 'Grupo identificado por @g.us e deve ser ignorado');
@@ -467,7 +467,7 @@ describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
 
   const BASE_URL = process.env.SIM_WEBHOOK_BASE_URL || 'https://prospect-pulse-54.vercel.app';
   const TOKEN = process.env.SIM_WEBHOOK_TOKEN || '';
-  const INSTANCE = process.env.SIM_WEBHOOK_INSTANCE || 'WA-Pessoal';
+  const INSTANCE = process.env.SIM_WEBHOOK_INSTANCE || 'instancia-teste';
   const WEBHOOK_URL = `${BASE_URL}/api/webhooks/evolution/${TOKEN}`;
   const SKIP_AUTH = TOKEN ? false : 'SIM_WEBHOOK_TOKEN não definido';
 
@@ -508,7 +508,7 @@ describe('🌐 Bloco 6 — Webhook HTTP (endpoint de produção)', () => {
   test('POST fromMe=true retorna 200 (anti-loop + captura consultor)', { skip: SKIP_AUTH }, async () => {
     const payload = {
       key: { remoteJid: '5581900000099@s.whatsapp.net', fromMe: true, id: 'SIM-001' },
-      pushName: 'WA-Pessoal',
+      pushName: 'instancia-teste',
       message: { conversation: '[Teste] Mensagem do consultor' },
       messageType: 'conversation',
       instance: INSTANCE,

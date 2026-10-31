@@ -68,8 +68,8 @@ INSERT INTO public.user_settings (
   integration_configured, pending_setup, agent_enabled, created_at, updated_at
 )
 SELECT
-  u.id, 'IntelliX.AI', 'admin', 'meta', '5581988514775',
-  true, false, true, now(), now()
+  u.id, 'IntelliX.AI', 'admin', NULL, NULL,  -- provedor e WhatsApp do consultor: definidos depois, na tela de Integrações
+  false, false, true, now(), now()
 FROM auth.users u WHERE u.email = 'contato@intellixai.com.br'
 ON CONFLICT (user_id) DO UPDATE SET
   company_name           = EXCLUDED.company_name,

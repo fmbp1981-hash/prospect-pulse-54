@@ -397,7 +397,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 # WhatsApp
 EVOLUTION_API_URL=https://evolution.suaempresa.com
 EVOLUTION_API_KEY=...
-EVOLUTION_DEFAULT_INSTANCE=nome-da-instancia
 WHATSAPP_PROVIDER=evolution
 
 # Cron (proteção da rota)
