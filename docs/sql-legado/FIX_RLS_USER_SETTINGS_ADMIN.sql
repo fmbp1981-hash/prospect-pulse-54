@@ -23,10 +23,3 @@ DROP POLICY IF EXISTS "Users can update own settings or admins update all" ON pu
 CREATE POLICY "Users can update own settings or admins update all"
   ON public.user_settings FOR UPDATE
   USING (auth.uid() = user_id OR public.is_admin() = true);
-
--- 3. Verificar se felipe.xpag@gmail.com tem user_settings criado
--- (descomente e execute manualmente se necessário)
--- SELECT u.id, u.email, us.role, us.pending_setup, us.created_at
--- FROM auth.users u
--- LEFT JOIN public.user_settings us ON u.id = us.user_id
--- WHERE u.email = 'felipe.xpag@gmail.com';

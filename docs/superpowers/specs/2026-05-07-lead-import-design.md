@@ -159,7 +159,7 @@ Regras adicionais:
 ### 7.7 LinkedIn (campo novo)
 ```
 "linkedin.com/in/joao-silva"            → "linkedin.com/in/joao-silva"
-"https://www.linkedin.com/company/xpag" → "linkedin.com/company/xpag"
+"https://www.linkedin.com/company/empresa-exemplo" → "linkedin.com/company/empresa-exemplo"
 "João Silva" (texto livre)              → ⚠ sinalizar para revisão manual
 ```
 Distingue perfil pessoal (`/in/`) de empresa (`/company/`).

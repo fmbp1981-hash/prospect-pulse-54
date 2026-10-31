@@ -80,7 +80,7 @@ Variáveis identificadas no código (`process.env.*`):
 | `APIFY_API_KEY`, `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `RESEND_API_KEY` | secreta | `wrangler secret put` |
 | `EVOLUTION_API_KEY`, `EVOLUTION_API_URL`, `EVOLUTION_DEFAULT_INSTANCE`, `EVOLUTION_INSTANCE_NAME` | secreta/config | `wrangler secret put` / `vars` conforme sensibilidade |
 | `META_WA_TOKEN`, `META_WA_VERIFY_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_VERSION` | secreta | `wrangler secret put` |
-| `WHATSAPP_PROVIDER`, `FROM_EMAIL`, `XPAG_CONSULTANT_INSTANCE`, `XPAG_CONSULTANT_WHATSAPP` | config | `vars` |
+| `WHATSAPP_PROVIDER`, `FROM_EMAIL` | config | `vars` |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | secreta | `wrangler secret put` |
 | `CRON_SECRET` | secreta | `wrangler secret put` — usado pelos endpoints de cron para autenticar a chamada |
 | `NODE_ENV` | automática | gerenciada pelo runtime, não precisa setar |

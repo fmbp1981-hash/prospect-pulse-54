@@ -8,7 +8,7 @@ import { ConversationThread } from '@/components/inbox/ConversationThread';
 import { useUnreadConversations } from '@/hooks/useUnreadConversations';
 import type { InboxLead } from '@/components/inbox/ConversationListItem';
 
-export default function ConsultantInboxPage() {
+export default function ConsultantInbox() {
   const [selectedLead, setSelectedLead] = useState<InboxLead | null>(null);
   const { markAsRead } = useUnreadConversations();
   const listRefreshRef = useRef<(() => void) | null>(null);
