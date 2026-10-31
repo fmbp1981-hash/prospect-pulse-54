@@ -4,6 +4,11 @@
 -- Esperado ANTES da migration 20261030120000_harden_security_definer_functions:
 --   >= 21 linhas (estimativa com os grants padrão do Supabase: ~58).
 -- Esperado DEPOIS: 0 linhas.
+-- Com a matriz atualizada pela Task 6b (guard_user_settings_privileged_columns
+-- no grupo A, is_platform_admin no grupo B): se a migration
+-- 20261030130000_guard_user_settings_privileges ainda NÃO foi aplicada, estas
+-- duas entradas aparecem como "função da matriz não encontrada"; depois dela,
+-- 0 linhas.
 --
 -- Matriz (fonte: task-5-brief.md):
 --   A  só trigger            anon ✗  authenticated ✗  service_role ✓
@@ -31,7 +36,9 @@ with matriz(grupo, nome) as (
     ('A', 'set_conversation_user_id'),
     ('A', 'handle_new_user_webhook'),
     ('A', 'leads_enqueue_trigger_function'),
+    ('A', 'guard_user_settings_privileged_columns'),  -- 20261030130000 (Task 6b)
     ('B', 'is_admin'),
+    ('B', 'is_platform_admin'),                       -- 20261030130000 (Task 6b)
     ('B', 'can_write'),
     ('B', 'is_org_admin'),
     ('B', 'is_org_member'),
