@@ -12,6 +12,8 @@
 -- Idem para is_org_member_user (grupo B, rodada final do Sprint 1): até a
 -- migration 20261030160000_restrict_row_owner_writes ser aplicada, aparece
 -- como "função da matriz não encontrada".
+-- Idem para set_connection_webhook_key (grupo A, Sprint 2b): até a migration
+-- 20261031100000_organization_connections ser aplicada.
 --
 -- Matriz (fonte: task-5-brief.md):
 --   A  só trigger            anon ✗  authenticated ✗  service_role ✓
@@ -40,6 +42,7 @@ with matriz(grupo, nome) as (
     ('A', 'handle_new_user_webhook'),
     ('A', 'leads_enqueue_trigger_function'),
     ('A', 'guard_user_settings_privileged_columns'),  -- 20261030130000 (Task 6b)
+    ('A', 'set_connection_webhook_key'),              -- 20261031100000 (Sprint 2b, Task 2)
     ('B', 'is_admin'),
     ('B', 'is_platform_admin'),                       -- 20261030130000 (Task 6b)
     ('B', 'is_org_member_user'),                      -- 20261030160000 (MT-01)
