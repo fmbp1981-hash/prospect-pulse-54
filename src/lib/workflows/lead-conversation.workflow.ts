@@ -225,7 +225,15 @@ async function runWorkflowSteps(
   // A Evolution API gerencia o delay do typing internamente via o param `delay`.
   // Remover os await setTimeout reduz o tempo de resposta de 15-70s → 5-20s,
   // evitando timeout da Evolution API (≈10s) que causava webhooks não respondidos.
-  const provider = getWhatsAppProvider();
+  let provider: ReturnType<typeof getWhatsAppProvider>;
+  try {
+    provider = getWhatsAppProvider();
+  } catch (err) {
+    logger.error('WhatsApp provider unavailable — resposta não enviada', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
   const totalChars = messages.map(m => m.length).reduce((a, b) => a + b, 0);
   const typingMs = Math.min(Math.max(Math.round(totalChars / 4.5 * 1000), 3000), 12000);
 

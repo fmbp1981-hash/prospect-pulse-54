@@ -32,7 +32,7 @@ function handler(call: FakeCall): FakeResult | undefined {
 const fake = createFakeSupabase(handler);
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => fake.client }));
 
-import { requireWriter } from '@/lib/auth/require-writer';
+import { requireWriter, requireOrgAdmin } from '@/lib/auth/require-writer';
 
 beforeEach(() => {
   fake.calls.length = 0;
@@ -77,5 +77,41 @@ describe('requireWriter', () => {
     memberError = true;
     legacyRole = 'admin';
     expect(await requireWriter(USER)).toBe(false);
+  });
+});
+
+describe('requireOrgAdmin', () => {
+  it('admin da plataforma → true', async () => {
+    platformAdmin = true;
+    memberships = [{ role: 'visualizador' }];
+    expect(await requireOrgAdmin(USER)).toBe(true);
+  });
+
+  it('admin da organização → true', async () => {
+    memberships = [{ role: 'admin' }];
+    expect(await requireOrgAdmin(USER)).toBe(true);
+  });
+
+  it('operador → false', async () => {
+    memberships = [{ role: 'operador' }];
+    expect(await requireOrgAdmin(USER)).toBe(false);
+  });
+
+  it('visualizador → false', async () => {
+    memberships = [{ role: 'visualizador' }];
+    expect(await requireOrgAdmin(USER)).toBe(false);
+  });
+
+  it('sem organização: user_settings admin → true; operador → false', async () => {
+    legacyRole = 'admin';
+    expect(await requireOrgAdmin(USER)).toBe(true);
+    legacyRole = 'operador';
+    expect(await requireOrgAdmin(USER)).toBe(false);
+  });
+
+  it('erro de consulta → false (falha fechada)', async () => {
+    memberError = true;
+    legacyRole = 'admin';
+    expect(await requireOrgAdmin(USER)).toBe(false);
   });
 });

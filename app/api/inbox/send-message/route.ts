@@ -67,7 +67,13 @@ export async function POST(req: NextRequest) {
 
   // 3. Send message via WhatsApp
   const phone = String(lead.whatsapp).replace(/\D/g, '');
-  const provider = getWhatsAppProvider();
+  let provider: ReturnType<typeof getWhatsAppProvider>;
+  try {
+    provider = getWhatsAppProvider();
+  } catch (err) {
+    console.error('[inbox/send-message] Provider indisponível:', err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: { code: 'PROVIDER_UNAVAILABLE', message: 'Provider de WhatsApp indisponível' } }, { status: 503 });
+  }
 
   try {
     await provider.sendText(instanceName, phone, body.message);

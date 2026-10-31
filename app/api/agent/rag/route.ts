@@ -16,6 +16,7 @@ import {
   deleteDocument,
   isAgentConfigOwnedBy,
 } from '@/lib/ai/rag/rag.service';
+import { requireOrgAdmin, forbiddenAdminResponse } from '@/lib/auth/require-writer';
 
 const MAX_FILE_SIZE_MB = 10;
 const DEFAULT_AGENT_CONFIG = 'default';
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireOrgAdmin(user.id))) return forbiddenAdminResponse();
 
   const contentType = req.headers.get('content-type') ?? '';
 
@@ -155,6 +157,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireOrgAdmin(user.id))) return forbiddenAdminResponse();
 
   const parsedId = documentIdSchema.safeParse(req.nextUrl.searchParams.get('id'));
   if (!parsedId.success) return NextResponse.json({ error: 'id inválido' }, { status: 400 });

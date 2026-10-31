@@ -46,6 +46,12 @@ vi.mock('@supabase/ssr', () => ({
   createServerClient: () => ({ auth: { getUser: async () => ({ data: { user: currentUser } }) } }),
 }));
 vi.mock('next/headers', () => ({ cookies: () => ({ getAll: () => [] }) }));
+// RBAC (F-13) é coberto em require-writer.spec.ts / viewer-write-routes.spec.ts.
+vi.mock('@/lib/auth/require-writer', async (orig) => ({
+  ...(await orig<typeof import('@/lib/auth/require-writer')>()),
+  requireWriter: async () => true,
+  requireOrgAdmin: async () => true,
+}));
 // ingestDocument real não roda aqui (chunking/embeddings fora do escopo do
 // teste): só registra a chamada. O resto do serviço é o código real.
 const { ingestDocument } = vi.hoisted(() => ({

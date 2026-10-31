@@ -16,6 +16,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { resolveInstanceForUser } from '@/lib/services/tenant-resolver.service';
 import { resolveEvolutionEndpoint } from '@/lib/integrations/whatsapp/evolution-credentials';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export async function POST(req: NextRequest) {
   // 1. Autenticação
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   // 2. Body
   const body = await req.json() as {

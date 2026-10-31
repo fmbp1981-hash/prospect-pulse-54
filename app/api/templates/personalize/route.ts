@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 
@@ -30,6 +31,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
     // 2. Read OpenAI key from user_settings, fallback to env
     let openaiApiKey = process.env.OPENAI_API_KEY || '';

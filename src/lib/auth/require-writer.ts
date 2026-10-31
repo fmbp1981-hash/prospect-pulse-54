@@ -18,6 +18,7 @@ import type { Database } from '@/integrations/supabase/types';
 import { isPlatformAdmin } from './platform-admin';
 
 const WRITER_ROLES: readonly string[] = ['admin', 'operador'];
+const ADMIN_ROLES: readonly string[] = ['admin'];
 
 function getServiceClient() {
   return createClient<Database>(
@@ -28,6 +29,15 @@ function getServiceClient() {
 }
 
 export async function requireWriter(userId: string): Promise<boolean> {
+  return hasRole(userId, WRITER_ROLES);
+}
+
+/** Estrito: só admin da organização (ou da plataforma). Falha fechada. */
+export async function requireOrgAdmin(userId: string): Promise<boolean> {
+  return hasRole(userId, ADMIN_ROLES);
+}
+
+async function hasRole(userId: string, roles: readonly string[]): Promise<boolean> {
   if (!userId) return false;
 
   if (await isPlatformAdmin(userId)) return true;
@@ -45,7 +55,7 @@ export async function requireWriter(userId: string): Promise<boolean> {
   }
 
   if (memberships && memberships.length > 0) {
-    return memberships.some((m) => WRITER_ROLES.includes(m.role));
+    return memberships.some((m) => roles.includes(m.role));
   }
 
   const { data: settings, error: settingsError } = await db
@@ -59,7 +69,7 @@ export async function requireWriter(userId: string): Promise<boolean> {
     return false;
   }
 
-  return !!settings && WRITER_ROLES.includes(settings.role);
+  return !!settings && roles.includes(settings.role);
 }
 
 /** Resposta padrão 403 para usuário sem permissão de escrita. */
@@ -68,7 +78,20 @@ export function forbiddenWriterResponse(): NextResponse {
     {
       error: {
         code: 'FORBIDDEN',
-        message: 'Seu perfil (visualizador) não tem permissão para alterar dados.',
+        message: 'Seu papel não permite esta ação.',
+      },
+    },
+    { status: 403 }
+  );
+}
+
+/** 403 para ações restritas a administradores da organização. */
+export function forbiddenAdminResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Apenas administradores da organização podem alterar esta configuração.',
       },
     },
     { status: 403 }

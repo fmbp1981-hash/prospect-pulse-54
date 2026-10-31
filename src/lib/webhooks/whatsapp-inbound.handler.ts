@@ -162,7 +162,14 @@ export async function handleWhatsAppInboundPost(
     return NextResponse.json({ ignored: true }, { status: 200 });
   }
 
-  const provider = getWhatsAppProvider();
+  let provider: ReturnType<typeof getWhatsAppProvider>;
+  try {
+    provider = getWhatsAppProvider();
+  } catch (err) {
+    // Ex.: WHATSAPP_PROVIDER=meta (desativado até o Sprint 2b). Nada é processado.
+    console.error('[Webhook] Provider de WhatsApp indisponível:', err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: { code: 'PROVIDER_UNAVAILABLE', message: 'Provider de WhatsApp indisponível' } }, { status: 503 });
+  }
 
   // Usa o provider para normalizar o payload (cada um tem seu formato)
   const normalizedPayload = provider.normalizeWebhookPayload(body);

@@ -81,7 +81,15 @@ export async function runLongFollowUpJob(): Promise<void> {
   }
 
   logger.info(`Processing ${schedules.length} schedules`);
-  const provider = getWhatsAppProvider();
+  let provider: ReturnType<typeof getWhatsAppProvider>;
+  try {
+    provider = getWhatsAppProvider();
+  } catch (err) {
+    logger.error('WhatsApp provider unavailable — follow-ups mantidos pendentes', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
 
   for (const schedule of schedules as FollowUpScheduleRow[]) {
     try {
