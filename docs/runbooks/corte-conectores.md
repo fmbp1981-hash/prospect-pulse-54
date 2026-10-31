@@ -183,15 +183,30 @@ verificação DNS no Resend e teste de novo.
 
 Só depois do passo 10 sem incidentes.
 
-1. Backup: exportar de `user_settings` as colunas que serão removidas
-   (`user_id` + colunas listadas na migration) para
-   `scripts/legacy/backup-<data>-user-settings-credenciais.json`. **Contém
-   segredos em texto puro**: mover para o cofre depois.
+1. Backups:
+   - de `user_settings`, `user_id` + colunas listadas na migration para
+     `scripts/legacy/backup-<data>-user-settings-credenciais.json`. **Contém
+     segredos em texto puro**: mover para o cofre depois;
+   - `pg_get_functiondef` de `handle_new_user_webhook`,
+     `generate_user_webhook_url`, `get_user_by_webhook_url`,
+     `get_user_by_evolution_instance`, a definição do trigger
+     `trigger_new_user_webhook` e as linhas de `information_schema.columns`
+     das colunas removidas para
+     `scripts/legacy/backup-<data>-user-settings-funcoes.json` (os corpos
+     dessas funções não estão versionados; a migration as remove).
 2. Mergear `claude/sprint2b-limpeza-pos-corte` (remove a rota legada
    `/api/webhooks/evolution`, `resolveTenantByWebhookToken`, leituras de
    colunas de segredo e as variáveis antigas da documentação) e fazer deploy.
 3. Aplicar `supabase/migrations/20261031110000_drop_plaintext_integration_columns.sql`.
-4. Regenerar `src/integrations/supabase/types.ts`.
+   Ela aborta (sem aplicar nada) se alguma outra função do `public` ainda
+   citar uma coluna removida, ou se houver view/policy dependente.
+4. Rodar `tests/db/drop-plaintext-integration-columns.sql`,
+   `tests/db/function-privileges.sql` e
+   `tests/db/evolution-instance-isolation.sql` (todos ok / 0 violações).
+5. Regenerar `src/integrations/supabase/types.ts` e conferir que não há diff
+   relevante em relação ao commit de limpeza.
+6. `/api/admin/register-templates` passa a usar a conexão `meta_cloud` ativa
+   da organização IntelliX (cadastrar antes de chamar).
 
 Rollback: `supabase/migrations/rollback/20261031110000_drop_plaintext_integration_columns.down.sql`
 recria as colunas (vazias); os dados voltam do backup do item 1. Redeploy do
