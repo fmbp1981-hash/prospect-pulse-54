@@ -11,6 +11,10 @@
  *   status         — 'aguardando' | 'respondido'
  *   timestamp      — ISO timestamp
  *   created_at
+ *
+ * Isolamento (MT-04): o client é service_role (sem RLS), então leitura e
+ * atualização filtram SEMPRE por lead_id E pelo user_id do tenant. Um lead_id
+ * de outro tenant (ou linha repontada) não devolve nem altera nada.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -39,10 +43,11 @@ function getServiceClient() {
 
 export const conversationRepository = {
   /**
-   * Busca histórico das últimas N conversas do lead.
+   * Busca histórico das últimas N conversas do lead, só do tenant `userId`.
    * Converte cada row (message_lead + message_agent) em até 2 entradas separadas.
    */
-  async getHistory(leadId: string, limit = 20): Promise<ConversationEntry[]> {
+  async getHistory(leadId: string, userId: string, limit = 20): Promise<ConversationEntry[]> {
+    if (!userId) throw new Error('getHistory: userId do tenant é obrigatório');
     const supabase = getServiceClient();
 
     const { data, error } = await supabase
@@ -50,6 +55,7 @@ export const conversationRepository = {
       .from('whatsapp_conversations' as any)
       .select('message_lead, message_agent, timestamp, created_at, status')
       .eq('lead_id', leadId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -105,14 +111,16 @@ export const conversationRepository = {
   },
 
   /**
-   * Atualiza a última row pendente do lead com a resposta do agente (UPDATE).
+   * Atualiza a última row pendente do lead com a resposta do agente (UPDATE),
+   * só entre as linhas do tenant `userId`.
    * Equivalente ao node "Atualizar Conversa Agente".
    */
   async saveAgentResponse(
     leadId: string,
     message: string,
-    userId?: string
+    userId: string
   ): Promise<void> {
+    if (!userId) throw new Error('saveAgentResponse: userId do tenant é obrigatório');
     const supabase = getServiceClient();
 
     // Busca a row mais recente ainda sem resposta do agente
@@ -121,6 +129,7 @@ export const conversationRepository = {
       .from('whatsapp_conversations' as any)
       .select('id')
       .eq('lead_id', leadId)
+      .eq('user_id', userId)
       .is('message_agent', null)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -138,7 +147,8 @@ export const conversationRepository = {
           status: 'respondido',
           updated_at: new Date().toISOString(),
         })
-        .eq('id', rowId);
+        .eq('id', rowId)
+        .eq('user_id', userId);
     } else {
       // Fallback: insere nova row com a resposta (raro, mas seguro)
       await supabase
@@ -149,7 +159,7 @@ export const conversationRepository = {
           message_agent: message,
           from_lead: false,
           ai_generated: true,
-          user_id: userId ?? null,
+          user_id: userId,
           status: 'respondido',
           timestamp: new Date().toISOString(),
         });

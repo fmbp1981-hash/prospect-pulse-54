@@ -23,6 +23,12 @@
 --    icp_settings: escrita (INSERT/UPDATE/DELETE) só pelo admin da organização
 --    (ou admin da plataforma) também no banco, não só nas rotas. Linhas sem
 --    organização (tenant legado sem org) continuam com as regras atuais.
+-- 4. MT-04 (HIGH): o trigger trigger_set_conversation_user_id só rodava no
+--    INSERT. Um writer repontava lead_id da própria conversa para um lead de
+--    outro tenant e a linha (com o user_id antigo) passava a aparecer no
+--    histórico daquele lead. Agora o trigger roda também em UPDATE OF lead_id:
+--    user_id vira o dono do novo lead e a policy RESTRICTIVE de UPDATE (item 1)
+--    rejeita quando esse dono não é da organização da linha.
 -- 3. DB F-01 (LOW): anon/authenticated perdem TRUNCATE, TRIGGER e REFERENCES
 --    em todas as tabelas do public (TRUNCATE ignora RLS e triggers de linha;
 --    nenhum caminho do app usa esses privilégios), inclusive nas tabelas
@@ -46,18 +52,23 @@ stable
 security definer
 set search_path = public, pg_temp
 as $$
-  select exists (
-    select 1
-    from public.organization_members
-    where user_id = p_user_id
-      and organization_id = p_org_id
-  );
+  -- Só responde para quem é membro de p_org_id: nas policies a org da linha é
+  -- sempre a do chamador (is_org_writer), então a semântica não muda, e um
+  -- usuário de fora não consegue sondar o vínculo de terceiros.
+  select public.is_org_member(p_org_id)
+     and exists (
+       select 1
+       from public.organization_members
+       where user_id = p_user_id
+         and organization_id = p_org_id
+     );
 $$;
 
 alter function public.is_org_member_user(uuid, uuid) owner to postgres;
 
 comment on function public.is_org_member_user(uuid, uuid) is
-  'true se p_user_id é membro de p_org_id (organization_members). Usada pelas policies RESTRICTIVE '
+  'true se p_user_id é membro de p_org_id (organization_members) E o chamador também é membro de p_org_id. '
+  'Usada pelas policies RESTRICTIVE '
   '"row owner must belong to org (insert|update)" (MT-01).';
 
 revoke execute on function public.is_org_member_user(uuid, uuid) from public, anon;
@@ -136,6 +147,16 @@ begin
                    'org admin only writes (delete)', v_tabela, c_admin);
   end loop;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- 4. MT-04: user_id da conversa acompanha o dono do lead também no UPDATE
+--    (função public.set_conversation_user_id inalterada)
+-- ---------------------------------------------------------------------------
+drop trigger if exists trigger_set_conversation_user_id on public.whatsapp_conversations;
+create trigger trigger_set_conversation_user_id
+  before insert or update of lead_id on public.whatsapp_conversations
+  for each row
+  execute function public.set_conversation_user_id();
 
 -- ---------------------------------------------------------------------------
 -- 3. DB F-01: sem TRUNCATE / TRIGGER / REFERENCES para anon e authenticated

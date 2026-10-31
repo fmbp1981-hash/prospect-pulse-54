@@ -4,7 +4,7 @@
 --
 -- Retorna UMA LINHA POR CENÁRIO (colunas: cenario, ok, detalhe).
 --   ok = true   comportamento esperado DEPOIS de 20261030160000_restrict_row_owner_writes
---   ok = false  falha (antes da migration, os cenários 1, 2, 3, 7, 9, 10, 11, 12 e 13 dão false)
+--   ok = false  falha (antes da migration, os cenários 1, 2, 3, 7, 9, 10, 11, 12, 13, 14 e 16 dão false)
 --   ok = null   usuário de teste não encontrado (ver detalhe)
 --
 -- Usuários de teste (de public.organization_members, o vínculo mais antigo de cada perfil):
@@ -53,7 +53,22 @@ select set_config('teste.org_op', coalesce((
 select set_config('teste.lead_a', coalesce((
   select id::text from public.leads_prospeccao
   where organization_id::text = current_setting('teste.org_a')
-  limit 1), gen_random_uuid()::text), true);
+  order by id limit 1), gen_random_uuid()::text), true);
+-- outro lead da mesma org A (ou o mesmo, se só houver um)
+select set_config('teste.lead_a2', coalesce((
+  select id::text from public.leads_prospeccao
+  where organization_id::text = current_setting('teste.org_a')
+  order by id desc limit 1), ''), true);
+-- lead de OUTRA organização, com dono fora da org A
+select set_config('teste.lead_b', coalesce((
+  select l.id::text from public.leads_prospeccao l
+  where l.organization_id is not null
+    and l.organization_id::text <> current_setting('teste.org_a')
+    and l.user_id is not null
+    and not exists (select 1 from public.organization_members om
+                    where om.user_id = l.user_id
+                      and om.organization_id::text = current_setting('teste.org_a'))
+  limit 1), ''), true);
 
 -- Executa os comandos como o usuário p_uid (authenticated) e desfaz tudo.
 -- Devolve 'aceito' ou 'SQLSTATE mensagem' do primeiro erro.
@@ -94,6 +109,9 @@ declare
   v_op uuid := nullif(current_setting('teste.op'), '')::uuid;
   v_org_op uuid := nullif(current_setting('teste.org_op'), '')::uuid;
   v_lead text := current_setting('teste.lead_a');
+  v_lead2 text := nullif(current_setting('teste.lead_a2'), '');
+  v_lead_b text := nullif(current_setting('teste.lead_b'), '');
+  c_wc constant text := 'insert into public.whatsapp_conversations (id, lead_id, message, organization_id) values (%L, %L, %L, %L)';
   v_id uuid := gen_random_uuid();
   v_res text;
   v_n int;
@@ -109,8 +127,10 @@ begin
       perform set_config('teste.e' || v_n || '_ok', '', true);
       perform set_config('teste.e' || v_n || '_det', 'sem admin de org com colega e membro de outra org', true);
     end loop;
-    perform set_config('teste.e13_ok', '', true);
-    perform set_config('teste.e13_det', 'sem admin de org com colega e membro de outra org', true);
+    for v_n in 13..16 loop
+      perform set_config('teste.e' || v_n || '_ok', '', true);
+      perform set_config('teste.e' || v_n || '_det', 'sem admin de org com colega e membro de outra org', true);
+    end loop;
   else
     -- 1. writer da Org A insere webhook_keys com user_id de usuário da Org B → 42501
     v_res := pg_temp.tentar(v_adm, array[format(c_wk, gen_random_uuid(), 'teste-mt01', md5(random()::text), v_outro, v_org)]);
@@ -161,6 +181,41 @@ begin
     ]);
     perform set_config('teste.e13_ok', (v_res = 'aceito')::text, true);
     perform set_config('teste.e13_det', v_res, true);
+    v_id := gen_random_uuid();
+
+    -- 14. MT-04: conversa da Org A repontada para lead da Org B → 42501
+    --     (trigger recalcula user_id = dono do lead B; policy RESTRICTIVE de UPDATE barra)
+    if v_lead_b is null or v_lead2 is null then
+      perform set_config('teste.e14_ok', '', true);
+      perform set_config('teste.e14_det', 'sem lead da org A e lead de outra org', true);
+      perform set_config('teste.e15_ok', '', true);
+      perform set_config('teste.e15_det', 'sem lead da org A e lead de outra org', true);
+    else
+      v_id := gen_random_uuid();
+      v_res := pg_temp.tentar(v_adm, array[
+        format(c_wc, v_id, v_lead, 'teste-mt04', v_org),
+        format('update public.whatsapp_conversations set lead_id = %L where id = %L', v_lead_b, v_id)
+      ]);
+      perform set_config('teste.e14_ok', (v_res like '42501%')::text, true);
+      perform set_config('teste.e14_det', v_res, true);
+
+      -- 15. controle: repontar para outro lead da MESMA org → aceito
+      v_id := gen_random_uuid();
+      v_res := pg_temp.tentar(v_adm, array[
+        format(c_wc, v_id, v_lead, 'teste-mt04', v_org),
+        format('update public.whatsapp_conversations set lead_id = %L where id = %L', v_lead2, v_id)
+      ]);
+      perform set_config('teste.e15_ok', (v_res = 'aceito')::text, true);
+      perform set_config('teste.e15_det', v_res, true);
+    end if;
+
+    -- 16. is_org_member_user não responde para quem não é da org consultada:
+    --     usuário da Org B pergunta se o admin pertence à Org A → false
+    v_res := pg_temp.tentar(v_outro, array[
+      format('select 1 / (case when public.is_org_member_user(%L, %L) then 0 else 1 end)', v_adm, v_org)
+    ]);
+    perform set_config('teste.e16_ok', (v_res = 'aceito')::text, true);
+    perform set_config('teste.e16_det', case when v_res = 'aceito' then 'false para quem é de fora' else v_res end, true);
     v_id := gen_random_uuid();
 
     -- 8. controle: linha da org com user_id de COLEGA da mesma org → aceito
@@ -227,7 +282,10 @@ from (values
   (10, '10. MT-03: operador da org não insere em rag_documents → 42501'),
   (11, '11. F-01: sem TRUNCATE/TRIGGER/REFERENCES para anon/authenticated nas tabelas'),
   (12, '12. F-01: default privileges do postgres sem esses privilégios'),
-  (13, '13. lead_notes sem user_id → user_id = auth.uid() e aceito pela RLS')
+  (13, '13. lead_notes sem user_id → user_id = auth.uid() e aceito pela RLS'),
+  (14, '14. MT-04: conversa da Org A repontada para lead da Org B → 42501'),
+  (15, '15. controle: conversa repontada para outro lead da mesma org → aceito'),
+  (16, '16. is_org_member_user: usuário de fora da org não sonda vínculo → false')
 ) as c(n, cenario)
 order by c.n;
 

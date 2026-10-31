@@ -6,13 +6,16 @@
 --     de agent_configs, rag_documents, rag_document_chunks e icp_settings (MT-03);
 --   * remove public.is_org_member_user(uuid, uuid);
 --   * remove o DEFAULT auth.uid() de lead_notes.user_id e audit_logs.user_id;
+--   * trigger_set_conversation_user_id volta à definição original
+--     (20250116_whatsapp_conversations.sql: BEFORE INSERT, FOR EACH ROW);
 --   * devolve TRUNCATE, TRIGGER e REFERENCES a anon/authenticated em todas as
 --     tabelas do public (estado de produção antes da 160000) e nos default
 --     privileges do role postgres, e reafirma as exceções que já existiam
 --     antes (20261030130000): sem TRUNCATE em organization_members e
 --     user_settings, e nenhum privilégio em platform_admins para anon/authenticated.
 --
--- ATENÇÃO: depois do rollback, writers de uma organização voltam a gravar
+-- ATENÇÃO: depois do rollback, uma conversa volta a poder ser repontada para
+-- lead de outro tenant (MT-04), e writers de uma organização voltam a gravar
 -- linhas com user_id de usuários de outras organizações (MT-01), operadores
 -- voltam a alterar agente/RAG/ICP pelo client da sessão (MT-03) e
 -- anon/authenticated voltam a ter TRUNCATE (ignora RLS) nas tabelas do public.
@@ -55,6 +58,12 @@ begin
 end $$;
 
 drop function if exists public.is_org_member_user(uuid, uuid);
+
+drop trigger if exists trigger_set_conversation_user_id on public.whatsapp_conversations;
+create trigger trigger_set_conversation_user_id
+  before insert on public.whatsapp_conversations
+  for each row
+  execute function public.set_conversation_user_id();
 
 alter table public.lead_notes alter column user_id drop default;
 alter table public.audit_logs alter column user_id drop default;
