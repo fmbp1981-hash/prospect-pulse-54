@@ -50,7 +50,12 @@ export async function POST(req: NextRequest) {
   const listResult = await supabase.auth.admin.listUsers({ perPage: 1000 });
 
   if (listResult.error) {
-    return NextResponse.json({ error: `Auth admin error: ${listResult.error.message}` }, { status: 500 });
+    // S1-F-05: detalhe só no log.
+    console.error('[rag-ingest] Falha no auth admin:', listResult.error.message);
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Falha ao consultar usuários (ver logs do servidor).' } },
+      { status: 500 }
+    );
   }
 
   // Cast explícito: o SDK tipa a rama de sucesso como `{ users: User[] } & Pagination`,
@@ -140,8 +145,8 @@ export async function POST(req: NextRequest) {
 
         results.push({ filename: doc.filename, status: 'ok', chunks: chunksCreated });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        results.push({ filename: doc.filename, status: 'error', error: msg });
+        console.error(`[rag-ingest] Falha ao ingerir ${doc.filename}:`, err instanceof Error ? err.message : 'erro');
+        results.push({ filename: doc.filename, status: 'error', error: 'Falha na ingestão (ver logs do servidor).' });
       }
     }
   });

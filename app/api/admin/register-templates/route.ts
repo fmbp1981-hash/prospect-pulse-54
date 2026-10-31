@@ -7,7 +7,7 @@
  * Após o registro, Meta leva 48-72h para aprovar. Status retornado:
  *   "created"   → submetido agora
  *   "skipped"   → já existia na conta
- *   "error"     → falha (detalhes no campo error)
+ *   "error"     → falha (mensagem genérica; detalhe só no log do servidor)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -150,7 +150,8 @@ export async function GET(req: NextRequest) {
         const created = await createTemplate(wabaId, token, tpl.name, tpl.body);
         results.push({ name: tpl.name, status: 'submitted', metaStatus: created.status });
       } catch (err) {
-        results.push({ name: tpl.name, status: 'error', error: String(err) });
+        console.error(`[register-templates] Falha ao criar ${tpl.name}:`, err instanceof Error ? err.message : 'erro');
+        results.push({ name: tpl.name, status: 'error', error: 'Falha ao registrar o template (ver logs do servidor).' });
       }
     }
 
@@ -160,6 +161,11 @@ export async function GET(req: NextRequest) {
       { status: errors.length > 0 ? 207 : 200 }
     );
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    // S1-F-05: detalhe da Meta só no log.
+    console.error('[register-templates] Falha:', err instanceof Error ? err.message : 'erro');
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Falha ao registrar templates (ver logs do servidor).' } },
+      { status: 500 }
+    );
   }
 }

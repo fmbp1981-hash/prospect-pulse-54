@@ -23,6 +23,11 @@ async function getUser(req: NextRequest) {
   return user;
 }
 
+/** Erro interno: mensagem genérica ao cliente (S1-F-05); detalhe só no log. */
+function internalError(message: string) {
+  return NextResponse.json({ error: { code: 'INTERNAL_ERROR', message } }, { status: 500 });
+}
+
 const service = () => createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -84,7 +89,10 @@ export async function PATCH(
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[api/clientes/[id]] Falha ao atualizar cliente:', error.message);
+    return internalError('Não foi possível atualizar o cliente.');
+  }
   return NextResponse.json({ cliente: data });
 }
 
@@ -105,6 +113,9 @@ export async function DELETE(
     .eq('id', params.id)
     .eq('user_id', user.id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[api/clientes/[id]] Falha ao inativar cliente:', error.message);
+    return internalError('Não foi possível remover o cliente.');
+  }
   return NextResponse.json({ ok: true });
 }

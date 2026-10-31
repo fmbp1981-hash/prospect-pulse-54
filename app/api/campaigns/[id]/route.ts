@@ -93,6 +93,13 @@ export async function PATCH(
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // S1-F-05: detalhe do banco só no log.
+    console.error('[api/campaigns/[id]] Falha ao atualizar campanha:', error.message);
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Não foi possível atualizar a campanha.' } },
+      { status: 500 }
+    );
+  }
   return NextResponse.json({ campaign: data });
 }
