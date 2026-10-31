@@ -215,19 +215,44 @@ export async function listDocuments(userId: string, agentConfigId?: string) {
   return data ?? [];
 }
 
-export async function deleteDocument(id: string, userId: string): Promise<void> {
+/**
+ * Remove um documento do usuário. Devolve false quando o documento não existe
+ * ou é de outro tenant — nesse caso NADA é apagado (nem os chunks).
+ */
+export async function deleteDocument(id: string, userId: string): Promise<boolean> {
   const supabase = getServiceClient();
 
-  // Soft delete — mantém histórico
-  await supabase
+  // Soft delete — mantém histórico. Só conta se a linha é do usuário.
+  const { data: deleted, error } = await supabase
     .from('rag_documents')
     .update({ status: 'deleted' })
     .eq('id', id)
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .select('id');
 
-  // Hard delete dos chunks (economiza espaço)
+  if (error) throw new Error(`Delete document error: ${error.message}`);
+  if (!deleted || deleted.length === 0) return false;
+
+  // Hard delete dos chunks (economiza espaço), sempre filtrado pelo dono.
   await supabase
     .from('rag_document_chunks')
     .delete()
-    .eq('document_id', id);
+    .eq('document_id', id)
+    .eq('user_id', userId);
+
+  return true;
+}
+
+/** true se o agent_config existe e pertence ao usuário. */
+export async function isAgentConfigOwnedBy(agentConfigId: string, userId: string): Promise<boolean> {
+  const supabase = getServiceClient();
+  const { data, error } = await supabase
+    .from('agent_configs')
+    .select('id')
+    .eq('id', agentConfigId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw new Error(`Agent config lookup error: ${error.message}`);
+  return Boolean(data);
 }

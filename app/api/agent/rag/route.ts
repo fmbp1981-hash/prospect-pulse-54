@@ -9,9 +9,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { ingestDocument, listDocuments, deleteDocument } from '@/lib/ai/rag/rag.service';
+import { z } from 'zod';
+import {
+  ingestDocument,
+  listDocuments,
+  deleteDocument,
+  isAgentConfigOwnedBy,
+} from '@/lib/ai/rag/rag.service';
 
 const MAX_FILE_SIZE_MB = 10;
+const DEFAULT_AGENT_CONFIG = 'default';
+const agentConfigIdSchema = z.string().uuid();
 const SUPPORTED_TYPES = [
   'text/plain',
   'text/markdown',
@@ -105,10 +113,20 @@ export async function POST(req: NextRequest) {
     agentConfigId = body.agentConfigId;
   }
 
+  // agentConfigId informado precisa ser um agent_config do próprio usuário.
+  if (agentConfigId && agentConfigId !== DEFAULT_AGENT_CONFIG) {
+    if (!agentConfigIdSchema.safeParse(agentConfigId).success) {
+      return NextResponse.json({ error: 'agentConfigId inválido' }, { status: 400 });
+    }
+    if (!(await isAgentConfigOwnedBy(agentConfigId, user.id))) {
+      return NextResponse.json({ error: 'Configuração de agente não encontrada' }, { status: 403 });
+    }
+  }
+
   try {
     const result = await ingestDocument(
       user.id,
-      agentConfigId ?? 'default',
+      agentConfigId || DEFAULT_AGENT_CONFIG,
       filename,
       content,
       mimetype
@@ -140,6 +158,7 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
-  await deleteDocument(id, user.id);
+  const deleted = await deleteDocument(id, user.id);
+  if (!deleted) return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 });
   return NextResponse.json({ success: true, deletedId: id });
 }
