@@ -11,6 +11,12 @@ import {
   isConfigured,
   type ConnectionStatusItem,
 } from '@/hooks/useConnectionStatus';
+import {
+  filledValues,
+  initialConnectionForm,
+  secretPlaceholder,
+} from '@/components/admin/connection-admin-shared';
+import type { ConnectionView } from '@/lib/services/connections-admin.service';
 
 const item = (
   category: ConnectionStatusItem['category'],
@@ -98,5 +104,51 @@ describe('NOT_CONFIGURED_MESSAGES', () => {
     expect(NOT_CONFIGURED_MESSAGES.prospecting).toBe(
       'Fonte de prospecção não configurada para esta organização. Fale com a equipe IntelliX.'
     );
+  });
+});
+
+describe('formulário de conexão do admin (helpers puros)', () => {
+  const view = (over: Partial<ConnectionView> = {}): ConnectionView => ({
+    id: '00000000-0000-0000-0000-000000000001',
+    category: 'whatsapp',
+    provider: 'evolution',
+    credentialSource: 'own',
+    config: { baseUrl: 'https://evo.exemplo.com.br', instanceName: 'inst-1' },
+    status: 'active',
+    lastTestedAt: null,
+    lastTestResult: null,
+    lastTestOk: true,
+    hasSecret: true,
+    secretHint: '1234',
+    webhookUrl: null,
+    configuredBy: null,
+    updatedAt: '2026-10-31T00:00:00Z',
+    ...over,
+  });
+
+  it('initialConnectionForm: nova conexão começa vazia, sem segredo', () => {
+    const state = initialConnectionForm(null);
+    expect(state.secret).toEqual({});
+    expect(state.config).toEqual({});
+    expect(state.category).toBe('whatsapp');
+  });
+
+  it('initialConnectionForm: edição traz a config mas nunca o segredo', () => {
+    const state = initialConnectionForm(view());
+    expect(state.config).toEqual({ baseUrl: 'https://evo.exemplo.com.br', instanceName: 'inst-1' });
+    expect(state.secret).toEqual({});
+    expect(state.provider).toBe('evolution');
+  });
+
+  it('secretPlaceholder: com hint, sem hint e sem segredo', () => {
+    expect(secretPlaceholder(true, '1234')).toBe('configurado (…1234)');
+    expect(secretPlaceholder(true, null)).toBe('configurado');
+    expect(secretPlaceholder(false, '1234')).toBe('');
+  });
+
+  it('filledValues: remove vazios/espaços e devolve undefined se nada foi preenchido', () => {
+    expect(filledValues({ apiKey: '  abc  ', other: '   ' })).toEqual({ apiKey: 'abc' });
+    expect(filledValues({ apiKey: '', other: ' ' })).toBeUndefined();
+    expect(filledValues({})).toBeUndefined();
   });
 });

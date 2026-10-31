@@ -6,7 +6,8 @@
  * As chaves dos campos espelham src/lib/connectors/schemas.ts; a validação
  * definitiva é a do servidor (mensagem do 400 exibida ao admin).
  */
-import type { ProviderId } from '@/lib/connectors/types';
+import type { ConnectorCategory, CredentialSource, ProviderId } from '@/lib/connectors/types';
+import type { ConnectionView } from '@/lib/services/connections-admin.service';
 
 export interface FormField {
   key: string;
@@ -49,6 +50,39 @@ export const PROVIDER_SECRET_FIELDS: Record<ProviderId, readonly FormField[]> = 
   apify: [{ key: 'apiToken', label: 'API token' }],
   firecrawl: [{ key: 'apiKey', label: 'API key' }],
 };
+
+export interface ConnectionFormState {
+  category: ConnectorCategory;
+  provider: ProviderId;
+  credentialSource: CredentialSource;
+  config: Record<string, string>;
+  secret: Record<string, string>;
+}
+
+export function configString(config: ConnectionView['config'], key: string): string {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return '';
+  const value = (config as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : '';
+}
+
+/**
+ * Estado inicial do formulário de conexão. O segredo começa SEMPRE vazio
+ * (nunca pré-preenchido); a config vem da conexão em edição.
+ */
+export function initialConnectionForm(editing: ConnectionView | null): ConnectionFormState {
+  if (!editing) {
+    return { category: 'whatsapp', provider: 'evolution', credentialSource: 'own', config: {}, secret: {} };
+  }
+  return {
+    category: editing.category,
+    provider: editing.provider,
+    credentialSource: editing.credentialSource,
+    config: Object.fromEntries(
+      PROVIDER_CONFIG_FIELDS[editing.provider].map((f) => [f.key, configString(editing.config, f.key)])
+    ),
+    secret: {},
+  };
+}
 
 /** Placeholder de campo de segredo: nunca pré-preenchido, só o hint. */
 export function secretPlaceholder(hasSecret: boolean, secretHint: string | null): string {

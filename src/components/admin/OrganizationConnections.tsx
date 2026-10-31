@@ -8,7 +8,7 @@
  * pré-preenchidos: o campo mostra só "configurado (…1234)" e, vazio, mantém o
  * segredo atual. O servidor revalida tudo e restringe ao admin da plataforma.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Loader2, Pencil, Plus, Power, PowerOff, Trash2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
@@ -56,7 +56,9 @@ import {
   PROVIDER_CONFIG_FIELDS,
   PROVIDER_SECRET_FIELDS,
   adminRequest,
+  configString,
   filledValues,
+  initialConnectionForm,
   secretPlaceholder,
 } from './connection-admin-shared';
 
@@ -88,12 +90,6 @@ function providersOf(category: ConnectorCategory): ProviderId[] {
   return PROVIDER_IDS.filter((p) => PROVIDER_CATEGORY[p] === category);
 }
 
-function configString(config: ConnectionView['config'], key: string): string {
-  if (!config || typeof config !== 'object' || Array.isArray(config)) return '';
-  const value = (config as Record<string, unknown>)[key];
-  return typeof value === 'string' ? value : '';
-}
-
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Falha ao processar a solicitação.';
 }
@@ -110,31 +106,14 @@ interface ConnectionFormProps {
 
 function ConnectionFormDialog({ orgId, open, onOpenChange, editing }: ConnectionFormProps) {
   const queryClient = useQueryClient();
-  const [category, setCategory] = useState<ConnectorCategory>('whatsapp');
-  const [provider, setProvider] = useState<ProviderId>('evolution');
-  const [credentialSource, setCredentialSource] = useState<CredentialSource>('own');
-  const [config, setConfig] = useState<Record<string, string>>({});
-  const [secret, setSecret] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    if (!open) return;
-    if (editing) {
-      setCategory(editing.category);
-      setProvider(editing.provider);
-      setCredentialSource(editing.credentialSource);
-      setConfig(
-        Object.fromEntries(
-          PROVIDER_CONFIG_FIELDS[editing.provider].map((f) => [f.key, configString(editing.config, f.key)])
-        )
-      );
-    } else {
-      setCategory('whatsapp');
-      setProvider('evolution');
-      setCredentialSource('own');
-      setConfig({});
-    }
-    setSecret({});
-  }, [open, editing]);
+  // O diálogo só fica montado enquanto aberto (ver OrganizationConnections): ao
+  // fechar/salvar o estado é descartado, então nenhum segredo digitado fica em memória.
+  const [initial] = useState(() => initialConnectionForm(editing));
+  const [category, setCategory] = useState<ConnectorCategory>(initial.category);
+  const [provider, setProvider] = useState<ProviderId>(initial.provider);
+  const [credentialSource, setCredentialSource] = useState<CredentialSource>(initial.credentialSource);
+  const [config, setConfig] = useState<Record<string, string>>(initial.config);
+  const [secret, setSecret] = useState<Record<string, string>>(initial.secret);
 
   const changeCategory = (value: ConnectorCategory) => {
     setCategory(value);
@@ -166,6 +145,7 @@ function ConnectionFormDialog({ orgId, open, onOpenChange, editing }: Connection
         },
       }),
     onSuccess: () => {
+      setSecret({});
       toast.success('Conexão salva. Teste a conexão antes de ativar.');
       queryClient.invalidateQueries({ queryKey: ['admin', 'connections', orgId] });
       queryClient.invalidateQueries({ queryKey: CONNECTION_STATUS_QUERY_KEY });
@@ -592,7 +572,7 @@ export function OrganizationConnections() {
         </div>
       )}
 
-      {orgId !== '' && (
+      {orgId !== '' && formOpen && (
         <ConnectionFormDialog
           orgId={orgId}
           open={formOpen}
