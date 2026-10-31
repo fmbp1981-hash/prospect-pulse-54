@@ -9,9 +9,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { generateEmbedding, generateEmbeddingsBatch } from './embeddings.service';
+import { chunkText } from './chunking';
 
-const CHUNK_SIZE = 1000;    // caracteres por chunk
-const CHUNK_OVERLAP = 200;  // sobreposição entre chunks
 const TOP_K = 3;            // chunks relevantes por query
 
 interface DocumentChunk {
@@ -27,43 +26,6 @@ function getServiceClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
-}
-
-// ─── CHUNKING ────────────────────────────────────────────────────────────────
-
-function chunkText(text: string): string[] {
-  const chunks: string[] = [];
-  let start = 0;
-
-  while (start < text.length) {
-    const end = Math.min(start + CHUNK_SIZE, text.length);
-    let chunk = text.slice(start, end);
-
-    // Tenta quebrar em fronteira de parágrafo ou frase
-    if (end < text.length) {
-      const lastParagraph = chunk.lastIndexOf('\n\n');
-      const lastSentence = Math.max(
-        chunk.lastIndexOf('. '),
-        chunk.lastIndexOf('! '),
-        chunk.lastIndexOf('? ')
-      );
-
-      const breakPoint = lastParagraph > CHUNK_SIZE * 0.5
-        ? lastParagraph
-        : lastSentence > CHUNK_SIZE * 0.5
-          ? lastSentence + 1
-          : -1;
-
-      if (breakPoint > 0) {
-        chunk = text.slice(start, start + breakPoint + 1);
-      }
-    }
-
-    chunks.push(chunk.trim());
-    start += chunk.length - CHUNK_OVERLAP;
-  }
-
-  return chunks.filter((c) => c.length > 50);
 }
 
 // ─── INGESTÃO ────────────────────────────────────────────────────────────────
@@ -234,12 +196,13 @@ export async function deleteDocument(id: string, userId: string): Promise<boolea
   if (!deleted || deleted.length === 0) return false;
 
   // Hard delete dos chunks (economiza espaço), sempre filtrado pelo dono.
-  await supabase
+  const { error: chunkError } = await supabase
     .from('rag_document_chunks')
     .delete()
     .eq('document_id', id)
     .eq('user_id', userId);
 
+  if (chunkError) throw new Error(`Delete chunks error: ${chunkError.message}`);
   return true;
 }
 
