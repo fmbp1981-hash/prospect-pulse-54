@@ -316,3 +316,5 @@ Achados de 2026-10-30: `src/lib/jobs/follow-up.job.ts` envia **todos** os follow
 
 ---
 **Adendo (2026-10-30, durante a execução do Sprint 1):** Task 6b — fechar escalada de privilégio em `user_settings` e separar admin da plataforma de admin de organização (crítica, achada na revisão da Task 6). Brief completo em `.superpowers/sdd/2026-10-30-ajuste-sistema-e-migracao-cloudflare/task-6b-brief.md`; migration `20261030130000_guard_user_settings_privileges.sql`.
+
+**Adendo 2 (2026-10-30, resultado da Task 7):** revisão de service_role com gate FAIL (`docs/security/service-role-review-2026-10.md`). Novas tasks do Sprint 1, briefs em `.superpowers/sdd/2026-10-30-ajuste-sistema-e-migracao-cloudflare/`: **Task 8** webhook do WhatsApp autenticado por token por tenant (F-02, crítico); **Task 9** isolamento entre tenants nas rotas com service_role (F-03 rotas, F-04, F-05, F-06, F-07, F-08, F-10, F-11, F-12, F-14, F-16, F-18); **Task 10** visualizador não escreve (F-13). Ordem: 6b → 8 → 9 → 10.
