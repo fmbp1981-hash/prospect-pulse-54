@@ -12,6 +12,10 @@ let memberships: Array<{ role: string }> = [];
 let legacyRole: string | null = null;
 let platformAdmin = false;
 let memberError = false;
+let pending = false;
+let rejected = false;
+let noSettings = false;
+let settingsError = false;
 
 function handler(call: FakeCall): FakeResult | undefined {
   if (call.table === 'platform_admins') {
@@ -24,7 +28,12 @@ function handler(call: FakeCall): FakeResult | undefined {
       : { data: memberships, error: null };
   }
   if (call.table === 'user_settings') {
-    return { data: legacyRole ? { role: legacyRole } : null, error: null };
+    if (settingsError) return { data: null, error: { message: 'boom' } };
+    if (noSettings) return { data: null, error: null };
+    return {
+      data: { role: legacyRole ?? 'visualizador', pending_setup: pending, rejected },
+      error: null,
+    };
   }
   return undefined;
 }
@@ -40,6 +49,10 @@ beforeEach(() => {
   legacyRole = null;
   platformAdmin = false;
   memberError = false;
+  pending = false;
+  rejected = false;
+  noSettings = false;
+  settingsError = false;
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supabase.local';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-role-de-teste';
 });
@@ -64,6 +77,7 @@ describe('requireWriter', () => {
   });
 
   it('sem organização e sem user_settings → false', async () => {
+    noSettings = true;
     expect(await requireWriter(USER)).toBe(false);
   });
 
@@ -77,6 +91,52 @@ describe('requireWriter', () => {
     memberError = true;
     legacyRole = 'admin';
     expect(await requireWriter(USER)).toBe(false);
+  });
+});
+
+describe('S1-F-03 / MT-INFO — cadastro pendente ou rejeitado não escreve', () => {
+  it('membro operador com pending_setup=true → false', async () => {
+    memberships = [{ role: 'operador' }];
+    pending = true;
+    expect(await requireWriter(USER)).toBe(false);
+  });
+
+  it('admin da organização com pending_setup=true (signup não aprovado) → false em requireOrgAdmin', async () => {
+    memberships = [{ role: 'admin' }];
+    pending = true;
+    expect(await requireOrgAdmin(USER)).toBe(false);
+  });
+
+  it('membro operador rejeitado → false', async () => {
+    memberships = [{ role: 'operador' }];
+    rejected = true;
+    expect(await requireWriter(USER)).toBe(false);
+  });
+
+  it('sem organização: user_settings admin pendente → false', async () => {
+    legacyRole = 'admin';
+    pending = true;
+    expect(await requireWriter(USER)).toBe(false);
+  });
+
+  it('membro sem linha em user_settings → false (falha fechada, igual ao middleware)', async () => {
+    memberships = [{ role: 'admin' }];
+    noSettings = true;
+    expect(await requireWriter(USER)).toBe(false);
+  });
+
+  it('erro ao consultar user_settings → false', async () => {
+    memberships = [{ role: 'admin' }];
+    settingsError = true;
+    expect(await requireWriter(USER)).toBe(false);
+  });
+
+  it('admin da plataforma não depende de user_settings', async () => {
+    platformAdmin = true;
+    pending = true;
+    rejected = true;
+    expect(await requireWriter(USER)).toBe(true);
+    expect(fake.calls.some((c) => c.table === 'user_settings')).toBe(false);
   });
 });
 

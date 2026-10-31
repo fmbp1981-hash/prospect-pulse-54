@@ -6,6 +6,9 @@
  *
  * Regras:
  *  - admin da plataforma (public.platform_admins) → pode escrever;
+ *  - cadastro pendente (user_settings.pending_setup = true), rejeitado
+ *    (user_settings.rejected = true) ou sem linha em user_settings → não
+ *    escreve (S1-F-03 / MT-INFO; mesmo critério do middleware);
  *  - com organização: organization_members.role in ('admin','operador');
  *  - sem organização: user_settings.role legado in ('admin','operador').
  *
@@ -44,6 +47,20 @@ async function hasRole(userId: string, roles: readonly string[]): Promise<boolea
 
   const db = getServiceClient();
 
+  const { data: settings, error: settingsError } = await db
+    .from('user_settings')
+    .select('role, pending_setup, rejected')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (settingsError) {
+    console.error('[require-writer] Falha ao consultar user_settings:', settingsError.message);
+    return false;
+  }
+
+  // Sem cadastro, pendente de aprovação ou rejeitado: nunca escreve.
+  if (!settings || settings.pending_setup === true || settings.rejected === true) return false;
+
   const { data: memberships, error: memberError } = await db
     .from('organization_members')
     .select('role')
@@ -58,18 +75,7 @@ async function hasRole(userId: string, roles: readonly string[]): Promise<boolea
     return memberships.some((m) => roles.includes(m.role));
   }
 
-  const { data: settings, error: settingsError } = await db
-    .from('user_settings')
-    .select('role')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (settingsError) {
-    console.error('[require-writer] Falha ao consultar user_settings:', settingsError.message);
-    return false;
-  }
-
-  return !!settings && roles.includes(settings.role);
+  return roles.includes(settings.role);
 }
 
 /** Resposta padrão 403 para usuário sem permissão de escrita. */
