@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { isPlatformAdmin } from '@/lib/auth/platform-admin';
 import { z } from 'zod';
 
 const rejectUserSchema = z.object({
@@ -38,13 +39,9 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: callerSettings } = await adminClient
-      .from('user_settings')
-      .select('role')
-      .eq('user_id', caller.id)
-      .single();
-
-    if (callerSettings?.role !== 'admin') {
+    // 2. Só o admin da PLATAFORMA (public.platform_admins). role='admin' em
+    //    user_settings não basta: admin de organização também tem esse role.
+    if (!(await isPlatformAdmin(caller.id))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

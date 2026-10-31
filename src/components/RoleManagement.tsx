@@ -24,7 +24,6 @@ interface UserWithSettings {
   integration_configured: boolean;
   user_webhook_url: string | null;
   evolution_api_url: string | null;
-  evolution_api_key: string | null;
   evolution_instance_name: string | null;
   whatsapp_webhook_url: string | null;
 }
@@ -83,7 +82,6 @@ export function RoleManagement() {
         integration_configured: (setting.integration_configured as boolean) ?? false,
         user_webhook_url: (setting.user_webhook_url as string) || null,
         evolution_api_url: (setting.evolution_api_url as string) || null,
-        evolution_api_key: (setting.evolution_api_key as string) || null,
         evolution_instance_name: (setting.evolution_instance_name as string) || null,
         whatsapp_webhook_url: (setting.whatsapp_webhook_url as string) || null,
       }));
@@ -132,7 +130,7 @@ export function RoleManagement() {
     setShowEvolutionApiKey(false);
     setFormData({
       evolution_api_url: user.evolution_api_url || "",
-      evolution_api_key: user.evolution_api_key || "",
+      evolution_api_key: "",
       evolution_instance_name: user.evolution_instance_name || "",
       whatsapp_webhook_url: user.whatsapp_webhook_url || "",
     });
@@ -144,12 +142,15 @@ export function RoleManagement() {
 
     setIsSaving(true);
     try {
+      // A API Key atual não é exibida (list-users não devolve segredos):
+      // campo vazio = manter a chave já gravada.
+      const apiKey = formData.evolution_api_key.trim();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from('user_settings')
         .update({
           evolution_api_url: formData.evolution_api_url || null,
-          evolution_api_key: formData.evolution_api_key || null,
+          ...(apiKey ? { evolution_api_key: apiKey } : {}),
           evolution_instance_name: formData.evolution_instance_name || null,
           whatsapp_webhook_url: formData.whatsapp_webhook_url || null,
           integration_configured: true,
@@ -487,14 +488,11 @@ export function RoleManagement() {
                     Visualizador
                   </div>
                 </SelectItem>
-                <SelectItem value="admin">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4" />
-                    Administrador
-                  </div>
-                </SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              Promoção a administrador da plataforma não é feita por aqui.
+            </p>
           </div>
 
           <DialogFooter>
@@ -580,7 +578,7 @@ export function RoleManagement() {
                     <Input
                       id="evolution_api_key"
                       type={showEvolutionApiKey ? "text" : "password"}
-                      placeholder="Sua API Key"
+                      placeholder="Deixe em branco para manter a chave atual"
                       value={formData.evolution_api_key}
                       onChange={(e) => setFormData(prev => ({ ...prev, evolution_api_key: e.target.value }))}
                       className="flex-1"

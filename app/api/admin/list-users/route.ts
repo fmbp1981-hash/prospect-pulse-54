@@ -5,12 +5,18 @@
  *
  * Usa service role para acessar auth.users e juntar com user_settings.
  * Retorna email, nome, role, status de pending para cada usuário.
- * Autenticação: verifica role='admin' no banco — não usa email hardcoded.
+ * Autenticação: só o admin da PLATAFORMA (public.platform_admins).
+ * Não devolve segredos (evolution_api_key, chaves de IA, webhook_token).
  */
 
 import { NextResponse } from 'next/server';
 import { createClient as createServiceClient, type User } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { isPlatformAdmin } from '@/lib/auth/platform-admin';
+
+// Sem segredos: evolution_api_key, chaves de IA e webhook_token ficam de fora.
+const LIST_USERS_COLUMNS =
+  'user_id, role, pending_setup, rejected, company_name, created_at, integration_configured, user_webhook_url, evolution_api_url, evolution_instance_name, whatsapp_webhook_url' as const;
 
 export async function GET() {
   try {
@@ -32,21 +38,17 @@ export async function GET() {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 2. Verificar role='admin' no banco (não usa email hardcoded)
-    const { data: callerSettings } = await adminClient
-      .from('user_settings')
-      .select('role')
-      .eq('user_id', user.id)
-      .single();
-
-    if (callerSettings?.role !== 'admin') {
+    // 2. Só o admin da PLATAFORMA (public.platform_admins). role='admin' em
+    //    user_settings não basta: admin de organização também tem esse role.
+    if (!(await isPlatformAdmin(user.id))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 3. Buscar todos os user_settings
+    // 3. Buscar todos os user_settings (sem segredos: chaves de API e webhook_token
+    //    nunca saem por esta rota)
     const { data: settings, error: settingsError } = await adminClient
       .from('user_settings')
-      .select('user_id, role, pending_setup, rejected, company_name, created_at, integration_configured, user_webhook_url, evolution_api_url, evolution_api_key, evolution_instance_name, whatsapp_webhook_url');
+      .select(LIST_USERS_COLUMNS);
 
     if (settingsError) {
       console.error('[list-users] Erro ao buscar user_settings:', settingsError);
