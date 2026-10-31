@@ -14,9 +14,13 @@
 # argumentos; para elas a evidência é tests/db/function-privileges.sql.
 #
 # CUIDADO: ANTES da migration, uma função sem argumentos obrigatórios é
-# EXECUTADA de verdade pelo anon (ex.: purge_expired_raw_payloads() apaga os
-# payloads brutos expirados, que é o seu job normal). Para pular funções,
-# passe a lista desejada como argumentos:
+# EXECUTADA de verdade pelo anon. Funções com efeito colateral real se
+# alcançáveis pelo anon:
+#   - purge_expired_raw_payloads(): apaga os payloads brutos expirados;
+#   - claim_due_follow_ups(p_limit): grava a trava follow_up_lock_until nos
+#     leads devidos (atrasa o follow-up real); só é alcançável com {} se
+#     p_limit tiver default — e ela já nasce sem EXECUTE para anon (20261030110000).
+# Para pular funções, passe a lista desejada como argumentos:
 #   scripts/attack-validation/rpc-anon-probe.sh get_user_by_webhook_url purge_expired_raw_payloads
 #
 # Uso: rodar da raiz do repo (lê .env.local). Requer node >= 18 (fetch nativo).

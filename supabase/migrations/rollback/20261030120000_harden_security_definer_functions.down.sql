@@ -1,7 +1,11 @@
 -- Rollback de 20261030120000_harden_security_definer_functions.sql
 --
--- Restaura o estado de produção consultado em 2026-10-30:
---   * EXECUTE para PUBLIC, anon e authenticated (service_role já tinha);
+-- Restaura o estado de produção consultado em 2026-10-30 (owner de todas = postgres):
+--   * ACL exata de cada função: EXECUTE para PUBLIC, anon e authenticated
+--     (service_role já tinha), EXCETO get_my_organization_id, is_org_admin,
+--     is_org_member e is_org_writer, que em produção NÃO tinham grant a PUBLIC
+--     (só anon, authenticated, service_role);
+--   * default privileges do role postgres revogados no fim da migration;
 --   * proconfig anterior de cada função:
 --       - RESET search_path nas que estavam vazias;
 --       - SET search_path = public nas que tinham "search_path=public".
@@ -39,16 +43,16 @@ alter function public.is_admin() reset search_path;
 grant execute on function public.can_write() to public, anon, authenticated;
 alter function public.can_write() reset search_path;
 
-grant execute on function public.is_org_admin(check_org_id uuid) to public, anon, authenticated;
+grant execute on function public.is_org_admin(check_org_id uuid) to anon, authenticated;
 alter function public.is_org_admin(check_org_id uuid) set search_path = public;
 
-grant execute on function public.is_org_member(check_org_id uuid) to public, anon, authenticated;
+grant execute on function public.is_org_member(check_org_id uuid) to anon, authenticated;
 alter function public.is_org_member(check_org_id uuid) set search_path = public;
 
-grant execute on function public.is_org_writer(check_org_id uuid) to public, anon, authenticated;
+grant execute on function public.is_org_writer(check_org_id uuid) to anon, authenticated;
 alter function public.is_org_writer(check_org_id uuid) set search_path = public;
 
-grant execute on function public.get_my_organization_id() to public, anon, authenticated;
+grant execute on function public.get_my_organization_id() to anon, authenticated;
 alter function public.get_my_organization_id() set search_path = public;
 
 grant execute on function public.get_user_tenant_id(user_uuid uuid) to public, anon, authenticated;
@@ -85,3 +89,7 @@ alter function public.handle_updated_at() reset search_path;
 alter function public.set_updated_at() reset search_path;
 alter function public.update_updated_at_column() reset search_path;
 alter function public.update_user_settings_updated_at() reset search_path;
+
+-- Default privileges (reverte o fim da migration) -----------------------------
+alter default privileges for role postgres in schema public grant execute on functions to anon, authenticated;
+alter default privileges for role postgres grant execute on functions to public;

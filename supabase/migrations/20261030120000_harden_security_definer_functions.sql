@@ -143,3 +143,14 @@ alter function public.set_updated_at() set search_path = public, pg_temp;
 alter function public.update_updated_at_column() set search_path = public, pg_temp;
 alter function public.update_user_settings_updated_at() set search_path = public, pg_temp;
 
+
+-- ---------------------------------------------------------------------------
+-- Default privileges: funções NOVAS criadas pelo role postgres deixam de nascer
+-- executáveis por PUBLIC, anon e authenticated. A partir daqui, TODA função
+-- nova precisa de GRANT EXECUTE explícito para o role que deve chamá-la
+-- (service_role continua recebendo pelo default privilege do Supabase) e deve
+-- ser classificada na matriz de tests/db/function-privileges.sql.
+-- Válido dentro de transação; afeta só objetos criados depois.
+-- ---------------------------------------------------------------------------
+alter default privileges for role postgres in schema public revoke execute on functions from anon, authenticated;
+alter default privileges for role postgres revoke execute on functions from public;
