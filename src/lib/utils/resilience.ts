@@ -85,7 +85,11 @@ export class CircuitBreaker {
   private get successThreshold() { return this.opts.successThreshold ?? 2; }
   private get timeoutMs() { return this.opts.timeoutMs ?? 60000; }
 
-  async call<T>(fn: () => Promise<T>): Promise<T> {
+  /**
+   * @param countsAsFailure decide se um erro conta para abrir o circuito
+   *   (padrão: todo erro). Erros que não contam são relançados sem afetar o estado.
+   */
+  async call<T>(fn: () => Promise<T>, countsAsFailure: (err: unknown) => boolean = () => true): Promise<T> {
     if (this.state === 'OPEN') {
       const elapsed = Date.now() - (this.lastFailureAt ?? 0);
       if (elapsed < this.timeoutMs) {
@@ -100,7 +104,7 @@ export class CircuitBreaker {
       this.onSuccess();
       return result;
     } catch (err) {
-      this.onFailure();
+      if (countsAsFailure(err)) this.onFailure();
       throw err;
     }
   }
@@ -130,5 +134,61 @@ export class CircuitBreaker {
 
 // Singletons para APIs externas
 export const openAICircuit = new CircuitBreaker('OpenAI', { failureThreshold: 3, timeoutMs: 30000 });
-export const evolutionCircuit = new CircuitBreaker('EvolutionAPI', { failureThreshold: 5, timeoutMs: 60000 });
-export const metaCircuit = new CircuitBreaker('MetaCloudAPI', { failureThreshold: 3, timeoutMs: 30000 });
+
+// ─── CIRCUITO POR CONEXÃO (provedores de WhatsApp) ─────────────────────────
+// T5-ISO-01: um circuito por conexão, para que falhas de uma organização
+// nunca bloqueiem o envio das outras.
+
+/** Erro HTTP do provedor, com o status para classificar 4xx vs 5xx. */
+export class ProviderHttpError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ProviderHttpError';
+    this.status = status;
+  }
+}
+
+/**
+ * 4xx de validação (número inválido, payload recusado) é erro do pedido, não
+ * indisponibilidade do provedor: não conta para o circuito e não é repetido.
+ * 429 (rate limit) e 408 contam como indisponibilidade.
+ */
+export function isClientRequestError(err: unknown): boolean {
+  return (
+    err instanceof ProviderHttpError &&
+    err.status >= 400 &&
+    err.status < 500 &&
+    err.status !== 408 &&
+    err.status !== 429
+  );
+}
+
+export const countsAsProviderFailure = (err: unknown): boolean => !isClientRequestError(err);
+
+const PROVIDER_CIRCUIT_OPTIONS: Record<'evolution' | 'meta', CircuitBreakerOptions> = {
+  evolution: { failureThreshold: 5, timeoutMs: 60000 },
+  meta: { failureThreshold: 3, timeoutMs: 30000 },
+};
+
+const providerCircuits = new Map<string, CircuitBreaker>();
+
+/**
+ * Circuito da conexão `key` (connectionId; sem ele, um identificador do
+ * destino, ex.: baseUrl ou phoneNumberId). `label` aparece nos logs: não
+ * passe URL nem segredo.
+ */
+export function getProviderCircuit(kind: 'evolution' | 'meta', key: string, label: string): CircuitBreaker {
+  const mapKey = `${kind}:${key}`;
+  let circuit = providerCircuits.get(mapKey);
+  if (!circuit) {
+    circuit = new CircuitBreaker(`${kind}:${label}`, PROVIDER_CIRCUIT_OPTIONS[kind]);
+    providerCircuits.set(mapKey, circuit);
+  }
+  return circuit;
+}
+
+/** Apenas para testes: descarta todos os circuitos por conexão. */
+export function resetProviderCircuitsForTests(): void {
+  providerCircuits.clear();
+}

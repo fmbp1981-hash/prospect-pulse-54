@@ -20,7 +20,18 @@ export async function resolveLeadOrganizationId(lead: {
   organization_id?: string | null;
   user_id?: string | null;
 }): Promise<string | null> {
-  if (lead.organization_id) return lead.organization_id;
-  if (!lead.user_id) return null;
-  return resolveOrganizationIdForUser(lead.user_id);
+  return resolveRecordOrganizationId(lead);
+}
+
+/**
+ * Mesma regra para qualquer registro com `organization_id` + `user_id`
+ * (ex.: campanhas): organization_id, ou a organização do dono quando nulo.
+ */
+export async function resolveRecordOrganizationId(record: {
+  organization_id?: string | null;
+  user_id?: string | null;
+}): Promise<string | null> {
+  if (record.organization_id) return record.organization_id;
+  if (!record.user_id) return null;
+  return resolveOrganizationIdForUser(record.user_id);
 }

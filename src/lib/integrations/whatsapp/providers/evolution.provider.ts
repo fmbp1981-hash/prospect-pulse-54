@@ -13,7 +13,13 @@ import type {
   NormalizedWebhookPayload,
 } from '../whatsapp-provider.interface';
 import { WHATSAPP_SEND_TIMEOUT_MS } from '../whatsapp-provider.interface';
-import { evolutionCircuit, withRetry } from '@/lib/utils/resilience';
+import {
+  withRetry,
+  getProviderCircuit,
+  countsAsProviderFailure,
+  ProviderHttpError,
+  type CircuitBreaker,
+} from '@/lib/utils/resilience';
 import { delay } from '@/lib/utils/delay';
 import { recordUsage } from '@/lib/connectors/usage';
 
@@ -48,11 +54,18 @@ export class EvolutionProvider implements IWhatsAppProvider {
   readonly #url: string;
   readonly #key: string;
   readonly #usage?: { organizationId: string; connectionId: string };
+  /** Circuito desta conexão (T5-ISO-01): falhas de uma org não bloqueiam as outras. */
+  readonly #circuit: CircuitBreaker;
 
   constructor(options: EvolutionProviderOptions) {
     this.#url = options.baseUrl.replace(/\/$/, '');
     this.#key = options.apiKey;
     this.#usage = options.usage;
+    this.#circuit = getProviderCircuit(
+      'evolution',
+      options.usage?.connectionId ?? `url:${this.#url}`,
+      options.usage?.connectionId ?? 'sem-conexao'
+    );
   }
 
   /** Serialização/log nunca expõe credenciais. */
@@ -95,7 +108,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
     const url = this.#url;
     const key = this.#key;
 
-    return evolutionCircuit.call(() =>
+    return this.#circuit.call(() =>
       withRetry(async () => {
         const response = await fetch(`${url}/message/sendText/${instance}`, {
           method: 'POST',
@@ -106,12 +119,13 @@ export class EvolutionProvider implements IWhatsAppProvider {
 
         if (!response.ok) {
           const err = await response.text();
-          throw new Error(`Evolution sendText failed: ${response.status} ${err}`);
+          throw new ProviderHttpError(`Evolution sendText failed: ${response.status} ${err}`, response.status);
         }
 
         const data = (await response.json()) as { key?: { id?: string } };
         return { success: true, messageId: data.key?.id };
-      }, { maxAttempts: 2, initialDelayMs: 1000 })
+      }, { maxAttempts: 2, initialDelayMs: 1000, shouldRetry: countsAsProviderFailure }),
+      countsAsProviderFailure
     )
       .then(
         (result): SendTextResult => {
@@ -130,7 +144,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
       return { success: false, error: 'URL ou base64 são obrigatórios para envio de mídia' };
     }
 
-    return evolutionCircuit.call(() =>
+    return this.#circuit.call(() =>
       withRetry(async () => {
         const response = await fetch(`${url}/message/sendMedia/${instance}`, {
           method: 'POST',
@@ -148,12 +162,13 @@ export class EvolutionProvider implements IWhatsAppProvider {
 
         if (!response.ok) {
           const err = await response.text();
-          throw new Error(`Evolution sendMedia failed: ${response.status} ${err}`);
+          throw new ProviderHttpError(`Evolution sendMedia failed: ${response.status} ${err}`, response.status);
         }
 
         const data = (await response.json()) as { key?: { id?: string } };
         return { success: true, messageId: data.key?.id };
-      }, { maxAttempts: 2, initialDelayMs: 1000 })
+      }, { maxAttempts: 2, initialDelayMs: 1000, shouldRetry: countsAsProviderFailure }),
+      countsAsProviderFailure
     )
       .then(
         (result): SendMediaResult => {
@@ -231,7 +246,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
     const url = this.#url;
     const key = this.#key;
 
-    return evolutionCircuit.call(() =>
+    return this.#circuit.call(() =>
       withRetry(async () => {
         const response = await fetch(
           `${url}/chat/getBase64FromMediaMessage/${instance}`,
@@ -243,7 +258,7 @@ export class EvolutionProvider implements IWhatsAppProvider {
         );
 
         if (!response.ok) {
-          throw new Error(`Evolution downloadMedia failed: ${response.status}`);
+          throw new ProviderHttpError(`Evolution downloadMedia failed: ${response.status}`, response.status);
         }
 
         const data = (await response.json()) as { base64: string; mimetype: string };
@@ -252,7 +267,8 @@ export class EvolutionProvider implements IWhatsAppProvider {
           mimetype: data.mimetype,
           base64: data.base64,
         };
-      }, { maxAttempts: 2 })
+      }, { maxAttempts: 2, shouldRetry: countsAsProviderFailure }),
+      countsAsProviderFailure
     );
   }
 

@@ -16,7 +16,13 @@ import type {
   MediaAttachment,
   NormalizedWebhookPayload,
 } from '../whatsapp-provider.interface';
-import { metaCircuit, withRetry } from '@/lib/utils/resilience';
+import {
+  withRetry,
+  getProviderCircuit,
+  countsAsProviderFailure,
+  ProviderHttpError,
+  type CircuitBreaker,
+} from '@/lib/utils/resilience';
 import { delay } from '@/lib/utils/delay';
 import { recordUsage } from '@/lib/connectors/usage';
 import { WHATSAPP_SEND_TIMEOUT_MS } from '../whatsapp-provider.interface';
@@ -53,6 +59,8 @@ export class MetaCloudProvider implements IWhatsAppProvider {
   readonly #appSecret: string;
   readonly #verifyToken: string;
   readonly #usage?: { organizationId: string; connectionId: string };
+  /** Circuito desta conexão (T5-ISO-01): falhas de uma org não bloqueiam as outras. */
+  readonly #circuit: CircuitBreaker;
 
   constructor(options: MetaCloudProviderOptions) {
     this.#token = options.accessToken;
@@ -61,6 +69,11 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     this.#appSecret = options.appSecret;
     this.#verifyToken = options.verifyToken;
     this.#usage = options.usage;
+    this.#circuit = getProviderCircuit(
+      'meta',
+      options.usage?.connectionId ?? `phone:${options.phoneNumberId}`,
+      options.usage?.connectionId ?? 'sem-conexao'
+    );
   }
 
   /** Serialização/log nunca expõe credenciais. */
@@ -111,7 +124,7 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     const token = this.#token;
     const phoneNumberId = this.#phoneNumberId;
 
-    return metaCircuit.call(() =>
+    return this.#circuit.call(() =>
       withRetry(async () => {
         const response = await fetch(
           this.apiUrl(`/${phoneNumberId}/messages`),
@@ -134,7 +147,7 @@ export class MetaCloudProvider implements IWhatsAppProvider {
 
         if (!response.ok) {
           const err = await response.text();
-          throw new Error(`Meta sendText failed: ${response.status} ${err}`);
+          throw new ProviderHttpError(`Meta sendText failed: ${response.status} ${err}`, response.status);
         }
 
         const data = (await response.json()) as {
@@ -142,10 +155,11 @@ export class MetaCloudProvider implements IWhatsAppProvider {
           error?: { message: string };
         };
 
-        if (data.error) throw new Error(data.error.message);
+        if (data.error) throw new ProviderHttpError(data.error.message, 400);
 
         return { success: true, messageId: data.messages?.[0]?.id };
-      }, { maxAttempts: 2, initialDelayMs: 1000 })
+      }, { maxAttempts: 2, initialDelayMs: 1000, shouldRetry: countsAsProviderFailure }),
+      countsAsProviderFailure
     )
       .then(
         (result): SendTextResult => {
@@ -168,7 +182,7 @@ export class MetaCloudProvider implements IWhatsAppProvider {
       return { success: false, error: 'Meta Cloud API requer URL pública para envio de mídia. Faça upload da imagem em um servidor público primeiro.' };
     }
 
-    return metaCircuit.call(() =>
+    return this.#circuit.call(() =>
       withRetry(async () => {
         const response = await fetch(
           this.apiUrl(`/${phoneNumberId}/messages`),
@@ -194,17 +208,18 @@ export class MetaCloudProvider implements IWhatsAppProvider {
 
         if (!response.ok) {
           const err = await response.text();
-          throw new Error(`Meta sendMedia failed: ${response.status} ${err}`);
+          throw new ProviderHttpError(`Meta sendMedia failed: ${response.status} ${err}`, response.status);
         }
 
         const data = (await response.json()) as {
           messages?: Array<{ id: string }>;
           error?: { message: string };
         };
-        if (data.error) throw new Error(data.error.message);
+        if (data.error) throw new ProviderHttpError(data.error.message, 400);
 
         return { success: true, messageId: data.messages?.[0]?.id };
-      }, { maxAttempts: 2, initialDelayMs: 1000 })
+      }, { maxAttempts: 2, initialDelayMs: 1000, shouldRetry: countsAsProviderFailure }),
+      countsAsProviderFailure
     )
       .then(
         (result): SendMediaResult => {
