@@ -49,6 +49,8 @@ function lead(id: string, userId: string | null, whatsapp = '+5581999990001') {
   };
 }
 
+// Leads sem envio voltam pelo releaseFollowUpClaim (backoff de 15 min no repositório;
+// ver tests/unit/follow-up-claim-repository.spec.ts).
 describe('runFollowUpJob — trava atômica e instância por organização', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -136,6 +138,18 @@ describe('runFollowUpJob — trava atômica e instância por organização', () 
     expect(mockReleaseFollowUpClaim).toHaveBeenCalledWith('lead-falha');
     expect(mockIncrementFollowUpCount).not.toHaveBeenCalledWith('lead-falha');
     expect(mockIncrementFollowUpCount).toHaveBeenCalledWith('lead-ok');
+  });
+
+  it('envio ok mas incrementFollowUpCount lançou: NÃO devolve o lead (evita reenvio imediato)', async () => {
+    mockClaimDueFollowUps.mockResolvedValue([lead('lead-ok-inc-falhou', USER_A)]);
+    mockSendWhatsAppText.mockResolvedValue({ success: true });
+    mockIncrementFollowUpCount.mockRejectedValueOnce(new Error('db down'));
+
+    await expect(runFollowUpJob({ delayMs: 0 })).resolves.toBeUndefined();
+
+    expect(mockSendWhatsAppText).toHaveBeenCalledTimes(1);
+    expect(mockReleaseFollowUpClaim).not.toHaveBeenCalledWith('lead-ok-inc-falhou');
+    expect(mockReleaseFollowUpClaim).not.toHaveBeenCalled();
   });
 
   it('mistura de leads: cada um segue seu caminho', async () => {

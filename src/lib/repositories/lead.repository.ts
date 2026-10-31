@@ -106,15 +106,18 @@ export const leadRepository = {
   },
 
   /**
-   * Libera a trava de follow-up de um lead que foi reivindicado mas não
-   * recebeu a mensagem (sem instância configurada, falha no envio etc.),
-   * para que a próxima execução possa tentar de novo.
+   * Devolve um lead reivindicado que não recebeu a mensagem (sem instância
+   * configurada, sem dono, falha no envio etc.) com backoff: a trava passa a
+   * valer até now() + backoffMinutes. Zerar a trava faria leads com problema
+   * permanente ficarem sempre entre os mais antigos, ocupando o lote de cada
+   * execução (starvation dos leads saudáveis) e retentando a cada minuto.
    */
-  async releaseFollowUpClaim(id: string): Promise<void> {
+  async releaseFollowUpClaim(id: string, backoffMinutes = 15): Promise<void> {
     const supabase = getServiceClient();
+    const retryAt = new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
     const { error } = await supabase
       .from('leads_prospeccao')
-      .update({ follow_up_lock_until: null })
+      .update({ follow_up_lock_until: retryAt })
       .eq('id', id);
 
     if (error) throw new Error(`releaseFollowUpClaim error: ${error.message}`);

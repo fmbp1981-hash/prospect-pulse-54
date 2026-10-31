@@ -12,6 +12,8 @@
  * (claimDueFollowUps → RPC claim_due_follow_ups), então execuções simultâneas
  * nunca enviam a mesma mensagem duas vezes. Cada lead sai pela instância
  * Evolution da organização dona dele; sem instância, não envia.
+ * Lead que não recebeu a mensagem volta com backoff de 15 min
+ * (releaseFollowUpClaim), para não ocupar o lote de toda execução.
  */
 
 import { leadRepository } from '../repositories/lead.repository';
@@ -55,7 +57,7 @@ export async function runFollowUpJob(options: FollowUpJobOptions = {}): Promise<
     try {
       await leadRepository.releaseFollowUpClaim(leadId);
     } catch (err) {
-      // A trava expira sozinha em 5 min; só registra.
+      // A trava de 5 min do claim expira sozinha; só registra.
       logger.error('Failed to release follow-up claim', {
         leadId,
         error: err instanceof Error ? err.message : String(err),
@@ -129,8 +131,8 @@ export async function runFollowUpJob(options: FollowUpJobOptions = {}): Promise<
         leadId: lead.id,
         error: err instanceof Error ? err.message : String(err),
       });
-      // Se a mensagem já saiu, mantém a trava (expira em 5 min) para não
-      // reenviar imediatamente; se não saiu, libera para nova tentativa.
+      // Se a mensagem já saiu, mantém a trava do claim (expira em 5 min) para
+      // não reenviar imediatamente; se não saiu, devolve com backoff.
       if (!sent) {
         await release(lead.id);
       }

@@ -6,6 +6,7 @@
 
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL!;
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY!;
+const SEND_TIMEOUT_MS = 10_000;
 
 interface SendTextOptions {
   instanceName: string;
@@ -40,6 +41,7 @@ export async function sendWhatsAppText(
         text: opts.text,
         delay: opts.delay ?? 0,
       }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -53,6 +55,10 @@ export async function sendWhatsAppText(
     const data = (await response.json()) as { key?: { id?: string } };
     return { success: true, messageId: data.key?.id };
   } catch (err) {
+    // Inclui o timeout do AbortSignal (TimeoutError): vira envio falho, não exceção.
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      return { success: false, error: `Timeout após ${SEND_TIMEOUT_MS} ms` };
+    }
     return {
       success: false,
       error: err instanceof Error ? err.message : String(err),

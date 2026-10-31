@@ -712,7 +712,6 @@ function TabIntegrations() {
               ["SUPABASE_SERVICE_ROLE_KEY", "Chave de serviço Supabase (obrigatório)"],
               ["EVOLUTION_API_URL", "URL do servidor Evolution API"],
               ["EVOLUTION_API_KEY", "API Key da instância Evolution"],
-              ["EVOLUTION_DEFAULT_INSTANCE", "Nome da instância WhatsApp"],
               ["RESEND_API_KEY", "Chave Resend para campanhas de email"],
               ["CRON_SECRET", "Segredo para autenticar chamadas do cron"],
             ].map(([key, desc]) => (
@@ -722,6 +721,10 @@ function TabIntegrations() {
               </div>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            A instância do WhatsApp não é uma variável de ambiente: cada organização
+            configura a sua em Configurações → WhatsApp (Nome da Instância).
+          </p>
         </CardContent>
       </Card>
     </div>
