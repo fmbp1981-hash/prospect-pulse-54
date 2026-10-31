@@ -17,7 +17,14 @@ import {
   type ConnectionRow,
 } from '@/lib/repositories/connections.repository';
 
-async function buildResolved(row: ConnectionRow): Promise<ResolvedConnection> {
+/**
+ * Monta a conexão resolvida a partir da linha, qualquer que seja o status
+ * (segredo próprio decifrado ou credencial da plataforma do provedor).
+ * Também usada pelo teste de conexão do admin, que precisa testar conexões
+ * ainda não ativas. Sem segredo → ConnectionNotConfiguredError; config ou
+ * segredo inválido → ZodError.
+ */
+export async function buildResolvedConnection(row: ConnectionRow): Promise<ResolvedConnection> {
   const provider = row.provider as ProviderId;
   const category = row.category as ConnectorCategory;
   const notConfigured = () =>
@@ -68,7 +75,7 @@ export async function resolveConnection<P extends ProviderId>(
   }
   const row = await connectionsRepository.findActive(organizationId, category, provider);
   if (!row) throw new ConnectionNotConfiguredError(organizationId, category, provider);
-  return (await buildResolved(row)) as ResolvedConnection<P>;
+  return (await buildResolvedConnection(row)) as ResolvedConnection<P>;
 }
 
 /** Resolve pela chave do webhook (qualquer status exceto disabled). */
@@ -78,5 +85,5 @@ export async function resolveConnectionByWebhookKey(
   const row = await connectionsRepository.findByWebhookKey(webhookKey);
   if (!row) return null;
   if (row.provider !== 'meta_cloud' && row.provider !== 'evolution') return null;
-  return (await buildResolved(row)) as ResolvedConnection<'meta_cloud' | 'evolution'>;
+  return (await buildResolvedConnection(row)) as ResolvedConnection<'meta_cloud' | 'evolution'>;
 }

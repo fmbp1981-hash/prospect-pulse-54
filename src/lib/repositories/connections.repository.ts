@@ -30,8 +30,11 @@ export interface UpsertConnectionInput {
   provider: ProviderId;
   credentialSource: CredentialSource;
   config: Json;
-  /** Segredo já cifrado (EncryptedSecret) ou null para credential_source = 'platform'. */
-  secret: Json | null;
+  /**
+   * Segredo já cifrado (EncryptedSecret). `undefined` = não altera o segredo
+   * gravado (edição só de config); `null` = limpa o segredo.
+   */
+  secret?: Json | null;
   status?: ConnectionStatus;
   configuredBy?: string | null;
 }
@@ -110,7 +113,8 @@ export const connectionsRepository = {
           provider: input.provider,
           credential_source: input.credentialSource,
           config: input.config,
-          secret: input.secret,
+          // Sem segredo novo, a coluna fica fora do upsert e o atual é preservado.
+          ...(input.secret !== undefined ? { secret: input.secret } : {}),
           status: input.status ?? 'pending_test',
           configured_by: input.configuredBy ?? null,
         },
@@ -132,6 +136,89 @@ export const connectionsRepository = {
       })
       .eq('id', id);
     if (error) throw new Error(`setStatus error: ${error.message}`);
+  },
+
+  /** Linha completa (com secret/webhook_key) — uso interno do serviço de admin. */
+  async findByIdForOrganization(organizationId: string, id: string): Promise<ConnectionRow | null> {
+    const { data, error } = await getServiceClient()
+      .from('organization_connections')
+      .select('*')
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    if (error) throw new Error(`findByIdForOrganization error: ${error.message}`);
+    return data ?? null;
+  },
+
+  /** Conexão (qualquer status) por organização, categoria e provedor — uso interno. */
+  async findByKey(
+    organizationId: string,
+    category: ConnectorCategory,
+    provider: ProviderId
+  ): Promise<ConnectionRow | null> {
+    const { data, error } = await getServiceClient()
+      .from('organization_connections')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .eq('category', category)
+      .eq('provider', provider)
+      .maybeSingle();
+    if (error) throw new Error(`findByKey error: ${error.message}`);
+    return data ?? null;
+  },
+
+  /** Linhas completas da organização (com secret/webhook_key) — uso interno do admin. */
+  async listRowsForOrganization(organizationId: string): Promise<ConnectionRow[]> {
+    const { data, error } = await getServiceClient()
+      .from('organization_connections')
+      .select('*')
+      .eq('organization_id', organizationId);
+    if (error) throw new Error(`listRowsForOrganization error: ${error.message}`);
+    return data ?? [];
+  },
+
+  /** Ativa/desativa manualmente. Devolve false se a conexão não é da organização. */
+  async updateStatus(
+    organizationId: string,
+    id: string,
+    status: ConnectionStatus
+  ): Promise<boolean> {
+    const { data, error } = await getServiceClient()
+      .from('organization_connections')
+      .update({ status })
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .select('id');
+    if (error) throw new Error(`updateStatus error: ${error.message}`);
+    return (data ?? []).length > 0;
+  },
+
+  /** Remove a conexão. Devolve false se não é da organização. */
+  async deleteForOrganization(organizationId: string, id: string): Promise<boolean> {
+    const { data, error } = await getServiceClient()
+      .from('organization_connections')
+      .delete()
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .select('id');
+    if (error) throw new Error(`deleteForOrganization error: ${error.message}`);
+    return (data ?? []).length > 0;
+  },
+
+  async listOrganizations(): Promise<Array<{ id: string; name: string }>> {
+    const { data, error } = await getServiceClient()
+      .from('organizations')
+      .select('id, name')
+      .order('name', { ascending: true });
+    if (error) throw new Error(`listOrganizations error: ${error.message}`);
+    return data ?? [];
+  },
+
+  /** Credenciais da plataforma (com secret cifrado) — uso interno do serviço de admin. */
+  async listPlatformCredentials(): Promise<PlatformCredentialRow[]> {
+    const { data, error } = await getServiceClient().from('platform_credentials').select('*');
+    if (error) throw new Error(`listPlatformCredentials error: ${error.message}`);
+    return data ?? [];
   },
 
   async getPlatformCredential(provider: ProviderId): Promise<PlatformCredentialRow | null> {
