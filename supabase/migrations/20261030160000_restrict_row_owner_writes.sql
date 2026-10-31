@@ -27,6 +27,12 @@
 --    em todas as tabelas do public (TRUNCATE ignora RLS e triggers de linha;
 --    nenhum caminho do app usa esses privilégios), inclusive nas tabelas
 --    criadas depois (default privileges do role postgres).
+--    Em produção, user_id é NOT NULL nas 25 tabelas, exceto audit_logs e
+--    lead_notes (nulável, sem default e sem trigger), leads_prospeccao
+--    (set_user_id_trigger) e whatsapp_conversations
+--    (trigger_set_conversation_user_id). Para que um insert pelo client da
+--    sessão sem user_id não passe a falhar com 42501, audit_logs e lead_notes
+--    ganham DEFAULT auth.uid().
 --
 -- Idempotente: pode ser reaplicada sem erro.
 
@@ -60,6 +66,11 @@ grant  execute on function public.is_org_member_user(uuid, uuid) to authenticate
 -- ---------------------------------------------------------------------------
 -- 1. MT-01: dono da linha precisa ser o próprio usuário ou membro da org
 -- ---------------------------------------------------------------------------
+-- Tabelas com user_id nulável e sem trigger que o preencha: o dono passa a ser
+-- o usuário da sessão quando o insert não informa user_id.
+alter table public.lead_notes alter column user_id set default auth.uid();
+alter table public.audit_logs alter column user_id set default auth.uid();
+
 do $$
 declare
   v_tabela text;

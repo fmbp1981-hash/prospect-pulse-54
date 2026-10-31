@@ -72,10 +72,15 @@ export function useLeadDetails(leadId: string | undefined) {
     const addNote = async (content: string) => {
         if (!leadId) return;
         try {
+            // user_id explícito: a policy RESTRICTIVE "row owner must belong to org (insert)"
+            // (migration 20261030160000) exige dono = usuário da sessão ou membro da org.
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error("Sessão expirada");
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { error } = await (supabase as any)
                 .from("lead_notes")
-                .insert([{ lead_id: leadId, content }]);
+                .insert([{ lead_id: leadId, content, user_id: user.id }]);
 
             if (error) throw error;
 

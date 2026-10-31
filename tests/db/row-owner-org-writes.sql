@@ -4,7 +4,7 @@
 --
 -- Retorna UMA LINHA POR CENÁRIO (colunas: cenario, ok, detalhe).
 --   ok = true   comportamento esperado DEPOIS de 20261030160000_restrict_row_owner_writes
---   ok = false  falha (antes da migration, os cenários 1, 2, 3, 7, 8, 9, 10 e 11 dão false)
+--   ok = false  falha (antes da migration, os cenários 1, 2, 3, 7, 9, 10, 11, 12 e 13 dão false)
 --   ok = null   usuário de teste não encontrado (ver detalhe)
 --
 -- Usuários de teste (de public.organization_members, o vínculo mais antigo de cada perfil):
@@ -109,6 +109,8 @@ begin
       perform set_config('teste.e' || v_n || '_ok', '', true);
       perform set_config('teste.e' || v_n || '_det', 'sem admin de org com colega e membro de outra org', true);
     end loop;
+    perform set_config('teste.e13_ok', '', true);
+    perform set_config('teste.e13_det', 'sem admin de org com colega e membro de outra org', true);
   else
     -- 1. writer da Org A insere webhook_keys com user_id de usuário da Org B → 42501
     v_res := pg_temp.tentar(v_adm, array[format(c_wk, gen_random_uuid(), 'teste-mt01', md5(random()::text), v_outro, v_org)]);
@@ -147,6 +149,19 @@ begin
     ]);
     perform set_config('teste.e7_ok', (v_res like '42501%')::text, true);
     perform set_config('teste.e7_det', v_res, true);
+
+    -- 13. lead_notes sem user_id (como o client do navegador faz) → linha criada com
+    --     user_id = auth.uid() e aceita pela policy RESTRICTIVE. A verificação roda
+    --     como o próprio usuário: divisão por zero se a linha não tiver o dono certo.
+    v_id := gen_random_uuid();
+    v_res := pg_temp.tentar(v_adm, array[
+      format('insert into public.lead_notes (id, lead_id, content, organization_id) values (%L, %L, %L, %L)',
+             v_id, v_lead, 'teste-mt01', v_org),
+      format('select 1 / (select count(*)::int from public.lead_notes where id = %L and user_id = auth.uid())', v_id)
+    ]);
+    perform set_config('teste.e13_ok', (v_res = 'aceito')::text, true);
+    perform set_config('teste.e13_det', v_res, true);
+    v_id := gen_random_uuid();
 
     -- 8. controle: linha da org com user_id de COLEGA da mesma org → aceito
     v_res := pg_temp.tentar(v_adm, array[format(c_wk, gen_random_uuid(), 'teste-mt01', md5(random()::text), v_colega, v_org)]);
@@ -211,7 +226,8 @@ from (values
   (9, '9. MT-03: operador da org não insere em agent_configs → 42501'),
   (10, '10. MT-03: operador da org não insere em rag_documents → 42501'),
   (11, '11. F-01: sem TRUNCATE/TRIGGER/REFERENCES para anon/authenticated nas tabelas'),
-  (12, '12. F-01: default privileges do postgres sem esses privilégios')
+  (12, '12. F-01: default privileges do postgres sem esses privilégios'),
+  (13, '13. lead_notes sem user_id → user_id = auth.uid() e aceito pela RLS')
 ) as c(n, cenario)
 order by c.n;
 

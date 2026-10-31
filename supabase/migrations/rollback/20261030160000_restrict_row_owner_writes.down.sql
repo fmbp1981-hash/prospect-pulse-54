@@ -5,6 +5,7 @@
 --     das 25 tabelas (MT-01) e "org admin only writes (insert|update|delete)"
 --     de agent_configs, rag_documents, rag_document_chunks e icp_settings (MT-03);
 --   * remove public.is_org_member_user(uuid, uuid);
+--   * remove o DEFAULT auth.uid() de lead_notes.user_id e audit_logs.user_id;
 --   * devolve TRUNCATE, TRIGGER e REFERENCES a anon/authenticated em todas as
 --     tabelas do public (estado de produção antes da 160000) e nos default
 --     privileges do role postgres, e reafirma as exceções que já existiam
@@ -54,6 +55,9 @@ begin
 end $$;
 
 drop function if exists public.is_org_member_user(uuid, uuid);
+
+alter table public.lead_notes alter column user_id drop default;
+alter table public.audit_logs alter column user_id drop default;
 
 grant truncate, trigger, references on all tables in schema public to anon, authenticated;
 
