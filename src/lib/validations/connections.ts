@@ -97,6 +97,41 @@ export const updateConnectionStatusSchema = z
   .object({ status: z.enum(['active', 'disabled']) })
   .strict();
 
+/**
+ * Config (não secreta) das credenciais da PLATAFORMA, por provedor. Só o
+ * Resend tem config (remetente dos e-mails do sistema; o domínio é o da conta
+ * da plataforma). Chaves desconhecidas são descartadas (strip), nunca
+ * gravadas nem devolvidas.
+ */
+const emptyPlatformConfig = z.object({});
+export const platformCredentialConfigSchemas = {
+  meta_cloud: emptyPlatformConfig,
+  evolution: emptyPlatformConfig,
+  resend: z.object({
+    fromEmail: z.string().trim().email(),
+    fromName: z.string().trim().min(1),
+  }),
+  openai: emptyPlatformConfig,
+  google_places: emptyPlatformConfig,
+  apify: emptyPlatformConfig,
+  firecrawl: emptyPlatformConfig,
+} as const satisfies Record<ProviderId, z.ZodObject<z.ZodRawShape>>;
+
+/** Mantém só os campos de config conhecidos do provedor (para exibir). */
+export function pickPlatformCredentialConfig(
+  provider: ProviderId,
+  config: unknown
+): Record<string, string> {
+  if (!config || typeof config !== 'object' || Array.isArray(config)) return {};
+  const source = config as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const key of Object.keys(platformCredentialConfigSchemas[provider].shape)) {
+    const value = source[key];
+    if (typeof value === 'string') out[key] = value;
+  }
+  return out;
+}
+
 export const upsertPlatformCredentialSchema = z
   .object({
     provider: providerSchema,
@@ -110,10 +145,15 @@ export const upsertPlatformCredentialSchema = z
       addIssues(ctx, 'secret', parsed.error);
       return z.NEVER;
     }
+    const config = platformCredentialConfigSchemas[body.provider].safeParse(body.config);
+    if (!config.success) {
+      addIssues(ctx, 'config', config.error);
+      return z.NEVER;
+    }
     return {
       provider: body.provider,
       secret: parsed.data as Record<string, string>,
-      config: body.config,
+      config: config.data as Record<string, string>,
     };
   });
 

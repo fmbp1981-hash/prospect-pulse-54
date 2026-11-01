@@ -13,6 +13,7 @@
  *   - email (resend), llm (openai), prospecting (apify, firecrawl): chave
  *     preenchida → `own` (segredo cifrado); vazia → `platform`. E-mail precisa
  *     de from_email (domínio do cliente); sem ele → entrada manual.
+ *   - prospecting (google_places): sempre `platform` (não há chave no legado).
  * Idempotente: nunca sobrescreve conexão existente (whatsapp/email/llm: uma
  * por categoria; prospecting: uma por provedor). Usuários sem organização são
  * ignorados e listados. A saída nunca contém segredos, só ids, provedores e
@@ -241,6 +242,9 @@ function candidatesFor(s: LegacySettings, organizationName: string): Array<Candi
     })
   );
   out.push(keyCandidate('llm', 'openai', 'apiKey', clean(s.openai_api_key)));
+  // Google Places é o canal principal de prospecção; não há chave no legado
+  // (vinha só do env), então usa sempre a credencial da plataforma.
+  out.push(keyCandidate('prospecting', 'google_places', 'apiKey', undefined));
   out.push(keyCandidate('prospecting', 'apify', 'apiToken', clean(s.apify_api_key)));
   out.push(keyCandidate('prospecting', 'firecrawl', 'apiKey', clean(s.firecrawl_api_key)));
   return out;

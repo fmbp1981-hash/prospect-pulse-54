@@ -67,6 +67,36 @@ function connectionsHandler(call: FakeCall): FakeResult {
     const existing = [...connections.values()].find(
       (r) => r.organization_id === p.organization_id && r.category === p.category && r.provider === p.provider
     );
+    // Índices únicos parciais da migration (categoria única e instância Evolution).
+    const others = [...connections.values()].filter((r) => r !== existing);
+    if (
+      ['whatsapp', 'email', 'llm'].includes(p.category as string) &&
+      others.some((r) => r.organization_id === p.organization_id && r.category === p.category)
+    ) {
+      return {
+        data: null,
+        error: {
+          code: '23505',
+          message:
+            'duplicate key value violates unique constraint "organization_connections_org_single_category_key"',
+        },
+      };
+    }
+    const instance = (c: unknown) =>
+      String((c as Record<string, unknown> | null)?.instanceName ?? '').trim();
+    if (
+      p.provider === 'evolution' &&
+      others.some((r) => r.provider === 'evolution' && instance(r.config) === instance(p.config))
+    ) {
+      return {
+        data: null,
+        error: {
+          code: '23505',
+          message:
+            'duplicate key value violates unique constraint "organization_connections_evolution_instance_key"',
+        },
+      };
+    }
     const now = new Date().toISOString();
     const row: Row = existing
       ? { ...existing, ...p, updated_at: now }
@@ -366,6 +396,48 @@ describe('PUT de conexão (Review Focus 2)', () => {
     expect(connections.size).toBe(0);
   });
 
+  const evolutionBody = (instanceName: string) => ({
+    category: 'whatsapp',
+    provider: 'evolution',
+    credentialSource: 'own',
+    config: { baseUrl: 'https://evo.exemplo.com.br', instanceName },
+    secret: { apiKey: EVOLUTION_KEY },
+  });
+
+  it('trocar o provedor numa categoria de provedor único → 409 CONNECTION_EXISTS', async () => {
+    currentUser = { id: PLATFORM_ADMIN };
+    expect((await putConn(req('PUT', evolutionBody('inst-a')), orgCtx())).status).toBe(200);
+    const res = await putConn(
+      req('PUT', {
+        category: 'whatsapp',
+        provider: 'meta_cloud',
+        credentialSource: 'own',
+        config: { phoneNumberId: '123456' },
+        secret: META_SECRET,
+      }),
+      orgCtx()
+    );
+    expect(res.status).toBe(409);
+    expect((await jsonOf(res)).body.error).toEqual({
+      code: 'CONNECTION_EXISTS',
+      message:
+        'Esta organização já tem uma conexão nesta categoria. Remova a atual antes de trocar o provedor.',
+    });
+    expect(connections.size).toBe(1);
+  });
+
+  it('instância Evolution já usada por outra organização → 409 INSTANCE_IN_USE', async () => {
+    currentUser = { id: PLATFORM_ADMIN };
+    expect((await putConn(req('PUT', evolutionBody('inst-a')), orgCtx(ORG_A))).status).toBe(200);
+    const res = await putConn(req('PUT', evolutionBody(' inst-a ')), orgCtx(ORG_B));
+    expect(res.status).toBe(409);
+    expect((await jsonOf(res)).body.error).toEqual({
+      code: 'INSTANCE_IN_USE',
+      message: 'Esta instância já está em uso por outra organização.',
+    });
+    expect(connections.size).toBe(1);
+  });
+
   it('whatsapp: GET devolve webhookUrl ao admin e nunca o segredo nem o webhook_key cru', async () => {
     currentUser = { id: PLATFORM_ADMIN };
     await putConn(
@@ -647,6 +719,90 @@ describe('credenciais da plataforma', () => {
     currentUser = { id: PLATFORM_ADMIN };
     const res = await putPlatform(req('PUT', { provider: 'openai', secret: { apiKey: '' } }));
     expect(res.status).toBe(400);
+    expect(platformCreds.size).toBe(0);
+  });
+
+  it('PUT resend com config grava fromEmail/fromName; GET devolve a config sem segredo', async () => {
+    currentUser = { id: PLATFORM_ADMIN };
+    const put = await putPlatform(
+      req('PUT', {
+        provider: 'resend',
+        secret: { apiKey: OPENAI_KEY },
+        config: { fromEmail: 'sistema@intellix.ai', fromName: 'IntelliX' },
+      })
+    );
+    expect(put.status).toBe(200);
+    const putJson = await jsonOf(put);
+    expectNoSecrets(putJson.text);
+    expect(platformCreds.get('resend')?.config).toEqual({
+      fromEmail: 'sistema@intellix.ai',
+      fromName: 'IntelliX',
+    });
+
+    const get = await jsonOf(await listPlatform());
+    expectNoSecrets(get.text);
+    expect(get.body.data).toEqual([
+      expect.objectContaining({
+        provider: 'resend',
+        hasSecret: true,
+        config: { fromEmail: 'sistema@intellix.ai', fromName: 'IntelliX' },
+      }),
+    ]);
+  });
+
+  it('PUT descarta chaves de config desconhecidas (não grava nem devolve)', async () => {
+    currentUser = { id: PLATFORM_ADMIN };
+    const resend = await putPlatform(
+      req('PUT', {
+        provider: 'resend',
+        secret: { apiKey: OPENAI_KEY },
+        config: { fromEmail: 'sistema@intellix.ai', fromName: 'IntelliX', extra: 'x', domain: 'y' },
+      })
+    );
+    expect(resend.status).toBe(200);
+    expect(platformCreds.get('resend')?.config).toEqual({
+      fromEmail: 'sistema@intellix.ai',
+      fromName: 'IntelliX',
+    });
+
+    const openai = await putPlatform(
+      req('PUT', { provider: 'openai', secret: { apiKey: OPENAI_KEY }, config: { qualquer: 'coisa' } })
+    );
+    expect(openai.status).toBe(200);
+    expect(platformCreds.get('openai')?.config).toEqual({});
+    const { text } = await jsonOf(await listPlatform());
+    expect(text).not.toContain('qualquer');
+    expect(text).not.toContain('extra');
+  });
+
+  it('GET não ecoa chaves desconhecidas de linhas antigas', async () => {
+    currentUser = { id: PLATFORM_ADMIN };
+    platformCreds.set('resend', {
+      provider: 'resend',
+      secret: null,
+      config: { fromEmail: 'a@b.com', fromName: 'A', legado: 'nao-devolver' },
+      updated_by: null,
+      updated_at: 'x',
+    });
+    const { text, body } = await jsonOf(await listPlatform());
+    expect(text).not.toContain('nao-devolver');
+    expect(body.data).toEqual([
+      expect.objectContaining({ config: { fromEmail: 'a@b.com', fromName: 'A' } }),
+    ]);
+  });
+
+  it('PUT resend sem fromEmail/fromName válidos → 400 e nada gravado', async () => {
+    currentUser = { id: PLATFORM_ADMIN };
+    const semConfig = await putPlatform(req('PUT', { provider: 'resend', secret: { apiKey: OPENAI_KEY } }));
+    expect(semConfig.status).toBe(400);
+    const emailInvalido = await putPlatform(
+      req('PUT', {
+        provider: 'resend',
+        secret: { apiKey: OPENAI_KEY },
+        config: { fromEmail: 'nao-e-email', fromName: 'IntelliX' },
+      })
+    );
+    expect(emailInvalido.status).toBe(400);
     expect(platformCreds.size).toBe(0);
   });
 });

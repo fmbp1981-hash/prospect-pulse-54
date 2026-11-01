@@ -229,6 +229,20 @@ describe('runMigration', () => {
     expect(fireA!.status).toBe('pending_test');
   });
 
+  it('cria prospecting/google_places com credencial da plataforma em toda organização', async () => {
+    const { store, inserted } = makeStore(baseData());
+    await runMigration(store, { apply: true, log: silent });
+    for (const org of [ORG_A, ORG_B]) {
+      const places = inserted.find((r) => r.organization_id === org && r.provider === 'google_places');
+      expect(places).toBeDefined();
+      expect(places!.category).toBe('prospecting');
+      expect(places!.credential_source).toBe('platform');
+      expect(places!.secret).toBeNull();
+      expect(places!.config).toEqual({});
+      expect(places!.status).toBe('pending_test');
+    }
+  });
+
   it('e-mail sem from_email fica para entrada manual', async () => {
     const { store, inserted } = makeStore(baseData());
     const summary = await runMigration(store, { apply: true, log: silent });

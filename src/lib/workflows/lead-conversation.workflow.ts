@@ -35,10 +35,13 @@ const STEP_TIMEOUTS = {
  * @param tenant contexto de atendimento já resolvido pelo chamador (webhook:
  *   a partir da organização da conexão autenticada). Nada do payload
  *   (instância, número) escolhe o tenant.
+ * @param organizationId organização da conexão que recebeu a mensagem; vira
+ *   o organization_id do lead orgânico criado.
  */
 export async function runLeadConversationWorkflow(
   normalized: NormalizedMessage,
-  tenant: TenantContext
+  tenant: TenantContext,
+  organizationId: string
 ): Promise<void> {
   const correlationId = randomUUID();
   const logger = new WorkflowLogger('LeadConversation', correlationId);
@@ -55,7 +58,7 @@ export async function runLeadConversationWorkflow(
     return;
   }
 
-  return runWorkflowSteps(normalized, tenant, logger, correlationId);
+  return runWorkflowSteps(normalized, tenant, organizationId, logger, correlationId);
 }
 
 type WorkflowLead = Awaited<ReturnType<typeof leadService.findOrCreate>>['lead'];
@@ -67,6 +70,7 @@ type WorkflowLead = Awaited<ReturnType<typeof leadService.findOrCreate>>['lead']
 async function runWorkflowSteps(
   normalized: NormalizedMessage,
   tenant: TenantContext,
+  connectionOrganizationId: string,
   logger: WorkflowLogger,
   correlationId: string
 ): Promise<void> {
@@ -85,6 +89,7 @@ async function runWorkflowSteps(
       clienteWhatsApp: normalized.clienteWhatsApp,
       clienteTelefone: normalized.clienteTelefone,
       userId: tenant.userId,
+      organizationId: connectionOrganizationId,
     }),
     STEP_TIMEOUTS.lead,
     'findOrCreate'

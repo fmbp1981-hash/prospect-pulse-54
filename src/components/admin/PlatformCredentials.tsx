@@ -6,7 +6,8 @@
  * WhatsApp é sempre credencial própria da organização, por isso não aparece.
  *
  * O servidor exige o segredo completo a cada gravação; os campos nunca são
- * pré-preenchidos (só "configurado (…1234)").
+ * pré-preenchidos (só "configurado (…1234)"). A config não secreta (remetente
+ * do Resend para os e-mails do sistema) é pré-preenchida e reenviada inteira.
  */
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -22,8 +23,10 @@ import { PROVIDER_CATEGORY, PROVIDER_IDS } from '@/lib/validations/connections';
 import type { PlatformCredentialView } from '@/lib/services/connections-admin.service';
 import type { ProviderId } from '@/lib/connectors/types';
 import {
+  PROVIDER_CONFIG_FIELDS,
   PROVIDER_SECRET_FIELDS,
   adminRequest,
+  type FormField,
   filledValues,
   secretPlaceholder,
 } from './connection-admin-shared';
@@ -34,6 +37,23 @@ const PLATFORM_PROVIDERS: readonly ProviderId[] = PROVIDER_IDS.filter(
 
 const QUERY_KEY = ['admin', 'platform-credentials'] as const;
 
+/**
+ * Config da credencial da plataforma por provedor. Só o Resend tem: o
+ * remetente dos e-mails do sistema (o domínio é o da conta da plataforma,
+ * por isso `domain` não entra). Espelha platformCredentialConfigSchemas.
+ */
+const PLATFORM_CONFIG_FIELDS: Partial<Record<ProviderId, readonly FormField[]>> = {
+  resend: PROVIDER_CONFIG_FIELDS.resend.filter((f) => f.key !== 'domain'),
+};
+
+function initialConfig(
+  provider: ProviderId,
+  credential: PlatformCredentialView | undefined
+): Record<string, string> {
+  const fields = PLATFORM_CONFIG_FIELDS[provider] ?? [];
+  return Object.fromEntries(fields.map((f) => [f.key, credential?.config[f.key] ?? '']));
+}
+
 interface CredentialFormProps {
   provider: ProviderId;
   credential: PlatformCredentialView | undefined;
@@ -42,7 +62,11 @@ interface CredentialFormProps {
 function CredentialForm({ provider, credential }: CredentialFormProps) {
   const queryClient = useQueryClient();
   const [secret, setSecret] = useState<Record<string, string>>({});
+  const [config, setConfig] = useState<Record<string, string>>(() =>
+    initialConfig(provider, credential)
+  );
   const fields = PROVIDER_SECRET_FIELDS[provider];
+  const configFields = PLATFORM_CONFIG_FIELDS[provider] ?? [];
 
   const save = useMutation({
     mutationFn: () =>
@@ -51,8 +75,8 @@ function CredentialForm({ provider, credential }: CredentialFormProps) {
         body: {
           provider,
           secret: filledValues(secret) ?? {},
-          // Mantém a config já gravada (o PUT substitui a linha inteira).
-          config: credential?.config ?? {},
+          // O PUT substitui a linha inteira: a config vai sempre completa.
+          config: filledValues(config) ?? {},
         },
       }),
     onSuccess: () => {
@@ -86,6 +110,19 @@ function CredentialForm({ provider, credential }: CredentialFormProps) {
           {credential?.hasSecret ? 'Configurada' : 'Não configurada'}
         </Badge>
       </div>
+
+      {configFields.map((field) => (
+        <div key={field.key} className="space-y-2">
+          <Label htmlFor={`platform-${provider}-config-${field.key}`}>{field.label}</Label>
+          <Input
+            id={`platform-${provider}-config-${field.key}`}
+            type={field.key === 'fromEmail' ? 'email' : 'text'}
+            value={config[field.key] ?? ''}
+            placeholder={field.placeholder}
+            onChange={(e) => setConfig((prev) => ({ ...prev, [field.key]: e.target.value }))}
+          />
+        </div>
+      ))}
 
       {fields.map((field) => (
         <div key={field.key} className="space-y-2">

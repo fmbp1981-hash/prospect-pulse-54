@@ -12,8 +12,9 @@
  * 4. Envia pela conexão de WhatsApp ativa da organização do lead
  *    (getWhatsAppForOrganization). A coluna followup_schedules.instance_name é
  *    ignorada: é gravável pelo dono via REST e podia apontar para a instância
- *    de outra organização (achado F-11). Org sem conexão → skipped
- *    (`whatsapp_not_configured`), sem envio.
+ *    de outra organização (achado F-11). Org sem conexão → NÃO é terminal:
+ *    o schedule continua `pending`, adiado 1 dia (`whatsapp_not_configured`
+ *    no log), sem envio — p.ex. durante o corte, antes de ativar a conexão.
  * 5. Agenda próximo step (se houver) ou marca como concluído
  */
 
@@ -170,12 +171,14 @@ export async function runLongFollowUpJob(): Promise<void> {
       }
       const whatsapp = await whatsappFor(organizationId);
       if (!whatsapp) {
-        logger.warn('WhatsApp não configurado para a organização — follow-up não enviado', {
+        // Não terminal (ex.: janela de corte antes de ativar a conexão): fica
+        // `pending` e volta amanhã, sem ocupar o lote das próximas execuções.
+        logger.warn('WhatsApp não configurado para a organização — follow-up adiado', {
           scheduleId: schedule.id,
           organization_id: organizationId,
           code: 'whatsapp_not_configured',
         });
-        await markSchedule(supabase, schedule.id, 'skipped', 'whatsapp_not_configured');
+        await deferSchedule(supabase, schedule.id);
         continue;
       }
 
@@ -262,6 +265,20 @@ export async function runLongFollowUpJob(): Promise<void> {
   }
 
   logger.info('Long follow-up job completed', { processed: schedules.length });
+}
+
+/**
+ * Adia um schedule sem mudar o status (continua `pending`): próximo dia útil
+ * dentro da janela BRT. Usado quando a falta de pré-requisito é temporária.
+ */
+async function deferSchedule(supabase: ReturnType<typeof getServiceClient>, id: string) {
+  const next = new Date();
+  next.setDate(next.getDate() + 1);
+  await supabase
+    .from('followup_schedules')
+    .update({ due_at: normalizeToBusinessHours(next).toISOString() })
+    .eq('id', id)
+    .eq('status', 'pending');
 }
 
 async function markSchedule(

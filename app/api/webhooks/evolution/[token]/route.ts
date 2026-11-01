@@ -5,9 +5,10 @@
  * GET  /api/webhooks/evolution/<webhook_token>  → verificação Meta (hub.challenge)
  *
  * LEGADO até o corte (Task 12 remove): o <webhook_token> (user_settings.webhook_token)
- * só identifica o usuário; a organização dele define a conexão de WhatsApp ativa,
- * que autentica o corpo (assinatura Meta / apikey + instância Evolution).
- * Sem conexão ativa → 200 sem processar. Nova URL: /api/webhooks/whatsapp/<webhook_key>.
+ * só identifica o usuário; a organização dele define a conexão de WhatsApp
+ * (qualquer status exceto disabled, como na rota nova), que autentica o corpo
+ * (assinatura Meta / apikey + instância Evolution). Sem conexão utilizável →
+ * 200 sem processar. Nova URL: /api/webhooks/whatsapp/<webhook_key>.
  * A lógica fica em src/lib/webhooks/connection-inbound.handler.ts.
  */
 

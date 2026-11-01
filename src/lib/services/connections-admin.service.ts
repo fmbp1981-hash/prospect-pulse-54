@@ -9,8 +9,10 @@
  */
 import type { Json } from '@/integrations/supabase/types';
 import {
+  ConnectionUniqueViolationError,
   connectionsRepository,
   type ConnectionRow,
+  type ConnectionSummary,
   type PlatformCredentialRow,
 } from '@/lib/repositories/connections.repository';
 import { decryptJson, encryptJson, type EncryptedSecret } from '@/lib/connectors/crypto/secret-box';
@@ -23,9 +25,10 @@ import type {
   CredentialSource,
   ProviderId,
 } from '@/lib/connectors/types';
-import type {
-  UpsertConnectionBody,
-  UpsertPlatformCredentialBody,
+import {
+  pickPlatformCredentialConfig,
+  type UpsertConnectionBody,
+  type UpsertPlatformCredentialBody,
 } from '@/lib/validations/connections';
 
 export class ConnectionsAdminError extends Error {
@@ -59,7 +62,8 @@ export interface ConnectionView {
 
 export interface PlatformCredentialView {
   provider: ProviderId;
-  config: Json;
+  /** Só os campos de config conhecidos do provedor (ex.: remetente do Resend). */
+  config: Record<string, string>;
   hasSecret: boolean;
   secretHint: string | null;
   updatedBy: string | null;
@@ -134,12 +138,38 @@ async function toPlatformView(row: PlatformCredentialRow): Promise<PlatformCrede
   const provider = row.provider as ProviderId;
   return {
     provider,
-    config: row.config,
+    config: pickPlatformCredentialConfig(provider, row.config),
     hasSecret: row.secret !== null && row.secret !== undefined,
     secretHint: await secretHint(provider, row.secret),
     updatedBy: row.updated_by,
     updatedAt: row.updated_at,
   };
+}
+
+/**
+ * 23505 ao salvar → 409 com mensagem útil ao admin:
+ * - índice de categoria única (whatsapp/email/llm): trocar de provedor exige
+ *   remover a conexão atual;
+ * - índice da instância Evolution: a instância já pertence a outra conexão.
+ * Qualquer outro erro segue como está (500 genérico na rota).
+ */
+function uniqueViolationToAdminError(err: unknown): unknown {
+  if (!(err instanceof ConnectionUniqueViolationError)) return err;
+  if (err.constraint === 'organization_connections_org_single_category_key') {
+    return new ConnectionsAdminError(
+      409,
+      'CONNECTION_EXISTS',
+      'Esta organização já tem uma conexão nesta categoria. Remova a atual antes de trocar o provedor.'
+    );
+  }
+  if (err.constraint === 'organization_connections_evolution_instance_key') {
+    return new ConnectionsAdminError(
+      409,
+      'INSTANCE_IN_USE',
+      'Esta instância já está em uso por outra organização.'
+    );
+  }
+  return err;
 }
 
 async function loadView(organizationId: string, id: string): Promise<ConnectionView> {
@@ -186,16 +216,21 @@ export const connectionsAdminService = {
       }
     }
 
-    const saved = await connectionsRepository.upsert({
-      organizationId,
-      category: body.category,
-      provider: body.provider,
-      credentialSource: body.credentialSource,
-      config: body.config as Json,
-      secret,
-      status: existing?.status === 'disabled' ? 'disabled' : 'pending_test',
-      configuredBy: userId,
-    });
+    let saved: ConnectionSummary;
+    try {
+      saved = await connectionsRepository.upsert({
+        organizationId,
+        category: body.category,
+        provider: body.provider,
+        credentialSource: body.credentialSource,
+        config: body.config as Json,
+        secret,
+        status: existing?.status === 'disabled' ? 'disabled' : 'pending_test',
+        configuredBy: userId,
+      });
+    } catch (err) {
+      throw uniqueViolationToAdminError(err);
+    }
     return loadView(organizationId, saved.id);
   },
 

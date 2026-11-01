@@ -1,8 +1,11 @@
 /**
  * Resolvedor de conexões por organização.
  *
- * Só conexões `active` são resolvidas; ausência = ConnectionNotConfiguredError.
- * Nunca há fallback para env, outra conexão ou outra organização.
+ * Só conexões `active` são resolvidas para uso (envio, IA, prospecção);
+ * ausência = ConnectionNotConfiguredError. A ENTRADA de webhooks aceita
+ * qualquer status exceto disabled (resolveConnectionByWebhookKey e
+ * resolveInboundWhatsAppConnection). Nunca há fallback para env, outra
+ * conexão ou outra organização.
  */
 import { decryptJson, type EncryptedSecret } from './crypto/secret-box';
 import { providerConfigSchemas, providerSecretSchemas } from './schemas';
@@ -83,6 +86,22 @@ export async function resolveConnectionByWebhookKey(
   webhookKey: string
 ): Promise<ResolvedConnection<'meta_cloud' | 'evolution'> | null> {
   const row = await connectionsRepository.findByWebhookKey(webhookKey);
+  if (!row) return null;
+  if (row.provider !== 'meta_cloud' && row.provider !== 'evolution') return null;
+  return (await buildResolvedConnection(row)) as ResolvedConnection<'meta_cloud' | 'evolution'>;
+}
+
+/**
+ * Conexão de WhatsApp da organização para ENTRADA (rota legada por token):
+ * mesma regra da rota por chave — qualquer status exceto disabled —, para que
+ * as mensagens recebidas sejam salvas logo depois da migração das conexões
+ * (pending_test). Respostas continuam exigindo `active` (resolveConnection).
+ * null quando a organização não tem conexão de WhatsApp utilizável.
+ */
+export async function resolveInboundWhatsAppConnection(
+  organizationId: string
+): Promise<ResolvedConnection<'meta_cloud' | 'evolution'> | null> {
+  const row = await connectionsRepository.findInboundWhatsApp(organizationId);
   if (!row) return null;
   if (row.provider !== 'meta_cloud' && row.provider !== 'evolution') return null;
   return (await buildResolvedConnection(row)) as ResolvedConnection<'meta_cloud' | 'evolution'>;

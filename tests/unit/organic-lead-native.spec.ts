@@ -30,6 +30,7 @@ vi.mock('@supabase/supabase-js', () => ({
 import { leadService } from '@/lib/services/lead.service';
 
 const USER_ID = '00000000-0000-0000-0000-000000000001';
+const ORG_ID = '0a0a0a0a-0000-4000-8000-00000000000a';
 
 function input(clienteWhatsApp: string) {
   return {
@@ -37,6 +38,7 @@ function input(clienteWhatsApp: string) {
     clienteWhatsApp,
     clienteTelefone: '',
     userId: USER_ID,
+    organizationId: ORG_ID,
   };
 }
 
@@ -58,6 +60,7 @@ describe('leadService.findOrCreate — lead orgânico nativo', () => {
       expect.objectContaining({
         whatsapp: '+5511999998888',
         user_id: USER_ID,
+        organization_id: ORG_ID,
         lead: 'Lead-005',
         categoria: 'Lead Orgânico',
         origem: 'WhatsApp Direto',

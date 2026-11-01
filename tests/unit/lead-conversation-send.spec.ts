@@ -133,7 +133,7 @@ afterEach(() => {
 
 describe('runLeadConversationWorkflow — envio pela conexão da organização', () => {
   it('responde pela conexão da organização do lead (alvo da conexão, não a instância do payload)', async () => {
-    await runLeadConversationWorkflow(MSG, TENANT);
+    await runLeadConversationWorkflow(MSG, TENANT, ORG_A);
     expect(factory).toHaveBeenCalledWith(ORG_A);
     expect(mocks.sendMessageSequence).toHaveBeenCalledWith(
       'inst-da-conexao',
@@ -144,8 +144,15 @@ describe('runLeadConversationWorkflow — envio pela conexão da organização',
     expect(mocks.saveAgentResponse).toHaveBeenCalled();
   });
 
+  it('lead orgânico é buscado/criado com a organização da conexão (organization_id)', async () => {
+    await runLeadConversationWorkflow(MSG, TENANT, ORG_A);
+    expect(mocks.findOrCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: TENANT.userId, organizationId: ORG_A })
+    );
+  });
+
   it('o agente roda no contexto de LLM da organização do lead', async () => {
-    await runLeadConversationWorkflow(MSG, TENANT);
+    await runLeadConversationWorkflow(MSG, TENANT, ORG_A);
     expect(mocks.resolveLlm).toHaveBeenCalledWith(ORG_A);
     expect(mocks.llmOrgDuringAgent).toEqual([ORG_A]);
   });
@@ -155,7 +162,7 @@ describe('runLeadConversationWorkflow — envio pela conexão da organização',
       lead: { id: 'ORG-1', organization_id: null, user_id: USER_A, estagio_pipeline: 'Novo Lead' },
       isNew: true,
     });
-    await runLeadConversationWorkflow(MSG, TENANT);
+    await runLeadConversationWorkflow(MSG, TENANT, ORG_A);
     expect(mocks.findOrgForUser).toHaveBeenCalledWith(USER_A);
     expect(mocks.sendMessageSequence).toHaveBeenCalledTimes(1);
   });
@@ -165,7 +172,7 @@ describe('runLeadConversationWorkflow — envio pela conexão da organização',
       lead: { id: 'lead-1', organization_id: ORG_SEM_WA, user_id: USER_A },
       isNew: false,
     });
-    await runLeadConversationWorkflow(MSG, TENANT);
+    await runLeadConversationWorkflow(MSG, TENANT, ORG_A);
     expect(mocks.saveLeadMessage).toHaveBeenCalled();
     expect(mocks.executeAIAgent).not.toHaveBeenCalled();
     expect(mocks.sendMessageSequence).not.toHaveBeenCalled();
@@ -180,7 +187,7 @@ describe('runLeadConversationWorkflow — envio pela conexão da organização',
       lead: { id: 'lead-1', organization_id: ORG_SEM_LLM, user_id: USER_A },
       isNew: false,
     });
-    await runLeadConversationWorkflow(MSG, TENANT);
+    await runLeadConversationWorkflow(MSG, TENANT, ORG_A);
     expect(mocks.saveLeadMessage).toHaveBeenCalledWith(
       expect.objectContaining({ lead_id: 'lead-1', message: 'oi', from_lead: true })
     );

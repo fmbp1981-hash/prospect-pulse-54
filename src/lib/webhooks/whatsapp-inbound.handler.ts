@@ -125,5 +125,5 @@ export async function processInboundWhatsAppEvent(input: InboundProcessingInput)
     return;
   }
 
-  await runLeadConversationWorkflow(normalized, tenant);
+  await runLeadConversationWorkflow(normalized, tenant, organizationId);
 }

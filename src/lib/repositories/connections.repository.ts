@@ -49,6 +49,21 @@ export interface UsageEventInsert {
   connectionId?: string;
 }
 
+/**
+ * Violação de unicidade (23505) ao gravar a conexão. `constraint` é o nome do
+ * índice/constraint extraído da mensagem do Postgres (null se não reconhecido).
+ */
+export class ConnectionUniqueViolationError extends Error {
+  constructor(public readonly constraint: string | null) {
+    super(`unique violation${constraint ? ` (${constraint})` : ''}`);
+    this.name = 'ConnectionUniqueViolationError';
+  }
+}
+
+function uniqueConstraintName(message: string): string | null {
+  return /unique constraint "([^"]+)"/.exec(message)?.[1] ?? null;
+}
+
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -92,6 +107,23 @@ export const connectionsRepository = {
     return data ?? null;
   },
 
+  /**
+   * Conexão de WhatsApp da organização para ENTRADA de mensagens: qualquer
+   * status exceto disabled (mesma regra de findByWebhookKey). Há no máximo uma
+   * por organização (índice de categoria única).
+   */
+  async findInboundWhatsApp(organizationId: string): Promise<ConnectionRow | null> {
+    const { data, error } = await getServiceClient()
+      .from('organization_connections')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .eq('category', 'whatsapp')
+      .neq('status', 'disabled')
+      .maybeSingle();
+    if (error) throw new Error(`findInboundWhatsApp error: ${error.message}`);
+    return data ?? null;
+  },
+
   /** Lista as conexões da organização SEM secret e webhook_key. */
   async listForOrganization(organizationId: string): Promise<ConnectionSummary[]> {
     const { data, error } = await getServiceClient()
@@ -124,7 +156,12 @@ export const connectionsRepository = {
       )
       .select(SUMMARY_COLUMNS)
       .single();
-    if (error) throw new Error(`upsert error: ${error.message}`);
+    if (error) {
+      if (error.code === '23505') {
+        throw new ConnectionUniqueViolationError(uniqueConstraintName(error.message));
+      }
+      throw new Error(`upsert error: ${error.message}`);
+    }
     return data as unknown as ConnectionSummary;
   },
 

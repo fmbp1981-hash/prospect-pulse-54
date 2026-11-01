@@ -8,8 +8,9 @@
  * Depois (F-11): lead = findByIdForUser(schedule.lead_id, schedule.user_id) e a
  * coluna instance_name é ignorada.
  * Sprint 2b (Task 5): o envio sai pela conexão de WhatsApp ativa da organização
- * do lead (getWhatsAppForOrganization); org sem conexão → não envia, marca
- * skipped e loga whatsapp_not_configured com organization_id (sem telefone).
+ * do lead (getWhatsAppForOrganization); org sem conexão → não envia, mantém o
+ * schedule pending (adiado; não terminal, ex.: janela de corte) e loga
+ * whatsapp_not_configured com organization_id (sem telefone).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createFakeSupabase, type FakeCall, type FakeResult } from './helpers/fake-supabase';
@@ -169,15 +170,24 @@ describe('F-11 — runLongFollowUpJob', () => {
     expect(mocks.sendMessageSequence).toHaveBeenCalledTimes(1);
   });
 
-  it('org sem conexão de WhatsApp → não envia, marca skipped e loga whatsapp_not_configured sem telefone', async () => {
+  it('org sem conexão de WhatsApp → não envia, schedule continua pending (adiado) e loga whatsapp_not_configured sem telefone', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     mocks.findByIdForUser.mockResolvedValueOnce({ ...LEAD, organization_id: ORG_SEM_WA, user_id: USER_SEM_INST });
     schedules = [schedule(USER_SEM_INST, 'inst-de-outra-org')];
+    const before = Date.now();
     await runLongFollowUpJob();
     expect(mocks.sendMessageSequence).not.toHaveBeenCalled();
-    const mark = fake.calls.find((c) => c.table === 'followup_schedules' && c.op === 'update');
-    expect((mark?.payload as { status: string; skip_reason: string }).status).toBe('skipped');
-    expect((mark?.payload as { skip_reason: string }).skip_reason).toBe('whatsapp_not_configured');
+    const updates = fake.calls.filter((c) => c.table === 'followup_schedules' && c.op === 'update');
+    expect(updates).toHaveLength(1);
+    const payload = updates[0].payload as Record<string, unknown>;
+    // Não terminal: nenhum status gravado (continua pending), só o adiamento.
+    expect(payload).not.toHaveProperty('status');
+    expect(payload).not.toHaveProperty('skip_reason');
+    expect(new Date(payload.due_at as string).getTime()).toBeGreaterThan(before);
+    expect(updates[0].filters).toEqual(
+      expect.arrayContaining([{ kind: 'eq', column: 'status', value: 'pending' }])
+    );
+    expect(fake.calls.some((c) => c.table === 'followup_schedules' && c.op === 'insert')).toBe(false);
     const out = JSON.stringify(warn.mock.calls);
     expect(out).toContain('whatsapp_not_configured');
     expect(out).toContain(ORG_SEM_WA);

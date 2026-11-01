@@ -3,7 +3,7 @@
  * e processamento comum das mensagens de entrada.
  *
  * O token só identifica o usuário; a organização dele define a conexão de
- * WhatsApp ativa, que autentica o corpo. Nada vem de variáveis de ambiente
+ * WhatsApp (status ≠ disabled, como na rota nova), que autentica o corpo. Nada vem de variáveis de ambiente
  * (WHATSAPP_PROVIDER / META_* são ignoradas) nem do payload (instance).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   resolveOrganizationIdForUser: vi.fn(),
   resolveConnection: vi.fn(),
   resolveConnectionByWebhookKey: vi.fn(),
+  resolveInboundWhatsAppConnection: vi.fn(),
   runLeadConversationWorkflow: vi.fn(async () => undefined),
   findByWhatsApp: vi.fn(),
   saveLeadMessage: vi.fn(async () => undefined),
@@ -39,6 +40,7 @@ vi.mock('@/lib/connectors/org-context', () => ({
 vi.mock('@/lib/connectors/resolve-connection', () => ({
   resolveConnection: mocks.resolveConnection,
   resolveConnectionByWebhookKey: mocks.resolveConnectionByWebhookKey,
+  resolveInboundWhatsAppConnection: mocks.resolveInboundWhatsAppConnection,
 }));
 vi.mock('@/lib/workflows/lead-conversation.workflow', () => ({
   runLeadConversationWorkflow: mocks.runLeadConversationWorkflow,
@@ -133,6 +135,7 @@ beforeEach(() => {
   mocks.resolveTenantByWebhookToken.mockResolvedValue(TENANT_A);
   mocks.resolveOrganizationIdForUser.mockResolvedValue(ORG_A);
   mocks.resolveConnection.mockResolvedValue(EVO_CONN);
+  mocks.resolveInboundWhatsAppConnection.mockResolvedValue(EVO_CONN);
   mocks.resolveTenantByOrganization.mockResolvedValue(TENANT_A);
   logSpies = [
     vi.spyOn(console, 'log').mockImplementation(() => undefined),
@@ -197,9 +200,9 @@ describe('POST /api/webhooks/evolution/[token] (legado, pela conexão da organiz
     expect(mocks.resolveTenantByWebhookToken).toHaveBeenCalledWith(TOKEN_A);
   });
 
-  it('organização sem WhatsApp ativo → 200 sem processar, log whatsapp_not_configured (sem env)', async () => {
+  it('organização sem WhatsApp (ou só disabled) → 200 sem processar, log whatsapp_not_configured (sem env)', async () => {
     process.env.WHATSAPP_PROVIDER = 'evolution';
-    mocks.resolveConnection.mockRejectedValueOnce(new ConnectionNotConfiguredError(ORG_A, 'whatsapp'));
+    mocks.resolveInboundWhatsAppConnection.mockResolvedValueOnce(null);
     const res = await postToken(req(evolutionPayload('instancia-a'), { apikey: 'evo-key-a' }));
     expect(res.status).toBe(200);
     expect(pending).toHaveLength(0);
@@ -207,12 +210,22 @@ describe('POST /api/webhooks/evolution/[token] (legado, pela conexão da organiz
     expect(logged()).not.toContain('5511999990000');
   });
 
+  it('conexão sem segredo utilizável → 200 sem processar, log whatsapp_not_configured', async () => {
+    mocks.resolveInboundWhatsAppConnection.mockRejectedValueOnce(
+      new ConnectionNotConfiguredError(ORG_A, 'whatsapp')
+    );
+    const res = await postToken(req(evolutionPayload('instancia-a'), { apikey: 'evo-key-a' }));
+    expect(res.status).toBe(200);
+    expect(pending).toHaveLength(0);
+    expect(logged()).toContain('whatsapp_not_configured');
+  });
+
   it('usuário sem organização → 200 sem processar', async () => {
     mocks.resolveOrganizationIdForUser.mockResolvedValueOnce(null);
     const res = await postToken(req(evolutionPayload('instancia-a'), { apikey: 'evo-key-a' }));
     expect(res.status).toBe(200);
     expect(pending).toHaveLength(0);
-    expect(mocks.resolveConnection).not.toHaveBeenCalled();
+    expect(mocks.resolveInboundWhatsAppConnection).not.toHaveBeenCalled();
   });
 
   it('Evolution: instance de outra organização → 401 e nada processado', async () => {
@@ -254,17 +267,20 @@ describe('POST /api/webhooks/evolution/[token] (legado, pela conexão da organiz
     await Promise.all(pending);
     expect(mocks.resolveTenantByOrganization).toHaveBeenCalledWith(ORG_A);
     expect(mocks.runLeadConversationWorkflow).toHaveBeenCalledTimes(1);
-    const [normalized, tenant] = mocks.runLeadConversationWorkflow.mock.calls[0] as unknown as [
+    const [normalized, tenant, organizationId] = mocks.runLeadConversationWorkflow.mock.calls[0] as unknown as [
       { instanceName: string; clienteWhatsApp: string },
       typeof TENANT_A,
+      string,
     ];
     expect(tenant).toEqual(TENANT_A);
+    // Organização da conexão → organization_id do lead orgânico (M2).
+    expect(organizationId).toBe(ORG_A);
     expect(normalized.instanceName).toBe('instancia-a');
     expect(normalized.clienteWhatsApp).toBe('+5511999990000');
   });
 
   it('Meta: assinatura com o appSecret da conexão → 200 (META_APP_SECRET do env é ignorado)', async () => {
-    mocks.resolveConnection.mockResolvedValueOnce(META_CONN);
+    mocks.resolveInboundWhatsAppConnection.mockResolvedValueOnce(META_CONN);
     process.env.META_APP_SECRET = 'segredo-do-env';
     const body = metaBody();
     const res = await postToken(req(body, { 'x-hub-signature-256': sign(body, 'app-secret-da-conexao') }));
@@ -274,7 +290,7 @@ describe('POST /api/webhooks/evolution/[token] (legado, pela conexão da organiz
   });
 
   it('Meta: assinatura feita com o segredo do env → 401', async () => {
-    mocks.resolveConnection.mockResolvedValueOnce(META_CONN);
+    mocks.resolveInboundWhatsAppConnection.mockResolvedValueOnce(META_CONN);
     process.env.META_APP_SECRET = 'segredo-do-env';
     const body = metaBody();
     const res = await postToken(req(body, { 'x-hub-signature-256': sign(body, 'segredo-do-env') }));
@@ -287,7 +303,7 @@ describe('GET de verificação Meta', () => {
   const query = (vt: string) => `?hub.mode=subscribe&hub.verify_token=${vt}&hub.challenge=42`;
 
   it('rota com token usa o verifyToken da conexão da organização', async () => {
-    mocks.resolveConnection.mockResolvedValue(META_CONN);
+    mocks.resolveInboundWhatsAppConnection.mockResolvedValue(META_CONN);
     const ok = await tokenGet(new NextRequest(`http://x/api/webhooks/evolution/${TOKEN_A}${query('verify-da-conexao')}`), {
       params: { token: TOKEN_A },
     });
@@ -297,7 +313,7 @@ describe('GET de verificação Meta', () => {
 
   it('META_WA_VERIFY_TOKEN do env não autentica', async () => {
     process.env.META_WA_VERIFY_TOKEN = 'verif-env';
-    mocks.resolveConnection.mockResolvedValue(META_CONN);
+    mocks.resolveInboundWhatsAppConnection.mockResolvedValue(META_CONN);
     const res = await tokenGet(new NextRequest(`http://x/api/webhooks/evolution/${TOKEN_A}${query('verif-env')}`), {
       params: { token: TOKEN_A },
     });

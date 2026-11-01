@@ -4,7 +4,11 @@
  * Rotas:
  *   /api/webhooks/whatsapp/<webhook_key>   → conexão pela chave opaca (Sprint 2b)
  *   /api/webhooks/evolution/<token>        → legado até o corte: token do usuário →
- *                                            organização → conexão whatsapp ativa
+ *                                            organização → conexão whatsapp (status ≠ disabled)
+ *
+ * As duas rotas aceitam conexão em qualquer status exceto disabled (ex.:
+ * pending_test logo depois da migração): a mensagem recebida é salva; as
+ * respostas continuam exigindo conexão `active`.
  *
  * Regras (as duas rotas):
  *   chave/token malformado                     → 401 sem tocar no banco
@@ -21,7 +25,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import { resolveConnection, resolveConnectionByWebhookKey } from '@/lib/connectors/resolve-connection';
+import {
+  resolveConnectionByWebhookKey,
+  resolveInboundWhatsAppConnection,
+} from '@/lib/connectors/resolve-connection';
 import { resolveOrganizationIdForUser } from '@/lib/connectors/org-context';
 import { ConnectionNotConfiguredError, type ResolvedConnection } from '@/lib/connectors/types';
 import { resolveTenantByWebhookToken } from '@/lib/services/tenant-resolver.service';
@@ -69,7 +76,10 @@ type LegacyResolution =
   | { kind: 'not_configured'; code: string; organizationId?: string }
   | { kind: 'ok'; connection: WhatsAppConnection };
 
-/** Rota legada: token do usuário → organização → conexão whatsapp ativa. Nunca lê env. */
+/**
+ * Rota legada: token do usuário → organização → conexão whatsapp da
+ * organização com status ≠ disabled (mesma regra da rota por chave). Nunca lê env.
+ */
 async function connectionByLegacyToken(token: string): Promise<LegacyResolution> {
   if (!isWellFormedWebhookToken(token)) return { kind: 'unauthorized' };
   const tenant = await resolveTenantByWebhookToken(token);
@@ -78,7 +88,8 @@ async function connectionByLegacyToken(token: string): Promise<LegacyResolution>
   try {
     const organizationId = await resolveOrganizationIdForUser(tenant.userId);
     if (!organizationId) return { kind: 'not_configured', code: 'user_without_organization' };
-    const connection = (await resolveConnection(organizationId, 'whatsapp')) as WhatsAppConnection;
+    const connection = await resolveInboundWhatsAppConnection(organizationId);
+    if (!connection) return { kind: 'not_configured', code: 'whatsapp_not_configured', organizationId };
     return { kind: 'ok', connection };
   } catch (err) {
     if (err instanceof ConnectionNotConfiguredError) {
