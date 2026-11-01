@@ -4,19 +4,21 @@
  * Chamada pelo handler `queue` do Worker via `handler.fetch`, com
  * `Authorization: Bearer <CRON_SECRET>`. Recebe até 10 mensagens, processa
  * cada uma e devolve o resultado por id; o Worker faz ack/retry conforme o
- * `outcome`. Na última tentativa (attempts >= 3) com 'retry', libera o claim
+ * `outcome`. Na última entrega (attempts > FOLLOW_UP_MAX_RETRIES) com 'retry', libera o claim
  * do lead antes de responder, para o cron reivindicá-lo de novo com backoff.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { verifyCronRequest } from '@/lib/auth/cron-auth';
-import { processFollowUpMessage, type FollowUpOutcome } from '@/lib/jobs/follow-up.queue';
+import {
+  FOLLOW_UP_MAX_RETRIES,
+  processFollowUpMessage,
+  type FollowUpOutcome,
+} from '@/lib/jobs/follow-up.queue';
 import { leadRepository } from '@/lib/repositories/lead.repository';
 
 export const runtime = 'nodejs';
-
-const MAX_ATTEMPTS = 3;
 
 const bodySchema = z.object({
   messages: z
@@ -67,7 +69,7 @@ export async function POST(req: NextRequest) {
       outcome = 'retry';
     }
 
-    if (outcome === 'retry' && msg.attempts >= MAX_ATTEMPTS) {
+    if (outcome === 'retry' && msg.attempts > FOLLOW_UP_MAX_RETRIES) {
       try {
         await leadRepository.releaseFollowUpClaim(msg.leadId);
       } catch (err) {

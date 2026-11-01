@@ -188,6 +188,66 @@ export const leadRepository = {
   },
 
   /**
+   * Reserva o envio do follow-up `expectedCount` antes de enviar (caminho da
+   * fila): update condicional `follow_up_count = expectedCount + 1` (mais os
+   * mesmos campos de incrementFollowUpCount, exceto a trava, que segue segurando
+   * o lead enquanto a fila tenta de novo) só onde `follow_up_count = expectedCount`.
+   * true apenas se exatamente uma linha mudou: duas entregas da mesma mensagem
+   * nunca enviam as duas.
+   */
+  async reserveFollowUpSend(id: string, expectedCount: number, now: Date = new Date()): Promise<boolean> {
+    const supabase = getServiceClient();
+    const newCount = expectedCount + 1;
+    const at = now.toISOString();
+
+    const { data, error } = await supabase
+      .from('leads_prospeccao')
+      .update({
+        follow_up_count: newCount,
+        ...(newCount >= 3 ? { status_msg_wa: 'Follow-up' } : {}),
+        data_ultima_interacao: at,
+        updated_at: at,
+      })
+      .eq('id', id)
+      .eq('follow_up_count', expectedCount)
+      .select('id');
+
+    if (error) throw new Error(`reserveFollowUpSend error: ${error.message}`);
+    return (data ?? []).length === 1;
+  },
+
+  /**
+   * Desfaz uma reserva de envio que falhou: volta `follow_up_count` para
+   * `expectedCount` e restaura status_msg_wa/data_ultima_interacao anteriores,
+   * só se a linha ainda estiver exatamente como a reserva deixou (count + 1 e
+   * data_ultima_interacao = reservedAt). Se o lead interagiu nesse meio-tempo,
+   * não sobrescreve. true se reverteu.
+   */
+  async revertFollowUpReservation(
+    id: string,
+    expectedCount: number,
+    previous: { reservedAt: Date; status_msg_wa: string | null; data_ultima_interacao: string | null }
+  ): Promise<boolean> {
+    const supabase = getServiceClient();
+
+    const { data, error } = await supabase
+      .from('leads_prospeccao')
+      .update({
+        follow_up_count: expectedCount,
+        status_msg_wa: previous.status_msg_wa,
+        data_ultima_interacao: previous.data_ultima_interacao,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('follow_up_count', expectedCount + 1)
+      .eq('data_ultima_interacao', previous.reservedAt.toISOString())
+      .select('id');
+
+    if (error) throw new Error(`revertFollowUpReservation error: ${error.message}`);
+    return (data ?? []).length === 1;
+  },
+
+  /**
    * Busca o lead de prospecção mais recente enviado pelo tenant que pode
    * ter originado uma resposta de bot.
    *

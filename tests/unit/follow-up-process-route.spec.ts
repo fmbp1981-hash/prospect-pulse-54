@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/jobs/follow-up.queue', () => ({
   processFollowUpMessage: mocks.processFollowUpMessage,
+  FOLLOW_UP_MAX_RETRIES: 3,
 }));
 vi.mock('@/lib/repositories/lead.repository', () => ({
   leadRepository: { releaseFollowUpClaim: mocks.releaseFollowUpClaim },
@@ -104,7 +105,19 @@ describe('POST /api/internal/follow-up/process', () => {
     expect(mocks.releaseFollowUpClaim).not.toHaveBeenCalled();
   });
 
-  it('releases claim on last retry attempt', async () => {
+  it('releases claim only on last delivery (attempts 4)', async () => {
+    mocks.processFollowUpMessage.mockResolvedValue('retry');
+
+    const res = await POST(
+      post({ messages: [{ id: 'm1', leadId: LEAD_1, followUpCount: 0, attempts: 4 }] })
+    );
+
+    expect(res.status).toBe(200);
+    expect(mocks.releaseFollowUpClaim).toHaveBeenCalledWith(LEAD_1);
+    expect(await res.json()).toEqual({ data: { results: [{ id: 'm1', outcome: 'retry' }] } });
+  });
+
+  it('does not release at attempts 3', async () => {
     mocks.processFollowUpMessage.mockResolvedValue('retry');
 
     const res = await POST(
@@ -112,7 +125,6 @@ describe('POST /api/internal/follow-up/process', () => {
     );
 
     expect(res.status).toBe(200);
-    expect(mocks.releaseFollowUpClaim).toHaveBeenCalledWith(LEAD_1);
-    expect(await res.json()).toEqual({ data: { results: [{ id: 'm1', outcome: 'retry' }] } });
+    expect(mocks.releaseFollowUpClaim).not.toHaveBeenCalled();
   });
 });

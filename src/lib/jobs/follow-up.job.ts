@@ -79,9 +79,69 @@ async function releaseClaim(leadId: string, logger: WorkflowLogger): Promise<voi
   }
 }
 
+/** Lead pronto para envio: mensagem, organização e conexão resolvidas. */
+export interface PreparedFollowUp {
+  kind: 'ready';
+  phone: string;
+  message: string;
+  followUpCount: number;
+  organizationId: string;
+  whatsapp: OrgWhatsApp;
+}
+
 /**
- * Envia o follow-up de um lead já reivindicado (claim). Usado pelo job do cron
- * (runFollowUpJob) e pelo consumidor da fila (processFollowUpMessage).
+ * Resolve o que é preciso para enviar o follow-up de um lead já reivindicado.
+ * Sem WhatsApp, sem mensagem para o contador, sem organização ou sem conexão:
+ * libera o claim (backoff) e devolve `{ kind: 'released' }`.
+ * Pode lançar em erro transitório (resolução de organização/conexão).
+ */
+export async function prepareFollowUp(
+  lead: LeadRow,
+  whatsappFor: WhatsAppResolver,
+  logger: WorkflowLogger
+): Promise<PreparedFollowUp | { kind: 'released' }> {
+  if (!lead.whatsapp) {
+    logger.warn('Lead has no WhatsApp — skipping', { leadId: lead.id });
+    await releaseClaim(lead.id, logger);
+    return { kind: 'released' };
+  }
+
+  const followUpCount = lead.follow_up_count ?? 0;
+  const message = FOLLOW_UP_MESSAGES[followUpCount];
+
+  if (!message) {
+    logger.warn('No follow-up message for count', { followUpCount, leadId: lead.id });
+    await releaseClaim(lead.id, logger);
+    return { kind: 'released' };
+  }
+
+  const organizationId = await resolveLeadOrganizationId(lead);
+  if (!organizationId) {
+    logger.warn('Lead sem organização — follow-up não enviado', {
+      leadId: lead.id,
+      code: 'lead_without_organization',
+    });
+    await releaseClaim(lead.id, logger);
+    return { kind: 'released' };
+  }
+
+  const whatsapp = await whatsappFor(organizationId);
+  if (!whatsapp) {
+    logger.warn('WhatsApp não configurado para a organização — follow-up não enviado', {
+      leadId: lead.id,
+      organization_id: organizationId,
+      code: 'whatsapp_not_configured',
+    });
+    await releaseClaim(lead.id, logger);
+    return { kind: 'released' };
+  }
+
+  return { kind: 'ready', phone: lead.whatsapp, message, followUpCount, organizationId, whatsapp };
+}
+
+/**
+ * Envia o follow-up de um lead já reivindicado (caminho do cron direto,
+ * runFollowUpJob): prepara, envia e incrementa o contador no sucesso.
  * Nunca lança: erros viram 'failed' (antes do envio) ou 'sent' (se a mensagem
  * já saiu e só o incremento falhou — a trava é mantida para não reenviar).
  */
@@ -93,43 +153,11 @@ export async function sendFollowUpToLead(
   let sent = false;
 
   try {
-    if (!lead.whatsapp) {
-      logger.warn('Lead has no WhatsApp — skipping', { leadId: lead.id });
-      await releaseClaim(lead.id, logger);
-      return 'released';
-    }
+    const prepared = await prepareFollowUp(lead, whatsappFor, logger);
+    if (prepared.kind === 'released') return 'released';
 
-    const followUpCount = lead.follow_up_count ?? 0;
-    const message = FOLLOW_UP_MESSAGES[followUpCount];
-
-    if (!message) {
-      logger.warn('No follow-up message for count', { followUpCount, leadId: lead.id });
-      await releaseClaim(lead.id, logger);
-      return 'released';
-    }
-
-    const organizationId = await resolveLeadOrganizationId(lead);
-    if (!organizationId) {
-      logger.warn('Lead sem organização — follow-up não enviado', {
-        leadId: lead.id,
-        code: 'lead_without_organization',
-      });
-      await releaseClaim(lead.id, logger);
-      return 'released';
-    }
-
-    const whatsapp = await whatsappFor(organizationId);
-    if (!whatsapp) {
-      logger.warn('WhatsApp não configurado para a organização — follow-up não enviado', {
-        leadId: lead.id,
-        organization_id: organizationId,
-        code: 'whatsapp_not_configured',
-      });
-      await releaseClaim(lead.id, logger);
-      return 'released';
-    }
-
-    const result = await whatsapp.provider.sendText(whatsapp.target, lead.whatsapp, message);
+    const { whatsapp, phone, message, followUpCount, organizationId } = prepared;
+    const result = await whatsapp.provider.sendText(whatsapp.target, phone, message);
 
     if (!result.success) {
       logger.error('Follow-up send failed', {
