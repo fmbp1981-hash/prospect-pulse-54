@@ -24,7 +24,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { waitUntil } from '@vercel/functions';
+import { runAfterResponse } from '@/lib/runtime/after-response';
 import {
   resolveConnectionByWebhookKey,
   resolveInboundWhatsAppConnection,
@@ -199,8 +199,8 @@ async function receiveForConnection(req: NextRequest, conn: WhatsAppConnection):
       organizationId: conn.organizationId,
       connectionId: conn.id,
     };
-    // 200 imediato (o provedor reenvia se demorar ~10s); waitUntil mantém a função viva.
-    waitUntil(
+    // 200 imediato (o provedor reenvia se demorar ~10s); waitUntil mantém a Worker vivo.
+    runAfterResponse(
       processInboundWhatsAppEvent({ organizationId: conn.organizationId, connectionId: conn.id, event }).catch(
         (err: unknown) => {
           console.error(LOG, 'inbound_processing_failed', conn.id, err instanceof Error ? err.name : 'unknown');

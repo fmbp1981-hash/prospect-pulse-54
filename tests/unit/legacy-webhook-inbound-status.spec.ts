@@ -11,8 +11,8 @@ import { NextRequest } from 'next/server';
 import { createFakeSupabase, type FakeCall, type FakeResult } from './helpers/fake-supabase';
 
 const pending: Promise<unknown>[] = [];
-vi.mock('@vercel/functions', () => ({
-  waitUntil: (p: Promise<unknown>) => {
+vi.mock('@/lib/runtime/after-response', () => ({
+  runAfterResponse: (p: Promise<unknown>) => {
     pending.push(p);
   },
 }));
