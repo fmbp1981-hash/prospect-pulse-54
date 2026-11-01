@@ -19,6 +19,7 @@ const MISSING_ID = '99999999-9999-4999-8999-999999999999';
 const OPENAI_KEY = 'fake-openai-SEGREDO-abcd1234';
 const EVOLUTION_KEY = 'fake-evo-SEGREDO-9876';
 const PLACES_KEY = 'fake-places-SEGREDO-5555';
+const APIFY_TOKEN = 'fake-apify-SEGREDO-4321';
 const META_SECRET = {
   accessToken: 'fake-meta-SEGREDO-7777',
   appSecret: 'fake-app-SEGREDO',
@@ -685,7 +686,7 @@ describe('teste de conexão', () => {
 
   it('platform usa a credencial da plataforma do provedor', async () => {
     currentUser = { id: PLATFORM_ADMIN };
-    const put = await putPlatform(req('PUT', { provider: 'apify', secret: { apiToken: 'fake-apify-SEGREDO-4321' } }));
+    const put = await putPlatform(req('PUT', { provider: 'apify', secret: { apiToken: APIFY_TOKEN } }));
     expect(put.status).toBe(200);
     await putConn(
       req('PUT', { category: 'prospecting', provider: 'apify', credentialSource: 'platform', config: {} }),
@@ -696,7 +697,7 @@ describe('teste de conexão', () => {
     expect((body.data as { connection: { status: string } }).connection.status).toBe('active');
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.apify.com/v2/users/me');
-    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer fake-apify-SEGREDO-4321');
+    expect((init?.headers as Record<string, string>).Authorization).toBe(`Bearer ${APIFY_TOKEN}`);
   });
 });
 
