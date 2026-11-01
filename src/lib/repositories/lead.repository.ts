@@ -57,6 +57,23 @@ export const leadRepository = {
   },
 
   /**
+   * Busca lead pelo ID, sem filtro de tenant (service_role). Somente servidor:
+   * usado pelo consumidor da fila de follow-up, que recebe só o leadId de uma
+   * mensagem gerada pelo próprio sistema. Nunca expor a entrada de usuário.
+   */
+  async findById(id: string): Promise<LeadRow | null> {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase
+      .from('leads_prospeccao')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw new Error(`findById error: ${error.message}`);
+    return data ?? null;
+  },
+
+  /**
    * Busca lead pelo ID restrito ao dono (service_role: o filtro de tenant é
    * obrigatório). null quando não existe ou é de outro usuário.
    */
