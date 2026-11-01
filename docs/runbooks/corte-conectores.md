@@ -58,56 +58,33 @@ Rollback: `supabase/migrations/rollback/20261031100000_organization_connections.
    - `CONNECTORS_ACTIVE_KEY_VERSION` = `v1`
 3. Depois, no Cloudflare (Worker), as mesmas duas variáveis como secrets.
 
-Rollback: remover as variáveis (só antes de existir segredo cifrado gravado).
+Rollback: remover as variáveis (só antes de existir segredo cifrado gravado,
+ou seja, antes do `--apply` do passo 4).
 
-## 3. Credenciais da plataforma — [autorização do usuário]
+## 3. Conferir a apikey da Evolution ANTES da migração e do deploy
 
-Na tela de admin da plataforma (Integrações → Credenciais da plataforma),
-cadastrar:
-
-- **OpenAI** — `apiKey`
-- **Resend** — `apiKey` + config `fromEmail` e `fromName` (e-mails de sistema
-  da IntelliX)
-- **Google Places** — `apiKey`
-- **Apify** — `apiToken`
-- **Firecrawl** — `apiKey`
-
-Conexões `platform` das organizações só funcionam com estas credenciais.
-
-## 4. Conferir a apikey da Evolution ANTES do deploy
-
-A rota legada `/api/webhooks/evolution/<token>` agora exige que o header
-`apikey` enviado pela Evolution seja igual à chave que ficará gravada na
-conexão `evolution` da organização. Para cada cliente Evolution:
+A rota legada `/api/webhooks/evolution/<token>` passa a exigir (depois do
+deploy do passo 5) que o header `apikey` enviado pela Evolution seja igual à
+chave gravada na conexão `evolution` da organização. Para cada cliente
+Evolution:
 
 1. No painel da Evolution, conferir qual `apikey` o servidor envia nos
    webhooks (global ou da instância).
 2. Confirmar que é a mesma chave hoje em `user_settings.evolution_api_key` do
-   responsável pela organização (é ela que o script do passo 6 copia).
+   responsável pela organização (é ela que o script do passo 4 copia).
 3. Se forem diferentes: anotar. A entrada do WhatsApp dessa organização
-   responde **401 até a troca de URL do passo 8**. Ou se ajusta a chave antes,
-   ou se faz os passos 6–8 dessa organização logo após o deploy.
+   responde **401 a partir do deploy (passo 5)** até a conexão ter a chave
+   certa. Ou se ajusta a chave no painel da Evolution antes do deploy, ou,
+   logo após o deploy, se corrige a `apikey` da conexão na tela de admin e
+   se fazem os passos 7–8 dessa organização.
 
-## 5. Deploy do código das Tasks 1–11 — [autorização do usuário]
+## 4. Migração assistida das conexões — [autorização do usuário no --apply]
 
-1. `npm audit` sem vulnerabilidades altas/críticas.
-2. Deploy da branch aprovada (Vercel).
-3. Smoke: login, tela de admin de integrações abre, `GET` da tela de status do
-   cliente responde.
-
-**Janela sem entrada de WhatsApp:** depois do deploy, a rota legada só
-processa mensagens de organizações com conexão de WhatsApp `active`; sem ela,
-responde 200 e descarta o evento. Faça os passos 6 e 7 logo em seguida, em
-horário de baixo movimento, e avise os clientes.
-
-Rollback: redeploy do deployment anterior na Vercel (as tabelas novas podem
-ficar; o código antigo não as lê).
-
-## 6. Migração assistida das conexões — [autorização do usuário no --apply]
-
-O script lê `user_settings` do responsável de cada organização (admin mais
-antigo; sem admin, membro mais antigo) e cria conexões `pending_test`. Nunca
-sobrescreve conexão existente e nunca imprime segredo.
+Precisa só da migration (passo 1) e da chave mestra (passo 2); não depende
+do deploy nem das credenciais da plataforma. O script lê `user_settings` do
+responsável de cada organização (admin mais antigo; sem admin, membro mais
+antigo) e cria conexões `pending_test`. Nunca sobrescreve conexão existente e
+nunca imprime segredo. Use a MESMA chave mestra configurada no passo 2.
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... \
@@ -117,10 +94,12 @@ npx tsx scripts/migrate-connections.ts --dry-run
 
 1. Rodar `--dry-run` e revisar a saída **com o usuário**:
    - `[criar]`: conexões que serão criadas (`own` = chave própria cifrada;
-     `platform` = usa a credencial da plataforma).
+     `platform` = usa a credencial da plataforma). Toda organização recebe
+     `prospecting/google_places` como `platform` (não há chave no legado).
    - `[manual]`: faltam campos. Casos esperados:
      - `whatsapp/meta_cloud` sempre falta `secret.appSecret` (não existe no
-       legado): cadastrar a conexão Meta na tela de admin com todos os campos.
+       legado): cadastrar a conexão Meta na tela de admin com todos os campos
+       (passo 7).
      - `email/resend` sem `from_email`: cadastrar domínio/remetente na tela.
      - `whatsapp/evolution` com `config.baseUrl` inválida (não https, IP
        privado): corrigir a URL na tela.
@@ -130,15 +109,58 @@ npx tsx scripts/migrate-connections.ts --dry-run
 3. Rodar com `--apply` (mesmo comando trocando a flag).
 4. Rodar `--dry-run` de novo: tudo deve aparecer como `[existe]` (idempotente).
 
+Enquanto o código antigo está no ar, as conexões criadas não são lidas por
+ninguém (o código antigo usa `user_settings`).
+
 Rollback: apagar as linhas criadas pelo script (as que não existiam no backup
 do item 2), por `id`, depois de exportá-las.
+
+## 5. Deploy do código das Tasks 1–11 — [autorização do usuário]
+
+1. `npm audit` sem vulnerabilidades altas/críticas.
+2. **Horário:** fazer o deploy e a ativação (passos 5–7) **fora das 12:00 UTC
+   em dias úteis** (cron `/api/cron/long-followup`, `0 12 * * 1-5`) ou
+   desativar esse cron temporariamente na Vercel durante a janela. Sem
+   conexão de WhatsApp `active` o follow-up longo não envia (o agendamento
+   continua `pending` e é adiado para o dia seguinte), mas evite a execução
+   no meio do corte.
+3. Deploy da branch aprovada (Vercel).
+4. Smoke: login, tela de admin de integrações abre, `GET` da tela de status do
+   cliente responde.
+
+**Janela até a ativação:** depois do deploy, a rota legada processa a entrada
+de WhatsApp de organizações com conexão de WhatsApp em qualquer status exceto
+`disabled` (as `pending_test` criadas no passo 4 incluídas), com a mesma regra
+da rota nova: as mensagens recebidas são salvas. Respostas do agente e
+follow-ups só saem com a conexão `active` (passo 7). Faça os passos 6 e 7 logo
+em seguida, em horário de baixo movimento, e avise os clientes.
+
+Rollback: redeploy do deployment anterior na Vercel (as tabelas novas podem
+ficar; o código antigo não as lê).
+
+## 6. Credenciais da plataforma — [autorização do usuário]
+
+A tela de admin só existe depois do deploy (passo 5). Na tela de admin da
+plataforma (Integrações → Credenciais da plataforma), cadastrar:
+
+- **OpenAI** — `apiKey`
+- **Resend** — `apiKey` + `fromEmail` e `fromName` (remetente dos e-mails de
+  sistema da IntelliX: aprovação de usuário e `/api/admin/test-email`)
+- **Google Places** — `apiKey`
+- **Apify** — `apiToken`
+- **Firecrawl** — `apiKey`
+
+Conexões `platform` das organizações (inclusive `prospecting/google_places`)
+só passam no teste do passo 7 com estas credenciais.
 
 ## 7. Testar e ativar cada conexão — [autorização do usuário]
 
 Na tela de admin, para cada organização: **Testar** cada conexão; só com teste
-aprovado o botão **Ativar** funciona (`last_test_ok`). Completar as conexões
-marcadas como `[manual]` no passo 6. Organização sem conexão `active` em uma
-categoria responde "não configurado" (sem fallback).
+aprovado o botão **Ativar** funciona (`last_test_ok`). Inclui a conexão
+`prospecting/google_places` (canal principal de prospecção, credencial da
+plataforma). Completar as conexões marcadas como `[manual]` no passo 4.
+Organização sem conexão `active` em uma categoria responde "não configurado"
+(sem fallback).
 
 ## 8. Trocar a URL do webhook nos provedores — [autorização do usuário]
 
@@ -207,7 +229,9 @@ Só depois do passo 10 sem incidentes.
    Ela aborta (sem aplicar nada) se alguma outra função do `public` ainda
    citar uma coluna removida, ou se houver view/policy dependente.
    Aplicar o arquivo inteiro numa única execução (`supabase db push` ou um
-   único Run no SQL Editor), nunca por trechos.
+   único Run no SQL Editor), nunca por trechos. Depois dela o script do
+   passo 4 não roda mais (lê as colunas removidas): conexões faltantes só
+   pela tela de admin.
 4. Rodar `tests/db/drop-plaintext-integration-columns.sql`,
    `tests/db/function-privileges.sql` e
    `tests/db/evolution-instance-isolation.sql` (todos ok / 0 violações).
