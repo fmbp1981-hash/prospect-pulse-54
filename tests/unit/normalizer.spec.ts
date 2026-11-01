@@ -120,12 +120,12 @@ describe('normalizeLinkedin', () => {
 });
 
 describe('normalizeLeadRow', () => {
-  it('retorna NormalizedLead válido para RawMappedLead vazio', () => {
+  it('linha vazia: campos nulos e erro de empresa obrigatória', () => {
     const result = normalizeLeadRow({});
     expect(result.empresa).toBe('');
     expect(result.contato).toBeNull();
     expect(result.whatsapp).toBeNull();
-    expect(result.errors).toEqual({});
+    expect(result.errors).toEqual({ empresa: 'Nome da empresa é obrigatório' });
     expect(result.warnings).toEqual({});
   });
   it('popula warnings.whatsapp para número 0800 (não errors)', () => {
