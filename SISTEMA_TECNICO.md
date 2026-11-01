@@ -126,9 +126,7 @@ Empresas B2B precisam automatizar e escalar o processo comercial. O problema cen
 - **Execução:** Cron Vercel diário às 9h BRT (`/api/cron/long-followup`)
 
 #### F7 — Disparo em Massa (Bulk WhatsApp)
-- **Descrição:** Envio em lote de mensagens WhatsApp para múltiplos leads com delay configurável entre envios.
-- **Trigger:** `POST /api/webhooks/bulk-message`
-- **Controle:** `delayMs` configurável, retorna `jobId` para rastreamento
+- **Removido em 2026-10-30 (segurança):** o endpoint público `POST /api/webhooks/bulk-message` e o `bulk-sender.job.ts` foram apagados (permitiam disparo em massa anônimo por qualquer instância). Disparos em lote seguem pelas campanhas autenticadas.
 
 #### F8 — Dashboard Analítico
 - **Descrição:** Métricas de performance do pipeline com gráficos.
@@ -391,8 +389,7 @@ prospect-pulse-54/
 │   │   │   ├── long-followup/route.ts # Follow-up longo prazo (diário)
 │   │   │   └── keepalive/route.ts    # Keep-alive Supabase (a cada 5 dias)
 │   │   ├── webhooks/
-│   │   │   ├── evolution/route.ts    # Webhook principal WhatsApp
-│   │   │   └── bulk-message/route.ts # Disparos em massa
+│   │   │   └── evolution/[token]/route.ts # Webhook WhatsApp (token do tenant)
 │   │   └── whatsapp/
 │   │       └── send/route.ts         # Envio manual de mensagens
 │   │
@@ -465,7 +462,6 @@ prospect-pulse-54/
 │   │   ├── jobs/
 │   │   │   ├── follow-up.job.ts      # Follow-up curto prazo
 │   │   │   ├── long-followup.job.ts  # Follow-up longo prazo
-│   │   │   ├── bulk-sender.job.ts    # Disparos em massa
 │   │   │   └── supabase-keepalive.job.ts # Keep-alive
 │   │   │
 │   │   ├── repositories/
@@ -534,7 +530,6 @@ prospect-pulse-54/
 │  /api/agent/config         → Gestão de prompts               │
 │  /api/agent/rag            → Base de conhecimento            │
 │  /api/cron/*               → Jobs agendados                  │
-│  /api/webhooks/bulk-message → Disparos em massa              │
 └────────────────────────┬────────────────────────────────────┘
                          │
 ┌────────────────────────▼────────────────────────────────────┐
@@ -905,14 +900,6 @@ Follow-up de longo prazo. Executado diariamente às 9h BRT.
 
 ### `GET /api/cron/keepalive`
 Previne o Supabase de entrar em modo de hibernação. Executado a cada 5 dias.
-
----
-
-### `POST /api/webhooks/bulk-message`
-Disparo em massa de mensagens WhatsApp.
-
-**Body:** `{ messages: [{whatsapp, message}], instanceName, delayMs }`
-**Retorna:** `{ queued: true, jobId, count }`
 
 ---
 
@@ -1560,7 +1547,7 @@ Configurados em `vercel.json` (ou Vercel Dashboard → Cron Jobs):
 - Criação de `MessageHumanizerService` (split de respostas)
 - Criação de `TenantResolverService` (multi-tenancy por instância)
 - Criação de `AntiLoopGuard` (previne loops `fromMe`)
-- Criação dos jobs: `follow-up.job.ts`, `long-followup.job.ts`, `bulk-sender.job.ts`
+- Criação dos jobs: `follow-up.job.ts`, `long-followup.job.ts` (o `bulk-sender.job.ts` criado aqui foi removido em 2026-10-30; ver seção de webhooks)
 - Criação dos repositórios: `lead.repository.ts`, `conversation.repository.ts`
 - Criação do `agent-config.service.ts` (versionamento de prompts por tenant)
 - Sistema RAG: `rag.service.ts`, `embeddings.service.ts`
@@ -2198,7 +2185,7 @@ Evolution API (instância WA-Pessoal)
 
 ### 17.1 Contexto
 
-Após a sessão de 2026-03-18 (seção 16), o agente nativo foi confirmado funcionando via curl direto (37s de execução, lead criado, resposta gerada: *"Boa noite! Tudo bem? Obrigado por entrar em contato..."*). Porém, mensagens reais enviadas pelo WhatsApp (do número 8137889757 para o WA-Pessoal 81988514775) não recebiam resposta. O sistema continuava silencioso.
+Após a sessão de 2026-03-18 (seção 16), o agente nativo foi confirmado funcionando via curl direto (37s de execução, lead criado, resposta gerada: *"Boa noite! Tudo bem? Obrigado por entrar em contato..."*). Porém, mensagens reais enviadas pelo WhatsApp (do número 81XXXXXXXXX para o WA-Pessoal 81XXXXXXXXX) não recebiam resposta. O sistema continuava silencioso.
 
 ---
 
@@ -2330,8 +2317,8 @@ curl https://evolution.intellixai.com.br/webhook/find/WA-Business \
 ### 17.6 Confirmacao de funcionamento end-to-end (2026-03-19 07:05 BRT)
 
 **Teste real com WhatsApp:**
-- Numero remetente: 8137889757
-- Instancia destino: WA-Pessoal (81988514775)
+- Numero remetente: 81XXXXXXXXX
+- Instancia destino: WA-Pessoal (81XXXXXXXXX)
 - Mensagem enviada: "teste 2"
 - Workflow executou completo
 - Lead `ORG-1773885992910-82dst8` criado/encontrado no banco

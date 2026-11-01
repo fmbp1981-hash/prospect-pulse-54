@@ -22,6 +22,7 @@
 - Não alterar `src/components/ui/` (gerado pelo shadcn).
 - **Visão do produto:** plataforma de jornada completa do lead (prospecção → qualificação → reunião → …) de **aplicação geral**, para qualquer negócio. Este plano só corrige/ajusta o existente; features novas vêm em planos futuros. Não introduzir regra específica de um cliente. O ex-cliente que saiu da carteira ("cliente legado") deve desaparecer do projeto: código, docs, prompts, dados e workflows — removido, não generalizado (Task 3).
 - **Decisões do usuário (2026-10-30):** histórico do git **não** é reescrito (só o código/dados atuais são limpos do cliente legado); conta Cloudflare vai para **Workers Paid**; Supabase **continua no Free** — antes de todo `apply_migration`/`DELETE` em produção, exportar via `execute_sql` as linhas e definições afetadas para `scripts/legacy/backup-<data>-<tema>.json` (fora do git); os 3 workflows de agendamento do n8n ficam ativos **só como despertador** até o cutover do Sprint 3.
+- **Integrações plugáveis por organização (diretriz 2026-10-30):** nenhum serviço externo é fixo na plataforma. Cada organização escolhe o provedor de cada categoria (WhatsApp, e-mail, LLM, enriquecimento) e informa as próprias credenciais. WhatsApp: Meta Cloud API preferencial, Evolution para teste, sem instância/usuário fixo. E-mail: Resend como padrão, trocável. Código novo nunca lê credencial de provedor de `process.env` para operar em nome de uma organização. Desenho e execução no Sprint "Conectores plugáveis".
 - **Sem n8n**, salvo quando estritamente necessário e sem alternativa. Todo fluxo que hoje depende do n8n é substituído pelo equivalente nativo (Next.js route/service + Supabase `service_role` no servidor).
 
 ## Review Focus
@@ -260,16 +261,34 @@ Achados de 2026-10-30: `src/lib/jobs/follow-up.job.ts` envia **todos** os follow
 
 **Critério de saída:** `npm audit --omit=dev` sem critical/high; `ci.yml` verde em `typecheck` e `cf-build`; `supabase db diff` vazio; smoke dos fluxos principais em `next dev` e `npm run cf:preview`.
 
+# SPRINT 2b — Conectores plugáveis por organização (marco; exige design aprovado antes do plano detalhado)
+
+**Por quê:** diretriz do produto — cada empresa cliente pluga os próprios serviços. Hoje o provedor de WhatsApp é escolhido por `WHATSAPP_PROVIDER` no ambiente (um só para a plataforma inteira, `src/lib/integrations/whatsapp/whatsapp.factory.ts`), Evolution/Meta/Resend/OpenAI leem URL e chave de `process.env` em ~20 pontos (`app/api/whatsapp/send`, `app/api/inbox/*`, `app/api/campaigns/[id]/send`, `app/api/email/send-bulk`, `src/lib/integrations/evolution/*`, `providers/*.provider.ts`…), e as chaves por usuário que já existem (`user_settings.evolution_api_key`, `resend_api_key`, `openai_api_key`, `apify_api_key`, `firecrawl_api_key`) ficam **em texto puro** numa tabela legível pelo app.
+
+**Base existente a aproveitar:** `IWhatsAppProvider` (`whatsapp-provider.interface.ts`) com `EvolutionProvider` e `MetaCloudProvider`, e o webhook unificado `/api/webhooks/evolution` que já normaliza payload Evolution e Meta.
+
+**Escopo (a validar em `superpowers:brainstorming` + `intellix:architecture` antes do plano):**
+- Tabela `organization_connections` (org, categoria `whatsapp|email|llm|enrichment`, provedor, configuração não-secreta, credencial **criptografada** — Supabase Vault ou AES-GCM com chave no ambiente do Worker —, status, último teste) com RLS por organização; segredo nunca volta ao cliente depois de salvo.
+- Registro de provedores por categoria (portas + adapters): WhatsApp (`meta_cloud` preferencial, `evolution` para teste), e-mail (`resend` padrão; interface pronta para SMTP/SES/outros), LLM (`openai` hoje), enriquecimento (`apify`, `firecrawl`).
+- Resolução por organização: `getWhatsAppProvider(orgId)` / `getEmailProvider(orgId)` substituem a factory global; follow-up (Task 4), inbox, campanhas, agente e crons passam a usar a conexão da organização do lead.
+- Webhook por conexão (`/api/webhooks/whatsapp/[connectionId]`) com verificação de assinatura (Meta `X-Hub-Signature-256`, Evolution apikey/token), substituindo o endpoint único.
+- **Recebimento pela Meta Cloud API de ponta a ponta** (achado da Task 8: hoje o payload Meta passa pela autenticação mas o processamento só entende o formato da Evolution e descarta a mensagem como "tipo não suportado").
+- **Provedor primeiro, credenciais depois (decisão de 2026-10-31):** organização nova nasce sem conexão de WhatsApp (estado "não configurado"); envio, follow-up, campanhas e agente ficam desligados com aviso claro até a organização escolher o provedor e salvar credenciais que passem no teste. Nenhuma instância, número ou provedor padrão no código, no ambiente ou no banco (nada de instância fixa como a antiga `WA-Pessoal`); `evolution_instance_name` em `user_settings` deixa de existir na migração de dados.
+- Tela de Integrações nas configurações: escolher provedor, informar credenciais, botão "testar conexão".
+- Migração dos dados: mover as chaves hoje em `user_settings` para `organization_connections` criptografadas e remover as colunas em texto puro.
+
+**Critério de saída:** nenhuma leitura de credencial de provedor via `process.env` em código que opera em nome de uma organização (`git grep` documentado); duas organizações de teste com provedores diferentes (Meta e Evolution) enviando e recebendo mensagens isoladamente; segredos ilegíveis pelo cliente (teste de RLS).
+
 # SPRINT 3 — Migração Vercel → Cloudflare (marco)
 
 **Escopo** (fases pendentes do `CLOUDFLARE_MIGRATION_PLAN.md`):
-- Fase 3: usuário roda `npx wrangler login`; executor roda `scripts/cloudflare-secrets-sync.sh --dry-run`, revisa com o usuário, depois envio real (incluindo `PLATFORM_ADMIN_EMAIL`).
+- Fase 3: usuário roda `npx wrangler login`; executor roda `scripts/cloudflare-secrets-sync.sh --dry-run`, revisa com o usuário, depois envio real (sem `PLATFORM_ADMIN_EMAIL`, substituída pela allowlist `platform_admins` no Sprint 1; sem `EVOLUTION_DEFAULT_INSTANCE`/`EVOLUTION_INSTANCE_NAME`, que não existem mais).
 - Fase 5: usuário conecta Workers Builds ao repo (build `npm run cf:build`, deploy `npx wrangler deploy`, worker `prospect-pulse-54`).
 - Fase 6: staging (`wrangler versions upload` / preview do Workers Builds) — validar login, prospecção Google/LinkedIn, kanban, envio WhatsApp, 4 crons (`wrangler dev --test-scheduled`), `pdf-parse` no runtime Workers, middleware; `intellix:test-e2e` + `devsecops:security-gate`.
 - **Agendamento nativo — substitui os 3 workflows do n8n** (decisão de arquitetura, ver ADR abaixo):
   - Pré-requisito de conta: **Workers Paid (US$ 5/mês)**. No plano Free o Worker tem 10 ms de CPU por request (o SSR do Next estoura), 10 ms por Cron Trigger e 50 subrequests — inviável para o app e para os jobs. No Paid: 30 s de CPU por cron de intervalo < 1 h, 15 min de wall time, 10.000 subrequests, 250 Cron Triggers.
   - **Cron Triggers** (já ligados em `wrangler.jsonc` + `custom-worker.ts`) como agendador único: `* * * * *` follow-up, `0 * * * *` rescue-human-mode, `0 12 * * 1-5` long-followup. **Remover o keepalive** (rota, job e trigger): o follow-up consulta o banco a cada minuto, o que já mantém o projeto Supabase ativo.
-  - **Cloudflare Queue `follow-up-sends`** (binding `FOLLOW_UP_QUEUE`, disponível no Free e no Paid): o cron vira só *dispatcher* — chama `leadRepository.claimDueFollowUps(100)` (Task 4) e faz `sendBatch` de `{ leadId, followUpCount }`; um *consumer* no `custom-worker.ts` (`queue()` handler) envia pela instância da organização, com `max_batch_size` 10, `max_concurrency` 2 (controle de vazão no lugar do `setTimeout`), `max_retries` 3 com backoff e **dead-letter queue** `follow-up-sends-dlq`. Sucesso → `incrementFollowUpCount`; falha definitiva → `releaseFollowUpClaim` + log. O mesmo padrão serve para o long-followup.
+  - **Cloudflare Queue `follow-up-sends`** (binding `FOLLOW_UP_QUEUE`, disponível no Free e no Paid): o cron vira só *dispatcher* — chama `leadRepository.claimDueFollowUps(100)` (Task 4) e faz `sendBatch` de `{ leadId, followUpCount }`; um *consumer* no `custom-worker.ts` (`queue()` handler) envia pela conexão de WhatsApp da organização (Sprint 2b), com `max_batch_size` 10, `max_concurrency` 2 (controle de vazão no lugar do `setTimeout`), `max_retries` 3 com backoff e **dead-letter queue** `follow-up-sends-dlq`. Sucesso → `incrementFollowUpCount`; falha definitiva → `releaseFollowUpClaim` + log. O mesmo padrão serve para o long-followup.
   - Staging **sem** triggers contra o banco de produção (`env.staging.triggers.crons = []`), para não haver dois agendadores.
 - Fase 7: cutover manual via `/intellix:deploy`; setar `NEXT_PUBLIC_APP_URL` para a URL `*.workers.dev`; atualizar URLs de webhook na Evolution API e na Meta; **no mesmo passo**, o usuário desativa os 3 workflows "LeadFinder Pro" do n8n (`NE6oZxj0il18ZDUk`, `cTN9Q6FjuuguALdF`, `024Gues9qK94oCgI`) e confirmamos nos Workers Logs que o cron do Cloudflare assumiu. Vercel **pausada** (não deletada) por 1–2 semanas.
 - **Remover APIs específicas da Vercel:** `waitUntil` de `@vercel/functions` em `app/api/webhooks/evolution/route.ts:13,140,147` → `getCloudflareContext().ctx.waitUntil` do `@opennextjs/cloudflare` (sem isso o processamento da mensagem do WhatsApp é cortado no Worker); desinstalar `@vercel/functions`.
@@ -296,3 +315,8 @@ Achados de 2026-10-30: `src/lib/jobs/follow-up.job.ts` envia **todos** os follow
 - E2E Playwright TS dos fluxos críticos (substitui a suíte Python em `e2e_tests/`).
 - Mover extensão `vector` para schema `extensions`.
 - **Configuração por organização das mensagens de follow-up** (hoje constantes em `follow-up.job.ts`): mover para `agent_configs`, mantendo as atuais como padrão.
+
+---
+**Adendo (2026-10-30, durante a execução do Sprint 1):** Task 6b — fechar escalada de privilégio em `user_settings` e separar admin da plataforma de admin de organização (crítica, achada na revisão da Task 6). Brief completo em `.superpowers/sdd/2026-10-30-ajuste-sistema-e-migracao-cloudflare/task-6b-brief.md`; migration `20261030130000_guard_user_settings_privileges.sql`.
+
+**Adendo 2 (2026-10-30, resultado da Task 7):** revisão de service_role com gate FAIL (`docs/security/service-role-review-2026-10.md`). Novas tasks do Sprint 1, briefs em `.superpowers/sdd/2026-10-30-ajuste-sistema-e-migracao-cloudflare/`: **Task 8** webhook do WhatsApp autenticado por token por tenant (F-02, crítico); **Task 9** isolamento entre tenants nas rotas com service_role (F-03 rotas, F-04, F-05, F-06, F-07, F-08, F-10, F-11, F-12, F-14, F-16, F-18); **Task 10** visualizador não escreve (F-13). Ordem: 6b → 8 → 9 → 10.

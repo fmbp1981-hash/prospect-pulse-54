@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { v4 as uuidv4 } from 'uuid';
 import { normalizeLeadRow } from '@/lib/import/normalizer';
 import type { Database } from '@/integrations/supabase/types';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
   );
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const body = await req.json();
   const parsed = CreateLeadSchema.safeParse(body);

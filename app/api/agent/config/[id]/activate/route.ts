@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { agentConfigService } from '@/lib/ai/agent-config.service';
+import { requireOrgAdmin, forbiddenAdminResponse } from '@/lib/auth/require-writer';
 
 export async function PUT(
   _req: NextRequest,
@@ -19,6 +20,7 @@ export async function PUT(
   );
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireOrgAdmin(user.id))) return forbiddenAdminResponse();
 
   await agentConfigService.activate(params.id, user.id, supabase);
   return NextResponse.json({ success: true, activatedId: params.id });

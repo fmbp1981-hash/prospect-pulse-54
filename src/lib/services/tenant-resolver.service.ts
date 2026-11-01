@@ -71,6 +71,61 @@ export async function resolveTenantByInstance(
 }
 
 /**
+ * Resolve o tenant pelo token secreto do webhook (user_settings.webhook_token).
+ * É a ÚNICA forma de resolver tenant no webhook público: o campo `instance`
+ * do payload é controlado por quem envia e nunca define o tenant.
+ * O chamador deve validar o formato do token antes (isWellFormedWebhookToken).
+ */
+export async function resolveTenantByWebhookToken(
+  token: string
+): Promise<TenantContext | null> {
+  const supabase = getServiceClient();
+  const { data: row, error } = await supabase
+    .from('user_settings')
+    .select('user_id, company_name, evolution_instance_name, agent_enabled, openai_api_key')
+    .eq('webhook_token', token)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[TenantResolver] resolveTenantByWebhookToken error:', error.message);
+    return null;
+  }
+
+  if (!row?.user_id) return null;
+
+  return {
+    userId: row.user_id,
+    companyName: row.company_name || '',
+    instanceName: row.evolution_instance_name?.trim() || '',
+    agentEnabled: row.agent_enabled ?? true,
+    openaiApiKey: row.openai_api_key || undefined,
+  };
+}
+
+/**
+ * Resolve a instância Evolution de um usuário (dono do lead).
+ * Lê user_settings.evolution_instance_name; devolve null quando o usuário não
+ * tem instância configurada — nunca cai para uma instância global de ambiente,
+ * para não enviar mensagem de uma organização pelo número de outra.
+ */
+export async function resolveInstanceForUser(userId: string): Promise<string | null> {
+  const supabase = getServiceClient();
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('evolution_instance_name')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`[TenantResolver] resolveInstanceForUser error for user "${userId}":`, error.message);
+    return null;
+  }
+
+  const instanceName = data?.evolution_instance_name?.trim();
+  return instanceName ? instanceName : null;
+}
+
+/**
  * Verifica se a conversa está em modo "finalizado" (#finalizado).
  * Equivalente ao node "If Finalizado?" do n8n.
  */

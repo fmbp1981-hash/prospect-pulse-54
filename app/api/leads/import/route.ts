@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import type { NormalizedLead } from '@/lib/import/types';
 import { runImport } from '@/lib/import/import-service';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
   );
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const body = await req.json();
   const parsed = RequestSchema.safeParse(body);

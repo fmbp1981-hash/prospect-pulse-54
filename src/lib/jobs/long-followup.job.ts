@@ -8,7 +8,10 @@
  * 1. Busca schedules com due_at <= agora e status = 'pending'
  * 2. Para cada schedule: busca lead, valida cenário ainda aplicável
  * 3. Humaniza a mensagem template
- * 4. Envia via WhatsApp provider
+ * 4. Envia via WhatsApp provider, pela instância do DONO do schedule
+ *    (resolveInstanceForUser). A coluna followup_schedules.instance_name é
+ *    ignorada: é gravável pelo dono via REST e podia apontar para a instância
+ *    de outra organização (achado F-11).
  * 5. Agenda próximo step (se houver) ou marca como concluído
  */
 
@@ -24,6 +27,7 @@ import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
 import { humanizeResponse } from '../services/message-humanizer.service';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { leadRepository } from '../repositories/lead.repository';
+import { resolveInstanceForUser } from '../services/tenant-resolver.service';
 import { delay } from '../utils/delay';
 import { randomUUID } from 'crypto';
 
@@ -34,7 +38,7 @@ interface FollowUpScheduleRow {
   step_number: number;
   due_at: string;
   status: 'pending' | 'sent' | 'skipped' | 'failed';
-  instance_name: string;
+  instance_name: string | null; // legado: ignorado no envio (ver cabeçalho)
   user_id: string;
 }
 
@@ -77,12 +81,20 @@ export async function runLongFollowUpJob(): Promise<void> {
   }
 
   logger.info(`Processing ${schedules.length} schedules`);
-  const provider = getWhatsAppProvider();
+  let provider: ReturnType<typeof getWhatsAppProvider>;
+  try {
+    provider = getWhatsAppProvider();
+  } catch (err) {
+    logger.error('WhatsApp provider unavailable — follow-ups mantidos pendentes', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
 
   for (const schedule of schedules as FollowUpScheduleRow[]) {
     try {
-      // 2. Busca lead atualizado
-      const lead = await leadRepository.findByWhatsApp(schedule.lead_id, schedule.user_id)
+      // 2. Busca lead atualizado (por id + dono; antes passava o id como telefone)
+      const lead = await leadRepository.findByIdForUser(schedule.lead_id, schedule.user_id)
         .catch(() => null);
 
       if (!lead || !lead.whatsapp) {
@@ -116,19 +128,26 @@ export async function runLongFollowUpJob(): Promise<void> {
         continue;
       }
 
-      // 5. Humaniza a mensagem
+      // 5. Instância do dono do schedule — nunca a coluna instance_name da linha
+      const instanceName = await resolveInstanceForUser(schedule.user_id);
+      if (!instanceName) {
+        await markSchedule(supabase, schedule.id, 'skipped', 'Usuário sem instância WhatsApp configurada');
+        continue;
+      }
+
+      // 6. Humaniza a mensagem
       const messages = await humanizeResponse(step.message).catch(() => [step.message]);
 
-      // 6. Envia
+      // 7. Envia
       const { sent } = await provider.sendMessageSequence(
-        schedule.instance_name,
+        instanceName,
         lead.whatsapp,
         messages,
         2000
       );
 
       if (sent > 0) {
-        // 7. Atualiza status do lead se necessário
+        // 8. Atualiza status do lead se necessário
         if (step.updateStatus) {
           await leadRepository.update(lead.id, {
             status_msg_wa: step.updateStatus,
@@ -138,7 +157,7 @@ export async function runLongFollowUpJob(): Promise<void> {
 
         await markSchedule(supabase, schedule.id, 'sent');
 
-        // 8. Agenda próximo step (normalizado para janela útil BRT)
+        // 9. Agenda próximo step (normalizado para janela útil BRT)
         if (!step.isFinal) {
           const nextStep = sequence.steps.find((s) => s.stepNumber === schedule.step_number + 1);
           if (nextStep) {
@@ -152,13 +171,13 @@ export async function runLongFollowUpJob(): Promise<void> {
               step_number: nextStep.stepNumber,
               due_at: nextDue.toISOString(),
               status: 'pending',
-              instance_name: schedule.instance_name,
+              instance_name: instanceName,
               user_id: schedule.user_id,
             });
           }
         }
 
-        // 9. IntelliX — handoff SLA breach: notificar consultor no passo 1
+        // 10. IntelliX — handoff SLA breach: notificar consultor no passo 1
         if (
           schedule.scenario === 'transferred_no_contact' &&
           schedule.step_number === 1

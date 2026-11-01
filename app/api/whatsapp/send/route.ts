@@ -3,6 +3,13 @@
  * Envia mensagem WhatsApp nativamente via Evolution API ou Meta Cloud API,
  * usando as credenciais salvas nas configurações do usuário.
  *
+ * Segurança (T9-C1): a instância vem só de resolveInstanceForUser (coluna
+ * protegida); URL e chave Evolution são do tenant OU globais, nunca misturadas;
+ * Meta exige Phone Number ID e token do próprio tenant (sem META_WA_*).
+ * S1-F-01: a URL Evolution do tenant passa por assertSafeOutboundUrl antes do
+ * fetch (inválida → 400) e erros de envio voltam ao cliente só com mensagem
+ * genérica (detalhe apenas no log).
+ *
  * Body: { whatsapp: string; message: string }
  * Response: { success: true } | { success: false; error: string }
  */
@@ -10,6 +17,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { resolveInstanceForUser } from '@/lib/services/tenant-resolver.service';
+import { resolveEvolutionEndpoint } from '@/lib/integrations/whatsapp/evolution-credentials';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
+import { assertSafeOutboundUrl } from '@/lib/security/outbound-url';
 
 export async function POST(req: NextRequest) {
   // 1. Autenticação
@@ -23,6 +34,7 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   // 2. Body
   const body = await req.json() as {
@@ -57,7 +69,7 @@ export async function POST(req: NextRequest) {
   // 3. Busca configurações do usuário
   const { data: settings } = await supabase
     .from('user_settings')
-    .select('provider, evolution_api_url, evolution_api_key, evolution_instance_name, business_phone_number_id, business_access_token')
+    .select('provider, evolution_api_url, evolution_api_key, business_phone_number_id, business_access_token')
     .eq('user_id', user.id)
     .single();
 
@@ -66,8 +78,9 @@ export async function POST(req: NextRequest) {
   try {
     if (provider === 'meta') {
       // ── Meta Cloud API ────────────────────────────────────────────────────
-      const phoneNumberId = settings?.business_phone_number_id || process.env.META_WA_PHONE_NUMBER_ID;
-      const token = settings?.business_access_token || process.env.META_WA_TOKEN;
+      // Credenciais do próprio tenant; sem fallback para META_WA_* (número da plataforma).
+      const phoneNumberId = (settings?.business_phone_number_id ?? '').trim();
+      const token = (settings?.business_access_token ?? '').trim();
       const version = process.env.META_WA_VERSION || 'v20.0';
 
       if (!phoneNumberId || !token) {
@@ -116,16 +129,38 @@ export async function POST(req: NextRequest) {
       }
     } else {
       // ── Evolution API (padrão) ─────────────────────────────────────────────
-      const apiUrl = (settings?.evolution_api_url || process.env.EVOLUTION_API_URL || '').replace(/\/$/, '');
-      const apiKey = settings?.evolution_api_key || process.env.EVOLUTION_API_KEY;
-      const instanceName = settings?.evolution_instance_name || process.env.EVOLUTION_INSTANCE_NAME;
-
-      if (!apiUrl || !apiKey || !instanceName) {
+      // Instância protegida do próprio usuário (nunca EVOLUTION_INSTANCE_NAME).
+      const instanceName = await resolveInstanceForUser(user.id);
+      if (!instanceName) {
         return NextResponse.json({
           success: false,
-          error: 'Evolution API não configurada. Acesse Configurações → Integração WhatsApp e preencha a URL, API Key e Nome da Instância.',
+          error: 'Instância WhatsApp não definida para sua conta. Fale com o administrador da plataforma.',
         }, { status: 400 });
       }
+
+      // S1-F-01: URL configurada pelo tenant não pode apontar para a rede interna.
+      const tenantUrl = (settings?.evolution_api_url ?? '').trim();
+      if (tenantUrl) {
+        try {
+          assertSafeOutboundUrl(tenantUrl);
+        } catch (err) {
+          console.warn('[/api/whatsapp/send] URL Evolution do tenant recusada:', err instanceof Error ? err.message : 'erro');
+          return NextResponse.json({
+            success: false,
+            error: 'URL da Evolution API inválida. Use um endereço https público, sem usuário/senha, query ou fragmento.',
+          }, { status: 400 });
+        }
+      }
+
+      // URL + chave do tenant juntas, ou URL + chave globais juntas — nunca misturadas.
+      const endpoint = resolveEvolutionEndpoint(settings?.evolution_api_url, settings?.evolution_api_key);
+      if (!endpoint) {
+        return NextResponse.json({
+          success: false,
+          error: 'Evolution API não configurada. Em Configurações → Integração WhatsApp preencha a URL e a API Key juntas (ou deixe as duas em branco para usar o servidor padrão).',
+        }, { status: 400 });
+      }
+      const { apiUrl, apiKey } = endpoint;
 
       if (hasMedia) {
         const type = mediaType || 'image';
@@ -156,9 +191,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[/api/whatsapp/send]', error);
+    console.error('[/api/whatsapp/send] Falha no envio:', error instanceof Error ? error.message : 'erro');
     return NextResponse.json(
-      { success: false, error: String(error) },
+      { success: false, error: 'Falha ao enviar a mensagem. Tente novamente mais tarde.' },
       { status: 500 }
     );
   }

@@ -78,7 +78,7 @@ Variáveis identificadas no código (`process.env.*`):
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL` | pública | `vars` no `wrangler.toml` |
 | `SUPABASE_SERVICE_ROLE_KEY` | secreta | `wrangler secret put` |
 | `APIFY_API_KEY`, `OPENAI_API_KEY`, `FIRECRAWL_API_KEY`, `RESEND_API_KEY` | secreta | `wrangler secret put` |
-| `EVOLUTION_API_KEY`, `EVOLUTION_API_URL`, `EVOLUTION_DEFAULT_INSTANCE`, `EVOLUTION_INSTANCE_NAME` | secreta/config | `wrangler secret put` / `vars` conforme sensibilidade |
+| `EVOLUTION_API_KEY`, `EVOLUTION_API_URL` (sem instância padrão) | secreta/config | `wrangler secret put` / `vars` conforme sensibilidade |
 | `META_WA_TOKEN`, `META_WA_VERIFY_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_VERSION` | secreta | `wrangler secret put` |
 | `WHATSAPP_PROVIDER`, `FROM_EMAIL` | config | `vars` |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | secreta | `wrangler secret put` |

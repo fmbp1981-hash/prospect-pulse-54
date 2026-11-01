@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
+import { verifyCronRequest } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -24,10 +25,8 @@ function getServiceClient() {
 }
 
 export async function GET(req: NextRequest) {
-  // Valida autorização
-  const authHeader = req.headers.get('authorization');
-  const expectedToken = `Bearer ${process.env.CRON_SECRET}`;
-  if (authHeader !== expectedToken) {
+  // Authorization: Bearer <CRON_SECRET> (sem CRON_SECRET → 401, nunca "Bearer undefined")
+  if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

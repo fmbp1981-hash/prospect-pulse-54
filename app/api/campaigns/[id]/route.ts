@@ -1,11 +1,13 @@
 /**
  * GET   /api/campaigns/[id] — detalhes + envios da campanha
- * PATCH /api/campaigns/[id] — atualiza campanha (somente draft)
+ * PATCH /api/campaigns/[id] — atualiza campanha (somente draft; allowlist Zod .strict())
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { campaignPatchSchema } from '@/lib/validations/campaign.validation';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 
@@ -60,6 +62,7 @@ export async function PATCH(
 ) {
   const user = await getUser(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const svc = db();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -75,20 +78,28 @@ export async function PATCH(
     return NextResponse.json({ error: 'Só é possível editar campanhas em rascunho' }, { status: 400 });
   }
 
-  const body = await req.json();
-  delete body.user_id;
-  delete body.id;
-  body.updated_at = new Date().toISOString();
+  const parsed = campaignPatchSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Campos inválidos para edição de campanha' }, { status: 400 });
+  }
+  const update = { ...parsed.data, updated_at: new Date().toISOString() };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (svc as any)
     .from('campaigns')
-    .update(body)
+    .update(update)
     .eq('id', params.id)
     .eq('user_id', user.id)
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // S1-F-05: detalhe do banco só no log.
+    console.error('[api/campaigns/[id]] Falha ao atualizar campanha:', error.message);
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Não foi possível atualizar a campanha.' } },
+      { status: 500 }
+    );
+  }
   return NextResponse.json({ campaign: data });
 }

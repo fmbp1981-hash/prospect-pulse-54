@@ -10,8 +10,10 @@
  *   META_WA_VERSION=v20.0             (versão da Graph API, padrão: v20.0)
  *
  * Para receber webhooks da Meta, configure o endpoint:
- *   POST /api/webhooks/evolution  (reutiliza o mesmo, normalizeWebhookPayload diferencia)
- *   Verificação: GET /api/webhooks/evolution?hub.verify_token=...
+ *   POST /api/webhooks/evolution/<webhook_token>  (mesmo endpoint da Evolution,
+ *        normalizeWebhookPayload diferencia; token em Configurações)
+ *   Verificação: GET /api/webhooks/evolution/<webhook_token>?hub.verify_token=...
+ *   Assinatura: defina META_APP_SECRET para validar X-Hub-Signature-256
  */
 
 import type {

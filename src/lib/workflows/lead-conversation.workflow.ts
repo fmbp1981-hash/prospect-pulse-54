@@ -30,7 +30,15 @@ const STEP_TIMEOUTS = {
   send: 30_000,
 } as const;
 
-export async function runLeadConversationWorkflow(normalized: NormalizedMessage): Promise<void> {
+/**
+ * @param resolvedTenant tenant já autenticado pelo chamador (webhook resolve
+ *   pelo token secreto). Quando informado, o campo `instanceName` do payload
+ *   NÃO é usado para descobrir o tenant.
+ */
+export async function runLeadConversationWorkflow(
+  normalized: NormalizedMessage,
+  resolvedTenant?: TenantContext
+): Promise<void> {
   const correlationId = randomUUID();
   const logger = new WorkflowLogger('LeadConversation', correlationId);
 
@@ -41,7 +49,7 @@ export async function runLeadConversationWorkflow(normalized: NormalizedMessage)
   });
 
   // ── STEP 1: RESOLVER TENANT ──────────────────────────────────────────────
-  const tenant = await withTimeout(
+  const tenant = resolvedTenant ?? await withTimeout(
     resolveTenantByInstance(normalized.instanceName),
     STEP_TIMEOUTS.tenant,
     'resolveTenant'
@@ -217,7 +225,15 @@ async function runWorkflowSteps(
   // A Evolution API gerencia o delay do typing internamente via o param `delay`.
   // Remover os await setTimeout reduz o tempo de resposta de 15-70s → 5-20s,
   // evitando timeout da Evolution API (≈10s) que causava webhooks não respondidos.
-  const provider = getWhatsAppProvider();
+  let provider: ReturnType<typeof getWhatsAppProvider>;
+  try {
+    provider = getWhatsAppProvider();
+  } catch (err) {
+    logger.error('WhatsApp provider unavailable — resposta não enviada', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
   const totalChars = messages.map(m => m.length).reduce((a, b) => a + b, 0);
   const typingMs = Math.min(Math.max(Math.round(totalChars / 4.5 * 1000), 3000), 12000);
 

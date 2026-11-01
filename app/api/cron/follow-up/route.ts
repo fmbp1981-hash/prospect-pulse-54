@@ -9,17 +9,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { runFollowUpJob } from '@/lib/jobs/follow-up.job';
+import { verifyCronRequest } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const CRON_SECRET = process.env.CRON_SECRET;
-
 export async function GET(req: NextRequest) {
-  // Valida o segredo do cron para evitar execuções não autorizadas
-  // NOTA: !CRON_SECRET garante que a rota seja bloqueada se a variável não estiver definida
-  const authHeader = req.headers.get('authorization');
-  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+  // Authorization: Bearer <CRON_SECRET> (tempo constante; sem CRON_SECRET → 401)
+  if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

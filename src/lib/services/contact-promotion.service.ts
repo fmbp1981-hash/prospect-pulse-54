@@ -52,10 +52,13 @@ export const contactPromotionService = {
     const supabase = getServiceClient();
 
     if (contact.converted_lead_id) {
+      // service_role: o filtro de tenant é obrigatório. Lead de outro usuário
+      // (vínculo inválido) é tratado como inexistente → cria um lead novo.
       const { data: existingLead, error } = await supabase
         .from('leads_prospeccao')
         .select('*')
         .eq('id', contact.converted_lead_id)
+        .eq('user_id', userId)
         .maybeSingle();
       if (error) throw new Error(`contactPromotion.promoteToLead: ${error.message}`);
       if (existingLead) return existingLead;

@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { ZodError } from 'zod';
 import { icpSettingsSchema } from '@/lib/validations/icp-settings.validation';
 import { icpSettingsService } from '@/lib/services/icp-settings.service';
+import { requireOrgAdmin, forbiddenAdminResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 
@@ -37,6 +38,7 @@ export async function GET(_req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireOrgAdmin(user.id))) return forbiddenAdminResponse();
 
   try {
     const body: unknown = await req.json();

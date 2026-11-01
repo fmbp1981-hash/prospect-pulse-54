@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { LEAD_FIELDS, FIELD_DESCRIPTIONS } from '@/lib/import/column-mapper';
 import type { ColumnMapping } from '@/lib/import/types';
 import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 export const maxDuration = 10;
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
   );
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const body = await req.json();
   const parsed = RequestSchema.safeParse(body);

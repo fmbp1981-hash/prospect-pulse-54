@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const { leadId } = await req.json() as { leadId: string };
   if (!leadId) return NextResponse.json({ error: 'leadId é obrigatório' }, { status: 400 });

@@ -910,6 +910,7 @@ export type Database = {
           etapa_funil: string | null
           faturamento_declarado: number | null
           follow_up_count: number | null
+          follow_up_lock_until: string | null
           icp_fit_evaluated_at: string | null
           icp_fit_reason: string | null
           icp_fit_status: string
@@ -963,6 +964,7 @@ export type Database = {
           etapa_funil?: string | null
           faturamento_declarado?: number | null
           follow_up_count?: number | null
+          follow_up_lock_until?: string | null
           icp_fit_evaluated_at?: string | null
           icp_fit_reason?: string | null
           icp_fit_status?: string
@@ -1016,6 +1018,7 @@ export type Database = {
           etapa_funil?: string | null
           faturamento_declarado?: number | null
           follow_up_count?: number | null
+          follow_up_lock_until?: string | null
           icp_fit_evaluated_at?: string | null
           icp_fit_reason?: string | null
           icp_fit_status?: string
@@ -1304,6 +1307,21 @@ export type Database = {
           id?: string
           name?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_admins: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -1640,6 +1658,7 @@ export type Database = {
           updated_at: string | null
           user_id: string
           user_webhook_url: string | null
+          webhook_token: string
           welcome_message: string | null
           whatsapp_webhook_url: string | null
           zapi_instance_id: string | null
@@ -1678,6 +1697,7 @@ export type Database = {
           updated_at?: string | null
           user_id: string
           user_webhook_url?: string | null
+          webhook_token?: string
           welcome_message?: string | null
           whatsapp_webhook_url?: string | null
           zapi_instance_id?: string | null
@@ -1716,6 +1736,7 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
           user_webhook_url?: string | null
+          webhook_token?: string
           welcome_message?: string | null
           whatsapp_webhook_url?: string | null
           zapi_instance_id?: string | null
@@ -1860,6 +1881,16 @@ export type Database = {
         Returns: Json
       }
       can_write: { Args: never; Returns: boolean }
+      claim_due_follow_ups: {
+        Args: { p_limit?: number }
+        Returns: Database["public"]["Tables"]["leads_prospeccao"]["Row"][]
+        SetofOptions: {
+          from: "*"
+          to: "leads_prospeccao"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       criar_lead_organico: {
         Args: {
           p_categoria?: string

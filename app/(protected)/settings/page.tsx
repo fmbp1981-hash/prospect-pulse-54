@@ -22,6 +22,7 @@ import { historyService } from "@/lib/history";
 import { leadAutomation, type FollowUpConfig } from "@/lib/leadAutomation";
 import { useAuth } from "@/contexts/AuthContext";
 import { WebhookKeysPanel } from '@/components/settings/WebhookKeysPanel';
+import { WhatsAppWebhookUrl } from '@/components/settings/WhatsAppWebhookUrl';
 import { ImportHistoryPanel } from '@/components/settings/ImportHistoryPanel';
 import { IcpSettingsPanel } from '@/components/settings/IcpSettingsPanel';
 
@@ -47,7 +48,9 @@ export default function SettingsPage() {
   const [companyName, setCompanyName] = useState("");
   const [evolutionApiUrl, setEvolutionApiUrl] = useState("");
   const [evolutionApiKey, setEvolutionApiKey] = useState("");
+  // Somente leitura: definida pelo admin da plataforma (guard no banco, F-04).
   const [evolutionInstanceName, setEvolutionInstanceName] = useState("");
+  const [webhookToken, setWebhookToken] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [showMetaToken, setShowMetaToken] = useState(false);
 
@@ -133,6 +136,7 @@ export default function SettingsPage() {
         setEvolutionApiUrl(settings.evolution_api_url || "");
         setEvolutionApiKey(settings.evolution_api_key || "");
         setEvolutionInstanceName(settings.evolution_instance_name || "");
+        setWebhookToken(settings.webhook_token || "");
         setMetaPhoneNumberId(settings.business_phone_number_id || "");
         setMetaAccessToken(settings.business_access_token || "");
         setMetaVerifyToken(settings.meta_verify_token || "");
@@ -342,7 +346,6 @@ export default function SettingsPage() {
         provider: whatsappProvider,
         evolution_api_url: evolutionApiUrl,
         evolution_api_key: evolutionApiKey,
-        evolution_instance_name: evolutionInstanceName,
         business_phone_number_id: metaPhoneNumberId,
         business_access_token: metaAccessToken,
         meta_verify_token: metaVerifyToken,
@@ -992,15 +995,21 @@ export default function SettingsPage() {
               <div className="space-y-4 border rounded-lg p-4">
                 <p className="text-sm font-medium">Configurações Evolution API</p>
 
+                <WhatsAppWebhookUrl token={webhookToken} />
+
                 <div className="space-y-2">
                   <Label htmlFor="evolution_instance_name">Nome da Instância</Label>
                   <Input
                     id="evolution_instance_name"
-                    placeholder="Ex: WA-Pessoal, WA-Producao"
+                    placeholder="Não definida"
                     value={evolutionInstanceName}
-                    onChange={(e) => setEvolutionInstanceName(e.target.value)}
-                    className="max-w-md"
+                    readOnly
+                    aria-readonly="true"
+                    className="max-w-md bg-muted"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Definida pelo administrador da plataforma. Para alterar, fale com o suporte.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -1049,8 +1058,10 @@ export default function SettingsPage() {
                   <p>1. Acesse <strong>developers.facebook.com</strong> → seu App → WhatsApp → Configuração da API</p>
                   <p>2. Copie o <strong>ID do número de telefone</strong> e o <strong>Token de acesso</strong></p>
                   <p>3. Defina um Verify Token de sua escolha e configure no webhook da Meta</p>
-                  <p>4. URL do webhook: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">/api/webhooks/evolution</code></p>
+                  <p>4. URL do webhook: use a URL abaixo (contém o seu token secreto)</p>
                 </div>
+
+                <WhatsAppWebhookUrl token={webhookToken} />
 
                 <div className="space-y-2">
                   <Label htmlFor="meta_phone_id">Phone Number ID</Label>
@@ -1349,13 +1360,14 @@ export default function SettingsPage() {
               </Label>
               <Input
                 id="agent_instance_name"
-                placeholder="Ex: WA-Producao, WA-Bot"
+                placeholder="Não definida"
                 value={evolutionInstanceName}
-                onChange={(e) => setEvolutionInstanceName(e.target.value)}
-                className="max-w-md font-mono"
+                readOnly
+                aria-readonly="true"
+                className="max-w-md font-mono bg-muted"
               />
               <p className="text-xs text-muted-foreground">
-                Nome da instância Evolution conectada ao número que o bot usa para conversar com leads e enviar notificações ao consultor.
+                Nome da instância Evolution conectada ao número que o bot usa para conversar com leads e enviar notificações ao consultor. Definida pelo administrador da plataforma.
               </p>
             </div>
 

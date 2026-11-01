@@ -50,8 +50,6 @@ Mapa do fluxo que recebe uma mensagem de WhatsApp, identifica a organização e 
 | `/api/cron/rescue-human-mode` | Devolve ao bot leads esquecidos em modo humano | `app/api/cron/rescue-human-mode/route.ts` |
 | `/api/cron/keepalive` | Mantém o projeto Supabase ativo | `app/api/cron/keepalive/route.ts` |
 
-Disparo em massa: `POST /api/webhooks/bulk-message` → `src/lib/jobs/bulk-sender.job.ts`.
-
 ## Configuração necessária por organização
 
 - `user_settings.evolution_instance_name` — instância WhatsApp que identifica a organização.

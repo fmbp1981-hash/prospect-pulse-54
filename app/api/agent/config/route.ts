@@ -11,6 +11,7 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { agentConfigService, DEFAULT_AGENT_NAME } from '@/lib/ai/agent-config.service';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT_VERSION } from '@/lib/ai/prompts/default-system-prompt';
+import { requireOrgAdmin, forbiddenAdminResponse } from '@/lib/auth/require-writer';
 
 async function getAuth() {
   const cookieStore = cookies();
@@ -54,6 +55,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { user, supabase } = await getAuth();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireOrgAdmin(user.id))) return forbiddenAdminResponse();
 
   const body = await req.json() as {
     name?: string;
@@ -84,6 +86,7 @@ export async function POST(req: NextRequest) {
 export async function PUT() {
   const { user, supabase } = await getAuth();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireOrgAdmin(user.id))) return forbiddenAdminResponse();
 
   const config = await agentConfigService.resetToDefault(user.id, supabase);
   return NextResponse.json({ config, message: 'Reset to default prompt' });

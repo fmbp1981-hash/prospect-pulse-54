@@ -33,8 +33,8 @@ export async function buildAgentContext(
   tenant: TenantContext,
   isAutomatedMessage = false
 ): Promise<AgentContext> {
-  // Busca histórico de conversas (últimas 20)
-  const historyRaw = await conversationRepository.getHistory(lead.id, 20);
+  // Busca histórico de conversas (últimas 20) só do tenant (MT-04)
+  const historyRaw = await conversationRepository.getHistory(lead.id, tenant.userId, 20);
   const formattedHistory = formatConversationHistory(historyRaw);
 
   return {

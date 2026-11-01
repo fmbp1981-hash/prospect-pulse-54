@@ -3,6 +3,13 @@
 **Versão:** Feature Branch `feature/evolution-ai`
 **Data:** 16/11/2025
 
+> **OBSOLETO (2026-10-30, Sprint 1 de segurança):** a Edge Function `whatsapp-webhook`
+> descrita aqui foi removida do repositório (não tinha autenticação nem isolamento de
+> tenant). Não faça deploy dela. O webhook do WhatsApp agora é
+> `POST /api/webhooks/evolution/<webhook_token>`, com a URL mostrada em
+> Configurações → WhatsApp. Se a função ainda estiver publicada no Supabase, remova com
+> `supabase functions delete whatsapp-webhook`.
+
 ---
 
 ## 📋 Índice
@@ -10,12 +17,10 @@
 1. [Visão Geral](#visão-geral)
 2. [Diferenças entre Versões](#diferenças-entre-versões)
 3. [Pré-requisitos](#pré-requisitos)
-4. [Configuração Evolution API](#configuração-evolution-api)
-5. [Deploy Edge Function Webhook](#deploy-edge-function-webhook)
-6. [Configurar Webhook na Evolution](#configurar-webhook-na-evolution)
-7. [Testar o Sistema](#testar-o-sistema)
-8. [Migração do n8n para Evolution](#migração-do-n8n-para-evolution)
-9. [Troubleshooting](#troubleshooting)
+4. [Configuração Evolution API e Webhook (atual)](#️-configuração-evolution-api-e-webhook-atual)
+5. [Testar o Sistema](#testar-o-sistema)
+6. [Migração do n8n para Evolution](#migração-do-n8n-para-evolution)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -94,99 +99,21 @@ Para IA funcionar:
 
 ---
 
-## ⚙️ Configuração Evolution API
+## ⚙️ Configuração Evolution API e Webhook (atual)
 
-### 1. Configurar Secrets no Supabase
+As seções antigas de secrets da Edge Function, deploy de `whatsapp-webhook` e
+configuração do webhook apontando para `.../functions/v1/whatsapp-webhook` foram
+removidas: a Edge Function não existe mais (Sprint 1 de segurança, 2026-10-30).
 
-Acesse: https://supabase.com/dashboard/project/kzvnwqlcrtxwagxkghxq/settings/vault
+Fluxo atual:
 
-Execute os comandos ou adicione via interface:
-
-```bash
-# Evolution API
-npx supabase secrets set EVOLUTION_API_URL=http://seu-ip:8080
-npx supabase secrets set EVOLUTION_API_KEY=sua-api-key
-npx supabase secrets set EVOLUTION_INSTANCE_NAME=sua-instancia
-
-# Lovable AI (opcional para IA)
-npx supabase secrets set LOVABLE_API_KEY=sua-lovable-key
-```
-
-### 2. Criar Tabela de Conversas
-
-Execute a migration no Supabase SQL Editor:
-
-```sql
--- Copie e cole o conteúdo de:
--- supabase/migrations/20250116_whatsapp_conversations.sql
-```
-
-Ou via CLI:
-
-```bash
-npx supabase db push
-```
-
----
-
-## 🚀 Deploy Edge Function Webhook
-
-### 1. Deploy da Function
-
-```bash
-cd prospect-pulse-54
-npx supabase functions deploy whatsapp-webhook
-```
-
-### 2. Anotar URL do Webhook
-
-Após deploy, você terá:
-```
-https://kzvnwqlcrtxwagxkghxq.supabase.co/functions/v1/whatsapp-webhook
-```
-
----
-
-## 🔗 Configurar Webhook na Evolution
-
-### 1. Acessar Endpoint Evolution
-
-```bash
-POST http://seu-ip:8080/webhook/set/{INSTANCE_NAME}
-```
-
-### 2. Configurar via cURL
-
-```bash
-curl -X POST http://seu-ip:8080/webhook/set/sua-instancia \
-  -H "Content-Type: application/json" \
-  -H "apikey: sua-api-key" \
-  -d '{
-    "enabled": true,
-    "url": "https://kzvnwqlcrtxwagxkghxq.supabase.co/functions/v1/whatsapp-webhook",
-    "webhookByEvents": true,
-    "webhookBase64": false,
-    "events": [
-      "MESSAGES_UPSERT"
-    ]
-  }'
-```
-
-### 3. Verificar Configuração
-
-```bash
-curl -X GET http://seu-ip:8080/webhook/find/sua-instancia \
-  -H "apikey: sua-api-key"
-```
-
-Deve retornar:
-```json
-{
-  "enabled": true,
-  "url": "https://...",
-  "events": ["MESSAGES_UPSERT"]
-}
-```
+1. A instância Evolution de cada tenant é definida pelo **admin da plataforma**
+   (Configurações → Usuários); o usuário não altera esse campo.
+2. A URL e a API Key da Evolution do tenant (Configurações → Integração WhatsApp)
+   precisam ser `https` públicas; endereços internos/privados são recusados.
+3. O webhook a cadastrar na Evolution (evento `MESSAGES_UPSERT`) é
+   `POST /api/webhooks/evolution/<webhook_token>`, com a URL completa mostrada em
+   Configurações → WhatsApp. Não reutilize a URL de outro tenant.
 
 ---
 
@@ -308,10 +235,9 @@ curl -X POST http://seu-ip:8080/webhook/set/sua-instancia \
 2. **Quota da API esgotada**
    - Verifique uso no Lovable Dashboard
 
-3. **Edge Function não deployada**
-   ```bash
-   npx supabase functions deploy whatsapp-webhook
-   ```
+3. **Webhook apontando para a Edge Function antiga** (removida)
+   - Recadastre na Evolution a URL `/api/webhooks/evolution/<webhook_token>`
+     mostrada em Configurações → WhatsApp.
 
 ### Erro: "Mensagem não envia"
 

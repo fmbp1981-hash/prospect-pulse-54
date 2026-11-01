@@ -2,9 +2,10 @@
  * API: Aprovar usuário pendente
  *
  * POST /api/admin/approve-user
- * Body: { userId: string, newRole: 'operador' | 'visualizador' | 'admin' }
+ * Body: { userId: string, newRole: 'operador' | 'visualizador' }
  *
- * - Valida que o solicitante tem role='admin' no banco (não usa email hardcoded)
+ * - Só o admin da PLATAFORMA (public.platform_admins) pode aprovar
+ * - newRole 'admin' é recusado (400): promoção a admin só por SQL/migration
  * - Atualiza user_settings: role=newRole, pending_setup=false, approved_by=adminId
  * - Envia email de aprovação via Resend
  */
@@ -12,6 +13,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { isPlatformAdmin } from '@/lib/auth/platform-admin';
+import { z } from 'zod';
+
+const approveUserSchema = z.object({
+  userId: z.string().uuid(),
+  newRole: z.enum(['operador', 'visualizador']),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,29 +41,22 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 2. Verificar role='admin' no banco
-    const { data: callerSettings } = await adminClient
-      .from('user_settings')
-      .select('role')
-      .eq('user_id', caller.id)
-      .single();
-
-    if (callerSettings?.role !== 'admin') {
+    // 2. Só o admin da PLATAFORMA (public.platform_admins). role='admin' em
+    //    user_settings não basta: admin de organização também tem esse role.
+    if (!(await isPlatformAdmin(caller.id))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 3. Ler body
-    const body = await req.json() as { userId?: string; newRole?: string };
-    const { userId, newRole } = body;
-
-    if (!userId || !newRole) {
-      return NextResponse.json({ error: 'userId and newRole are required' }, { status: 400 });
+    // 3. Ler body. Aprovação nunca promove a admin: admin da plataforma só por
+    //    SQL/migration (platform_admins); admin de organização via organization_members.
+    const parsed = approveUserSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'userId (uuid) e newRole (operador | visualizador) são obrigatórios' },
+        { status: 400 }
+      );
     }
-
-    const validRoles = ['operador', 'visualizador', 'admin'];
-    if (!validRoles.includes(newRole)) {
-      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
-    }
+    const { userId, newRole } = parsed.data;
 
     // 4. Buscar email do usuário a ser aprovado
     const { data: { user: targetUser }, error: userError } = await adminClient.auth.admin.getUserById(userId);

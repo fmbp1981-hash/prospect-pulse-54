@@ -6,14 +6,12 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { runSupabaseKeepAlive } from '@/lib/jobs/supabase-keepalive.job';
+import { verifyCronRequest } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
 
-const CRON_SECRET = process.env.CRON_SECRET;
-
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

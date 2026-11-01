@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { linkedinProspectingService } from '@/lib/services/linkedin-prospecting.service';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 export const runtime = 'nodejs';
 
@@ -23,6 +24,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   );
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
   const { data: job, error: fetchError } = await supabase
     .from('prospecting_jobs')

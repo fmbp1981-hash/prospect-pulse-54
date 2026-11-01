@@ -2,11 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
 
 const BATCH_SIZE = 50;
 
 export async function POST(req: NextRequest) {
   try {
+    // Autenticar usuário para ler configurações do tenant
+    const cookieStore = cookies();
+    const authClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => cookieStore.getAll() } }
+    );
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+    if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
+
     const { leadIds, subject, htmlBody } = await req.json() as {
       leadIds: string[];
       subject: string;
@@ -21,18 +35,6 @@ export async function POST(req: NextRequest) {
     }
     if (!htmlBody?.trim()) {
       return NextResponse.json({ error: 'Corpo do email é obrigatório' }, { status: 400 });
-    }
-
-    // Autenticar usuário para ler configurações do tenant
-    const cookieStore = cookies();
-    const authClient = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => cookieStore.getAll() } }
-    );
-    const { data: { user } } = await authClient.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
     const db = createClient(

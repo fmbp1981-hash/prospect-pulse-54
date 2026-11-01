@@ -1,6 +1,6 @@
 /**
- * GET  /api/admin/rag-ingest?secret=CRON_SECRET   ← cole no navegador
- * POST /api/admin/rag-ingest  (Authorization: Bearer CRON_SECRET)
+ * GET|POST /api/admin/rag-ingest  (Authorization: Bearer CRON_SECRET)
+ * Segredo em query string não é aceito (vaza em log/histórico).
  *
  * Ingere os 4 documentos RAG da campanha IntelliX no pgvector.
  * Idempotente — pula docs com filename já existente para o mesmo user_id.
@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type User } from '@supabase/supabase-js';
 import { ingestDocument } from '@/lib/ai/rag/rag.service';
 import { withOpenAIKey } from '@/lib/ai/openai-key-context';
+import { verifyCronRequest } from '@/lib/auth/cron-auth';
 import {
   RAG_INST_01_IDENTIDADE_TOM_DE_VOZ as DOC_INST01,
   RAG_INST_02_PRODUTOS_ICP_PERSONAS as DOC_INST02,
@@ -34,21 +35,12 @@ function getServiceClient() {
   );
 }
 
-function authorize(req: NextRequest): boolean {
-  const CRON_SECRET = process.env.CRON_SECRET;
-  if (!CRON_SECRET) return false;
-  const header = req.headers.get('authorization');
-  if (header === `Bearer ${CRON_SECRET}`) return true;
-  const qs = req.nextUrl.searchParams.get('secret');
-  return qs === CRON_SECRET;
-}
-
 export async function GET(req: NextRequest) {
   return POST(req);
 }
 
 export async function POST(req: NextRequest) {
-  if (!authorize(req)) {
+  if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -58,7 +50,12 @@ export async function POST(req: NextRequest) {
   const listResult = await supabase.auth.admin.listUsers({ perPage: 1000 });
 
   if (listResult.error) {
-    return NextResponse.json({ error: `Auth admin error: ${listResult.error.message}` }, { status: 500 });
+    // S1-F-05: detalhe só no log.
+    console.error('[rag-ingest] Falha no auth admin:', listResult.error.message);
+    return NextResponse.json(
+      { error: { code: 'INTERNAL_ERROR', message: 'Falha ao consultar usuários (ver logs do servidor).' } },
+      { status: 500 }
+    );
   }
 
   // Cast explícito: o SDK tipa a rama de sucesso como `{ users: User[] } & Pagination`,
@@ -148,8 +145,8 @@ export async function POST(req: NextRequest) {
 
         results.push({ filename: doc.filename, status: 'ok', chunks: chunksCreated });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        results.push({ filename: doc.filename, status: 'error', error: msg });
+        console.error(`[rag-ingest] Falha ao ingerir ${doc.filename}:`, err instanceof Error ? err.message : 'erro');
+        results.push({ filename: doc.filename, status: 'error', error: 'Falha na ingestão (ver logs do servidor).' });
       }
     }
   });

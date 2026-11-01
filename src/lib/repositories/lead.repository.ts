@@ -23,8 +23,8 @@ export const leadRepository = {
    * Equivalente ao node "Encontrar_lead" (filtro: whatsapp = ClienteWhatsApp)
    *
    * Usa regexp_replace no Postgres para remover todos os não-dígitos antes de comparar.
-   * Isso resolve o mismatch entre o formato do Google Places ("+55 81 3788-9757")
-   * e o formato do webhook Evolution API ("+558137889757").
+   * Isso resolve o mismatch entre o formato do Google Places ("+55 81 99999-0001")
+   * e o formato do webhook Evolution API ("+5581999990001").
    *
    * A comparação é feita com os últimos 8+ dígitos para máxima compatibilidade entre
    * números fixos (10 dígitos locais) e celulares (11 dígitos locais).
@@ -42,7 +42,7 @@ export const leadRepository = {
     const localDigits = digits.length >= 11 ? digits.slice(-11) : digits.slice(-8);
 
     // Chama a RPC que usa regexp_replace no Postgres — único jeito de comparar
-    // "+55 81 3788-9757" com "558137889757" de forma correta.
+    // "+55 81 99999-0001" com "5581999990001" de forma correta.
     const { data, error } = await (supabase as any)
       .rpc('find_lead_by_phone_digits', {
         p_digits: localDigits,
@@ -54,6 +54,23 @@ export const leadRepository = {
     // RPC com SETOF retorna array — pega o primeiro elemento
     const rows = data as LeadRow[] | null;
     return rows?.[0] ?? null;
+  },
+
+  /**
+   * Busca lead pelo ID restrito ao dono (service_role: o filtro de tenant é
+   * obrigatório). null quando não existe ou é de outro usuário.
+   */
+  async findByIdForUser(id: string, userId: string): Promise<LeadRow | null> {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase
+      .from('leads_prospeccao')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) throw new Error(`findByIdForUser error: ${error.message}`);
+    return data ?? null;
   },
 
   /**
@@ -90,48 +107,42 @@ export const leadRepository = {
   },
 
   /**
-   * Busca leads elegíveis para follow-up.
-   * Equivalente ao node "Buscar Leads para Follow-up" do Fluxo 4.
+   * Reivindica atomicamente os leads vencidos para follow-up.
+   * Equivalente ao node "Buscar Leads para Follow-up" do Fluxo 4, agora com trava:
+   * a RPC claim_due_follow_ups seleciona com FOR UPDATE SKIP LOCKED e grava
+   * follow_up_lock_until = now() + 5 min nas linhas devolvidas, então duas
+   * execuções simultâneas nunca recebem o mesmo lead.
+   * Janelas: 15 min (count=0), 1 h (count=1), 24 h (count=2); mais antigos primeiro.
    */
-  async findLeadsForFollowUp(): Promise<LeadRow[]> {
+  async claimDueFollowUps(limit = 20): Promise<LeadRow[]> {
     const supabase = getServiceClient();
-    const now = new Date();
+    const { data, error } = await supabase.rpc('claim_due_follow_ups', { p_limit: limit });
 
-    // Janelas de follow-up: 15min (count=0), 1h (count=1), 24h (count=2)
-    const thresholds = [
-      { count: 0, minutesAgo: 15 },
-      { count: 1, minutesAgo: 60 },
-      { count: 2, minutesAgo: 1440 }, // 24h
-    ];
-
-    const results: LeadRow[] = [];
-
-    for (const { count, minutesAgo } of thresholds) {
-      const cutoff = new Date(now.getTime() - minutesAgo * 60 * 1000).toISOString();
-
-      const { data, error } = await supabase
-        .from('leads_prospeccao')
-        .select('*')
-        .eq('follow_up_count', count)
-        .eq('modo_atendimento', 'bot')
-        .in('status_msg_wa', ['Em Conversa', 'Qualificando'])
-        .not('whatsapp', 'is', null)
-        .lte('data_ultima_interacao', cutoff)
-        .limit(50);
-
-      if (error) {
-        console.error(`findLeadsForFollowUp error (count=${count}):`, error.message);
-        continue;
-      }
-
-      results.push(...(data ?? []));
-    }
-
-    return results;
+    if (error) throw new Error(`claimDueFollowUps error: ${error.message}`);
+    return data ?? [];
   },
 
   /**
-   * Incrementa o contador de follow-up e atualiza última interação.
+   * Devolve um lead reivindicado que não recebeu a mensagem (sem instância
+   * configurada, sem dono, falha no envio etc.) com backoff: a trava passa a
+   * valer até now() + backoffMinutes. Zerar a trava faria leads com problema
+   * permanente ficarem sempre entre os mais antigos, ocupando o lote de cada
+   * execução (starvation dos leads saudáveis) e retentando a cada minuto.
+   */
+  async releaseFollowUpClaim(id: string, backoffMinutes = 15): Promise<void> {
+    const supabase = getServiceClient();
+    const retryAt = new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from('leads_prospeccao')
+      .update({ follow_up_lock_until: retryAt })
+      .eq('id', id);
+
+    if (error) throw new Error(`releaseFollowUpClaim error: ${error.message}`);
+  },
+
+  /**
+   * Incrementa o contador de follow-up, atualiza última interação e libera a
+   * trava de follow-up no mesmo update.
    */
   async incrementFollowUpCount(id: string): Promise<void> {
     const supabase = getServiceClient();
@@ -151,6 +162,7 @@ export const leadRepository = {
         follow_up_count: newCount,
         ...(status ? { status_msg_wa: status } : {}),
         data_ultima_interacao: new Date().toISOString(),
+        follow_up_lock_until: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);

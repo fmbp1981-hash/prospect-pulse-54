@@ -2,10 +2,17 @@
  * API: Inicializar user_settings + organização para novo usuário
  *
  * POST /api/admin/init-user-settings
- * Chamado durante o signUp para criar user_settings com role=visualizador e pending_setup=true,
- * e — para signups normais (não o admin da plataforma) — cria uma NOVA organização (empresa)
- * com este usuário como admin dela. Isso é o que garante isolamento completo entre empresas
- * diferentes que adotam o sistema: cada cadastro novo nasce em sua própria organização.
+ * Chamado durante o signUp para criar user_settings com role=visualizador e pending_setup=true
+ * e uma NOVA organização (empresa) com este usuário como admin dela. Isso é o que garante
+ * isolamento completo entre empresas diferentes que adotam o sistema: cada cadastro novo nasce
+ * em sua própria organização.
+ *
+ * Organização + membership só são criadas no fluxo de signup (S1-F-02): o usuário NÃO tinha
+ * linha em user_settings antes desta chamada E não tem membership. Chamadas repetidas (ou de um
+ * usuário já existente, inclusive removido da organização) não criam organização nova.
+ *
+ * Não há tratamento especial por e-mail (S1-F-04): admin da plataforma é só quem está em
+ * public.platform_admins (migration 20261030130000), definido via service_role/SQL.
  *
  * Usa service role para contornar RLS (o usuário ainda não tem user_settings/organização no
  * momento do signup, então RLS bloquearia). Rota pública no middleware (o usuário recém-criado
@@ -14,17 +21,11 @@
  * contra o token de sessão enviado no header Authorization, provando que quem chama é o próprio
  * usuário recém-cadastrado (evita IDOR: sem isso, qualquer chamador anônimo poderia forçar
  * criação de organização/membership para o UUID de outro usuário já existente).
- *
- * Exceção: o email designado como admin recebe role='admin' e pending_setup=false automaticamente,
- * garantindo que o administrador principal sempre tenha acesso completo ao sistema. Esse admin de
- * plataforma não pertence a uma organização (ele opera fora do modelo de empresa-cliente).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
-
-const ADMIN_EMAIL = 'fmbp1981@gmail.com';
 
 export async function POST(req: NextRequest) {
   try {
@@ -69,71 +70,76 @@ export async function POST(req: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Verificar se este userId corresponde ao email do admin
-    const { data: { user: authUser } } = await supabase.auth.admin.getUserById(userId);
-    const isAdminUser = authUser?.email === ADMIN_EMAIL;
+    // Estado prévio: o signup é o ÚNICO caso que cria organização (S1-F-02).
+    const { data: existingSettings, error: settingsLookupError } = await supabase
+      .from('user_settings')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-    if (isAdminUser) {
-      // Admin: forçar role='admin' e pending_setup=false, mesmo que o registro já exista
-      const { error } = await supabase
-        .from('user_settings')
-        .upsert(
-          { user_id: userId, role: 'admin', pending_setup: false },
-          { onConflict: 'user_id', ignoreDuplicates: false }
-        );
+    if (settingsLookupError) {
+      console.error('[init-user-settings] Erro ao consultar user_settings:', settingsLookupError.message);
+      return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
+    }
 
-      if (error) {
-        console.error('[init-user-settings] Erro ao criar/atualizar settings do admin:', error);
-        return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
-      }
-    } else {
-      // Usuário comum: criar apenas se não existir — não sobrescreve settings existentes
-      const { error } = await supabase
-        .from('user_settings')
-        .upsert(
-          { user_id: userId, role: 'visualizador', pending_setup: true, company_name: companyName ?? null },
-          { onConflict: 'user_id', ignoreDuplicates: true }
-        );
+    const { data: existingMembership, error: membershipLookupError } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
 
-      if (error) {
-        console.error('[init-user-settings] Erro ao criar user_settings:', error);
-        return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
-      }
+    if (membershipLookupError) {
+      console.error('[init-user-settings] Erro ao consultar organization_members:', membershipLookupError.message);
+      return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
+    }
 
-      // Cria a organização (empresa) deste cadastro — idempotente: se este usuário já
-      // é membro de alguma organização (chamada duplicada da rota), não cria de novo.
-      const { data: existingMembership } = await supabase
-        .from('organization_members')
+    if (existingSettings) {
+      // Usuário já inicializado: nada a fazer (não sobrescreve settings nem cria organização).
+      return NextResponse.json({ success: true });
+    }
+
+    // Cria user_settings pendente. ON CONFLICT DO NOTHING + RETURNING: só devolve a linha se
+    // ESTA chamada a inseriu (outra chamada concorrente pode ter criado antes).
+    const { data: insertedSettings, error: insertError } = await supabase
+      .from('user_settings')
+      .upsert(
+        { user_id: userId, role: 'visualizador', pending_setup: true, company_name: companyName ?? null },
+        { onConflict: 'user_id', ignoreDuplicates: true }
+      )
+      .select('user_id');
+
+    if (insertError) {
+      console.error('[init-user-settings] Erro ao criar user_settings:', insertError.message);
+      return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
+    }
+
+    const createdNow = Array.isArray(insertedSettings) && insertedSettings.length > 0;
+
+    if (createdNow && !existingMembership) {
+      const { data: org, error: orgError } = await supabase
+        .from('organizations')
+        .insert({ name: companyName?.trim() || 'Minha Empresa' })
         .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
+        .single();
 
-      if (!existingMembership) {
-        const { data: org, error: orgError } = await supabase
-          .from('organizations')
-          .insert({ name: companyName?.trim() || 'Minha Empresa' })
-          .select('id')
-          .single();
+      if (orgError || !org) {
+        console.error('[init-user-settings] Erro ao criar organização:', orgError?.message ?? 'sem retorno');
+        return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
+      }
 
-        if (orgError) {
-          console.error('[init-user-settings] Erro ao criar organização:', orgError);
-          return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
-        }
+      const { error: memberError } = await supabase
+        .from('organization_members')
+        .insert({ organization_id: org.id, user_id: userId, role: 'admin' });
 
-        const { error: memberError } = await supabase
-          .from('organization_members')
-          .insert({ organization_id: org.id, user_id: userId, role: 'admin' });
-
-        if (memberError) {
-          console.error('[init-user-settings] Erro ao criar membership:', memberError);
-          return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
-        }
+      if (memberError) {
+        console.error('[init-user-settings] Erro ao criar membership:', memberError.message);
+        return NextResponse.json({ error: 'Falha ao processar solicitação' }, { status: 500 });
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error('[init-user-settings] Erro inesperado:', err);
+    console.error('[init-user-settings] Erro inesperado:', err instanceof Error ? err.message : 'erro');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -9,15 +9,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { runLongFollowUpJob } from '@/lib/jobs/long-followup.job';
+import { verifyCronRequest } from '@/lib/auth/cron-auth';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const CRON_SECRET = process.env.CRON_SECRET;
-
-  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!verifyCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

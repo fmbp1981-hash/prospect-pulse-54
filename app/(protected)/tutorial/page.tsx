@@ -270,7 +270,7 @@ function TabSetup() {
             <ul className="list-disc list-inside mt-1 space-y-0.5">
               <li>URL da Evolution API (ex: <code className="bg-muted px-1 rounded text-xs">https://evolution.suaempresa.com</code>)</li>
               <li>Chave de API (API Key da instância)</li>
-              <li>Nome da instância WhatsApp</li>
+              <li>Nome da instância WhatsApp (definido pelo administrador da plataforma)</li>
             </ul>
             <p className="mt-1">Após salvar, escaneie o QR Code para conectar o número WhatsApp.</p>
           </Step>
@@ -293,8 +293,9 @@ function TabSetup() {
           <Step n={6} title="Registre o webhook na Evolution API">
             <p>Configure a URL de webhook para que a Evolution API envie as mensagens recebidas ao sistema:</p>
             <code className="block bg-muted px-3 py-2 rounded text-xs mt-1 break-all">
-              https://seu-dominio.vercel.app/api/webhooks/evolution
+              https://seu-dominio/api/webhooks/evolution/&lt;seu-token&gt;
             </code>
+            <p className="mt-1">Copie a URL completa, com o seu token secreto, em Configurações → WhatsApp.</p>
             <p className="mt-1">Eventos necessários: <Badge variant="outline" className="text-xs">MESSAGES_UPSERT</Badge></p>
           </Step>
         </CardContent>
@@ -712,7 +713,6 @@ function TabIntegrations() {
               ["SUPABASE_SERVICE_ROLE_KEY", "Chave de serviço Supabase (obrigatório)"],
               ["EVOLUTION_API_URL", "URL do servidor Evolution API"],
               ["EVOLUTION_API_KEY", "API Key da instância Evolution"],
-              ["EVOLUTION_DEFAULT_INSTANCE", "Nome da instância WhatsApp"],
               ["RESEND_API_KEY", "Chave Resend para campanhas de email"],
               ["CRON_SECRET", "Segredo para autenticar chamadas do cron"],
             ].map(([key, desc]) => (
@@ -722,6 +722,11 @@ function TabIntegrations() {
               </div>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground mt-3">
+            A instância do WhatsApp não é uma variável de ambiente: cada organização tem a
+            sua, definida pelo administrador da plataforma e exibida em Configurações →
+            Integração WhatsApp (Nome da Instância).
+          </p>
         </CardContent>
       </Card>
     </div>
