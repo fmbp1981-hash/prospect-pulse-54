@@ -11,7 +11,7 @@ describe('MessageNormalizer — Paridade com n8n', () => {
       key: { remoteJid: '5581999990001@s.whatsapp.net', fromMe: false },
       pushName: 'João Silva',
       message: { conversation: 'Olá' },
-      instanceName: 'Xpag Atendimento',
+      instanceName: 'Empresa Exemplo Atendimento',
     };
 
     const result = normalizeMessage(payload);

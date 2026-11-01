@@ -1,8 +1,8 @@
 /**
- * WORKFLOW XPAG LEAD HANDLER — v2 (Otimizado)
+ * WORKFLOW DE CONVERSA COM LEAD — v2 (Otimizado)
  * Orquestrador principal com error recovery por step, timeouts e resiliência.
  *
- * Substitui integralmente o workflow n8n "Xpag_Buscar_ou_Criar_Lead" v3.4.
+ * Fluxo nativo de atendimento: tenant → lead → mídia → agente IA → humanização → envio.
  */
 
 import type { NormalizedMessage } from '../services/message-normalizer.service';
@@ -30,9 +30,9 @@ const STEP_TIMEOUTS = {
   send: 30_000,
 } as const;
 
-export async function runXpagWorkflow(normalized: NormalizedMessage): Promise<void> {
+export async function runLeadConversationWorkflow(normalized: NormalizedMessage): Promise<void> {
   const correlationId = randomUUID();
-  const logger = new WorkflowLogger('XpagLeadHandler', correlationId);
+  const logger = new WorkflowLogger('LeadConversation', correlationId);
 
   logger.info('Workflow started', {
     whatsapp: normalized.clienteWhatsApp,

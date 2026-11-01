@@ -166,19 +166,18 @@ async function generateWhatsAppMessage(
   // Selecionar aleatoriamente um dos 3 modelos
   const modelos = [
     `Olá, ${nomeEmpresa}! 👋
-Aqui é da XPAG, empresa especializada em soluções de pagamento para negócios como o seu.
-Vi que vocês atuam como ${categoria} em ${cidade} e achei que poderia ser interessante apresentar a XPAG.
-Caso faça sentido, posso te conectar com um consultor XPAG para explicar como podemos apoiar o crescimento do seu negócio. 😊`,
+Vi que vocês atuam como ${categoria} em ${cidade} e achei que poderia ser interessante apresentar o nosso trabalho.
+Caso faça sentido, posso te conectar com um consultor para explicar como podemos apoiar o crescimento do seu negócio. 😊`,
 
     `Oi, ${nomeEmpresa}! Tudo bem? 🙂
-Sou da XPAG, e percebi que vocês são ${categoria} aí em ${cidade}.
-Temos ajudado empresas desse segmento a tornar o processo de pagamento mais simples e prático.
-Se quiser conhecer um pouco mais, posso te colocar em contato com um consultor XPAG.`,
+Percebi que vocês são ${categoria} aí em ${cidade}.
+Temos ajudado empresas desse segmento a ganhar tempo e resultado no dia a dia.
+Se quiser conhecer um pouco mais, posso te colocar em contato com um consultor.`,
 
     `Olá, ${nomeEmpresa}! 👋
-Sou da XPAG, e vi que vocês atuam como ${categoria} em ${cidade}.
-Trabalhamos com empresas desse perfil oferecendo soluções que tornam o recebimento mais fácil e rápido.
-Posso pedir para um consultor XPAG te enviar mais informações?`
+Vi que vocês atuam como ${categoria} em ${cidade}.
+Trabalhamos com empresas desse perfil e acredito que podemos ajudar.
+Posso pedir para um consultor te enviar mais informações?`
   ];
 
   const modeloSelecionado = modelos[Math.floor(Math.random() * modelos.length)];
@@ -196,7 +195,7 @@ Posso pedir para um consultor XPAG te enviar mais informações?`
         messages: [
           {
             role: 'system',
-            content: 'Você é um assistente de prospecção comercial. Reescreva a mensagem mantendo o tom cordial, profissional e neutro. Mantenha os emojis. Mantenha o nome da empresa XPAG. A mensagem deve ter no máximo 300 caracteres e ser natural, como se fosse escrita por uma pessoa.'
+            content: 'Você é um assistente de prospecção comercial. Reescreva a mensagem mantendo o tom cordial, profissional e neutro. Mantenha os emojis. Não invente nome de empresa remetente, produtos, preços ou dados. A mensagem deve ter no máximo 300 caracteres e ser natural, como se fosse escrita por uma pessoa.'
           },
           {
             role: 'user',

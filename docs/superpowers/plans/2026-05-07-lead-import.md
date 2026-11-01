@@ -309,7 +309,7 @@ describe('normalizeInstagram', () => {
 
 describe('normalizeLinkedin', () => {
   it('normaliza URL company com https e www', () => {
-    expect(normalizeLinkedin('https://www.linkedin.com/company/xpag/')).toBe('linkedin.com/company/xpag');
+    expect(normalizeLinkedin('https://www.linkedin.com/company/empresa-exemplo/')).toBe('linkedin.com/company/empresa-exemplo');
   });
   it('mantém perfil /in/ intacto (sem https)', () => {
     expect(normalizeLinkedin('linkedin.com/in/joao-silva')).toBe('linkedin.com/in/joao-silva');

@@ -1,9 +1,23 @@
 # CHANGELOG — Migração n8n → Implementação Nativa
 
-## [Unreleased] — feature/native-workflow-engine-xpag
+## [Unreleased] — Sprint 0: plataforma genérica
+
+**Data:** Outubro 2026
+
+### Alterado
+- `src/lib/workflows/lead-conversation.workflow.ts` — orquestrador renomeado; export `runLeadConversationWorkflow`
+- `src/lib/ai/prompts/default-system-prompt.ts` — prompt padrão de SDR genérico (`DEFAULT_SYSTEM_PROMPT`), substitui os prompts específicos de cliente
+- `src/lib/ai/tools/transfer-consultant.tool.ts` — número do consultor vem só de `user_settings.consultant_whatsapp`
+- `docs/arquitetura-atendimento-whatsapp.md` — mapa do fluxo nativo
+
+### Removido
+- Prompts, guias, SQL avulsos e configurações de um cliente legado
+- Variáveis de ambiente de consultor por cliente (`*_CONSULTANT_WHATSAPP`, `*_CONSULTANT_INSTANCE`)
+- `feature-flags.json`, guias de integração n8n e `docs/n8n/`
+
+## [2026-02] — Motor de workflow nativo
 
 **Data:** Fevereiro 2026
-**Branch:** `feature/native-workflow-engine-xpag`
 **Autor:** Claude Code (Arquiteto de Migração)
 
 ### Adicionado
@@ -35,7 +49,7 @@
 - `src/lib/handlers/message-type.handler.ts` — Strategy pattern por tipo de mídia
 
 #### Fluxo 3B — AI Agent
-- `src/lib/ai/prompts/system-prompt.v3.4.ts` — System Prompt versionado (v3.4)
+- `src/lib/ai/prompts/system-prompt.v3.4.ts` — System Prompt versionado (v3.4) — substituído por `default-system-prompt.ts`
 - `src/lib/ai/tools/tool.interface.ts` — Interface base para tools do agente
 - `src/lib/ai/tools/update-lead.tool.ts` — Tool: atualizar_lead
 - `src/lib/ai/tools/transfer-consultant.tool.ts` — Tool: transferir_para_consultor
@@ -43,7 +57,7 @@
 - `src/lib/services/message-humanizer.service.ts` — Humanizador (GPT-4.1-mini, ≤240 chars)
 - `src/lib/services/agent-context-builder.service.ts` — Builder de contexto para o agente
 - `src/lib/integrations/evolution/messaging.client.ts` — Envio de mensagens via Evolution API
-- `src/lib/workflows/xpag-lead-handler.workflow.ts` — **Orquestrador principal** (substitui o workflow n8n)
+- `src/lib/workflows/lead-conversation.workflow.ts` — **Orquestrador principal** (substitui o workflow n8n)
 
 #### Fluxo 4 — Follow-up Automático
 - `src/lib/jobs/follow-up.job.ts` — Job de follow-up (10min, 1h, 24h)
@@ -65,10 +79,10 @@
 - `tests/load/concurrent-messages.spec.ts` — 3 casos de carga
 
 #### Configuração
-- `feature-flags.json` — Feature flags para rollout gradual
-- `docs/migracao-n8n.md` — Mapeamento completo node → módulo
+- `feature-flags.json` — Feature flags para rollout gradual (removido no Sprint 0)
+- `docs/migracao-n8n.md` — Mapeamento node → módulo (hoje `docs/arquitetura-atendimento-whatsapp.md`)
 
 ### Dependências do n8n eliminadas
-- Todos os 5 fluxos do workflow `Xpag_Buscar_ou_Criar_Lead` (v3.4) foram portados
+- Todos os 5 fluxos do workflow n8n de atendimento (v3.4) foram portados
 - 37+ nodes n8n substituídos por módulos TypeScript nativos
 - Sem dependência de orquestração externa em produção

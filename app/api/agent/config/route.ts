@@ -9,8 +9,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { agentConfigService } from '@/lib/ai/agent-config.service';
-import { SYSTEM_PROMPT_V3_4, SYSTEM_PROMPT_VERSION } from '@/lib/ai/prompts/system-prompt.v3.4';
+import { agentConfigService, DEFAULT_AGENT_NAME } from '@/lib/ai/agent-config.service';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT_VERSION } from '@/lib/ai/prompts/default-system-prompt';
 
 async function getAuth() {
   const cookieStore = cookies();
@@ -35,9 +35,9 @@ export async function GET() {
       configs: [{
         id: 'default',
         userId: user.id,
-        name: 'Agente XPAG Padrão',
-        systemPrompt: SYSTEM_PROMPT_V3_4,
-        promptVersion: SYSTEM_PROMPT_VERSION,
+        name: DEFAULT_AGENT_NAME,
+        systemPrompt: DEFAULT_SYSTEM_PROMPT,
+        promptVersion: DEFAULT_SYSTEM_PROMPT_VERSION,
         model: 'gpt-4.1',
         temperature: 0.7,
         maxIterations: 5,

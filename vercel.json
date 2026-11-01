@@ -6,10 +6,6 @@
   "outputDirectory": ".next",
   "crons": [
     {
-      "path": "/api/cron/follow-up",
-      "schedule": "* * * * *"
-    },
-    {
       "path": "/api/cron/long-followup",
       "schedule": "0 12 * * 1-5"
     }

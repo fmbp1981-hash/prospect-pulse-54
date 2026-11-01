@@ -29,14 +29,11 @@ async function getConsultantConfig(userId: string): Promise<{
       .single();
 
     return {
-      consultantWhatsapp: data?.consultant_whatsapp || process.env.XPAG_CONSULTANT_WHATSAPP || null,
-      agentInstance: data?.evolution_instance_name || process.env.XPAG_CONSULTANT_INSTANCE || null,
+      consultantWhatsapp: data?.consultant_whatsapp || null,
+      agentInstance: data?.evolution_instance_name || null,
     };
   } catch {
-    return {
-      consultantWhatsapp: process.env.XPAG_CONSULTANT_WHATSAPP || null,
-      agentInstance: process.env.XPAG_CONSULTANT_INSTANCE || null,
-    };
+    return { consultantWhatsapp: null, agentInstance: null };
   }
 }
 
@@ -78,7 +75,6 @@ export const transferConsultantTool: AgentTool = {
         status_msg_wa: 'Transferido',
         estagio_pipeline: 'Transferido para Consultor',
         data_transferencia: new Date().toISOString(),
-        consultor_responsavel: 'Felipe',
       });
       dbOk = true;
     } catch (err) {
@@ -112,7 +108,7 @@ export const transferConsultantTool: AgentTool = {
       `📱 *WhatsApp:* ${ctx.whatsapp}\n` +
       `📋 *Estágio:* ${leadPipelineStage}\n` +
       `💬 *Motivo:* ${motivo}\n\n` +
-      `_Enviado automaticamente pelo sistema XPAG_`;
+      `_Enviado automaticamente pelo LeadFinder Pro_`;
 
     const result = await sendWhatsAppText({
       instanceName: agentInstance,

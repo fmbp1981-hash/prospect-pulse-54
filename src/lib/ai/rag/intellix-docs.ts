@@ -119,7 +119,7 @@ CRM de prospecção B2B com IA, integração WhatsApp e automações. Encontra e
 - GIG (Grupo Cavendish / CCE): plataforma de gestão e governança que transformou o método da consultoria em sistema. Prova de plataforma sob medida para consultoria.
 - LeadFinder Pro / Prospect Pulse: produto próprio de prospecção B2B — vitrine da capacidade técnica.
 - Yolo SDR (Yolo Coliving): SDR com IA via WhatsApp que qualifica leads 24/7 antes do humano entrar. Referência white-label para coliving/hospitalidade. Citar como conexão estratégica ao ecossistema do Porto Digital, sem nomear pessoas.
-- Site XPAG Brasil e Site Grupo Cavendish: presença digital institucional.
+- Site Grupo Cavendish: presença digital institucional.
 
 Regra: nunca citar KPIs/números de cases sem autorização. Descrever o que foi feito e o tipo de resultado, sem percentual.
 

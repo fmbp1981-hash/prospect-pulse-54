@@ -106,7 +106,7 @@ describe('normalizeInstagram', () => {
 
 describe('normalizeLinkedin', () => {
   it('normaliza URL company com https e www', () => {
-    expect(normalizeLinkedin('https://www.linkedin.com/company/xpag/')).toBe('linkedin.com/company/xpag');
+    expect(normalizeLinkedin('https://www.linkedin.com/company/empresa-exemplo/')).toBe('linkedin.com/company/empresa-exemplo');
   });
   it('mantém perfil /in/ intacto (sem https)', () => {
     expect(normalizeLinkedin('linkedin.com/in/joao-silva')).toBe('linkedin.com/in/joao-silva');
@@ -120,12 +120,12 @@ describe('normalizeLinkedin', () => {
 });
 
 describe('normalizeLeadRow', () => {
-  it('retorna NormalizedLead válido para RawMappedLead vazio', () => {
+  it('linha vazia: campos nulos e erro de empresa obrigatória', () => {
     const result = normalizeLeadRow({});
     expect(result.empresa).toBe('');
     expect(result.contato).toBeNull();
     expect(result.whatsapp).toBeNull();
-    expect(result.errors).toEqual({});
+    expect(result.errors).toEqual({ empresa: 'Nome da empresa é obrigatório' });
     expect(result.warnings).toEqual({});
   });
   it('popula warnings.whatsapp para número 0800 (não errors)', () => {

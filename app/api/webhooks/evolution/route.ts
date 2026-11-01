@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
 import { normalizeMessage } from '@/lib/services/message-normalizer.service';
-import { runXpagWorkflow } from '@/lib/workflows/xpag-lead-handler.workflow';
+import { runLeadConversationWorkflow } from '@/lib/workflows/lead-conversation.workflow';
 import { getWhatsAppProvider } from '@/lib/integrations/whatsapp/whatsapp.factory';
 import { resolveTenantByInstance } from '@/lib/services/tenant-resolver.service';
 import { leadRepository } from '@/lib/repositories/lead.repository';
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
   // waitUntil mantém a função viva até o workflow completar (até maxDuration).
   // Isso elimina: double-sends, atrasos de horas e falhas por timeout da Evolution.
   waitUntil(
-    runXpagWorkflow(normalized).catch((err) => {
+    runLeadConversationWorkflow(normalized).catch((err) => {
       console.error('[Webhook] Workflow error:', (err as Error)?.message ?? err);
     })
   );

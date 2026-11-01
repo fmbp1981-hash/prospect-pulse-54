@@ -1,4 +1,4 @@
-# SISTEMA_TECNICO.md — LeadFinder Pro / XPAG Brasil
+# SISTEMA_TECNICO.md — LeadFinder Pro
 > **Arquivo vivo.** Atualizar a cada mudança significativa de código, arquitetura ou infraestrutura.
 > Última atualização: 2026-04-02
 
@@ -16,7 +16,7 @@
 7. [Serviços e Componentes Core](#7-serviços-e-componentes-core)
 8. [Fluxos de Dados](#8-fluxos-de-dados)
 9. [Sistema de Roles e Permissões (RBAC)](#9-sistema-de-roles-e-permissões-rbac)
-10. [Agente de IA — XPAG](#10-agente-de-ia--xpag)
+10. [Agente de IA](#10-agente-de-ia)
 11. [Integrações WhatsApp](#11-integrações-whatsapp)
 12. [Variáveis de Ambiente](#12-variáveis-de-ambiente)
 13. [Deploy e Infraestrutura](#13-deploy-e-infraestrutura)
@@ -27,14 +27,14 @@
 ## 0. PRD — Documento de Requisitos do Produto
 
 > **Versão:** 1.0 — 2026-02-25
-> **Produto:** LeadFinder Pro / XPAG Brasil (nome interno: `prospect-pulse-54`)
+> **Produto:** LeadFinder Pro (nome interno: `prospect-pulse-54`)
 > **Responsável:** Felipe Maranhão
 
 ---
 
 ### 0.1 Contexto e Problema
 
-A **XPAG Brasil** é uma empresa de meios de pagamento e soluções financeiras B2B que precisava automatizar e escalar seu processo comercial. O problema central era triplo:
+Empresas B2B precisam automatizar e escalar o processo comercial. O problema central era triplo:
 
 1. **Prospecção manual e ineficiente:** a equipe buscava potenciais clientes manualmente, sem padronização ou rastreabilidade.
 2. **Atendimento via WhatsApp não escalável:** o time respondia leads individualmente, sem qualificação automática, o que gerava perda de oportunidades fora do horário comercial.
@@ -250,7 +250,7 @@ A decisão de migrar foi tomada após o n8n apresentar downtime e a lógica cres
 
 **Componentes criados na migração:**
 ```
-XpagLeadHandlerWorkflow   ← orquestrador dos 10 passos (substitui os 52 nós)
+LeadConversationWorkflow   ← orquestrador dos 10 passos (substitui os 52 nós)
 AIAgentService            ← loop de tool calling com OpenAI
 WhatsAppProviderFactory   ← abstração Evolution API / Meta Cloud API
 MessageTypeHandler        ← roteamento por tipo de mídia
@@ -318,7 +318,7 @@ Com o sistema nativo em produção em `alpha.dualite.dev`, foram feitas melhoria
 
 ## 1. Visão Geral do Sistema
 
-**LeadFinder Pro** (comercialmente: **XPAG Brasil**) é um CRM de prospecção e atendimento B2B com IA nativa.
+**LeadFinder Pro** é um CRM de prospecção e atendimento B2B com IA nativa.
 
 ### Função Principal
 - Prospectar empresas via Google Places API
@@ -433,7 +433,7 @@ prospect-pulse-54/
 │   │   │   ├── agent-config.service.ts    # Gestão de configs/prompts
 │   │   │   ├── ai-agent.service.ts        # Execução OpenAI + tool calling
 │   │   │   ├── prompts/
-│   │   │   │   └── system-prompt.v3.4.ts  # System Prompt v3.5 atual
+│   │   │   │   └── default-system-prompt.ts  # System Prompt padrão (genérico)
 │   │   │   ├── rag/
 │   │   │   │   ├── embeddings.service.ts  # Geração de embeddings
 │   │   │   │   └── rag.service.ts         # Busca semântica RAG
@@ -486,7 +486,7 @@ prospect-pulse-54/
 │   │   │   └── resilience/           # Circuit breaker, retry, timeout
 │   │   │
 │   │   ├── workflows/
-│   │   │   └── xpag-lead-handler.workflow.ts # Orquestrador principal
+│   │   │   └── lead-conversation.workflow.ts # Orquestrador principal
 │   │   │
 │   │   ├── workflow-engine/
 │   │   │   └── workflow.logger.ts    # Logger estruturado
@@ -539,7 +539,7 @@ prospect-pulse-54/
                          │
 ┌────────────────────────▼────────────────────────────────────┐
 │                     CORE SERVICES                            │
-│  XpagLeadHandlerWorkflow  → Orquestrador principal           │
+│  LeadConversationWorkflow  → Orquestrador principal           │
 │  AIAgentService            → OpenAI + tool calling           │
 │  MessageTypeHandler        → Roteamento de mídia             │
 │  WhatsAppProviderFactory   → Evolution / Meta abstraction    │
@@ -612,7 +612,7 @@ data_envio_wa         timestamptz
 mensagem_whatsapp     text                 -- Última mensagem enviada
 resumo_analitico      text                 -- Resumo gerado por IA
 user_id               uuid REFERENCES auth.users
-tenant_id             text                 -- Tenant da empresa (ex: 'xpag')
+tenant_id             text                 -- Tenant da empresa (ex: 'intellix')
 created_at / updated_at timestamptz
 ```
 
@@ -849,7 +849,7 @@ Webhook principal para receber mensagens WhatsApp (Evolution API e Meta Cloud AP
 1. Detecta provider pelo header ou payload
 2. Normaliza para `NormalizedMessage`
 3. Checa anti-loop (ignora `fromMe=true`)
-4. Executa `runXpagWorkflow()` de forma assíncrona (fire-and-forget)
+4. Executa `runLeadConversationWorkflow()` de forma assíncrona (fire-and-forget)
 5. Retorna HTTP 200 imediatamente
 
 **GET** → Health check + verificação de webhook Meta (`hub.verify_token`)
@@ -1082,8 +1082,8 @@ Importa leads em massa a partir de arquivo.
 
 ## 7. Serviços e Componentes Core
 
-### `XpagLeadHandlerWorkflow` — Orquestrador Principal
-**Arquivo:** `src/lib/workflows/xpag-lead-handler.workflow.ts`
+### `LeadConversationWorkflow` — Orquestrador Principal
+**Arquivo:** `src/lib/workflows/lead-conversation.workflow.ts`
 
 10 etapas com timeouts individuais e fallbacks:
 
@@ -1248,7 +1248,7 @@ Lead envia mensagem WhatsApp
     → Normaliza payload para NormalizedMessage
     → Verifica anti-loop (fromMe=true → ignora)
     → Retorna HTTP 200 (fire-and-forget)
-  → [async] runXpagWorkflow()
+  → [async] runLeadConversationWorkflow()
     → Step 1: TenantResolverService → identifica user_id pela instância
     → Step 2: Verifica "#finalizado" → modo bot
     → Step 3: LeadRepository.findByWhatsApp() → cria se não existir
@@ -1393,22 +1393,20 @@ if (hasPermission('canManageAgent')) { /* mostrar seção */ }
 
 ---
 
-## 10. Agente de IA — XPAG
+## 10. Agente de IA
 
-### System Prompt — Versão Atual: v3.5
+### System Prompt padrão — v1.0
 
-**Arquivo:** `src/lib/ai/prompts/system-prompt.v3.4.ts`
-> O arquivo mantém nome `.v3.4.ts` por compatibilidade, mas contém o prompt v3.5.
+**Arquivo:** `src/lib/ai/prompts/default-system-prompt.ts` (`DEFAULT_SYSTEM_PROMPT`)
 
-**Identidade:** Assistente XPAG — equipe de atendimento da XPAG Brasil
+**Identidade:** SDR genérico que representa a organização. O placeholder `{{nome_empresa}}` é preenchido em runtime com o `company_name` da organização (`renderSystemPrompt`). Oferta, ICP e critérios de qualificação vêm da base de conhecimento (RAG) de cada organização.
 
 **Fluxo de Atendimento:**
-1. **ETAPA 1** — Primeiro contato: saudação + apresentação + pergunta de abertura
-2. **ETAPA 2** — Meios de pagamento: confirma empresa + atualiza lead
-3. **ETAPA 3** — Faturamento: valida se acima de R$50k/mês
-4. **ETAPA 4** — Decisão: Follow-up (< R$50k) ou Qualificado (≥ R$50k)
-5. **ETAPA 5A** — Transferência (agente decide OU lead solicita humano)
-5. **ETAPA 5B** — Lead já transferido: reenvio de notificação ao consultor
+1. Primeiro contato: saudação + apresentação em nome da empresa + pergunta de abertura
+2. Entendimento da necessidade (uma pergunta por mensagem)
+3. Qualificação contra o ICP/critérios da base de conhecimento
+4. Decisão: Follow-up (fora do perfil agora) ou Qualificado
+5. Transferência (agente decide OU lead solicita humano); lead já transferido → reenvio de notificação
 
 **Regras Absolutas:**
 1. Nunca dizer que transferiu sem EFETIVAMENTE chamar a tool
@@ -1435,7 +1433,7 @@ if (hasPermission('canManageAgent')) { /* mostrar seção */ }
 
 Cada tenant pode ter múltiplos prompts salvos em `agent_configs`. Apenas `is_active=true` é usado.
 
-Se não houver config salva, o sistema usa o prompt padrão v3.5 (retornado como config virtual pelo `GET /api/agent/config`).
+Se não houver config salva, o sistema usa o prompt padrão `DEFAULT_SYSTEM_PROMPT` (retornado como config virtual pelo `GET /api/agent/config`).
 
 ---
 
@@ -1495,10 +1493,6 @@ META_WA_VERIFY_TOKEN=seu-verify-token
 # ─── OPENAI ────────────────────────────────────────────────
 OPENAI_API_KEY=sk-...
 
-# ─── FALLBACK CONSULTOR ────────────────────────────────────
-# Usados se user_settings não tiver configurado
-XPAG_CONSULTANT_WHATSAPP=5581999990000
-XPAG_CONSULTANT_INSTANCE=WA-Pessoal
 
 # ─── CRON JOBS ─────────────────────────────────────────────
 CRON_SECRET=seu-segredo-aqui
@@ -1559,7 +1553,7 @@ Configurados em `vercel.json` (ou Vercel Dashboard → Cron Jobs):
 **Contexto:** O sistema original dependia de um workflow n8n com 52 nós para orquestrar toda a lógica de atendimento WhatsApp. O n8n era um ponto único de falha, difícil de versionar e sem tipagem.
 
 **Mudanças:**
-- Criação do `XpagLeadHandlerWorkflow` — orquestrador nativo em TypeScript
+- Criação do `LeadConversationWorkflow` — orquestrador nativo em TypeScript
 - Criação de `AIAgentService` com loop de tool calling OpenAI
 - Criação de `WhatsAppProviderFactory` com suporte a Evolution API e Meta Cloud API
 - Criação de `MessageTypeHandler` (áudio/Whisper, imagem/Vision, PDF)
@@ -1577,7 +1571,7 @@ Configurados em `vercel.json` (ou Vercel Dashboard → Cron Jobs):
 
 ### feat: System Prompt v3.5 (2026-02-25)
 
-**Arquivo:** `src/lib/ai/prompts/system-prompt.v3.4.ts`
+**Arquivo:** `src/lib/ai/prompts/system-prompt.v3.4.ts` (removido em 2026-10; substituído por `default-system-prompt.ts`)
 
 **Contexto:** O prompt v3.4 foi escrito para o ambiente n8n e referenciava tools não implementadas (`buscar_lead_por_whatsapp`, `criar_lead_organico`). No sistema nativo, o contexto é injetado automaticamente e a mídia é processada antes do agente ser chamado.
 
@@ -1615,7 +1609,7 @@ Configurados em `vercel.json` (ou Vercel Dashboard → Cron Jobs):
   - WhatsApp do Consultor (campo `consultant_whatsapp`, novo)
 - **Supabase Migration:** `ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS consultant_whatsapp text`
 
-**Impacto:** Múltiplos tenants podem ter consultores diferentes. Env vars `XPAG_CONSULTANT_WHATSAPP` e `XPAG_CONSULTANT_INSTANCE` mantidas como fallback.
+**Impacto:** Múltiplos tenants podem ter consultores diferentes. (As env vars de fallback do consultor foram removidas no Sprint 0 de 2026-10 — a configuração vem só de `user_settings`.)
 
 ---
 
@@ -1723,7 +1717,7 @@ ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS approved_by uuid REFER
 
 **Arquivos modificados:**
 - `src/lib/services/tenant-resolver.service.ts` — `TenantContext` com campo `openaiApiKey?`
-- `src/lib/workflows/xpag-lead-handler.workflow.ts` — Step 1C: encapsula pipeline em `withOpenAIKey(tenant.openaiApiKey)`
+- `src/lib/workflows/lead-conversation.workflow.ts` — Step 1C: encapsula pipeline em `withOpenAIKey(tenant.openaiApiKey)`
 - `src/lib/ai/ai-agent.service.ts` — migrado para `getCurrentOpenAIKey()`
 - `src/lib/ai/rag/embeddings.service.ts` — migrado para `getCurrentOpenAIKey()`
 - `src/lib/integrations/openai/vision.service.ts` — migrado para `getCurrentOpenAIKey()`
@@ -1786,7 +1780,7 @@ Webhook configurado com `webhookBase64: false` (base64 não vem no payload). O f
 
 **Correções:**
 - `message-normalizer.service.ts` — `messageId?: string` adicionado à interface; `data.key?.id` extraído e armazenado
-- `xpag-lead-handler.workflow.ts` — `processMessageByType(normalized, instanceName, normalized.messageId)`
+- `lead-conversation.workflow.ts` — `processMessageByType(normalized, instanceName, normalized.messageId)`
 - `pdf-analyzer.service.ts` — reescrito: `pdf-parse` extrai texto real → GPT-4o-mini resume; fallback retorna texto bruto
 - `package.json` — dependência `pdf-parse` adicionada
 
@@ -2123,7 +2117,7 @@ Após migração do n8n para o agente nativo (branch `feature/agent-improvements
 ### 16.2 Bugs identificados e corrigidos
 
 #### BUG-19 — TypeScript build error no Vercel (`reduce<number>`)
-- **Arquivo:** `src/lib/workflows/xpag-lead-handler.workflow.ts:165`
+- **Arquivo:** `src/lib/workflows/lead-conversation.workflow.ts:165`
 - **Erro:** `Type error: Expected 0 type arguments, but got 1` (primeiro) → `Type 'string' is not assignable to type 'number'` (segundo)
 - **Causa:** TypeScript resolvia `messages.reduce<number>()` para o overload não-genérico de `Array<string>.reduce`, onde o acumulador deve ser do mesmo tipo que o elemento (`string`), incompatível com o valor inicial `0` (`number`).
 - **Fix (commit `4351e9c`):** `messages.map(m => m.length).reduce((a, b) => a + b, 0)` — evita o overload genérico completamente.
@@ -2178,7 +2172,7 @@ Evolution API (instância WA-Pessoal)
   → POST /api/webhooks/evolution
   → normalizeWebhookPayload() — verifica fromMe, grupo, tipo desconhecido
   → enqueueBatch() — aguarda 2.5s por mensagens consecutivas
-  → runXpagWorkflow(normalizedMessage)
+  → runLeadConversationWorkflow(normalizedMessage)
     → STEP 1: resolveTenantByInstance('WA-Pessoal')  [usa SUPABASE_SERVICE_ROLE_KEY]
     → STEP 3: leadService.findOrCreate()              [usa SUPABASE_SERVICE_ROLE_KEY]
     → STEP 4: verifica modo humano
@@ -2204,7 +2198,7 @@ Evolution API (instância WA-Pessoal)
 
 ### 17.1 Contexto
 
-Após a sessão de 2026-03-18 (seção 16), o agente nativo foi confirmado funcionando via curl direto (37s de execução, lead criado, resposta gerada: *"Boa noite! Tudo bem? Obrigado por entrar em contato com a XPAG..."*). Porém, mensagens reais enviadas pelo WhatsApp (do número 8137889757 para o WA-Pessoal 81988514775) não recebiam resposta. O sistema continuava silencioso.
+Após a sessão de 2026-03-18 (seção 16), o agente nativo foi confirmado funcionando via curl direto (37s de execução, lead criado, resposta gerada: *"Boa noite! Tudo bem? Obrigado por entrar em contato..."*). Porém, mensagens reais enviadas pelo WhatsApp (do número 8137889757 para o WA-Pessoal 81988514775) não recebiam resposta. O sistema continuava silencioso.
 
 ---
 
@@ -2224,7 +2218,7 @@ O arquivo `src/lib/services/message-batch.service.ts` usava `setTimeout(2500ms)`
 ```typescript
 // route.ts — ANTES (QUEBRADO em Vercel serverless)
 enqueueBatch(key, message, async (messages) => {
-  await runXpagWorkflow(normalized); // NUNCA executava
+  await runLeadConversationWorkflow(normalized); // NUNCA executava
 });
 return NextResponse.json({ received: true }); // contexto congelado aqui
 ```
@@ -2233,7 +2227,7 @@ return NextResponse.json({ received: true }); // contexto congelado aqui
 
 ```typescript
 // route.ts — DEPOIS (CORRETO)
-await runXpagWorkflow(normalized); // await antes do return
+await runLeadConversationWorkflow(normalized); // await antes do return
 return NextResponse.json({ received: true });
 ```
 
@@ -2246,7 +2240,7 @@ return NextResponse.json({ received: true });
 Na primeira tentativa de correção, foi usado fire-and-forget (Promise sem await):
 
 ```typescript
-runXpagWorkflow(normalized).catch(() => {}); // fire-and-forget
+runLeadConversationWorkflow(normalized).catch(() => {}); // fire-and-forget
 return NextResponse.json({ received: true });
 ```
 
@@ -2258,7 +2252,7 @@ Resultado: a mensagem era salva no banco (steps iniciais rodavam), mas `message_
 
 ```typescript
 import { waitUntil } from '@vercel/functions';
-waitUntil(runXpagWorkflow(normalized));
+waitUntil(runLeadConversationWorkflow(normalized));
 return NextResponse.json({ received: true });
 ```
 
@@ -2271,7 +2265,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300; // Vercel aguarda até 300s
 
 try {
-  await runXpagWorkflow(normalized); // bloqueia até tudo terminar
+  await runLeadConversationWorkflow(normalized); // bloqueia até tudo terminar
 } catch (err) {
   console.error('[Webhook] Workflow error:', (err as Error)?.message ?? err);
 }
@@ -2466,7 +2460,7 @@ Evolution API (instancia WA-Pessoal)
   -> POST /api/webhooks/evolution
   -> normalizeWebhookPayload() — verifica fromMe, grupo, tipo desconhecido
   -> [SEM BATCHING — removido BUG-23]
-  -> await runXpagWorkflow(normalizedMessage)  [<-- await critico]
+  -> await runLeadConversationWorkflow(normalizedMessage)  [<-- await critico]
     -> STEP 1: resolveTenantByInstance('WA-Pessoal')  [usa SUPABASE_SERVICE_ROLE_KEY]
     -> STEP 2: verifica #finalizado
     -> STEP 3: leadService.findOrCreate()

@@ -15,7 +15,7 @@ function generateRandomMessage(index: number) {
     },
     pushName: `Lead ${index}`,
     message: { conversation: `Mensagem de teste ${index}` },
-    instanceName: 'Xpag Atendimento',
+    instanceName: 'Empresa Exemplo Atendimento',
   };
 }
 

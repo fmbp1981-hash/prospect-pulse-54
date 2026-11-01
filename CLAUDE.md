@@ -2,8 +2,8 @@
 
 **AI Assistant Guide for LeadFinder Pro Development**
 
-Last updated: 2025-11-16
-Version: 1.0
+Last updated: 2026-10-30
+Version: 2.0
 
 ---
 
@@ -15,7 +15,7 @@ Version: 1.0
 4. [Directory Structure](#directory-structure)
 5. [Development Workflows](#development-workflows)
 6. [Key Conventions](#key-conventions)
-7. [Database Schema](#database-schema)
+7. [Database & Multi-tenancy](#database--multi-tenancy)
 8. [Authentication & Security](#authentication--security)
 9. [Common Tasks](#common-tasks)
 10. [Troubleshooting](#troubleshooting)
@@ -25,54 +25,46 @@ Version: 1.0
 
 ## Project Overview
 
-**LeadFinder Pro** is a modern CRM platform designed for lead prospecting, management, and WhatsApp outreach. Built on Lovable.dev platform.
+**LeadFinder Pro** is a multi-tenant CRM platform for lead prospecting, management, and WhatsApp/email outreach.
 
 ### Core Features
 
-- **Lead Prospecting**: Google Places API integration for finding business leads
-- **Multi-tenant Architecture**: User isolation with Row Level Security (RLS)
-- **WhatsApp Integration**: Automated message generation using AI
-- **Analytics Dashboard**: Comprehensive metrics and charts
-- **Lead Management**: Full CRUD operations with status tracking
-- **Data Enrichment**: Firecrawl API for website analysis
-- **Bulk Operations**: Mass actions on leads (export, dispatch, delete)
-
-### Project URL
-- Lovable Project: https://lovable.dev/projects/fad09e3c-a647-4d0f-a32a-39e775324c83
+- **Lead Prospecting**: Google Places and LinkedIn (Apify) channels
+- **Multi-tenant Architecture**: Organization isolation with Row Level Security (RLS)
+- **WhatsApp Integration**: AI-generated messages, dispatch via Evolution API or Meta Cloud API
+- **Pipeline / Kanban, Inbox, Campaigns**: lead stages, conversations, email marketing
+- **Analytics Dashboard**: metrics and charts
+- **Data Enrichment**: Firecrawl for website analysis
+- **Bulk Operations**: export, dispatch, delete
 
 ---
 
 ## Technology Stack
 
-### Frontend
-- **Framework**: React 18.3.1 with TypeScript
-- **Build Tool**: Vite 5.4.19
-- **Routing**: React Router DOM 6.30.1
-- **State Management**: TanStack Query 5.83.0
+### Frontend / Server
+- **Framework**: Next.js 14 (App Router) with TypeScript (`app/`, `middleware.ts`)
+- **State Management**: TanStack Query
 - **UI Components**: shadcn/ui (Radix UI primitives)
-- **Styling**: Tailwind CSS 3.4.17 with custom theme
-- **Charts**: Recharts 2.15.4
-- **Animations**: Framer Motion 12.23.24
-- **Form Handling**: React Hook Form 7.61.1 + Zod 3.25.76
-- **Icons**: Lucide React 0.462.0
+- **Styling**: Tailwind CSS 3.x
+- **Charts**: Recharts
+- **Animations**: Framer Motion
+- **Forms**: React Hook Form + Zod
+- **Icons**: Lucide React
 
 ### Backend
-- **Database**: Supabase (PostgreSQL)
-- **Edge Functions**: Deno (hosted on Supabase)
-- **Authentication**: Supabase Auth
-- **Storage**: Supabase Storage
+- **Database / Auth / Storage**: Supabase (PostgreSQL, Supabase Auth)
+- **API**: Next.js Route Handlers in `app/api/*`
+- **Business logic**: `src/lib/services`, `src/lib/repositories`
 
-### External APIs
-- **Google Places API**: Lead prospecting
-- **Firecrawl API**: Website content enrichment
-- **Lovable AI Gateway**: WhatsApp message generation
-- **Evolution API**: WhatsApp dispatch (optional)
+### Deploy
+- **Current**: Vercel (`vercel.json`, Vercel Cron)
+- **Target**: Cloudflare Workers via OpenNext (`wrangler.jsonc`, `open-next.config.ts`, `custom-worker.ts`). See `CLOUDFLARE_MIGRATION_PLAN.md`.
 
 ### Development Tools
-- **Linter**: ESLint 9.32.0 with TypeScript
+- **Linter**: ESLint (`npm run lint`)
+- **Tests**: Vitest (`npm test`)
 - **Package Manager**: npm (package-lock.json present)
-- **Version Control**: Git
-- **Type Checking**: TypeScript 5.8.3
+- **Type Checking**: TypeScript (currently `strict: false` in `tsconfig.json`; target: strict, no `any` in new code)
 
 ---
 
@@ -81,40 +73,30 @@ Version: 1.0
 ### Application Flow
 
 ```
-User Authentication (Supabase Auth)
+Request
     ↓
-Protected Routes (React Router + ProtectedRoute)
+middleware.ts (session refresh + route protection)
     ↓
-Main Layout (AppSidebar + Content Area)
+app/(auth) | app/(protected) pages  /  app/api/* route handlers
     ↓
-Pages (Index, Dashboard, LeadsTable)
+src/lib/services   (business rules)
     ↓
-Components (ProspectionForm, Charts, Tables)
+src/lib/repositories   (data access)
     ↓
-TanStack Query (Data Fetching & Caching)
-    ↓
-Supabase Client (API Calls)
-    ↓
-Backend (Supabase PostgreSQL + Edge Functions)
+Supabase (PostgreSQL + RLS)
 ```
+
+Target layering for new code: components -> services -> repositories -> Supabase. Existing code does not fully follow it yet.
 
 ### Multi-Tenant Architecture
 
-**CRITICAL**: The application implements **multi-tenancy** at the database level using:
+**CRITICAL**: tenancy is organization-based and enforced in the database:
 
-1. **RLS (Row Level Security)**: Enabled on `leads_prospeccao` table
-2. **Database Trigger**: Automatically sets `user_id` on insert
-3. **Policies**: 4 policies (SELECT, INSERT, UPDATE, DELETE) ensure data isolation
-4. **Edge Function Authentication**: Uses user's auth token (NOT service role key)
-
-**Authentication Flow**:
-```typescript
-// Edge Function authenticates user via Authorization header
-const authHeader = req.headers.get('Authorization');
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  global: { headers: { Authorization: authHeader } }
-});
-```
+1. **Tables**: `organizations` and `organization_members`
+2. **Roles**: `admin`, `operador`, `visualizador` (see `GUIA_ROLES.md`)
+3. **RLS**: enabled on all tables; policies scope rows to the user's organization
+4. **Route handlers**: authenticate the user and resolve the organization before touching data
+5. **Service role key**: server-only, used sparingly (admin tasks, webhooks, cron); never exposed to the client
 
 ---
 
@@ -122,39 +104,41 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 ```
 prospect-pulse-54/
+├── app/                     # Next.js App Router
+│   ├── (auth)/              # Login / signup routes
+│   ├── (protected)/         # Authenticated pages (dashboard, leads, kanban, inbox, ...)
+│   ├── api/                 # Route handlers (leads, campaigns, whatsapp, webhooks, cron, ...)
+│   ├── layout.tsx
+│   └── providers.tsx
+├── middleware.ts            # Auth/session middleware
+├── lib/                     # Shared root-level helpers (constants, supabase clients)
 ├── src/
-│   ├── components/          # React components
-│   │   ├── ui/             # shadcn/ui components (40+ components)
-│   │   ├── leads/          # Lead-specific components
-│   │   └── dashboard/      # Dashboard components (charts, metrics)
-│   ├── contexts/           # React contexts (AuthContext)
-│   ├── data/               # Static data (prospectionQuickSelects)
-│   ├── hooks/              # Custom React hooks (use-toast, use-mobile)
-│   ├── integrations/       # External integrations
-│   │   └── supabase/       # Supabase client & types
-│   ├── lib/                # Utility functions
-│   ├── pages/              # Page components (7 pages)
-│   ├── types/              # TypeScript type definitions
-│   ├── App.tsx             # Main app component
-│   └── main.tsx            # Application entry point
-├── supabase/
-│   ├── functions/          # Edge Functions (Deno)
-│   │   └── prospection/    # Main prospection function
-│   └── migrations/         # SQL migrations (4 files)
-├── public/                 # Static assets
-├── .env.example            # Environment variables template
-├── package.json            # Dependencies & scripts
-├── tailwind.config.ts      # Tailwind configuration
-├── tsconfig.json           # TypeScript configuration
-├── vite.config.ts          # Vite configuration
-└── README.md               # Project documentation
+│   ├── components/          # React components (ui/ = shadcn)
+│   ├── contexts/            # React contexts
+│   ├── data/                # Static data
+│   ├── hooks/               # Custom hooks
+│   ├── integrations/        # supabase/client.ts and generated types.ts
+│   ├── lib/                 # services/, repositories/, validations/, integrations/, guards/, ...
+│   └── types/               # TypeScript types
+├── supabase/                # config.toml, migrations/, functions/
+├── docs/                    # Documentation (docs/sql-legado/ = legacy ad-hoc SQL, do not run blindly)
+├── scripts/                 # Maintenance scripts (scripts/legacy/ = old test scripts)
+├── tests/ e2e_tests/        # Unit and e2e tests
+├── wrangler.jsonc           # Cloudflare Workers config
+├── open-next.config.ts      # OpenNext config
+├── custom-worker.ts         # Custom Worker entry (Cloudflare)
+├── next.config.js
+├── .env.example             # Environment variables template
+└── package.json
 ```
 
 ### Key Directories
 
-- **src/components/ui/**: DO NOT modify directly (generated by shadcn/ui)
-- **src/integrations/supabase/types.ts**: Auto-generated from Supabase schema
-- **supabase/migrations/**: Database schema evolution (never modify manually)
+- **Unused Vite leftovers** (scheduled for removal): `vite.config.ts`, `index.html`, `src/App.tsx`, `src/main.tsx`, `tsconfig.app.json`, `tsconfig.node.json`
+
+- **src/components/ui/**: shadcn/ui components; avoid editing directly
+- **supabase/migrations/**: versioned schema evolution (currently incomplete vs. production, see Database & Multi-tenancy); never alter schema directly in production
+- **docs/sql-legado/**: historical one-off SQL kept for reference only
 
 ---
 
@@ -163,69 +147,37 @@ prospect-pulse-54/
 ### Local Development Setup
 
 ```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd prospect-pulse-54
-
-# 2. Install dependencies
+# 1. Install dependencies
 npm install
 
-# 3. Configure environment variables
-cp .env.example .env
-# Edit .env with Supabase credentials
+# 2. Configure environment variables
+cp .env.example .env.local
+# Fill in values (never commit .env.local)
 
-# 4. Start development server
-npm run dev
-# Runs on http://localhost:8080
+# 3. Start development server
+npm run dev          # http://localhost:3000
 
-# 5. Build for production
-npm run build
+# 4. Quality checks
+npm run lint
+npm test
+npm run build        # Next.js production build
+```
 
-# 6. Preview production build
-npm run preview
+### Cloudflare (target deploy)
+
+```bash
+npm run cf:build     # OpenNext build for Workers
+npm run cf:preview   # Build + local preview with wrangler
+npm run cf:deploy    # Build + deploy (manual only)
 ```
 
 ### Git Branch Workflow
 
-**IMPORTANT**: Always work on feature branches starting with `claude/`:
-
-```bash
-# Current branch naming pattern
-claude/claude-md-{sessionId}-{uniqueId}
-
-# Example
-claude/claude-md-mi1ztnc7n0hypjyg-01Ap5ofT6zvCtL6PBzqS7b5w
-```
+Work on feature branches (e.g. `claude/<topic>`); open PRs against `main`.
 
 ### Commit Message Conventions
 
-Based on repository history:
-
-```
-Feature: [Brief description]
-Fix: [Brief description]
-Docs: [Brief description]
-Refactor: [Brief description]
-Test: [Brief description]
-```
-
-**Examples from repo**:
-- `Feature: Implementar Dashboard Analítico completo`
-- `Fix: Corrigir warnings e melhorar código`
-- `Docs: Resumo completo do trabalho noturno`
-
-### Supabase Edge Functions Development
-
-```bash
-# Deploy Edge Function
-supabase functions deploy prospection
-
-# Test locally
-supabase functions serve prospection
-
-# View logs
-supabase functions logs prospection
-```
+Semantic commits: `feat:`, `fix:`, `docs:`, `refactor:`, `chore:`, `test:`.
 
 ---
 
@@ -233,186 +185,56 @@ supabase functions logs prospection
 
 ### File Naming
 
-- **Components**: PascalCase (e.g., `ProspectionForm.tsx`, `LeadDetailDrawer.tsx`)
-- **Utilities**: camelCase (e.g., `use-toast.ts`, `use-mobile.tsx`)
-- **Types**: PascalCase (e.g., `Database`, `Tables`)
+- **Components**: PascalCase (e.g., `ProspectionForm.tsx`)
+- **Hooks / utilities**: camelCase or kebab-case following neighbouring files
+- **Services / repositories**: `<name>.service.ts`, `<name>.repository.ts`
 - **Constants**: UPPER_SNAKE_CASE (in code)
-
-### Component Structure
-
-```typescript
-// 1. Imports (grouped: React, external libs, internal, types)
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-
-// 2. Types/Interfaces
-interface MyComponentProps {
-  title: string;
-  onAction: () => void;
-}
-
-// 3. Component definition
-export function MyComponent({ title, onAction }: MyComponentProps) {
-  // 4. State & hooks
-  const [data, setData] = useState(null);
-
-  // 5. Effects
-  useEffect(() => {
-    // ...
-  }, []);
-
-  // 6. Handlers
-  const handleClick = () => {
-    // ...
-  };
-
-  // 7. Render
-  return (
-    <div className="p-4">
-      {/* ... */}
-    </div>
-  );
-}
-```
 
 ### Styling Conventions
 
-- **Use Tailwind classes** (no inline styles)
-- **Responsive design**: Mobile-first (`className="text-sm md:text-base lg:text-lg"`)
-- **Spacing**: Consistent spacing scale (p-4, gap-4, space-y-4)
-- **Colors**: Use CSS variables (hsl(var(--primary)))
-- **Dark mode**: Automatically supported via `darkMode: ["class"]`
+- **Tailwind classes** (no inline styles)
+- **Mobile-first** responsive design (`className="text-sm md:text-base lg:text-lg"`)
+- **Colors**: CSS variables (`hsl(var(--primary))`)
+- **Dark mode**: via `darkMode: ["class"]`
 
 ### State Management
 
-- **Server State**: TanStack Query (React Query)
+- **Server State**: TanStack Query
 - **Local State**: useState, useReducer
-- **Global State**: React Context (AuthContext)
-- **Form State**: React Hook Form
+- **Form State**: React Hook Form + Zod
+
+### API Responses
+
+Target convention for new code (existing routes do not all follow it yet): success `{ data, meta }`, error `{ error: { code, message } }`. Validate all inputs with Zod.
 
 ### Error Handling
 
 ```typescript
-try {
-  const { data, error } = await supabase
-    .from('leads_prospeccao')
-    .select('*');
-
-  if (error) {
-    console.error('Database error:', error);
-    toast.error('Failed to load leads');
-    return;
-  }
-
-  // Process data
-} catch (error) {
-  console.error('Unexpected error:', error);
-  toast.error('An unexpected error occurred');
+const { data, error } = await supabase.from('leads_prospeccao').select('*');
+if (error) {
+  console.error('Database error:', error);
+  return { error: { code: 'DB_ERROR', message: 'Failed to load leads' } };
 }
-```
-
-### Toast Notifications
-
-Three toast systems are available (unified in App.tsx):
-
-```typescript
-// 1. shadcn/ui toast
-import { useToast } from "@/hooks/use-toast";
-const { toast } = useToast();
-toast({ title: "Success", description: "Lead created" });
-
-// 2. Sonner
-import { toast } from "sonner";
-toast.success("Lead created successfully");
-
-// 3. React Hot Toast (preferred for real-time feedback)
-import toast from "react-hot-toast";
-toast.success("Lead created!");
-toast.error("Failed to create lead");
-toast.loading("Creating lead...");
 ```
 
 ---
 
-## Database Schema
+## Database & Multi-tenancy
 
-### Main Table: `leads_prospeccao`
+The generated types in `src/integrations/supabase/types.ts` (client in `src/integrations/supabase/client.ts`) and the live database reflect the real schema. **`supabase/migrations/` is incomplete and is NOT the source of truth today**: production has schema not represented there (e.g. `leads_prospeccao.tenant_id`, trigger `set_tenant_and_origem_on_insert`). A baseline reconciliation is planned (Sprint 2). Until then, inspect the live schema (generated types or the database) before writing any migration. Do not copy table definitions into docs.
 
-```sql
-CREATE TABLE public.leads_prospeccao (
-  id TEXT PRIMARY KEY,              -- Google Place ID or generated UUID
-  lead TEXT NOT NULL,               -- Format: "Lead-001", "Lead-002"
-  empresa TEXT NOT NULL,            -- Company name
-  categoria TEXT,                   -- Business category/niche
-  telefone_whatsapp TEXT,          -- Phone number (international format)
-  endereco TEXT,                    -- Full address
-  cidade TEXT,                      -- City
-  bairro_regiao TEXT,              -- Neighborhood
-  website TEXT,                     -- Website URL
-  instagram TEXT,                   -- Instagram handle
-  link_gmn TEXT,                    -- Google Maps link
-  aceita_cartao TEXT,              -- Accepts card payments
-  mensagem_whatsapp TEXT,          -- Generated WhatsApp message
-  status_msg_wa TEXT,              -- WhatsApp status: not_sent, sent, failed
-  data_envio_wa TIMESTAMP,         -- WhatsApp sent timestamp
-  resumo_analitico TEXT,           -- Firecrawl enrichment summary
-  cnpj TEXT,                        -- Brazilian company ID
-  status TEXT DEFAULT 'Novo',      -- Lead status: Novo, Recorrente
-  data TEXT,                        -- Formatted date string
-  email TEXT,                       -- Email address
-  contato TEXT,                     -- Contact person
-  user_id UUID REFERENCES auth.users(id), -- Multi-tenant user ID
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-```
+Rules:
+- RLS enabled on every table, policies scoped by organization membership
+- PK UUID (`gen_random_uuid()`), `created_at` / `updated_at` on every table
+- Never alter production schema by hand; changes go through versioned migrations
+- Legacy one-off scripts in `docs/sql-legado/` are historical only
 
-### RLS Policies
+### Production migration rule
 
-```sql
--- Users can only view their own leads
-CREATE POLICY "Users can view own leads"
-  ON public.leads_prospeccao FOR SELECT
-  USING (auth.uid() = user_id);
-
--- Users can only insert their own leads
-CREATE POLICY "Users can insert own leads"
-  ON public.leads_prospeccao FOR INSERT
-  WITH CHECK (auth.uid() IS NOT NULL);
-
--- Users can only update their own leads
-CREATE POLICY "Users can update own leads"
-  ON public.leads_prospeccao FOR UPDATE
-  USING (auth.uid() = user_id);
-
--- Users can only delete their own leads
-CREATE POLICY "Users can delete own leads"
-  ON public.leads_prospeccao FOR DELETE
-  USING (auth.uid() = user_id);
-```
-
-### Database Trigger
-
-```sql
-CREATE OR REPLACE FUNCTION public.set_user_id_on_insert()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.user_id IS NULL THEN
-    NEW.user_id := auth.uid();
-  END IF;
-  IF NEW.user_id = auth.uid() THEN
-    RETURN NEW;
-  END IF;
-  RAISE EXCEPTION 'Você não pode criar leads para outro usuário';
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER trigger_set_user_id
-  BEFORE INSERT ON public.leads_prospeccao
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_user_id_on_insert();
-```
+Any migration, or any DELETE/UPDATE, on production requires:
+1. The user's explicit authorization at that moment (prior approval does not carry over).
+2. A rollback SQL in the same PR.
+3. A prior export of the affected rows/definitions to `scripts/legacy/backup-<date>-<topic>.json` (git-ignored).
 
 ---
 
@@ -420,44 +242,41 @@ CREATE TRIGGER trigger_set_user_id
 
 ### Authentication Flow
 
-1. **Sign Up**: Email + Password (no email confirmation by default)
-   - Route: `/auth/signup`
-   - Redirects to login after successful signup
-   - NO email verification screen shown
-
-2. **Login**: Email + Password
-   - Route: `/auth/login`
-   - Sets session in localStorage
-   - Redirects to home page
-
-3. **Protected Routes**: All routes except auth pages require authentication
-   - Wrapped in `<ProtectedRoute>` component
-   - Redirects to `/auth/login` if not authenticated
+1. **Sign Up / Login**: email + password via Supabase Auth (`app/(auth)`)
+2. **Session**: refreshed in `middleware.ts`
+3. **Protected routes**: everything under `app/(protected)` and `app/api` (except webhooks/cron, which use their own secrets)
+4. **Roles**: `admin`, `operador`, `visualizador` enforced in guards (`src/lib/guards`) and RLS
 
 ### Environment Variables
 
-```bash
-# Required in .env
-VITE_SUPABASE_PROJECT_ID=your-project-id
-VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-public-key
-VITE_SUPABASE_URL=https://your-project-id.supabase.co
+Names only (see `.env.example` for the full list and comments; never commit values):
 
-# Required in Supabase Edge Function Secrets
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_ANON_KEY=your-anon-key (NOT service role!)
-GOOGLE_PLACES_API_KEY=your-google-api-key
-FIRECRAWL_API_KEY=your-firecrawl-key (optional)
-LOVABLE_API_KEY=your-lovable-key (optional)
+```bash
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY      # server-only
+NEXT_PUBLIC_APP_URL
+FIRECRAWL_API_KEY
+APIFY_API_KEY
+WHATSAPP_PROVIDER              # "evolution" | "meta"
+EVOLUTION_API_URL / EVOLUTION_API_KEY / EVOLUTION_DEFAULT_INSTANCE
+META_WA_TOKEN / META_WA_PHONE_NUMBER_ID / META_WA_VERSION / META_WA_VERIFY_TOKEN
+RESEND_API_KEY
+FROM_EMAIL
+OPENAI_API_KEY
+CRON_SECRET
 ```
 
 ### Security Best Practices
 
-1. **NEVER use Service Role Key in Edge Functions** (breaks auth.uid())
-2. **Always pass Authorization header** to Edge Functions
+1. **Service role key only on the server**, never in client bundles or `NEXT_PUBLIC_*`
+2. **Always resolve the user and organization** in route handlers before data access
 3. **Enable RLS** on all tables
-4. **Validate user input** before database operations
+4. **Validate user input** with Zod before database operations
 5. **Use parameterized queries** (Supabase client handles this)
-6. **Never commit .env** file (use .env.example)
+6. **Verify secrets** on webhooks and cron endpoints (`CRON_SECRET`, webhook keys)
+7. **Never commit .env files** (use .env.example)
+8. `npm audit` clean before production deploy
 
 ---
 
@@ -465,312 +284,92 @@ LOVABLE_API_KEY=your-lovable-key (optional)
 
 ### Adding a New Page
 
-```typescript
-// 1. Create page component in src/pages/
-// src/pages/MyNewPage.tsx
-export default function MyNewPage() {
-  return <div>My New Page</div>;
-}
+Create `app/(protected)/<route>/page.tsx` (server or client component), add the navigation entry in the sidebar component, and keep data access in services/repositories.
 
-// 2. Add route in App.tsx
-import MyNewPage from "./pages/MyNewPage";
+### Adding an API Route
 
-<Route
-  path="/my-new-page"
-  element={
-    <ProtectedRoute>
-      <Layout>
-        <MyNewPage />
-      </Layout>
-    </ProtectedRoute>
-  }
-/>
-
-// 3. Add navigation link in AppSidebar.tsx
-{
-  title: "My New Page",
-  url: "/my-new-page",
-  icon: Icon,
-}
-```
+Create `app/api/<name>/route.ts`: authenticate, validate input with Zod, call a service, return `{ data, meta }` or `{ error }`.
 
 ### Adding a UI Component
 
 ```bash
-# Use shadcn/ui CLI (if available)
 npx shadcn@latest add [component-name]
-
-# Or manually create in src/components/
 ```
 
 ### Fetching Data with TanStack Query
 
 ```typescript
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-
-function MyComponent() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['leads'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('leads_prospeccao')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  if (isLoading) return <div>Loading...</div>;
-  if (error) return <div>Error: {error.message}</div>;
-
-  return <div>{/* Render data */}</div>;
-}
+const { data, isLoading, error } = useQuery({
+  queryKey: ['leads'],
+  queryFn: async () => {
+    const res = await fetch('/api/leads');
+    if (!res.ok) throw new Error('Failed to load leads');
+    return res.json();
+  },
+});
 ```
 
 ### Creating a Database Migration
 
-```bash
-# Never create migrations manually
-# Use Supabase Dashboard SQL Editor instead
-# Migrations are auto-generated when deploying
-```
-
-### Modifying Quick Select Data
-
-Edit `src/data/prospectionQuickSelects.ts`:
-
-```typescript
-export const quickSelectNiches = [
-  { value: "Pizzarias", label: "🍕 Pizzarias" },
-  { value: "Restaurantes", label: "🍽️ Restaurantes" },
-  // Add more...
-];
-
-export const quickSelectLocations = [
-  { value: "São Paulo, SP", label: "🏙️ São Paulo, SP" },
-  // Add more...
-];
-```
+Inspect the live schema first (generated types or the database), since `supabase/migrations/` is incomplete. Write a versioned SQL file in `supabase/migrations/` (with RLS) plus its rollback SQL in the same PR, and regenerate types. Do NOT apply it to production on your own: follow the "Production migration rule" in Database & Multi-tenancy (explicit user authorization at that moment, rollback SQL, and a prior backup export).
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
+#### RLS policy errors
+**Cause**: RLS disabled or policy missing/incorrect for the organization.
+**Solution**: Review the migration for the table and confirm the user is in `organization_members` with the right role.
 
-#### 1. "0 leads processed, 1 failure in insertion"
+#### "Authentication required" on API routes
+**Cause**: expired session or middleware not refreshing it.
+**Solution**: Log out and in again; check `middleware.ts` matcher and cookies.
 
-**Cause**: Edge Function using Service Role Key instead of user token
-
-**Solution**: Verify Edge Function uses ANON key + Authorization header:
-
-```typescript
-const authHeader = req.headers.get('Authorization');
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  global: { headers: { Authorization: authHeader } }
-});
-```
-
-#### 2. "Email not confirmed" error
-
-**Cause**: Email confirmation enabled in Supabase
-
-**Solution**:
-1. Go to Supabase Dashboard → Authentication → Providers → Email
-2. Disable "Confirm email" toggle
-
-#### 3. RLS Policy Errors
-
-**Cause**: RLS disabled or policies missing
-
-**Solution**: Run in Supabase SQL Editor:
-
-```sql
--- Enable RLS
-ALTER TABLE public.leads_prospeccao ENABLE ROW LEVEL SECURITY;
-
--- Recreate policies (see Database Schema section)
-```
-
-#### 4. Layout Issues (Form Too Narrow)
-
-**Fixed in**: Recent commit
-
-**Solution**: Ensure `src/pages/Index.tsx` uses vertical layout:
-
-```typescript
-<div className="max-w-4xl mx-auto space-y-8">
-  <ProspectionForm />
-  <SearchHistory />
-</div>
-```
-
-#### 5. Authentication Required Error
-
-**Cause**: User token expired or not passed to Edge Function
-
-**Solution**: Logout and login again, ensure frontend sends Authorization header
+#### Cloudflare build failures
+**Cause**: Node-only APIs not supported on Workers.
+**Solution**: See `CLOUDFLARE_MIGRATION_PLAN.md`; check `wrangler.jsonc` compatibility flags.
 
 ### Debugging Tips
 
-1. **Check Browser Console**: F12 → Console tab
-2. **Check Network Tab**: F12 → Network tab → Filter by "Fetch/XHR"
-3. **Check Supabase Logs**: Dashboard → Edge Functions → prospection → Logs
-4. **Check Database Policies**: Dashboard → Database → Policies
-5. **Verify Environment Variables**: Check .env file and Supabase secrets
+1. Browser console and Network tab
+2. Supabase logs (Dashboard -> Logs)
+3. Database policies (Dashboard -> Database -> Policies)
+4. Verify environment variables in `.env.local`
 
 ---
 
 ## External Integrations
 
-### Google Places API
+- **Supabase**: database, auth, storage
+- **Google Places API / Apify**: prospecting channels
+- **Firecrawl**: website enrichment (tenant key takes priority over env fallback)
+- **OpenAI**: message and template generation
+- **Evolution API / Meta Cloud API**: WhatsApp dispatch (`WHATSAPP_PROVIDER`)
+- **Resend**: email marketing
 
-**Purpose**: Find business leads by niche and location
-
-**Configuration**:
-- Set `GOOGLE_PLACES_API_KEY` in Supabase Edge Function secrets
-- Enable Places API in Google Cloud Console
-- Restrict API key to your Supabase Edge Function IP
-
-**Usage in Edge Function**:
-```typescript
-const searchQuery = `${niche} em ${location}`;
-const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${GOOGLE_API_KEY}`;
-```
-
-### Firecrawl API (Optional)
-
-**Purpose**: Enrich lead data by scraping website content
-
-**Configuration**:
-- Set `FIRECRAWL_API_KEY` in Supabase Edge Function secrets
-- Sign up at https://firecrawl.dev
-
-**Usage**: Automatically extracts website summary if website exists
-
-### Lovable AI Gateway (Optional)
-
-**Purpose**: Generate personalized WhatsApp messages using AI
-
-**Configuration**:
-- Set `LOVABLE_API_KEY` in Supabase Edge Function secrets
-- Uses Gemini 2.5 Flash model via Lovable AI Gateway
-
-**Message Generation**:
-```typescript
-const mensagem = await generateWhatsAppMessage(
-  nomeEmpresa,
-  categoria,
-  cidade,
-  LOVABLE_API_KEY
-);
-```
-
-### Evolution API (Optional)
-
-**Purpose**: Actually send WhatsApp messages to leads
-
-**Configuration**:
-- Set webhook URL in app settings
-- Configure Evolution API instance
-- See `GUIA_INTEGRACAO_N8N.md` for full setup
-
-### n8n Integration (Optional)
-
-**Purpose**: Sync leads to Google Sheets, automate workflows
-
-**Documentation**: See `GUIA_INTEGRACAO_N8N.md`
-
-**Endpoints**:
-- `GET /sync-all-leads`
-- `PATCH /update-lead-status`
-- `PUT /update-lead/:leadId`
-- `POST /create-lead`
-- `GET /metrics`
-- `POST /send-whatsapp-and-update-sheets`
+See `EVOLUTION_API_CONFIG.md`, `CONFIGURACAO_EMAIL.md` and `GUIA_ROLES.md` for setup details.
 
 ---
 
 ## Development Guidelines for AI Assistants
 
-### When Making Changes
-
-1. **Always read files before editing**: Use Read tool before Edit tool
-2. **Preserve existing patterns**: Follow conventions in similar files
-3. **Test critical paths**: Authentication, RLS, Edge Function auth
-4. **Update types**: If database schema changes, regenerate types
-5. **Check responsive design**: Test mobile, tablet, desktop layouts
-6. **Verify multi-tenancy**: Ensure user isolation is maintained
-7. **Document breaking changes**: Update relevant .md files
-
-### Code Quality Standards
-
-- **TypeScript**: Use strict typing, avoid `any`
-- **Accessibility**: Use semantic HTML, ARIA labels
-- **Performance**: Lazy load components, optimize queries
-- **Security**: Never expose API keys, validate input
-- **Error Handling**: Graceful degradation, user-friendly messages
-- **Testing**: Verify before committing
+1. **Read files before editing**
+2. **Preserve existing patterns** and layer boundaries
+3. **Test critical paths**: authentication, RLS, tenant isolation
+4. **Update types** when the schema changes
+5. **Check responsive design** (mobile-first)
+6. **Verify multi-tenancy** in every data path
+7. **TypeScript**: `strict` is currently off; write new code as if strict, no `any`
 
 ### Pull Request Checklist
 
-- [ ] Code follows existing conventions
-- [ ] No TypeScript errors (`npm run build`)
-- [ ] No ESLint warnings (`npm run lint`)
-- [ ] Responsive design tested
-- [ ] Authentication flow works
+- [ ] Follows existing conventions
+- [ ] `npm run build` passes (and `npm run cf:build` for deploy-related changes)
+- [ ] `npm run lint` and `npm test` pass
 - [ ] Multi-tenancy preserved
-- [ ] Database queries optimized
-- [ ] Error handling implemented
-- [ ] Toast notifications added
 - [ ] Documentation updated
 
 ---
 
-## Recent Changes (Last Work Session)
-
-**Date**: 2025-11-16
-
-**Major Fixes**:
-1. ✅ Fixed Edge Function authentication (uses user token, not service role)
-2. ✅ Removed email confirmation UX issue (direct to login)
-3. ✅ Improved prospection form layout (vertical, full width)
-4. ✅ Fixed lead insertion errors (multi-tenant working)
-
-**Files Modified**:
-- `supabase/functions/prospection/index.ts`
-- `src/pages/SignUp.tsx`
-- `src/contexts/AuthContext.tsx`
-- `src/pages/Index.tsx`
-
-**Testing Guide**: See `GUIA_TESTE_FINAL.md`
-
----
-
-## Additional Resources
-
-- **Lovable Docs**: https://docs.lovable.dev
-- **Supabase Docs**: https://supabase.com/docs
-- **shadcn/ui**: https://ui.shadcn.com
-- **TanStack Query**: https://tanstack.com/query
-- **Tailwind CSS**: https://tailwindcss.com
-
----
-
-## Support & Contact
-
-For issues or questions:
-1. Check existing documentation (README.md, GUIA_*.md files)
-2. Review Troubleshooting section above
-3. Check Supabase logs and browser console
-4. Create detailed bug report with logs
-
----
-
-**Last Updated**: 2025-11-16
-**Generated by**: Claude Code Assistant
 **Repository**: prospect-pulse-54
-**Version**: 1.0
+**Version**: 2.0

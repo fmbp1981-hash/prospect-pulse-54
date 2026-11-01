@@ -1,7 +1,7 @@
 # LeadFinder Pro — Guia Completo do Sistema
 
 > **Versão:** 1.0 — 2026-03-02
-> **Produto:** LeadFinder Pro / XPAG Brasil
+> **Produto:** LeadFinder Pro
 > **Responsável Técnico:** IntelliX.AI
 
 ---
@@ -399,10 +399,6 @@ EVOLUTION_API_URL=https://evolution.suaempresa.com
 EVOLUTION_API_KEY=...
 EVOLUTION_DEFAULT_INSTANCE=nome-da-instancia
 WHATSAPP_PROVIDER=evolution
-
-# Notificações para o consultor
-XPAG_CONSULTANT_WHATSAPP=5511999999999
-XPAG_CONSULTANT_INSTANCE=nome-da-instancia
 
 # Cron (proteção da rota)
 CRON_SECRET=segredo-aleatorio
