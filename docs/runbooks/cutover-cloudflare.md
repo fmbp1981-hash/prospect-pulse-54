@@ -223,28 +223,41 @@ Convenções:
        **um** deploy.
      - Alternativa: mergear o #20 e depois o PR do Sprint 3. São **dois**
        deploys do Workers Builds; o intermediário (só o #20) é esperado,
-       **aguardar o segundo terminar** antes de seguir.
+       **aguardar o segundo (último) terminar** antes de seguir; os secrets de
+       produção (item 5) vão só depois dele.
      Acompanhar o build até o deploy.
-  4. **E, imediatamente depois do primeiro deploy do Workers Builds
-     terminar:** secrets de produção (simulação primeiro, **[auth]**):
+  4. **U:** desativar os 3 workflows "LeadFinder Pro" do n8n
+     (`NE6oZxj0il18ZDUk`, `cTN9Q6FjuuguALdF`, `024Gues9qK94oCgI`) **antes**
+     do próximo item. O `CRON_SECRET` é o que faz os crons do Worker
+     autenticarem; enquanto ele não existir, eles recebem 401. Entre este
+     item e o seguinte há **zero agendadores ativos**: é a lacuna segura,
+     intencional.
+  5. **E, imediatamente depois do último deploy do Workers Builds
+     terminar** (o primeiro, no merge único; o segundo, na alternativa de
+     dois merges): secrets de produção (simulação primeiro, **[auth]**):
      ```bash
      ./scripts/cloudflare-secrets-sync.sh --dry-run
      ./scripts/cloudflare-secrets-sync.sh
      ```
-     A partir daqui os crons deixam de receber 401.
-  5. **U:** desativar os 3 workflows "LeadFinder Pro" do n8n
-     (`NE6oZxj0il18ZDUk`, `cTN9Q6FjuuguALdF`, `024Gues9qK94oCgI`), para não
-     haver dois agendadores.
-  6. **E:** verificar o despacho pelos Workers Logs de produção, por 2
-     minutos seguidos: o `scheduled` do cron `* * * * *` roda sem erro, o log
-     de despacho (`Claimed`/`dispatched`) aparece e o consumer da fila
-     registra o processamento.
+     A partir daqui os crons deixam de receber 401 e o Worker passa a ser o
+     único agendador.
+  6. **E:** verificar pelos Workers Logs de produção: o `scheduled` do cron
+     `* * * * *` roda **sem erro duas vezes seguidas**. Vale como evidência
+     tanto um log de despacho (`Claimed`/`dispatched`) quanto a linha de
+     debug/info de "nenhum lead elegível"; se houve despacho, o consumer da
+     fila registra o processamento.
+  7. **U/E:** comunicar a nova URL (o `*.workers.dev` do B1). Há
+     **indisponibilidade** desde a pausa da Vercel (item 1) até o passo de
+     secrets (item 5): sem `SUPABASE_SERVICE_ROLE_KEY` e demais secrets o app
+     novo não funciona por completo.
 - **Verificação:** build verde; `npx wrangler secret list` mostra as 6
-  chaves; item 6 sem erro; `follow-up-sends-dlq` vazia.
+  chaves; itens 4 a 6 concluídos sem erro; `follow-up-sends-dlq` vazia.
 - **Rollback (ordenado e obrigatório; nunca dois agendadores ao mesmo
   tempo):**
   1. remover `triggers.crons` do `wrangler.jsonc` e redeployar o Worker (ou
-     desabilitar os triggers pelo painel do Cloudflare);
+     desabilitar os triggers pelo painel do Cloudflare). **Confirmar que o
+     redeploy sem crons terminou** (Deployments mostra-o ativo / Workers Logs
+     sem novas execuções `scheduled`) antes do passo 2;
   2. reativar os 3 workflows do n8n;
   3. despausar a Vercel e reverter o merge na `main` (`git revert`).
 

@@ -66,12 +66,7 @@ Gerado também `worker-configuration.d.ts` via `wrangler types` (ambient types d
 
 **O que já foi feito:** criado `scripts/cloudflare-secrets-sync.sh` — lê `.env`/`.env.local` locais (nunca imprime valores), separa as 11 variáveis secretas das 12 de config pública, e envia as secretas via `wrangler secret put`. Rodei em `--dry-run`: confirmou 11/11 secrets presentes localmente e listou as 12 de config para revisão manual (`EVOLUTION_INSTANCE_NAME` não foi encontrada — confirmar se ainda é usada). **Não executei o envio real** — `wrangler` não está autenticado nesta máquina/sessão (`wrangler whoami` retornou "Not logged in") e enviar secrets pra sua conta Cloudflare é uma ação que toca infraestrutura externa, então fica pra você rodar.
 
-**Como você roda:**
-```bash
-npx wrangler login          # abre o navegador pra autenticar
-./scripts/cloudflare-secrets-sync.sh --dry-run   # confere o que vai ser enviado
-./scripts/cloudflare-secrets-sync.sh              # envia de verdade
-```
+**Como você roda:** siga `docs/runbooks/cutover-cloudflare.md`. Os secrets só são enviados depois do primeiro deploy de cada Worker (staging no B4, produção no B7); `npx wrangler login` é o B1. O script aceita `--dry-run` e `--env staging`.
 
 Variáveis identificadas no código (`process.env.*`):
 
@@ -126,7 +121,7 @@ Isso substitui o fluxo antigo "push na main = deploy automático" que a Vercel j
 
 > **Execução:** ver `docs/runbooks/cutover-cloudflare.md`, passos B4 (staging), B5 (conectores pela tela de staging) e B6 (gates).
 
-1. `wrangler dev` local completo: login, prospecção (Google Maps e LinkedIn — feature nova desta sessão), tabela de leads, kanban, envio de WhatsApp, cron manual.
+1. Smoke em staging conforme `docs/runbooks/cutover-cloudflare.md` (B4 leitura; B5 prospecção Google/LinkedIn e PDF com [auth], organização de teste e busca mínima). Não rodar cron manual local com credenciais de produção.
 2. Validar especificamente:
    - `pdf-parse` (risco identificado no diagnóstico) — testar upload/análise de PDF sob o runtime de Workers.
    - Latência de cold start das rotas de API mais pesadas (busca LinkedIn via Apify, geração de mensagem IA).
