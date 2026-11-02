@@ -60,7 +60,7 @@ Gerado também `worker-configuration.d.ts` via `wrangler types` (ambient types d
 
 ## Fase 3 — Variáveis de ambiente e secrets 🟡 script pronto, envio pendente (precisa de você)
 
-> **Atualização (Sprint 3):** o passo a passo atual está em `docs/runbooks/cutover-cloudflare.md` (B1 a B3). O script agora envia só 6 secrets (`SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `CONNECTORS_MASTER_KEY_V1`, `CONNECTORS_ACTIVE_KEY_VERSION`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`) e aceita `--dry-run` e `--env staging`. As credenciais de provedor ficam cifradas no banco (`platform_credentials` e `organization_connections`). A tabela e as contagens abaixo são o histórico anterior.
+> **Atualização (Sprint 3):** o passo a passo atual está em `docs/runbooks/cutover-cloudflare.md` (B1 a B4: os secrets de staging vão no B4, logo após o primeiro deploy, e os de produção no B7). O script agora envia só 6 secrets (`SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `CONNECTORS_MASTER_KEY_V1`, `CONNECTORS_ACTIVE_KEY_VERSION`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`) e aceita `--dry-run` e `--env staging`. As credenciais de provedor ficam cifradas no banco (`platform_credentials` e `organization_connections`). A tabela e as contagens abaixo são o histórico anterior.
 
 **Objetivo:** nada quebra por variável faltando no ambiente novo.
 
@@ -124,7 +124,7 @@ Isso substitui o fluxo antigo "push na main = deploy automático" que a Vercel j
 
 ## Fase 6 — Validação em preview/staging
 
-> **Execução:** ver `docs/runbooks/cutover-cloudflare.md`, passos B4 (staging) e B5 (gates).
+> **Execução:** ver `docs/runbooks/cutover-cloudflare.md`, passos B4 (staging), B5 (conectores pela tela de staging) e B6 (gates).
 
 1. `wrangler dev` local completo: login, prospecção (Google Maps e LinkedIn — feature nova desta sessão), tabela de leads, kanban, envio de WhatsApp, cron manual.
 2. Validar especificamente:
@@ -138,7 +138,7 @@ Isso substitui o fluxo antigo "push na main = deploy automático" que a Vercel j
 
 ## Fase 7 — Cutover
 
-> **Execução:** ver `docs/runbooks/cutover-cloudflare.md`, passos B6 a B9 (virada, conectores, smoke e observação de 24 h). Decisão de agendamento: `docs/adr/0001-agendamento-cron-triggers-e-queues.md`.
+> **Execução:** ver `docs/runbooks/cutover-cloudflare.md`, passos B7 a B9 (virada, smoke de produção e observação de 24 h). Decisão de agendamento: `docs/adr/0001-agendamento-cron-triggers-e-queues.md`.
 
 1. Deploy de produção via `/intellix:deploy` (manual, pelo usuário).
 2. Apontar DNS do domínio de produção para o Worker.

@@ -12,7 +12,7 @@ Os jobs periódicos do sistema (follow-up, rescue-human-mode, long-followup) rod
 
 - **Cron Triggers** como agendador único: `* * * * *` follow-up, `0 * * * *` rescue-human-mode, `0 12 * * 1-5` long-followup. O handler `scheduled()` de `custom-worker.ts` mapeia cada expressão para a sua rota.
 - **Cloudflare Queue `follow-up-sends`** (binding `FOLLOW_UP_QUEUE`): o cron vira só *dispatcher*. Ele reserva os follow-ups vencidos no Postgres (`claimDueFollowUps`) e faz `sendBatch`. O *consumer* (`queue()` em `custom-worker.ts`) chama `POST /api/internal/follow-up/process` (Bearer `CRON_SECRET`) e envia pela conexão de WhatsApp da organização.
-- Consumer: `max_batch_size` 10, `max_concurrency` 2, `max_retries` 3, atraso de retry de 30 s e dead-letter queue `follow-up-sends-dlq`.
+- Consumer: `max_batch_size` 10, `max_concurrency` 2, `max_retries` 3 e dead-letter queue `follow-up-sends-dlq`. O atraso de retry de 30 s fica no código (`RETRY_DELAY_SECONDS` em `src/worker/follow-up-consumer.ts`).
 - O keepalive foi removido: o follow-up consulta o banco a cada minuto, o que já mantém o projeto Supabase ativo.
 - Staging (`env.staging`, Worker `prospect-pulse-54-staging`) fica **sem** crons e sem filas, para não haver dois agendadores contra o banco de produção.
 
