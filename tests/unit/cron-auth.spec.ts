@@ -10,18 +10,16 @@ import { NextRequest } from 'next/server';
 
 const SECRET = 'segredo-de-cron-para-teste-0123456789';
 
-const { runFollowUpJob, runLongFollowUpJob, runSupabaseKeepAlive } = vi.hoisted(() => {
+const { runFollowUpJob, runLongFollowUpJob } = vi.hoisted(() => {
   process.env.CRON_SECRET = 'segredo-de-cron-para-teste-0123456789';
   return {
     runFollowUpJob: vi.fn(async () => undefined),
     runLongFollowUpJob: vi.fn(async () => undefined),
-    runSupabaseKeepAlive: vi.fn(async () => undefined),
   };
 });
 
 vi.mock('@/lib/jobs/follow-up.job', () => ({ runFollowUpJob }));
 vi.mock('@/lib/jobs/long-followup.job', () => ({ runLongFollowUpJob }));
-vi.mock('@/lib/jobs/supabase-keepalive.job', () => ({ runSupabaseKeepAlive }));
 
 const supabaseTouched = vi.fn();
 vi.mock('@supabase/supabase-js', () => ({
@@ -40,7 +38,6 @@ vi.mock('@supabase/supabase-js', () => ({
 
 import { verifyCronRequest } from '@/lib/auth/cron-auth';
 import { GET as followUp } from '../../app/api/cron/follow-up/route';
-import { GET as keepalive } from '../../app/api/cron/keepalive/route';
 import { GET as longFollowUp } from '../../app/api/cron/long-followup/route';
 import { GET as rescue } from '../../app/api/cron/rescue-human-mode/route';
 import { GET as ragIngestGet, POST as ragIngestPost } from '../../app/api/admin/rag-ingest/route';
@@ -106,7 +103,6 @@ describe('rotas /api/cron/*', () => {
 
   it.each([
     ['follow-up', followUp, runFollowUpJob],
-    ['keepalive', keepalive, runSupabaseKeepAlive],
     ['long-followup', longFollowUp, runLongFollowUpJob],
   ] as const)('%s: segredo errado → 401; correto → roda o job', async (name, handler, job) => {
     const bad = await handler(req(`http://x/api/cron/${name}`, 'Bearer errado'));
@@ -119,7 +115,6 @@ describe('rotas /api/cron/*', () => {
 
   it.each([
     ['follow-up', followUp],
-    ['keepalive', keepalive],
     ['long-followup', longFollowUp],
   ] as const)('%s: segredo em query string → 401', async (name, handler) => {
     const res = await handler(req(`http://x/api/cron/${name}?secret=${SECRET}`));

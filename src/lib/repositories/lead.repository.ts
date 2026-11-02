@@ -287,13 +287,4 @@ export const leadRepository = {
     }
     return data;
   },
-
-  /**
-   * Keep-alive: consulta 1 linha para manter projeto Supabase ativo.
-   * Equivalente ao fluxo auxiliar "Supabase Instancia Ativa".
-   */
-  async keepAlive(): Promise<void> {
-    const supabase = getServiceClient();
-    await supabase.from('leads_prospeccao').select('id').limit(1);
-  },
 };

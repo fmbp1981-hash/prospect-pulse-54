@@ -8,17 +8,22 @@
  */
 // @ts-ignore `.open-next/worker.js` é gerado em build time (npm run cf:build)
 import { default as handler } from './.open-next/worker.js';
+import { handleFollowUpBatch } from './src/worker/follow-up-consumer';
 
 // Mapeamento schedule (cron do wrangler.jsonc) -> rota interna do Next.js
 const CRON_ROUTES: Record<string, string> = {
   '* * * * *': '/api/cron/follow-up',
   '0 12 * * 1-5': '/api/cron/long-followup',
   '0 * * * *': '/api/cron/rescue-human-mode',
-  '0 0 */5 * *': '/api/cron/keepalive',
 };
 
 export default {
   fetch: handler.fetch,
+
+  // Consumidor da fila de follow-up (follow-up-sends)
+  async queue(batch: MessageBatch<{ leadId: string; followUpCount: number }>, env: Env, ctx: ExecutionContext) {
+    await handleFollowUpBatch(batch, (req) => handler.fetch(req, env, ctx), env.CRON_SECRET);
+  },
 
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const path = CRON_ROUTES[event.cron];
