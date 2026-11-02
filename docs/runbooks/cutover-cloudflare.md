@@ -207,7 +207,7 @@ Convenções:
 - **Aviso sobre a janela:** entre o deploy do código novo e a conclusão deste
   passo, o código novo está no ar e os crons disparam. Com as conexões já
   ativas desde o B5, a janela é curta. **Não são esperadas mensagens na DLQ**
-  `follow-up-sends-dlq`. Até o item 4 os crons recebem 401 (o `CRON_SECRET` de
+  `follow-up-sends-dlq`. Até o item 5 os crons recebem 401 (o `CRON_SECRET` de
   produção ainda não existe): é no-op e é esperado. Se aparecerem mensagens
   na DLQ: **inspecionar primeiro** (Workers Logs, causa do erro, qual lead e
   organização) e só limpar a fila com `wrangler queues` (purge) com
