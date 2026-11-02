@@ -1,45 +1,37 @@
 /**
  * PROCESSAMENTO DE FOLLOW-UP (consumidor da Cloudflare Queue)
  *
- * Chamada pelo handler `queue` do Worker via `handler.fetch`, com
- * `Authorization: Bearer <CRON_SECRET>`. Recebe até 10 mensagens, processa
- * cada uma e devolve o resultado por id; o Worker faz ack/retry conforme o
- * `outcome`. Na última entrega (attempts > FOLLOW_UP_MAX_RETRIES) com 'retry', libera o claim
- * do lead antes de responder, para o cron reivindicá-lo de novo com backoff.
+ * Chamada só pelo handler `queue` do Worker via `handler.fetch`, com
+ * `Authorization: Bearer <INTERNAL_QUEUE_SECRET>` e URL `https://internal/...`
+ * (host que não existe fora do Worker). Recebe até 10 mensagens e devolve o
+ * resultado por id; o Worker faz ack/retry conforme o `outcome`.
+ *
+ * A rota só autentica, valida, chama e responde: política de última entrega,
+ * falha ambígua e espaçamento entre envios ficam em follow-up.queue.ts.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
-import { verifyCronRequest } from '@/lib/auth/cron-auth';
-import {
-  FOLLOW_UP_MAX_RETRIES,
-  processFollowUpMessage,
-  type FollowUpOutcome,
-} from '@/lib/jobs/follow-up.queue';
-import { leadRepository } from '@/lib/repositories/lead.repository';
+import { verifyInternalRequest } from '@/lib/auth/cron-auth';
+import { processRequestSchema, type ProcessResponse } from '@/lib/jobs/follow-up.contract';
+import { processFollowUpBatch } from '@/lib/jobs/follow-up.queue';
+import { errorCode } from '@/lib/runtime/error-code';
 
 export const runtime = 'nodejs';
 
-const bodySchema = z.object({
-  messages: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        leadId: z.string().uuid(),
-        followUpCount: z.number().int().min(0).max(2),
-        attempts: z.number().int().min(1),
-      })
-    )
-    .max(10),
-});
+/** Host usado pelo consumidor da fila em custom-worker.ts. */
+const INTERNAL_HOST = 'internal';
 
 function errorResponse(code: string, message: string, status: number) {
   return NextResponse.json({ error: { code, message } }, { status });
 }
 
 export async function POST(req: NextRequest) {
-  if (!verifyCronRequest(req)) {
+  if (!verifyInternalRequest(req)) {
     return errorResponse('UNAUTHORIZED', 'Unauthorized', 401);
+  }
+
+  if (new URL(req.url).host !== INTERNAL_HOST) {
+    return errorResponse('FORBIDDEN', 'Forbidden', 403);
   }
 
   let raw: unknown;
@@ -49,40 +41,17 @@ export async function POST(req: NextRequest) {
     return errorResponse('VALIDATION_ERROR', 'Invalid JSON body', 400);
   }
 
-  const parsed = bodySchema.safeParse(raw);
+  const parsed = processRequestSchema.safeParse(raw);
   if (!parsed.success) {
     return errorResponse('VALIDATION_ERROR', 'Invalid follow-up messages', 400);
   }
 
-  const results: { id: string; outcome: FollowUpOutcome }[] = [];
-
-  // Sequencial: evita rajada de envios pela mesma conexão de WhatsApp.
-  for (const msg of parsed.data.messages) {
-    let outcome: FollowUpOutcome;
-    try {
-      outcome = await processFollowUpMessage({ leadId: msg.leadId, followUpCount: msg.followUpCount });
-    } catch (err) {
-      console.error('[FollowUp/Process] erro ao processar mensagem', {
-        leadId: msg.leadId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      outcome = 'retry';
-    }
-
-    if (outcome === 'retry' && msg.attempts > FOLLOW_UP_MAX_RETRIES) {
-      try {
-        await leadRepository.releaseFollowUpClaim(msg.leadId);
-      } catch (err) {
-        // A trava de 5 min do claim expira sozinha; só registra.
-        console.error('[FollowUp/Process] falha ao liberar claim', {
-          leadId: msg.leadId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-
-    results.push({ id: msg.id, outcome });
+  try {
+    const results = await processFollowUpBatch(parsed.data.messages);
+    const body: ProcessResponse = { data: { results }, meta: { processed: results.length } };
+    return NextResponse.json(body);
+  } catch (err) {
+    console.error('[FollowUp/Process] erro ao processar o lote', { error: errorCode(err) });
+    return errorResponse('INTERNAL_ERROR', 'Follow-up processing failed', 500);
   }
-
-  return NextResponse.json({ data: { results } });
 }

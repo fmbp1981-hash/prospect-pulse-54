@@ -6,10 +6,32 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
+import { FOLLOW_UP_DUE_STATUSES } from '@/lib/jobs/follow-up.contract';
 
 type LeadRow = Database['public']['Tables']['leads_prospeccao']['Row'];
 type LeadInsert = Database['public']['Tables']['leads_prospeccao']['Insert'];
 type LeadUpdate = Database['public']['Tables']['leads_prospeccao']['Update'];
+
+/**
+ * Colunas lidas pelo follow-up por fila: isStillDueForFollowUp
+ * (modo_atendimento, status_msg_wa, follow_up_count, data_ultima_interacao),
+ * prepareFollowUp/sendText (id, whatsapp, follow_up_count) e
+ * resolveLeadOrganizationId (organization_id, user_id).
+ */
+export const FOLLOW_UP_JOB_LEAD_COLUMNS =
+  'id, whatsapp, follow_up_count, modo_atendimento, status_msg_wa, data_ultima_interacao, organization_id, user_id' as const;
+
+export type FollowUpJobLead = Pick<
+  LeadRow,
+  | 'id'
+  | 'whatsapp'
+  | 'follow_up_count'
+  | 'modo_atendimento'
+  | 'status_msg_wa'
+  | 'data_ultima_interacao'
+  | 'organization_id'
+  | 'user_id'
+>;
 
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -57,19 +79,20 @@ export const leadRepository = {
   },
 
   /**
-   * Busca lead pelo ID, sem filtro de tenant (service_role). Somente servidor:
-   * usado pelo consumidor da fila de follow-up, que recebe só o leadId de uma
-   * mensagem gerada pelo próprio sistema. Nunca expor a entrada de usuário.
+   * Busca o lead pelo ID para o consumidor da fila de follow-up, sem filtro de
+   * tenant (service_role). Somente servidor: o leadId vem de uma mensagem
+   * gerada pelo próprio sistema, nunca de entrada de usuário. Lê só as colunas
+   * que o job usa (FOLLOW_UP_JOB_LEAD_COLUMNS): minimização (LGPD).
    */
-  async findById(id: string): Promise<LeadRow | null> {
+  async findByIdForFollowUpJob(id: string): Promise<FollowUpJobLead | null> {
     const supabase = getServiceClient();
     const { data, error } = await supabase
       .from('leads_prospeccao')
-      .select('*')
+      .select(FOLLOW_UP_JOB_LEAD_COLUMNS)
       .eq('id', id)
       .maybeSingle();
 
-    if (error) throw new Error(`findById error: ${error.message}`);
+    if (error) throw new Error(`findByIdForFollowUpJob error: ${error.message}`);
     return data ?? null;
   },
 
@@ -191,11 +214,19 @@ export const leadRepository = {
    * Reserva o envio do follow-up `expectedCount` antes de enviar (caminho da
    * fila): update condicional `follow_up_count = expectedCount + 1` (mais os
    * mesmos campos de incrementFollowUpCount, exceto a trava, que segue segurando
-   * o lead enquanto a fila tenta de novo) só onde `follow_up_count = expectedCount`.
+   * o lead enquanto a fila tenta de novo). Só reserva se o lead continua
+   * exatamente como foi lido: mesmo `follow_up_count`, `modo_atendimento = 'bot'`,
+   * `status_msg_wa` em conversa e a mesma `data_ultima_interacao` (`lastInteraction`).
    * true apenas se exatamente uma linha mudou: duas entregas da mesma mensagem
-   * nunca enviam as duas.
+   * nunca enviam as duas, e um lead que respondeu ou foi para humano entre a
+   * leitura e a reserva não recebe o follow-up.
    */
-  async reserveFollowUpSend(id: string, expectedCount: number, now: Date = new Date()): Promise<boolean> {
+  async reserveFollowUpSend(
+    id: string,
+    expectedCount: number,
+    lastInteraction: string,
+    now: Date = new Date()
+  ): Promise<boolean> {
     const supabase = getServiceClient();
     const newCount = expectedCount + 1;
     const at = now.toISOString();
@@ -210,6 +241,9 @@ export const leadRepository = {
       })
       .eq('id', id)
       .eq('follow_up_count', expectedCount)
+      .eq('modo_atendimento', 'bot')
+      .in('status_msg_wa', [...FOLLOW_UP_DUE_STATUSES])
+      .eq('data_ultima_interacao', lastInteraction)
       .select('id');
 
     if (error) throw new Error(`reserveFollowUpSend error: ${error.message}`);

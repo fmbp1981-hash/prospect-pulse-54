@@ -17,7 +17,7 @@
  * (releaseFollowUpClaim), para não ocupar o lote de toda execução.
  */
 
-import { leadRepository } from '../repositories/lead.repository';
+import { leadRepository, type FollowUpJobLead } from '../repositories/lead.repository';
 import { resolveLeadOrganizationId } from '../connectors/org-context';
 import { ConnectionNotConfiguredError } from '../connectors/types';
 import { getWhatsAppForOrganization, type OrgWhatsApp } from '../integrations/whatsapp/org-whatsapp';
@@ -26,7 +26,8 @@ import { randomUUID } from 'crypto';
 import type { Database } from '@/integrations/supabase/types';
 
 const CLAIM_LIMIT = 20;
-const DEFAULT_DELAY_MS = 1000;
+/** Intervalo entre envios de follow-up (job direto e rota da fila). */
+export const FOLLOW_UP_SEND_DELAY_MS = 1000;
 
 const FOLLOW_UP_MESSAGES: Record<number, string> = {
   0: 'Opa! Só passando para ver se conseguiu ver minha mensagem 😊',
@@ -96,7 +97,7 @@ export interface PreparedFollowUp {
  * Pode lançar em erro transitório (resolução de organização/conexão).
  */
 export async function prepareFollowUp(
-  lead: LeadRow,
+  lead: FollowUpJobLead,
   whatsappFor: WhatsAppResolver,
   logger: WorkflowLogger
 ): Promise<PreparedFollowUp | { kind: 'released' }> {
@@ -192,7 +193,7 @@ export interface FollowUpJobOptions {
 }
 
 export async function runFollowUpJob(options: FollowUpJobOptions = {}): Promise<void> {
-  const delayMs = options.delayMs ?? DEFAULT_DELAY_MS;
+  const delayMs = options.delayMs ?? FOLLOW_UP_SEND_DELAY_MS;
   const logger = new WorkflowLogger('FollowUpJob', randomUUID());
   logger.info('Follow-up job started');
 

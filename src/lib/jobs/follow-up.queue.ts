@@ -3,30 +3,36 @@
  *
  * O cron de 1 min só reivindica os leads vencidos (claim com trava de ~5 min no
  * banco) e despacha uma mensagem por lead. O consumidor da fila chama
- * POST /api/internal/follow-up/process, que processa cada mensagem aqui:
- * relê o lead, confere que o follow_up_count não avançou (mensagem repetida
- * ou atrasada) e envia pela conexão de WhatsApp da organização.
+ * POST /api/internal/follow-up/process, que processa o lote aqui
+ * (processFollowUpBatch): relê o lead, confere que ele continua vencido,
+ * reserva o envio no banco e envia pela conexão de WhatsApp da organização.
+ *
+ * Política (entrega at-least-once; nunca duplicar um WhatsApp):
+ * - falha clara do provedor (`success === false`) → desfaz a reserva, 'retry'
+ * - falha ambígua (sendText lança: timeout/rede) → mantém a reserva, 'skipped'
+ *   (pode perder um follow-up, nunca envia duas vezes)
+ * - última entrega (attempts > FOLLOW_UP_MAX_RETRIES) que seria 'retry' →
+ *   libera o claim (backoff) e 'skipped': o consumidor dá ack e a DLQ só
+ *   recebe falhas de transporte
+ * - 1000 ms entre envios dentro de uma chamada (FOLLOW_UP_SEND_DELAY_MS)
  */
 
 import { randomUUID } from 'crypto';
 import { leadRepository } from '../repositories/lead.repository';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
-import { createWhatsAppResolver, prepareFollowUp } from './follow-up.job';
+import { errorCode } from '../runtime/error-code';
+import { createWhatsAppResolver, FOLLOW_UP_SEND_DELAY_MS, prepareFollowUp } from './follow-up.job';
+import {
+  FOLLOW_UP_DUE_STATUSES,
+  FOLLOW_UP_MAX_RETRIES,
+  type FollowUpOutcome,
+  type FollowUpQueue,
+  type ProcessMessage,
+  type ProcessResult,
+} from './follow-up.contract';
 
-export type FollowUpMessage = { leadId: string; followUpCount: number };
-
-/** Formato estrutural do binding de Queue do Cloudflare (só o que usamos). */
-export interface FollowUpQueue {
-  sendBatch(messages: { body: FollowUpMessage }[]): Promise<void>;
-}
-
-export type FollowUpOutcome = 'sent' | 'skipped' | 'retry';
-
-/**
- * max_retries do consumidor da fila. O Cloudflare começa `attempts` em 1, então
- * há FOLLOW_UP_MAX_RETRIES + 1 entregas; a última é `attempts > FOLLOW_UP_MAX_RETRIES`.
- */
-export const FOLLOW_UP_MAX_RETRIES = 3;
+/** O que uma entrega da fila carrega para o processamento. */
+type FollowUpDelivery = Pick<ProcessMessage, 'leadId' | 'followUpCount' | 'attempts'>;
 
 /**
  * Janelas sem interação por follow_up_count — as mesmas da RPC
@@ -37,8 +43,6 @@ export const FOLLOW_UP_THRESHOLDS_MINUTES: Readonly<Record<number, number>> = {
   1: 60,
   2: 1440,
 };
-
-const DUE_STATUSES: readonly string[] = ['Em Conversa', 'Qualificando'];
 
 /**
  * O lead ainda está vencido para follow-up no momento do consumo? Mesmas
@@ -55,7 +59,7 @@ export function isStillDueForFollowUp(
   now: Date
 ): boolean {
   if (lead.modo_atendimento !== 'bot') return false;
-  if (!lead.status_msg_wa || !DUE_STATUSES.includes(lead.status_msg_wa)) return false;
+  if (!lead.status_msg_wa || !FOLLOW_UP_DUE_STATUSES.includes(lead.status_msg_wa)) return false;
 
   const thresholdMinutes = FOLLOW_UP_THRESHOLDS_MINUTES[lead.follow_up_count ?? 0];
   if (thresholdMinutes === undefined || !lead.data_ultima_interacao) return false;
@@ -95,7 +99,7 @@ export async function dispatchDueFollowUps(
         // A trava de 5 min do claim expira sozinha; só registra.
         console.error('[FollowUp/Dispatch] falha ao liberar claim', {
           leadId: leads[i].id,
-          error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+          error: errorCode(r.reason),
         });
       }
     });
@@ -105,26 +109,39 @@ export async function dispatchDueFollowUps(
   return leads.length;
 }
 
+/** Resultado interno: o outcome e se a mensagem chegou a ir ao provedor. */
+interface ProcessDetail {
+  outcome: FollowUpOutcome;
+  sendAttempted: boolean;
+}
+
+async function releaseClaimOnLastDelivery(leadId: string, logger: WorkflowLogger): Promise<void> {
+  try {
+    await leadRepository.releaseFollowUpClaim(leadId);
+  } catch (err) {
+    // A trava de 5 min do claim expira sozinha; só registra.
+    logger.error('Falha ao liberar claim na última entrega', { leadId, error: errorCode(err) });
+  }
+}
+
 /**
- * Processa uma mensagem da fila.
+ * Uma tentativa de processar a mensagem (sem a política de última entrega).
  * - lead inexistente, follow_up_count diferente do da mensagem ou lead que não
  *   está mais vencido (respondeu, foi para humano, mudou de status) → 'skipped',
  *   sem liberar o claim e sem enviar
  * - sem WhatsApp, sem organização ou sem conexão → libera o claim, 'skipped'
- * - reserva o envio (update condicional do contador) ANTES de enviar; reserva
- *   negada (outra entrega já enviou) → 'skipped'
+ * - reserva o envio (update condicional) ANTES de enviar; reserva negada
+ *   (outra entrega já enviou ou o lead mudou) → 'skipped'
  * - envio ok → 'sent' (o contador já foi avançado pela reserva)
- * - falha de envio → desfaz a reserva e devolve 'retry' (a trava do claim
- *   segura o lead enquanto a fila tenta de novo)
+ * - `success === false` → desfaz a reserva e 'retry'
+ * - sendText lança (resultado ambíguo) → mantém a reserva e 'skipped'
  */
-export async function processFollowUpMessage(msg: FollowUpMessage): Promise<FollowUpOutcome> {
-  const logger = new WorkflowLogger('FollowUpQueue', randomUUID());
-
+async function processOnce(msg: FollowUpDelivery, logger: WorkflowLogger): Promise<ProcessDetail> {
   try {
-    const lead = await leadRepository.findById(msg.leadId);
+    const lead = await leadRepository.findByIdForFollowUpJob(msg.leadId);
     if (!lead) {
       logger.warn('Lead da mensagem de follow-up não existe — ignorada', { leadId: msg.leadId });
-      return 'skipped';
+      return { outcome: 'skipped', sendAttempted: false };
     }
 
     if ((lead.follow_up_count ?? 0) !== msg.followUpCount) {
@@ -133,47 +150,60 @@ export async function processFollowUpMessage(msg: FollowUpMessage): Promise<Foll
         expected: msg.followUpCount,
         actual: lead.follow_up_count,
       });
-      return 'skipped';
+      return { outcome: 'skipped', sendAttempted: false };
     }
 
     const now = new Date();
-    if (!isStillDueForFollowUp(lead, now)) {
+    if (!isStillDueForFollowUp(lead, now) || !lead.data_ultima_interacao) {
       logger.info('Lead não está mais vencido para follow-up — mensagem ignorada', {
         leadId: msg.leadId,
       });
-      return 'skipped';
+      return { outcome: 'skipped', sendAttempted: false };
     }
 
     const prepared = await prepareFollowUp(lead, createWhatsAppResolver(), logger);
-    if (prepared.kind === 'released') return 'skipped';
+    if (prepared.kind === 'released') return { outcome: 'skipped', sendAttempted: false };
 
-    const reserved = await leadRepository.reserveFollowUpSend(lead.id, msg.followUpCount, now);
+    const reserved = await leadRepository.reserveFollowUpSend(
+      lead.id,
+      msg.followUpCount,
+      lead.data_ultima_interacao,
+      now
+    );
     if (!reserved) {
-      logger.info('Reserva do follow-up negada (já enviado por outra entrega)', { leadId: lead.id });
-      return 'skipped';
+      logger.info('Reserva do follow-up negada (já enviado ou lead mudou)', { leadId: lead.id });
+      return { outcome: 'skipped', sendAttempted: false };
     }
 
-    let sendError: string | null = null;
+    let success: boolean;
     try {
       const result = await prepared.whatsapp.provider.sendText(
         prepared.whatsapp.target,
         prepared.phone,
         prepared.message
       );
-      if (result.success) {
-        logger.info('Follow-up sent', { leadId: lead.id, followUpCount: msg.followUpCount + 1 });
-        return 'sent';
-      }
-      sendError = 'whatsapp_send_failed';
+      success = result.success === true;
     } catch (err) {
-      sendError = err instanceof Error ? err.message : String(err);
+      // Timeout/rede: a mensagem pode ter saído. Mantém a reserva para nunca
+      // reenviar (prefere perder um follow-up a duplicar um WhatsApp).
+      logger.error('Envio de follow-up com resultado ambíguo — reserva mantida, sem reenvio', {
+        leadId: lead.id,
+        organization_id: prepared.organizationId,
+        code: 'whatsapp_send_ambiguous',
+        error: errorCode(err),
+      });
+      return { outcome: 'skipped', sendAttempted: true };
+    }
+
+    if (success) {
+      logger.info('Follow-up sent', { leadId: lead.id, followUpCount: msg.followUpCount + 1 });
+      return { outcome: 'sent', sendAttempted: true };
     }
 
     logger.error('Follow-up send failed', {
       leadId: lead.id,
       organization_id: prepared.organizationId,
       code: 'whatsapp_send_failed',
-      error: sendError,
     });
 
     try {
@@ -186,18 +216,65 @@ export async function processFollowUpMessage(msg: FollowUpMessage): Promise<Foll
         logger.warn('Reserva do follow-up não revertida (lead mudou após a reserva)', { leadId: lead.id });
       }
     } catch (err) {
-      logger.error('Falha ao reverter reserva do follow-up', {
-        leadId: lead.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      logger.error('Falha ao reverter reserva do follow-up', { leadId: lead.id, error: errorCode(err) });
     }
-    return 'retry';
+    return { outcome: 'retry', sendAttempted: true };
   } catch (err) {
     // erro transitório antes do envio (banco, resolução de conexão)
-    logger.error('Erro ao processar mensagem de follow-up', {
-      leadId: msg.leadId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return 'retry';
+    logger.error('Erro ao processar mensagem de follow-up', { leadId: msg.leadId, error: errorCode(err) });
+    return { outcome: 'retry', sendAttempted: false };
   }
+}
+
+async function processWithPolicy(msg: FollowUpDelivery, logger: WorkflowLogger): Promise<ProcessDetail> {
+  const detail = await processOnce(msg, logger);
+  if (detail.outcome === 'retry' && msg.attempts > FOLLOW_UP_MAX_RETRIES) {
+    // Última entrega: devolve o lead ao cron (backoff) e dá ack, em vez de
+    // mandar para a DLQ uma falha de envio/banco que o próximo ciclo resolve.
+    await releaseClaimOnLastDelivery(msg.leadId, logger);
+    logger.warn('Última entrega do follow-up sem sucesso — claim liberado', { leadId: msg.leadId });
+    return { outcome: 'skipped', sendAttempted: detail.sendAttempted };
+  }
+  return detail;
+}
+
+/** Processa uma mensagem da fila, já com a política de última entrega. */
+export async function processFollowUpMessage(msg: FollowUpDelivery): Promise<FollowUpOutcome> {
+  const logger = new WorkflowLogger('FollowUpQueue', randomUUID());
+  const { outcome } = await processWithPolicy(msg, logger);
+  return outcome;
+}
+
+export interface FollowUpBatchOptions {
+  /** Intervalo entre envios. Padrão: FOLLOW_UP_SEND_DELAY_MS (1000 ms). */
+  delayMs?: number;
+  /** Injetável para testes. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Processa o lote da rota interna em sequência (evita rajada pela mesma
+ * conexão de WhatsApp), esperando `delayMs` antes do próximo item sempre que o
+ * anterior chegou ao provedor.
+ */
+export async function processFollowUpBatch(
+  messages: readonly ProcessMessage[],
+  options: FollowUpBatchOptions = {}
+): Promise<ProcessResult[]> {
+  const delayMs = options.delayMs ?? FOLLOW_UP_SEND_DELAY_MS;
+  const sleep = options.sleep ?? defaultSleep;
+  const logger = new WorkflowLogger('FollowUpQueue', randomUUID());
+  const results: ProcessResult[] = [];
+
+  let pendingDelay = false;
+  for (const msg of messages) {
+    if (pendingDelay && delayMs > 0) await sleep(delayMs);
+    const detail = await processWithPolicy(msg, logger);
+    pendingDelay = detail.sendAttempted;
+    results.push({ id: msg.id, outcome: detail.outcome });
+  }
+
+  return results;
 }

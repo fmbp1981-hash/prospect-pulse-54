@@ -2,6 +2,24 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { shouldBlockPendingUser } from './pending-gate';
 
+// Rotas de API que recebem webhooks externos (Evolution API, cron jobs) — sempre públicas.
+// /api/admin/init-user-settings também precisa ser pública: é chamada logo após o signUp,
+// antes de existir user_settings para o novo usuário — se não estivesse aqui, a checagem de
+// pending_setup abaixo redirecionaria essa chamada POST para /pending antes de ela rodar,
+// e a organização do novo cadastro nunca seria criada. A rota já valida o UUID do userId e
+// usa service role apenas para upsert mínimo, sem risco de escalada de privilégio.
+const PUBLIC_API_PREFIXES = ['/api/webhooks/', '/api/cron/', '/api/leads/import/webhook', '/api/admin/init-user-settings'];
+// Caminhos exatos: /api/internal/follow-up/process é chamada pelo próprio Worker (consumidor
+// da fila) sem sessão; exige Authorization: Bearer <INTERNAL_QUEUE_SECRET> e host `internal`.
+const PUBLIC_API_EXACT_PATHS = ['/api/internal/follow-up/process'];
+
+export function isPublicApiPath(pathname: string): boolean {
+  return (
+    PUBLIC_API_EXACT_PATHS.includes(pathname) ||
+    PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  );
+}
+
 export async function updateSession(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -10,16 +28,7 @@ export async function updateSession(request: NextRequest) {
 
   // Rotas públicas (não requerem autenticação)
   const publicRoutes = ['/login', '/signup', '/forgot-password'];
-  // Rotas de API que recebem webhooks externos (Evolution API, cron jobs) — sempre públicas
-  // /api/internal/follow-up/ é chamada pelo próprio Worker (consumidor da fila) sem sessão; cada rota
-  // exige Authorization: Bearer <CRON_SECRET> (verifyCronRequest).
-  // /api/admin/init-user-settings também precisa ser pública: é chamada logo após o signUp,
-  // antes de existir user_settings para o novo usuário — se não estivesse aqui, a checagem de
-  // pending_setup abaixo redirecionaria essa chamada POST para /pending antes de ela rodar,
-  // e a organização do novo cadastro nunca seria criada. A rota já valida o UUID do userId e
-  // usa service role apenas para upsert mínimo, sem risco de escalada de privilégio.
-  const publicApiPrefixes = ['/api/webhooks/', '/api/cron/', '/api/internal/follow-up/', '/api/leads/import/webhook', '/api/admin/init-user-settings'];
-  const isPublicApiRoute = publicApiPrefixes.some(prefix => pathname.startsWith(prefix));
+  const isPublicApiRoute = isPublicApiPath(pathname);
   const isPublicRoute = isPublicApiRoute || publicRoutes.some(route => pathname.startsWith(route));
   // Rota de pending — usuário autenticado mas aguardando aprovação
   const isPendingRoute = pathname.startsWith('/pending');

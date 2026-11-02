@@ -7,6 +7,10 @@
  * - CRON_SECRET ausente ou vazio → sempre false (nada de `Bearer undefined`).
  * - Comparação em tempo constante: os dois lados viram SHA-256 (buffers de
  *   mesmo tamanho) antes do timingSafeEqual.
+ *
+ * verifyInternalRequest: mesma regra com o segredo dedicado
+ * INTERNAL_QUEUE_SECRET, só para POST /api/internal/follow-up/process
+ * (consumidor da fila). O CRON_SECRET não vale lá.
  */
 
 import { createHash, timingSafeEqual } from 'crypto';
@@ -17,8 +21,7 @@ function digest(value: string): Buffer {
   return createHash('sha256').update(value, 'utf8').digest();
 }
 
-export function verifyCronRequest(req: Request): boolean {
-  const secret = process.env.CRON_SECRET;
+function verifyBearer(req: Request, secret: string | undefined): boolean {
   if (!secret) return false;
 
   const header = req.headers.get('authorization');
@@ -28,4 +31,12 @@ export function verifyCronRequest(req: Request): boolean {
   if (!provided) return false;
 
   return timingSafeEqual(digest(provided), digest(secret));
+}
+
+export function verifyCronRequest(req: Request): boolean {
+  return verifyBearer(req, process.env.CRON_SECRET);
+}
+
+export function verifyInternalRequest(req: Request): boolean {
+  return verifyBearer(req, process.env.INTERNAL_QUEUE_SECRET);
 }

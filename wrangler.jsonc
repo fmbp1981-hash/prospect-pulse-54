@@ -14,16 +14,23 @@
       "service": "prospect-pulse-54"
     }
   ],
-  // Vars públicas NEXT_PUBLIC_* — precisam estar aqui (build-time) além do
-  // dashboard Cloudflare (Settings > Variables and Secrets > Environment
-  // Variables), porque são inlined pelo Next.js/webpack durante o build, não
-  // apenas lidas em runtime pelo Worker. Segredos sensíveis (Service Role Key,
-  // Firecrawl, Apify etc.) NÃO vão aqui — são enviados via
-  // scripts/cloudflare-secrets-sync.sh (wrangler secret put).
+  // "vars" são variáveis de RUNTIME do Worker (env.X / process.env.X no
+  // request). As NEXT_PUBLIC_* daqui NÃO entram no bundle: o Next.js as inlina
+  // no `next build` a partir do ambiente do BUILD (Build variables do Workers
+  // Builds, ou o shell/.env de quem roda `npm run cf:build`). Por isso o
+  // Workers Builds precisa de NEXT_PUBLIC_SUPABASE_URL,
+  // NEXT_PUBLIC_SUPABASE_ANON_KEY e NEXT_PUBLIC_APP_URL em Build variables
+  // (runbook de cutover, B7). Mantidas aqui para leitura em runtime.
+  // FOLLOW_UP_MODE: "queue" (produção) | "disabled" (staging) | "direct"
+  // (envio no próprio request; só emergência) — ver src/lib/runtime/bindings.ts.
+  // Segredos sensíveis (Service Role Key, CRON_SECRET, INTERNAL_QUEUE_SECRET
+  // etc.) NÃO vão aqui — são enviados via scripts/cloudflare-secrets-sync.sh
+  // (wrangler secret put).
   "vars": {
     "NEXT_PUBLIC_SUPABASE_URL": "https://kzvnwqlcrtxwagxkghxq.supabase.co",
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6dm53cWxjcnR4d2FneGtnaHhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2MjA4OTksImV4cCI6MjA3NzE5Njg5OX0.cOfLX6lW4jHmeHXKZlyKsgggfttK3jftIDzZgCfefgs",
-    "NEXT_PUBLIC_APP_URL": "https://prospect-pulse-54.fmbp1981.workers.dev"
+    "NEXT_PUBLIC_APP_URL": "https://prospect-pulse-54.fmbp1981.workers.dev",
+    "FOLLOW_UP_MODE": "queue"
   },
   // Cron Triggers: agendador único. O handler scheduled() em custom-worker.ts
   // mapeia cada expressão para sua rota. Keepalive removido (o follow-up a cada
@@ -38,6 +45,9 @@
   "queues": {
     "producers": [{ "binding": "FOLLOW_UP_QUEUE", "queue": "follow-up-sends" }],
     "consumers": [
+      // max_retries precisa bater com FOLLOW_UP_MAX_RETRIES em
+      // src/lib/jobs/follow-up.contract.ts (a última entrega é
+      // attempts > FOLLOW_UP_MAX_RETRIES: libera o claim e dá ack).
       {
         "queue": "follow-up-sends",
         "max_batch_size": 10,
@@ -48,8 +58,9 @@
       }
     ]
   },
-  // Staging: sem crons e sem filas. Chaves não herdáveis (vars, services,
-  // triggers) são redeclaradas.
+  // Staging: sem crons, sem filas e FOLLOW_UP_MODE=disabled. Chaves não
+  // herdáveis (vars, services, triggers) são redeclaradas. Sem CRON_SECRET nem
+  // INTERNAL_QUEUE_SECRET (o script de secrets não os envia para staging).
   "env": {
     "staging": {
       "name": "prospect-pulse-54-staging",
@@ -60,7 +71,9 @@
       "vars": {
         "NEXT_PUBLIC_SUPABASE_URL": "https://kzvnwqlcrtxwagxkghxq.supabase.co",
         "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6dm53cWxjcnR4d2FneGtnaHhxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2MjA4OTksImV4cCI6MjA3NzE5Njg5OX0.cOfLX6lW4jHmeHXKZlyKsgggfttK3jftIDzZgCfefgs",
-        "NEXT_PUBLIC_APP_URL": "https://prospect-pulse-54-staging.fmbp1981.workers.dev"
+        "NEXT_PUBLIC_APP_URL": "https://prospect-pulse-54-staging.fmbp1981.workers.dev",
+        // Staging usa o banco de produção: o cron de follow-up nunca reivindica nada.
+        "FOLLOW_UP_MODE": "disabled"
       }
     }
   }

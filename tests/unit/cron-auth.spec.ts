@@ -36,7 +36,7 @@ vi.mock('@supabase/supabase-js', () => ({
   },
 }));
 
-import { verifyCronRequest } from '@/lib/auth/cron-auth';
+import { verifyCronRequest, verifyInternalRequest } from '@/lib/auth/cron-auth';
 import { GET as followUp } from '../../app/api/cron/follow-up/route';
 import { GET as longFollowUp } from '../../app/api/cron/long-followup/route';
 import { GET as rescue } from '../../app/api/cron/rescue-human-mode/route';
@@ -85,6 +85,37 @@ describe('verifyCronRequest', () => {
   it('CRON_SECRET vazio → recusa', () => {
     process.env.CRON_SECRET = '';
     expect(verifyCronRequest(req('http://x/api/cron/a', 'Bearer '))).toBe(false);
+  });
+});
+
+describe('verifyInternalRequest (INTERNAL_QUEUE_SECRET)', () => {
+  const INTERNAL = 'segredo-interno-da-fila-0123456789';
+  const url = 'https://internal/api/internal/follow-up/process';
+
+  beforeEach(() => {
+    process.env.INTERNAL_QUEUE_SECRET = INTERNAL;
+  });
+
+  it('aceita Bearer com INTERNAL_QUEUE_SECRET', () => {
+    expect(verifyInternalRequest(req(url, `Bearer ${INTERNAL}`))).toBe(true);
+  });
+
+  it('recusa o CRON_SECRET', () => {
+    expect(verifyInternalRequest(req(url, `Bearer ${SECRET}`))).toBe(false);
+  });
+
+  it.each([
+    ['sem header', undefined],
+    ['segredo errado', `Bearer ${'x'.repeat(INTERNAL.length)}`],
+    ['sem "Bearer "', INTERNAL],
+  ])('recusa %s', (_l, auth) => {
+    expect(verifyInternalRequest(req(url, auth))).toBe(false);
+  });
+
+  it('INTERNAL_QUEUE_SECRET ausente → recusa até "Bearer undefined"', () => {
+    delete process.env.INTERNAL_QUEUE_SECRET;
+    expect(verifyInternalRequest(req(url, 'Bearer undefined'))).toBe(false);
+    expect(verifyInternalRequest(req(url, `Bearer ${SECRET}`))).toBe(false);
   });
 });
 

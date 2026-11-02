@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   claimDueFollowUps: vi.fn(),
   releaseFollowUpClaim: vi.fn(),
   incrementFollowUpCount: vi.fn(),
-  findById: vi.fn(),
+  findByIdForFollowUpJob: vi.fn(),
   reserveFollowUpSend: vi.fn(),
   revertFollowUpReservation: vi.fn(),
   getWhatsAppForOrganization: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('@/lib/repositories/lead.repository', () => ({
     claimDueFollowUps: mocks.claimDueFollowUps,
     releaseFollowUpClaim: mocks.releaseFollowUpClaim,
     incrementFollowUpCount: mocks.incrementFollowUpCount,
-    findById: mocks.findById,
+    findByIdForFollowUpJob: mocks.findByIdForFollowUpJob,
     reserveFollowUpSend: mocks.reserveFollowUpSend,
     revertFollowUpReservation: mocks.revertFollowUpReservation,
   },
@@ -39,6 +39,7 @@ vi.mock('@/lib/connectors/org-context', () => ({
 import {
   dispatchDueFollowUps,
   isStillDueForFollowUp,
+  processFollowUpBatch,
   processFollowUpMessage,
 } from '@/lib/jobs/follow-up.queue';
 
@@ -110,7 +111,7 @@ describe('follow-up por fila', () => {
       expect(mocks.releaseFollowUpClaim).toHaveBeenCalledWith(LEAD_2);
     });
 
-    it('logs rejected releases (leadId + error message only)', async () => {
+    it('logs rejected releases (leadId + error name only, never the message)', async () => {
       mocks.claimDueFollowUps.mockResolvedValue([lead(LEAD_1, 0), lead(LEAD_2, 1)]);
       mocks.releaseFollowUpClaim.mockImplementation(async (id: string) => {
         if (id === LEAD_1) throw new Error('db down');
@@ -121,7 +122,7 @@ describe('follow-up por fila', () => {
 
       const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
       expect(logged).toContain(LEAD_1);
-      expect(logged).toContain('db down');
+      expect(logged).not.toContain('db down');
       expect(logged).not.toContain(LEAD_2);
       expect(logged).not.toContain(PHONE);
     });
@@ -137,27 +138,27 @@ describe('follow-up por fila', () => {
 
   describe('processFollowUpMessage', () => {
     it('skips when lead does not exist', async () => {
-      mocks.findById.mockResolvedValue(null);
+      mocks.findByIdForFollowUpJob.mockResolvedValue(null);
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0 })).resolves.toBe('skipped');
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('skipped');
       expect(mocks.sendText).not.toHaveBeenCalled();
     });
 
     it('skips when follow_up_count advanced', async () => {
-      mocks.findById.mockResolvedValue(lead(LEAD_1, 1));
+      mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 1));
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0 })).resolves.toBe('skipped');
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('skipped');
       expect(mocks.sendText).not.toHaveBeenCalled();
       expect(mocks.incrementFollowUpCount).not.toHaveBeenCalled();
     });
 
     it('sends after reservation without separate increment', async () => {
-      mocks.findById.mockResolvedValue(lead(LEAD_1, 0));
+      mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 0));
       mocks.sendText.mockResolvedValue({ success: true });
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0 })).resolves.toBe('sent');
-      expect(mocks.findById).toHaveBeenCalledWith(LEAD_1);
-      expect(mocks.reserveFollowUpSend).toHaveBeenCalledWith(LEAD_1, 0, expect.any(Date));
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('sent');
+      expect(mocks.findByIdForFollowUpJob).toHaveBeenCalledWith(LEAD_1);
+      expect(mocks.reserveFollowUpSend).toHaveBeenCalledWith(LEAD_1, 0, OLD, expect.any(Date));
       expect(mocks.reserveFollowUpSend.mock.invocationCallOrder[0]).toBeLessThan(
         mocks.sendText.mock.invocationCallOrder[0]
       );
@@ -168,22 +169,22 @@ describe('follow-up por fila', () => {
     });
 
     it('skips when reservation fails', async () => {
-      mocks.findById.mockResolvedValue(lead(LEAD_1, 0));
+      mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 0));
       mocks.reserveFollowUpSend.mockResolvedValue(false);
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0 })).resolves.toBe('skipped');
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('skipped');
       expect(mocks.sendText).not.toHaveBeenCalled();
       expect(mocks.releaseFollowUpClaim).not.toHaveBeenCalled();
     });
 
     it('reverts reservation and retries on send failure', async () => {
       const l = lead(LEAD_1, 2, { status_msg_wa: 'Qualificando' });
-      mocks.findById.mockResolvedValue(l);
+      mocks.findByIdForFollowUpJob.mockResolvedValue(l);
       mocks.sendText.mockResolvedValue({ success: false, error: 'HTTP 500' });
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 2 })).resolves.toBe('retry');
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 2, attempts: 1 })).resolves.toBe('retry');
       expect(mocks.incrementFollowUpCount).not.toHaveBeenCalled();
-      const reservedAt = mocks.reserveFollowUpSend.mock.calls[0][2] as Date;
+      const reservedAt = mocks.reserveFollowUpSend.mock.calls[0][3] as Date;
       expect(mocks.revertFollowUpReservation).toHaveBeenCalledWith(LEAD_1, 2, {
         reservedAt,
         status_msg_wa: 'Qualificando',
@@ -191,15 +192,68 @@ describe('follow-up por fila', () => {
       });
       // a trava de 5 min do claim segura o lead enquanto a fila tenta de novo
       expect(mocks.releaseFollowUpClaim).not.toHaveBeenCalled();
+      const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
+      expect(logged).toContain('whatsapp_send_failed');
+      expect(logged).not.toContain('HTTP 500');
     });
 
-    it('reverts reservation and retries when send throws', async () => {
-      mocks.findById.mockResolvedValue(lead(LEAD_1, 0));
-      mocks.sendText.mockRejectedValue(new Error('network down'));
+    it('keeps reservation and skips when send throws (ambiguous: never resend)', async () => {
+      mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 0));
+      mocks.sendText.mockRejectedValue(new Error('timeout talking to provider for +5581999990001'));
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0 })).resolves.toBe('retry');
-      expect(mocks.revertFollowUpReservation).toHaveBeenCalledTimes(1);
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('skipped');
+      expect(mocks.revertFollowUpReservation).not.toHaveBeenCalled();
+      expect(mocks.releaseFollowUpClaim).not.toHaveBeenCalled();
       expect(mocks.incrementFollowUpCount).not.toHaveBeenCalled();
+      const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
+      expect(logged).toContain('whatsapp_send_ambiguous');
+      expect(logged).toContain(LEAD_1);
+      expect(logged).toContain(ORG);
+      expect(logged).not.toContain('timeout talking');
+      expect(logged).not.toContain(PHONE);
+    });
+
+    it('never logs the error message of transient failures', async () => {
+      mocks.findByIdForFollowUpJob.mockRejectedValue(new Error('findByIdForFollowUpJob error: secret detail'));
+
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('retry');
+      const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
+      expect(logged).not.toContain('secret detail');
+    });
+
+    describe('última entrega (attempts > FOLLOW_UP_MAX_RETRIES)', () => {
+      it('send failure on last delivery → releases claim and skips (ack, no DLQ)', async () => {
+        mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 0));
+        mocks.sendText.mockResolvedValue({ success: false });
+
+        await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 4 })).resolves.toBe('skipped');
+        expect(mocks.revertFollowUpReservation).toHaveBeenCalledTimes(1);
+        expect(mocks.releaseFollowUpClaim).toHaveBeenCalledWith(LEAD_1);
+      });
+
+      it('transient error on last delivery → releases claim and skips', async () => {
+        mocks.findByIdForFollowUpJob.mockRejectedValue(new Error('db down'));
+
+        await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 4 })).resolves.toBe('skipped');
+        expect(mocks.releaseFollowUpClaim).toHaveBeenCalledWith(LEAD_1);
+      });
+
+      it('does not release at attempts 3 (still retry)', async () => {
+        mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 0));
+        mocks.sendText.mockResolvedValue({ success: false });
+
+        await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 3 })).resolves.toBe('retry');
+        expect(mocks.releaseFollowUpClaim).not.toHaveBeenCalled();
+      });
+
+      it('release failure on last delivery is logged by name and still skips', async () => {
+        mocks.findByIdForFollowUpJob.mockRejectedValue(new Error('db down'));
+        mocks.releaseFollowUpClaim.mockRejectedValue(new Error('release boom'));
+
+        await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 4 })).resolves.toBe('skipped');
+        const logged = JSON.stringify(vi.mocked(console.error).mock.calls);
+        expect(logged).not.toContain('release boom');
+      });
     });
 
     it.each([
@@ -207,29 +261,76 @@ describe('follow-up por fila', () => {
       ['status_msg_wa fora da conversa', { status_msg_wa: 'Follow-up' }],
       ['interação recente', { data_ultima_interacao: new Date().toISOString() }],
     ])('skips when lead no longer qualifies: %s', async (_l, overrides) => {
-      mocks.findById.mockResolvedValue(lead(LEAD_1, 0, overrides));
+      mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 0, overrides));
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0 })).resolves.toBe('skipped');
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('skipped');
       expect(mocks.sendText).not.toHaveBeenCalled();
       expect(mocks.reserveFollowUpSend).not.toHaveBeenCalled();
       expect(mocks.releaseFollowUpClaim).not.toHaveBeenCalled();
     });
 
     it('skips without whatsapp connection', async () => {
-      mocks.findById.mockResolvedValue(lead(LEAD_1, 0));
+      mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 0));
       mocks.getWhatsAppForOrganization.mockRejectedValue(new ConnectionNotConfiguredError(ORG, 'whatsapp'));
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0 })).resolves.toBe('skipped');
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('skipped');
       expect(mocks.sendText).not.toHaveBeenCalled();
       expect(mocks.releaseFollowUpClaim).toHaveBeenCalledWith(LEAD_1);
     });
 
     it('skips without organization', async () => {
-      mocks.findById.mockResolvedValue(lead(LEAD_1, 0));
+      mocks.findByIdForFollowUpJob.mockResolvedValue(lead(LEAD_1, 0));
       mocks.resolveLeadOrganizationId.mockResolvedValue(null);
 
-      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0 })).resolves.toBe('skipped');
+      await expect(processFollowUpMessage({ leadId: LEAD_1, followUpCount: 0, attempts: 1 })).resolves.toBe('skipped');
       expect(mocks.releaseFollowUpClaim).toHaveBeenCalledWith(LEAD_1);
+    });
+  });
+
+  describe('processFollowUpBatch (pacing)', () => {
+    const msg = (id: string, leadId: string) => ({ id, leadId, followUpCount: 0, attempts: 1 });
+
+    it('waits 1000 ms between two send attempts and returns outcome per id', async () => {
+      mocks.findByIdForFollowUpJob.mockImplementation(async (id: string) => lead(id, 0));
+      mocks.sendText.mockResolvedValue({ success: true });
+      const sleep = vi.fn(async () => undefined);
+
+      const results = await processFollowUpBatch([msg('m1', LEAD_1), msg('m2', LEAD_2)], { sleep });
+
+      expect(results).toEqual([
+        { id: 'm1', outcome: 'sent' },
+        { id: 'm2', outcome: 'sent' },
+      ]);
+      expect(sleep).toHaveBeenCalledTimes(1);
+      expect(sleep).toHaveBeenCalledWith(1000);
+      expect(sleep.mock.invocationCallOrder[0]).toBeLessThan(mocks.sendText.mock.invocationCallOrder[1]);
+    });
+
+    it('does not wait after a message that never reached the provider', async () => {
+      mocks.findByIdForFollowUpJob.mockImplementation(async (id: string) =>
+        id === LEAD_1 ? null : lead(id, 0)
+      );
+      mocks.sendText.mockResolvedValue({ success: true });
+      const sleep = vi.fn(async () => undefined);
+
+      const results = await processFollowUpBatch([msg('m1', LEAD_1), msg('m2', LEAD_2)], { sleep });
+
+      expect(results.map((r) => r.outcome)).toEqual(['skipped', 'sent']);
+      expect(sleep).not.toHaveBeenCalled();
+    });
+
+    it('counts failed and ambiguous sends as attempts (waits after them)', async () => {
+      mocks.findByIdForFollowUpJob.mockImplementation(async (id: string) => lead(id, 0));
+      mocks.sendText.mockRejectedValueOnce(new Error('timeout')).mockResolvedValueOnce({ success: false });
+      const sleep = vi.fn(async () => undefined);
+
+      const results = await processFollowUpBatch(
+        [msg('m1', LEAD_1), msg('m2', LEAD_2), msg('m3', LEAD_1)],
+        { sleep }
+      );
+
+      expect(results.map((r) => r.outcome)).toEqual(['skipped', 'retry', expect.any(String)]);
+      expect(sleep).toHaveBeenCalledTimes(2);
     });
   });
 

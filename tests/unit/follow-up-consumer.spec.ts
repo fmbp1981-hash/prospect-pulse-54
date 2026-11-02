@@ -93,7 +93,33 @@ describe('handleFollowUpBatch', () => {
     expect(b.retry).toHaveBeenCalledWith({ delaySeconds: 30 });
   });
 
-  it('sends bearer CRON_SECRET and the message payload', async () => {
+  it.each([
+    ['results não é array', { data: { results: 'x' } }],
+    ['sem data', {}],
+    ['corpo nulo', null],
+  ])('retryAll when the response shape is invalid: %s', async (_l, body) => {
+    const a = makeMessage('a');
+    const batch = makeBatch([a]);
+    const callRoute = vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }));
+
+    await handleFollowUpBatch(batch, callRoute, 'segredo');
+
+    expect(batch.retryAll).toHaveBeenCalledWith({ delaySeconds: 30 });
+    expect(a.ack).not.toHaveBeenCalled();
+  });
+
+  it('retries a message whose outcome is unknown', async () => {
+    const a = makeMessage('a');
+    const batch = makeBatch([a]);
+    const callRoute = vi.fn(async () => jsonResponse([{ id: 'a', outcome: 'banana' }]));
+
+    await handleFollowUpBatch(batch, callRoute, 'segredo');
+
+    expect(a.retry).toHaveBeenCalledWith({ delaySeconds: 30 });
+    expect(a.ack).not.toHaveBeenCalled();
+  });
+
+  it('sends bearer INTERNAL_QUEUE_SECRET and the message payload', async () => {
     const batch = makeBatch([makeMessage('a', 2)]);
     let captured: Request | undefined;
     const callRoute = vi.fn(async (req: Request) => {
