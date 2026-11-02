@@ -189,14 +189,16 @@ Dono: **U** = usuário, **E** = executor. **[auth]** = autorização explícita 
 
 **Files:**
 - Delete: `vercel.json`, `.vercelignore`, `DEPLOY_VERCEL.md`
-- Create: `DEPLOY_CLOUDFLARE.md` (Workers Builds, secrets, filas, rollback)
-- Modify: `app/api/cron/follow-up/route.ts` (remover o fallback `runFollowUpJob()`; sem `FOLLOW_UP_QUEUE` → 500 `{ error: { code: 'QUEUE_UNAVAILABLE', … } }`)
+- Create: `DEPLOY_CLOUDFLARE.md` (Workers Builds com Build variables, secrets, filas, rollback)
+- Modify: `app/api/cron/follow-up/route.ts` e `src/lib/runtime/bindings.ts` (remover o modo `direct` e o `runFollowUpJob()`; fora do Cloudflare ou sem `FOLLOW_UP_QUEUE` em modo `queue` → 503 `{ error: { code: 'QUEUE_NOT_CONFIGURED', … } }`; `disabled` continua)
 - Modify: `CLAUDE.md` do projeto (Deploy: "Current: Cloudflare Workers"), `CLOUDFLARE_MIGRATION_PLAN.md` (status final)
 - Merge: `claude/sprint2b-limpeza-pos-corte`, conforme o passo 11 de `corte-conectores.md`: portão de tráfego, backups e migration `20261031110000` **[auth]**
+- Operação (sem arquivo): apagar o Worker de staging e os secrets dele (`npx wrangler delete --env staging`, **[auth]**) e a aplicação do Cloudflare Access, se houver; mover os backups de `scripts/legacy/backup-*.json` para o cofre (ou cifrar fora do repositório) e apagar as cópias locais depois de 30 dias sem incidente.
 
-- [ ] **Step 1: Teste da rota sem fila.** O teste `returns 500 QUEUE_UNAVAILABLE without binding` falha; implementar e ver passar.
+- [ ] **Step 1: Teste da rota sem modo direto.** O teste `returns 503 QUEUE_NOT_CONFIGURED outside Cloudflare` falha; implementar e ver passar.
 - [ ] **Step 2: Remover os arquivos e atualizar a documentação.** `git grep -n "vercel.app\|@vercel/" -- app src lib scripts '*.md' ':!docs/superpowers' ':!CHANGELOG.md'` sem resultado.
 - [ ] **Step 3: Verificar.** `npm test`, `npx tsc --noEmit` e `npm run cf:build` verdes.
-- [ ] **Step 4: Commit e PR.** Commit `chore: remove Vercel e fallback do follow-up após o cutover`. Abrir o PR. O usuário decide quando apagar o projeto na Vercel, que fica pausado por 1 a 2 semanas.
+- [ ] **Step 4: Staging e backups.** Com **[auth]**: `npx wrangler delete --env staging`; `npx wrangler secret list --env staging` falha (Worker inexistente). Backups no cofre; data de apagar as cópias locais registrada (30 dias sem incidente).
+- [ ] **Step 5: Commit e PR.** Commit `chore: remove Vercel e modo direto do follow-up após o cutover`. Abrir o PR. O usuário decide quando apagar o projeto na Vercel, que fica pausado por 1 a 2 semanas.
 
 **Critério de saída do Sprint 3:** produção servida pelo Worker; Cron Triggers disparando; DLQ vazia após 48 h; nenhum workflow do n8n deste sistema ativo; Vercel pausada; rollback documentado e testado em leitura (B9).
