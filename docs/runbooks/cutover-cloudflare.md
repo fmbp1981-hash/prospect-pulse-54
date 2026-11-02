@@ -22,9 +22,11 @@ Convenções:
   (sem crons, sem filas e `FOLLOW_UP_MODE=disabled`, para não haver dois
   agendadores contra o banco de produção).
 - **Segredos só depois de o Worker existir.** `wrangler secret put` num Worker
-  que ainda não existe é interativo ou cria um stub. Por isso os secrets de
-  staging vão no B4 (logo após o primeiro deploy de staging) e os de produção
-  no B7 (logo após o **último** deploy do Workers Builds).
+  que ainda não existe é interativo ou cria um stub. O Worker de **staging**
+  ainda não existe: os secrets dele vão no B4, logo após o primeiro deploy. O
+  de **produção já existe** (ver "Estado encontrado em 2026-11-01"): os
+  secrets dele vão no B7, **antes** do merge, porque o código antigo no ar não
+  lê as chaves novas.
 - **Build só de ambiente limpo.** As `NEXT_PUBLIC_*` são inlinadas no
   `next build` a partir do ambiente **do build**; as `vars` do
   `wrangler.jsonc` são só de runtime. Um `npm run cf:build` com `.env` ou
@@ -40,6 +42,38 @@ Convenções:
   o lead.
 - **Nunca dois agendadores ao mesmo tempo** (Cron Triggers, workflows do n8n,
   Vercel Cron).
+
+## Estado encontrado em 2026-11-01
+
+- O Worker de produção `prospect-pulse-54` **já existe** (primeiro deploy em
+  2026-09-19) e o **Workers Builds já está conectado** ao repositório: todo
+  merge na `main` publica a `main` no Worker. Os merges do #18 e do #19
+  publicaram às ~14:24 UTC.
+- Esse Worker tinha os 4 crons do `wrangler.jsonc` da `main` e já tem
+  `CRON_SECRET` e `SUPABASE_SERVICE_ROLE_KEY`, ou seja, agendava contra o banco
+  de produção **junto com o n8n**. Nenhum lead estava elegível (sem envio,
+  conferido no banco). Os crons foram **removidos pela API em 2026-11-01**,
+  com autorização do usuário; backup em
+  `scripts/legacy/backup-2026-11-01-worker-schedules.json`.
+- Secrets já presentes no Worker de produção (só nomes): `APIFY_API_KEY`,
+  `CRON_SECRET`, `EVOLUTION_API_KEY`, `EXT_PUBLIC_SUPABASE_ANON_KEY` (nome
+  errado, sem uso), `FIRECRAWL_API_KEY`, `META_WA_TOKEN`,
+  `META_WA_VERIFY_TOKEN`, `OPENAI_API_KEY`, `RESEND_API_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `UPSTASH_REDIS_REST_TOKEN`,
+  `UPSTASH_REDIS_REST_URL`. Os de provedor e o de nome errado são apagados no
+  B7, item 8.
+- Os logs (observability) estavam desligados. O `wrangler.jsonc` desta branch
+  liga `observability.enabled`, valendo a partir do deploy da virada.
+- **Regra até a virada: nenhum merge na `main`.** Cada merge redeploya a `main`
+  com os crons do `wrangler.jsonc` dela, e o `CRON_SECRET` existente faz esses
+  crons autenticarem, com o n8n ainda ativo. Se um merge for inevitável,
+  remover os crons de novo logo após o deploy (**[auth]**):
+  ```bash
+  T=$(npx wrangler auth token | tail -1)
+  curl -s -X PUT -H "Authorization: Bearer $T" -H "Content-Type: application/json" \
+    --data '[]' \
+    "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/workers/scripts/prospect-pulse-54/schedules"
+  ```
 
 ## Pré-requisitos
 
@@ -61,6 +95,9 @@ Convenções:
 
 ## B1. Conta e subdomínio
 
+- **Status:** concluído em 2026-11-01 (Workers Paid já assinado, wrangler
+  logado, subdomínio `fmbp1981.workers.dev` confirmado: o Worker de produção
+  responde nessa URL).
 - **Dono:** U (assinatura e login), E (`whoami` e conferência).
 - **Ação:**
   1. U assina o plano **Workers Paid** (Queues em produção).
@@ -269,11 +306,12 @@ Convenções:
 
 - **Dono:** U + E. **Horário:** fora das 12:00 UTC em dia útil (cron
   `long-followup`, `0 12 * * 1-5`).
-- **Aviso sobre a janela:** entre o deploy do código novo e a conclusão deste
-  passo, o código novo está no ar e os crons disparam. Com as conexões já
-  ativas desde o B5, a janela é curta. **Não são esperadas mensagens na DLQ**
-  `follow-up-sends-dlq`. Até o item 5 os crons recebem 401 (o `CRON_SECRET` de
-  produção ainda não existe): é no-op e é esperado. Se aparecerem mensagens
+- **Aviso sobre a janela:** o Worker de produção já tem `CRON_SECRET`, então
+  os crons autenticam assim que o deploy da virada os recria. Por isso o n8n
+  sai **antes** do merge (item 2) e os secrets novos entram **antes** do merge
+  (item 3): o deploy liga tudo de uma vez e o Worker já nasce como único
+  agendador. Com as conexões já ativas desde o B5, **não são esperadas
+  mensagens na DLQ** `follow-up-sends-dlq`. Se aparecerem mensagens
   na DLQ: **inspecionar primeiro**, só pelos ids (`leadId`,
   `organization_id`) e pelo código de erro dos Workers Logs, sem abrir o lead;
   registrar a causa e só então limpar a fila com `wrangler queues` (purge),
@@ -282,22 +320,41 @@ Convenções:
 - **Ação, nesta ordem:**
   1. **U:** pausar o projeto `prospect-pulse-54` na Vercel (não deletar).
      Assim o merge na `main` não publica lá código sem as variáveis novas.
-  2. **U:** conectar o Workers Builds ao repositório (build `npm run cf:build`,
-     deploy `npx wrangler deploy`, branch `main`) e, **antes do primeiro
-     build**, cadastrar em **Build variables** (Settings → Build → Variables):
-     `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e
+  2. **U:** desativar os 3 workflows "LeadFinder Pro" do n8n
+     (`NE6oZxj0il18ZDUk`, `cTN9Q6FjuuguALdF`, `024Gues9qK94oCgI`). Com os crons
+     do Worker removidos (2026-11-01) e a Vercel pausada, a partir daqui há
+     **zero agendadores ativos** até o deploy do item 5: é a lacuna segura,
+     intencional.
+  3. **E:** secrets de produção no Worker que já existe, **antes do merge**
+     (simulação primeiro, **[auth]**). O código antigo no ar não lê as chaves
+     novas, então isso não muda o comportamento atual:
+     ```bash
+     ./scripts/cloudflare-secrets-sync.sh --dry-run
+     ./scripts/cloudflare-secrets-sync.sh
+     ```
+     São 7: `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`,
+     `INTERNAL_QUEUE_SECRET`, `CONNECTORS_MASTER_KEY_V1`,
+     `CONNECTORS_ACTIVE_KEY_VERSION`, `UPSTASH_REDIS_REST_URL`,
+     `UPSTASH_REDIS_REST_TOKEN` (os dois primeiros e os do Upstash são
+     sobrescritos com os valores do `.env.local`).
+  4. **U:** conferir o Workers Builds, que **já está conectado** (Settings →
+     Build): build `npm run cf:build`, deploy `npx wrangler deploy`, branch
+     `main`. Cadastrar ou conferir em **Build variables** (Settings → Build →
+     Variables): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e
      `NEXT_PUBLIC_APP_URL` = `https://prospect-pulse-54.<subdomínio>.workers.dev`
      (os mesmos valores de `vars` no `wrangler.jsonc`). O Workers Builds não
      tem `.env`: sem essas variáveis o bundle sai com Supabase de placeholder e
      CORS vazio. Nenhum segredo vai em Build variables.
-  3. **E:** levar o código à `main`. Duas opções:
-     - **Recomendada:** mergear antes o PR do Sprint 3 na branch do #20 e
-       depois mergear o #20 na `main`. A `main` recebe **um** merge e há
+  5. **E:** levar o código à `main`. Duas opções:
+     - **Recomendada:** mergear antes o PR do Sprint 3 (#21) na branch do #20
+       e depois mergear o #20 na `main`. A `main` recebe **um** merge e há
        **um** deploy.
-     - Alternativa: mergear o #20 e depois o PR do Sprint 3. São **dois**
-       deploys do Workers Builds; o intermediário (só o #20) é esperado,
-       **aguardar o segundo (último) terminar** antes de seguir; os secrets de
-       produção (item 5) vão só depois dele.
+     - Alternativa: mergear o #20 e depois o #21. São **dois** deploys do
+       Workers Builds; o intermediário (só o #20) recria os crons com o
+       código do #20 (sem fila): **aguardar o segundo (último) terminar**
+       antes de seguir.
+     O deploy recria os 3 crons do `wrangler.jsonc` e liga os logs; com os
+     secrets do item 3 o Worker passa a ser o **único agendador**.
      Acompanhar o build até o deploy. **Conferência pós-build** (no último
      deploy), sem login:
      ```bash
@@ -309,47 +366,40 @@ Convenções:
      grep -c placeholder.supabase.co /tmp/pp54-chunks.js    # = 0
      rm /tmp/pp54-chunks.js
      ```
-     Falhou: conferir as Build variables do item 2, rodar o build de novo e
-     repetir a conferência antes do item 4.
-  4. **U:** desativar os 3 workflows "LeadFinder Pro" do n8n
-     (`NE6oZxj0il18ZDUk`, `cTN9Q6FjuuguALdF`, `024Gues9qK94oCgI`) **antes**
-     do próximo item. O `CRON_SECRET` é o que faz os crons do Worker
-     autenticarem; enquanto ele não existir, eles recebem 401. Entre este
-     item e o seguinte há **zero agendadores ativos**: é a lacuna segura,
-     intencional.
-  5. **E, imediatamente depois do último deploy do Workers Builds
-     terminar** (o primeiro, no merge único; o segundo, na alternativa de
-     dois merges): secrets de produção (simulação primeiro, **[auth]**):
-     ```bash
-     ./scripts/cloudflare-secrets-sync.sh --dry-run
-     ./scripts/cloudflare-secrets-sync.sh
-     ```
-     São 7: `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`,
-     `INTERNAL_QUEUE_SECRET`, `CONNECTORS_MASTER_KEY_V1`,
-     `CONNECTORS_ACTIVE_KEY_VERSION`, `UPSTASH_REDIS_REST_URL`,
-     `UPSTASH_REDIS_REST_TOKEN`. A partir daqui os crons deixam de receber 401,
-     o consumidor da fila autentica na rota interna e o Worker passa a ser o
-     único agendador.
+     Falhou: conferir as Build variables do item 4, rodar o build de novo e
+     repetir a conferência antes do item 6.
   6. **E:** verificar pelos Workers Logs de produção: o `scheduled` do cron
      `* * * * *` roda **sem erro duas vezes seguidas**. Vale como evidência
      tanto um log de despacho (`Claimed`/`dispatched`) quanto a linha de
      debug/info de "nenhum lead elegível"; se houve despacho, o consumer da
      fila registra o processamento. A resposta do cron traz
      `data.mode = "queue"`; um `503 QUEUE_NOT_CONFIGURED` indica fila ou
-     binding ausente (ver B2) e não envia nada.
+     binding ausente (ver B2) e não envia nada. Um
+     `follow-up/process falhou: 403` no log do consumer é **sinal de parada**:
+     o host `internal` não chegou à rota; executar o rollback.
   7. **U/E:** comunicar a nova URL (o `*.workers.dev` do B1). Há
-     **indisponibilidade** desde a pausa da Vercel (item 1) até o passo de
-     secrets (item 5): sem `SUPABASE_SERVICE_ROLE_KEY` e demais secrets o app
-     novo não funciona por completo.
-- **Verificação:** build verde; conferência pós-build do item 3 ok;
-  `npx wrangler secret list` mostra as 7 chaves; itens 4 a 6 concluídos sem
-  erro; `follow-up-sends-dlq` vazia.
+     **indisponibilidade** desde a pausa da Vercel (item 1) até o fim do
+     deploy do item 5.
+  8. **E:** apagar os secrets antigos de provedor e o de nome errado
+     (**[auth]**), depois do item 6 ok:
+     ```bash
+     for s in APIFY_API_KEY EVOLUTION_API_KEY EXT_PUBLIC_SUPABASE_ANON_KEY \
+              FIRECRAWL_API_KEY META_WA_TOKEN META_WA_VERIFY_TOKEN \
+              OPENAI_API_KEY RESEND_API_KEY; do
+       npx wrangler secret delete "$s" --name prospect-pulse-54
+     done
+     ```
+     As credenciais de provedor vivem em `platform_credentials` e
+     `organization_connections` desde o B5.
+- **Verificação:** build verde; conferência pós-build do item 5 ok;
+  `npx wrangler secret list` mostra só as 7 chaves (depois do item 8); itens 2
+  a 6 concluídos sem erro; `follow-up-sends-dlq` vazia.
 - **Rollback (ordenado e obrigatório; nunca dois agendadores ao mesmo
   tempo):**
-  1. remover `triggers.crons` do `wrangler.jsonc` e redeployar o Worker (ou
-     desabilitar os triggers pelo painel do Cloudflare). **Confirmar que o
-     redeploy sem crons terminou** (Deployments mostra-o ativo / Workers Logs
-     sem novas execuções `scheduled`) antes do passo 2;
+  1. remover os crons do Worker pela API (comando em "Estado encontrado em
+     2026-11-01"; efeito imediato) ou pelo painel do Cloudflare. **Confirmar**
+     que a lista de schedules voltou vazia e que os Workers Logs não mostram
+     novas execuções `scheduled` antes do passo 2;
   2. reativar os 3 workflows do n8n;
   3. despausar a Vercel e reverter o merge na `main` (`git revert`).
 

@@ -4,6 +4,9 @@
   "main": "custom-worker.ts",
   "compatibility_date": "2025-09-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Workers Logs: necessário para verificar crons, fila e DLQ no cutover
+  // (runbook B7). Herdado pelo env.staging.
+  "observability": { "enabled": true },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
