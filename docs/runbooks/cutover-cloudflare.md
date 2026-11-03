@@ -266,12 +266,15 @@ Convenções:
      `scripts/legacy/backup-<data>-organization-connections-pre-apply.json`.
   3. E: `--apply` (mesmo comando trocando a flag) e novo `--dry-run`: tudo
      deve aparecer como `[existe]` (idempotente).
-  4. U: na tela de admin **de staging** (Integrações → Credenciais da
+  4. U (feito em 2026-11-03): na tela de admin **de staging**
+     (Configurações → Administração da plataforma → Credenciais da
      plataforma), cadastrar **OpenAI** (`apiKey`), **Resend** (`apiKey`,
      `fromEmail`, `fromName`), **Google Places** (`apiKey`), **Apify**
      (`apiToken`) e **Firecrawl** (`apiKey`).
-  5. U: para cada organização, **Testar** cada conexão e só então **Ativar**
-     (`last_test_ok`); completar as marcadas como `[manual]`. Conexões
+  5. U: para cada organização, **Testar conexão** em cada conexão: o teste
+     aprovado já ativa a conexão (`last_test_ok` → `active`; o botão Ativar só
+     reativa uma conexão desativada). Completar as marcadas como `[manual]`.
+     Feito em 2026-11-03: 13/13 conexões `active` nas 3 organizações. Conexões
      `platform` (inclusive `prospecting/google_places`) só passam no teste
      com as credenciais do item 4.
   6. **Domínio do Resend por organização** (passo 9 de `corte-conectores.md`):
