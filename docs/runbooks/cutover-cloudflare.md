@@ -288,6 +288,16 @@ Convenções:
      (**[auth]** a cada execução): prospecção Google, prospecção LinkedIn e
      upload de PDF (`pdf-parse` sob o runtime de Workers). Rodar sempre numa
      **organização de teste**, com **uma busca mínima** de cada tipo.
+     **Feito em 2026-11-03 (Google e LinkedIn)**, na IntelliX.AI, logado como
+     o admin dela: Google `quantity: 1` → 200, 1 lead; LinkedIn `maxItems: 1`,
+     `findEmail: false` → 200, 1 contato; Workers Logs sem erro. Linhas
+     exportadas para `scripts/legacy/backup-2026-11-03-smoke-b5.json` e
+     apagadas por `id`; os `usage_events` ficaram (consumo pago real).
+     **PDF pendente:** o upload da base de conhecimento
+     (`app/api/agent/rag/route.ts`) não chama o `pdf-parse` (grava base64);
+     ele só roda no PDF recebido pelo WhatsApp
+     (`src/lib/handlers/message-type.handler.ts`), desligado até o A3. Validar
+     com teste local do `pdf-parse` no workerd, sem banco nem chaves.
 - **Verificação:** segundo `--dry-run` só com `[existe]`; conexões `active` na
   tela de admin; `tests/db/organization-connections.sql` ok em produção;
   nenhum segredo legível por `authenticated`; smokes do item 8 sem erro nos
