@@ -426,6 +426,13 @@ Convenções:
      ```
      As credenciais de provedor vivem em `platform_credentials` e
      `organization_connections` desde o B5.
+- **Feito em 2026-11-04 (UTC):** Vercel pausada e n8n desligado (U); secrets
+  via `versions secret bulk`; merge #21 → #20 → `main` (`d6d7c61`); deploy
+  `820863e9` às 02:04; pós-build ok (CORS, Supabase real, sem placeholder);
+  cron `* * * * *` ok às 02:13, 02:15, 02:16 em modo `queue` (visto pelo
+  `wrangler tail`; a consulta de Workers Logs não mostrou `scheduled`); 8
+  secrets antigos apagados (versão `71acac83`), restam os 7; cron ok às 02:19.
+  Indisponibilidade ~01:58–02:04. Item 7 (comunicar URL) com o usuário.
 - **Verificação:** build verde; conferência pós-build do item 5 ok;
   `npx wrangler secret list` mostra só as 7 chaves (depois do item 8); itens 2
   a 6 concluídos sem erro; `follow-up-sends-dlq` vazia.
