@@ -460,6 +460,11 @@ Convenções:
   `active` na tela de Integrações de produção. Smokes que escrevem dados ou
   gastam crédito só com **[auth]**, em organização de teste, uma busca mínima
   (como no B5).
+- **Feito em 2026-11-04 (UTC):** sem login, cron (sem bearer e bearer falso),
+  rota interna da fila e APIs → 401; `/dashboard` → `/login`. Logado no admin
+  da IntelliX.AI: 9 telas e 9 APIs de leitura 200, rotas de admin de plataforma
+  403, 5 conexões `active`, tabela com os 111 leads. Sem smoke pago (feito no B5,
+  mesmo banco).
 - **Verificação:** smoke sem erro; `GET /api/cron/follow-up` **sem bearer
   responde 401**; `POST /api/internal/follow-up/process` de fora responde 401
   (sem o segredo) ou 403 (host externo); Integrações em produção mostra as
