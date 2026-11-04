@@ -387,7 +387,6 @@ prospect-pulse-54/
 │   │   ├── cron/
 │   │   │   ├── follow-up/route.ts    # Follow-up curto prazo (por minuto)
 │   │   │   ├── long-followup/route.ts # Follow-up longo prazo (diário)
-│   │   │   └── keepalive/route.ts    # Keep-alive Supabase (a cada 5 dias)
 │   │   ├── webhooks/
 │   │   │   └── evolution/[token]/route.ts # Webhook WhatsApp (token do tenant)
 │   │   └── whatsapp/
@@ -462,7 +461,6 @@ prospect-pulse-54/
 │   │   ├── jobs/
 │   │   │   ├── follow-up.job.ts      # Follow-up curto prazo
 │   │   │   ├── long-followup.job.ts  # Follow-up longo prazo
-│   │   │   └── supabase-keepalive.job.ts # Keep-alive
 │   │   │
 │   │   ├── repositories/
 │   │   │   ├── lead.repository.ts         # CRUD de leads
@@ -898,11 +896,6 @@ Follow-up de longo prazo. Executado diariamente às 9h BRT.
 
 ---
 
-### `GET /api/cron/keepalive`
-Previne o Supabase de entrar em modo de hibernação. Executado a cada 5 dias.
-
----
-
 ### `POST /api/admin/init-user-settings`
 Inicializa `user_settings` para novo usuário no momento do cadastro.
 
@@ -1205,7 +1198,6 @@ create(leadInsert)
 update(id, fields)
 findLeadsForFollowUp()    // Query com janelas de tempo
 incrementFollowUpCount(id)
-keepAlive()               // Dummy query anti-sleep
 ```
 
 ---
@@ -1516,7 +1508,6 @@ Configurados em `vercel.json` (ou Vercel Dashboard → Cron Jobs):
 |-------|----------|--------|
 | `/api/cron/follow-up` | `* * * * *` | Follow-up curto prazo (a cada minuto) |
 | `/api/cron/long-followup` | `0 12 * * *` | Follow-up longo prazo (diário 9h BRT) |
-| `/api/cron/keepalive` | `0 0 */5 * *` | Keep-alive Supabase (a cada 5 dias) |
 
 ### Supabase
 - **Projeto ID:** `kzvnwqlcrtxwagxkghxq`
@@ -1880,7 +1871,6 @@ Webhook configurado com `webhookBase64: false` (base64 não vem no payload). O f
 
 **`app/api/cron/follow-up/route.ts`**
 **`app/api/cron/long-followup/route.ts`**
-**`app/api/cron/keepalive/route.ts`**
 - Condição `if (CRON_SECRET && ...)` alterada para `if (!CRON_SECRET || ...)`
 - Antes: se `CRON_SECRET` não estivesse definida, qualquer requisição passava sem autenticação
 - Depois: se `CRON_SECRET` não estiver definida, retorna 401 (forçando configuração da variável)
@@ -2024,7 +2014,6 @@ Falhou: Latência webhook média 1.16s > threshold 1.0s (Vercel cold start — e
 | `lib/supabase/middleware.ts` | Return 401 JSON para `/api/*` não autenticadas; `/api/admin/` em publicApiPrefixes |
 | `app/api/cron/follow-up/route.ts` | `if (!CRON_SECRET \|\| ...)` em vez de `if (CRON_SECRET && ...)` |
 | `app/api/cron/long-followup/route.ts` | Idem |
-| `app/api/cron/keepalive/route.ts` | Idem |
 | `app/api/webhooks/evolution/route.ts` | GET: retorna 403 para `hub.verify_token` inválido |
 | `next.config.js` | CSP, Permissions-Policy, CORS restrito por domínio |
 | `app/api/cron/rescue-human-mode/route.ts` | `as any` cast para coluna não tipada no Supabase schema |

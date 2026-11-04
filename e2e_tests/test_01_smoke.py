@@ -44,7 +44,6 @@ api_routes = [
 
 cron_routes = [
     ("/api/cron/follow-up", [401, 403, 405]),
-    ("/api/cron/keepalive", [401, 403, 405]),
     ("/api/cron/long-followup", [401, 403, 405]),
     ("/api/cron/rescue-human-mode", [401, 403, 405]),
 ]

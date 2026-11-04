@@ -48,7 +48,6 @@ Mapa do fluxo que recebe uma mensagem de WhatsApp, identifica a organização e 
 | `/api/cron/follow-up` | Follow-up de curto prazo (sem resposta) | `src/lib/jobs/follow-up.job.ts` |
 | `/api/cron/long-followup` | Régua de longo prazo por cenário | `src/lib/jobs/long-followup.job.ts` + `src/lib/services/long-followup-rules.service.ts` |
 | `/api/cron/rescue-human-mode` | Devolve ao bot leads esquecidos em modo humano | `app/api/cron/rescue-human-mode/route.ts` |
-| `/api/cron/keepalive` | Mantém o projeto Supabase ativo | `app/api/cron/keepalive/route.ts` |
 
 ## Configuração necessária por organização
 
