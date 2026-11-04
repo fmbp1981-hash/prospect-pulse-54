@@ -293,11 +293,20 @@ Convenções:
      `findEmail: false` → 200, 1 contato; Workers Logs sem erro. Linhas
      exportadas para `scripts/legacy/backup-2026-11-03-smoke-b5.json` e
      apagadas por `id`; os `usage_events` ficaram (consumo pago real).
-     **PDF pendente:** o upload da base de conhecimento
+     **PDF:** o upload da base de conhecimento
      (`app/api/agent/rag/route.ts`) não chama o `pdf-parse` (grava base64);
      ele só roda no PDF recebido pelo WhatsApp
-     (`src/lib/handlers/message-type.handler.ts`), desligado até o A3. Validar
-     com teste local do `pdf-parse` no workerd, sem banco nem chaves.
+     (`src/lib/handlers/message-type.handler.ts`), desligado até o A3. Por
+     isso foi validado **localmente no workerd** (2026-11-03), sem banco nem
+     chaves: Worker mínimo com o mesmo `compatibility_date` e flags, chamando
+     `pdfParse(buffer)` como o `pdf-analyzer.service.ts` → texto extraído em
+     56 ms; PDF truncado → `InvalidPDFException` (o serviço já trata). Atenção:
+     o `pdf.js` 1.10 usa `node-ensure`; o bundle do OpenNext pega o
+     `index.js` (`setImmediate`) e funciona, mas a variante `browser.js`
+     entra em recursão infinita no workerd. Se um build futuro trocar a
+     resolução, o PDF do WhatsApp quebra: conferir com
+     `grep -o 'node_modules/node-ensure/[a-z.]*' .open-next/server-functions/default/handler.mjs`
+     (esperado: `index.js`).
 - **Verificação:** segundo `--dry-run` só com `[existe]`; conexões `active` na
   tela de admin; `tests/db/organization-connections.sql` ok em produção;
   nenhum segredo legível por `authenticated`; smokes do item 8 sem erro nos
