@@ -1,0 +1,104 @@
+{
+  "id": "TASK-003",
+  "title": "Bloqueio nos follow-ups",
+  "status": "DRAFT",
+  "objective": "Follow-ups curto e longo não enviam a pessoas com oposição e cancelam agendamentos pendentes delas.",
+  "source": {
+    "prd": "docs/product/PRD.md",
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "spec": "SPEC.md",
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ]
+  },
+  "risk": {
+    "level": "high",
+    "reasons": [
+      "Envio automático a pessoa física"
+    ],
+    "irreversible_actions": []
+  },
+  "ownership": {
+    "architect": "claude",
+    "executor": "claude",
+    "reviewer": "codex",
+    "domain_role": "backend-engineer"
+  },
+  "scope": {
+    "create": [
+      "tests/unit/follow-up-opt-out.spec.ts"
+    ],
+    "modify": [
+      "src/lib/jobs/follow-up.job.ts",
+      "src/lib/jobs/follow-up.queue.ts",
+      "src/lib/jobs/long-followup.job.ts",
+      "src/lib/services/long-followup-rules.service.ts"
+    ],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "scripts/legacy/**"
+    ]
+  },
+  "dependencies": [
+    "TASK-002"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "given": "um lead com oposição e follow-up devido",
+      "when": "o cron/fila processa",
+      "then": "nada é enviado e o motivo opt_out é registrado só com ids"
+    },
+    {
+      "id": "AC-002",
+      "given": "agendamentos de longo prazo pendentes",
+      "when": "a oposição é registrada",
+      "then": "os agendamentos ficam cancelados"
+    },
+    {
+      "id": "AC-003",
+      "given": "o campo opt_out inexistente usado hoje",
+      "when": "o job roda",
+      "then": "a leitura vem do serviço de oposição"
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "Tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "Comportamentos e regressões cobertos"
+    }
+  ],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree"
+  ],
+  "rollback": "Reverter o commit (envios voltam ao comportamento anterior; WhatsApp está desligado)",
+  "notes": [],
+  "handoff": {
+    "required_evidence": [
+      "test output",
+      "changed-file inventory"
+    ],
+    "open_questions": []
+  }
+}

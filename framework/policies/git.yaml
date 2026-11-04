@@ -1,0 +1,23 @@
+{
+  "id": "git",
+  "version": 1,
+  "rules": {
+    "protected_branches": ["main"],
+    "direct_commits_to_protected": false,
+    "strategy": "trunk_based_short_lived",
+    "branch_pattern": "^(feat|fix|chore|docs|refactor|test|sec)/[a-z0-9][a-z0-9-]*$",
+    "worktree_required_for_risk": ["medium", "high", "critical"],
+    "atomic_commits": true,
+    "force_push_protected": false,
+    "required_before_merge": ["configured-ci", "independent-review", "authenticated-human-approval"],
+    "ci_required_checks_source": "intellix.yaml#quality.ci.required_checks",
+    "ci_evidence_source": "github-api-exact-revision",
+    "local_ci_evidence_authoritative": false,
+    "local_approval_authoritative": false,
+    "human_approval_assurance": "external-separate-credential",
+    "reservation_states_owning_fileset": ["reserving", "reserved"],
+    "forbidden_worktree_operations": ["force", "reset-hard", "clean", "remove-dirty"],
+    "checkpoint_before_context_loss": true,
+    "checkpoint_required_fields": ["state", "context", "last_command", "last_result", "stop_point", "open_risks", "active_plan", "next_actions", "branch", "worktree", "commit", "recovery_command", "timestamp"]
+  }
+}

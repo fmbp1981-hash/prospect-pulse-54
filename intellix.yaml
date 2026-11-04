@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0.0",
+  "project": {"name": "prospect-pulse-54", "profile": "saas", "governance_profile": "regulated", "owners": ["fmbp1981-hash"]},
+  "framework": {"version": "1.0.0", "source": "framework/framework.yaml", "lock": "intellix.lock.json"},
+  "documents": {"prd": "docs/product/PRD.md", "architecture": "docs/architecture/ARCHITECTURE.md", "spec": "SPEC.md", "tasks": "tasks", "adrs": "docs/adr"},
+  "repositories": [{"path": ".", "default_branch": "main"}],
+  "quality": {"commands": ["npm run lint", "npx tsc --noEmit", "npm test", "npm run build", "npm run cf:build"], "coverage_target": 80, "ci": {"provider": "github", "repository": "fmbp1981-hash/prospect-pulse-54", "required_checks": ["lint", "typecheck", "test", "cf-build", "secrets-scan", "sast-scan", "sca-scan"]}},
+  "deployment": {"provider": "cloudflare", "production_environment": "production"},
+  "execution": {"default_executor": "claude", "permitted_adapters": ["codex", "claude"], "allow_current_adapter_fallback": false},
+  "runtime": {"records_path": ".intellix/runtime"}
+}

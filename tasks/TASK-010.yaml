@@ -1,0 +1,110 @@
+{
+  "id": "TASK-010",
+  "title": "Release do opt-out",
+  "status": "DRAFT",
+  "objective": "Aplicar a migration em produção com backup e autorização, validar no staging, rodar E2E e security gate, e liberar envios em massa só depois.",
+  "source": {
+    "prd": "docs/product/PRD.md",
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "spec": "SPEC.md",
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ]
+  },
+  "risk": {
+    "level": "critical",
+    "reasons": [
+      "Migration em produção",
+      "Muda o comportamento de todos os envios"
+    ],
+    "irreversible_actions": [
+      "Aplicar migration em produção"
+    ]
+  },
+  "ownership": {
+    "architect": "claude",
+    "executor": "claude",
+    "reviewer": "codex",
+    "domain_role": "release-manager"
+  },
+  "scope": {
+    "create": [
+      "tests/reports/opt-out-release.md"
+    ],
+    "modify": [
+      "docs/runbooks/cutover-cloudflare.md"
+    ],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "scripts/legacy/**"
+    ]
+  },
+  "dependencies": [
+    "TASK-003",
+    "TASK-004",
+    "TASK-005",
+    "TASK-006",
+    "TASK-007",
+    "TASK-009"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "given": "o backup das tabelas afetadas",
+      "when": "a migration é aplicada com autorização",
+      "then": "tests/db/contact-opt-outs.sql passa em produção"
+    },
+    {
+      "id": "AC-002",
+      "given": "o staging com o código novo",
+      "when": "o E2E roda",
+      "then": "registro, bloqueio e descadastro passam sem gastar crédito pago"
+    },
+    {
+      "id": "AC-003",
+      "given": "o security gate",
+      "when": "é executado",
+      "then": "PASS sem CRITICAL/HIGH abertos"
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "Tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "Comportamentos e regressões cobertos"
+    }
+  ],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree",
+    "staged_release"
+  ],
+  "rollback": "Rollback da migration (TASK-001) e git revert do merge; reabrir o risco LGPD-02",
+  "notes": [],
+  "handoff": {
+    "required_evidence": [
+      "test output",
+      "changed-file inventory"
+    ],
+    "open_questions": []
+  }
+}

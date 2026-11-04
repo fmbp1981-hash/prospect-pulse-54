@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "task_id", "task_digest", "state", "events"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["1.0.0"]},
+    "task_id": {"type": "string", "pattern": "^TASK-[0-9]{3,}$"},
+    "task_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "state": {"type": "string"},
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["sequence", "timestamp", "from", "to", "outcome", "reason", "actor", "decision_context"],
+        "additionalProperties": false,
+        "properties": {
+          "sequence": {"type": "integer", "minimum": 1},
+          "timestamp": {"type": "string", "minLength": 1},
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "outcome": {"type": "string", "enum": ["transitioned", "blocked"]},
+          "reason": {"type": "string", "minLength": 1},
+          "actor": {"type": "string", "minLength": 1},
+          "decision_context": {
+            "type": "object",
+            "required": ["domain_role", "risk_level", "dependencies", "writable_files", "gates"],
+            "additionalProperties": false,
+            "properties": {
+              "domain_role": {"type": ["string", "null"]},
+              "risk_level": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+              "dependencies": {"type": "array", "items": {"type": "string"}},
+              "writable_files": {"type": "array", "items": {"type": "string"}},
+              "gates": {"type": "array", "items": {"type": "string"}}
+            }
+          },
+          "selected_adapter": {"type": ["string", "null"]},
+          "resolution": {"type": ["string", "null"]},
+          "unblock_condition": {"type": ["string", "null"]}
+        }
+      }
+    }
+  }
+}

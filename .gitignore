@@ -69,3 +69,7 @@ build-*.txt
 tsc-errors.txt
 repomix-output.xml
 *.timestamp-*.mjs
+
+# IntelliX runtime local
+.intellix/
+__pycache__/

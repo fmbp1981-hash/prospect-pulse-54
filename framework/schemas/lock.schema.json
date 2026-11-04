@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "kernel", "control_plane", "sync_direction"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "pattern": "^1\\.0\\.0$"},
+    "kernel": {
+      "type": "object",
+      "required": ["version", "source", "digest", "files"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "control_plane": {
+      "type": "object",
+      "required": ["version", "digest", "files"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "files": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "sync_direction": {"type": "string", "enum": ["repository_to_installation"]}
+  }
+}

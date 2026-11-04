@@ -1,0 +1,54 @@
+{
+  "control_plane": {
+    "digest": "sha256:f48137f86ad06c16fb1352401a3fe16cc17470a966eff3de4c72e31279952e18",
+    "files": [
+      "framework/adapters.py",
+      "framework/ci.py",
+      "framework/completion.py",
+      "framework/dispatch.py",
+      "framework/runtime.py",
+      "framework/sync.py",
+      "framework/validate.py",
+      "framework/worktrees.py"
+    ],
+    "version": "1.0.0"
+  },
+  "kernel": {
+    "digest": "sha256:20955dddfd4ecac15d1a379614c375e9504098956cf03d3012a3a3ce1e74402b",
+    "files": [
+      "framework/framework.yaml",
+      "framework/policies/deployment.yaml",
+      "framework/policies/git.yaml",
+      "framework/policies/security.yaml",
+      "framework/policies/testing.yaml",
+      "framework/roles/accessibility-reviewer.yaml",
+      "framework/roles/architect.yaml",
+      "framework/roles/backend-engineer.yaml",
+      "framework/roles/database-engineer.yaml",
+      "framework/roles/frontend-engineer.yaml",
+      "framework/roles/integration-engineer.yaml",
+      "framework/roles/observability-reviewer.yaml",
+      "framework/roles/platform-engineer.yaml",
+      "framework/roles/product-spec-author.yaml",
+      "framework/roles/release-manager.yaml",
+      "framework/roles/security-reviewer.yaml",
+      "framework/roles/test-engineer.yaml",
+      "framework/schemas/approval.schema.json",
+      "framework/schemas/checkpoint.schema.json",
+      "framework/schemas/ci-evidence.schema.json",
+      "framework/schemas/handoff.schema.json",
+      "framework/schemas/lock.schema.json",
+      "framework/schemas/project.schema.json",
+      "framework/schemas/reservation.schema.json",
+      "framework/schemas/review-evidence.schema.json",
+      "framework/schemas/role.schema.json",
+      "framework/schemas/runtime.schema.json",
+      "framework/schemas/task.schema.json",
+      "framework/schemas/waiver.schema.json"
+    ],
+    "source": "framework/framework.yaml",
+    "version": "1.0.0"
+  },
+  "schema_version": "1.0.0",
+  "sync_direction": "repository_to_installation"
+}

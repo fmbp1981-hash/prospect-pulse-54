@@ -1,0 +1,100 @@
+{
+  "id": "TASK-008",
+  "title": "Rotas de API da oposição",
+  "status": "DRAFT",
+  "objective": "Rotas autenticadas para consultar, registrar e revogar oposição de um lead, com papéis: admin e operador registram, só admin revoga com motivo, visualizador só consulta.",
+  "source": {
+    "prd": "docs/product/PRD.md",
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "spec": "SPEC.md",
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ]
+  },
+  "risk": {
+    "level": "medium",
+    "reasons": [
+      "Autorização por papel e por organização"
+    ],
+    "irreversible_actions": []
+  },
+  "ownership": {
+    "architect": "claude",
+    "executor": "claude",
+    "reviewer": "codex",
+    "domain_role": "backend-engineer"
+  },
+  "scope": {
+    "create": [
+      "app/api/leads/[id]/opt-out/route.ts",
+      "tests/unit/opt-out-route.spec.ts"
+    ],
+    "modify": [],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "scripts/legacy/**"
+    ]
+  },
+  "dependencies": [
+    "TASK-002"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "given": "um visualizador",
+      "when": "tenta registrar",
+      "then": "403"
+    },
+    {
+      "id": "AC-002",
+      "given": "um lead de outra organização",
+      "when": "qualquer usuário consulta",
+      "then": "404"
+    },
+    {
+      "id": "AC-003",
+      "given": "um admin com motivo",
+      "when": "revoga",
+      "then": "200 e evento de revogação gravado"
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "Tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "Comportamentos e regressões cobertos"
+    }
+  ],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree"
+  ],
+  "rollback": "Reverter o commit",
+  "notes": [],
+  "handoff": {
+    "required_evidence": [
+      "test output",
+      "changed-file inventory"
+    ],
+    "open_questions": []
+  }
+}

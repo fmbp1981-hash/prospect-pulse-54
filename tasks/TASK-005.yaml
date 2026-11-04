@@ -1,0 +1,109 @@
+{
+  "id": "TASK-005",
+  "title": "Agente de IA e palavras de saída",
+  "status": "DRAFT",
+  "objective": "O agente registra a oposição quando o titular pede para sair e nunca promete remoção sem registrar; mensagens inteiras de pedido de saída registram a oposição mesmo com agente desligado ou atendimento humano.",
+  "source": {
+    "prd": "docs/product/PRD.md",
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "spec": "SPEC.md",
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ]
+  },
+  "risk": {
+    "level": "high",
+    "reasons": [
+      "Decisão automática sobre dado pessoal",
+      "Falso positivo bloquearia contato legítimo"
+    ],
+    "irreversible_actions": []
+  },
+  "ownership": {
+    "architect": "claude",
+    "executor": "claude",
+    "reviewer": "codex",
+    "domain_role": "integration-engineer"
+  },
+  "scope": {
+    "create": [
+      "src/lib/opt-out/stop-keywords.ts",
+      "tests/unit/stop-keywords.spec.ts",
+      "tests/unit/agent-opt-out.spec.ts"
+    ],
+    "modify": [
+      "src/lib/ai/tools/update-lead.tool.ts",
+      "src/lib/ai/prompts/system-prompt.intellix.v1.ts",
+      "src/lib/ai/prompts/default-system-prompt.ts",
+      "src/lib/workflows/lead-conversation.workflow.ts"
+    ],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "scripts/legacy/**"
+    ]
+  },
+  "dependencies": [
+    "TASK-002"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "given": "a mensagem 'SAIR!'",
+      "when": "chega com o agente desligado",
+      "then": "a oposição é registrada com origem whatsapp_titular e evidência por id"
+    },
+    {
+      "id": "AC-002",
+      "given": "a mensagem 'não posso parar agora'",
+      "when": "chega",
+      "then": "nenhuma oposição é registrada"
+    },
+    {
+      "id": "AC-003",
+      "given": "o titular pede remoção ao agente",
+      "when": "o agente responde",
+      "then": "a oposição está registrada antes da confirmação ao titular"
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "Tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "Comportamentos e regressões cobertos"
+    }
+  ],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree"
+  ],
+  "rollback": "Reverter o commit",
+  "notes": [],
+  "handoff": {
+    "required_evidence": [
+      "test output",
+      "changed-file inventory"
+    ],
+    "open_questions": [
+      "Lista final de termos e variações (ex.: 'STOP', 'descadastrar')?"
+    ]
+  }
+}

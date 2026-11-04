@@ -1,0 +1,111 @@
+{
+  "id": "TASK-009",
+  "title": "Interface da oposição",
+  "status": "DRAFT",
+  "objective": "Selo na tabela, no Kanban e no detalhe do lead; painel com histórico e ações por papel; diálogo de confirmação; filtro; aviso nas ações em massa; resumo do público na campanha; aviso na conversa do Inbox.",
+  "source": {
+    "prd": "docs/product/PRD.md",
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "spec": "SPEC.md",
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ]
+  },
+  "risk": {
+    "level": "medium",
+    "reasons": [
+      "UI de ação irreversível para o usuário"
+    ],
+    "irreversible_actions": []
+  },
+  "ownership": {
+    "architect": "claude",
+    "executor": "claude",
+    "reviewer": "codex",
+    "domain_role": "frontend-engineer"
+  },
+  "scope": {
+    "create": [
+      "src/components/leads/OptOutBadge.tsx",
+      "src/components/leads/OptOutPanel.tsx",
+      "src/components/leads/OptOutConfirmDialog.tsx",
+      "src/components/inbox/ConversationOptOutBanner.tsx"
+    ],
+    "modify": [
+      "src/components/LeadDetailDrawer.tsx",
+      "src/components/leads/LeadsFilters.tsx",
+      "src/components/BulkActionsBar.tsx",
+      "src/components/KanbanBoard.tsx",
+      "src/components/inbox/ConversationThread.tsx",
+      "app/(protected)/campanhas/page.tsx"
+    ],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "scripts/legacy/**"
+    ]
+  },
+  "dependencies": [
+    "TASK-008"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "given": "um visualizador",
+      "when": "abre o detalhe de um lead com oposição",
+      "then": "vê selo e histórico, sem botões de ação"
+    },
+    {
+      "id": "AC-002",
+      "given": "10 leads selecionados, 2 com oposição",
+      "when": "escolhe envio em massa",
+      "then": "o aviso informa que 2 ficarão de fora"
+    },
+    {
+      "id": "AC-003",
+      "given": "tela de 375px",
+      "when": "o painel é aberto",
+      "then": "sem rolagem horizontal"
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "Tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "Comportamentos e regressões cobertos"
+    }
+  ],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree"
+  ],
+  "rollback": "Reverter o commit",
+  "notes": [],
+  "handoff": {
+    "required_evidence": [
+      "test output",
+      "changed-file inventory"
+    ],
+    "open_questions": [
+      "A tabela de leads está em app/(protected)/leads/page.tsx: confirmar no /plan os componentes exatos da linha e do card"
+    ]
+  }
+}

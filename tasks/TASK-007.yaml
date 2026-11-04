@@ -1,0 +1,99 @@
+{
+  "id": "TASK-007",
+  "title": "Bloqueio de reentrada por prospecção e importação",
+  "status": "DRAFT",
+  "objective": "Prospecção Google e LinkedIn e importação de planilha não recriam lead para pessoa com oposição na organização e informam quantos foram suprimidos.",
+  "source": {
+    "prd": "docs/product/PRD.md",
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "spec": "SPEC.md",
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ]
+  },
+  "risk": {
+    "level": "medium",
+    "reasons": [
+      "Gasto de crédito pago com pessoas que seriam descartadas"
+    ],
+    "irreversible_actions": []
+  },
+  "ownership": {
+    "architect": "claude",
+    "executor": "claude",
+    "reviewer": "codex",
+    "domain_role": "backend-engineer"
+  },
+  "scope": {
+    "create": [
+      "tests/unit/prospecting-opt-out.spec.ts"
+    ],
+    "modify": [
+      "src/lib/services/places-prospecting.service.ts",
+      "src/lib/services/linkedin-prospecting.service.ts",
+      "app/api/leads/import/route.ts"
+    ],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "scripts/legacy/**"
+    ]
+  },
+  "dependencies": [
+    "TASK-002"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "given": "um resultado do Google com telefone em oposição",
+      "when": "a prospecção grava",
+      "then": "o lead não é criado e o resumo conta 1 suprimido"
+    },
+    {
+      "id": "AC-002",
+      "given": "uma planilha com e-mail em oposição",
+      "when": "é importada",
+      "then": "a linha é pulada e reportada"
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "Tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "Comportamentos e regressões cobertos"
+    }
+  ],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree"
+  ],
+  "rollback": "Reverter o commit",
+  "notes": [
+    "Fronteira com o item 1.3 (supressão por place_id): esta task usa só telefone/e-mail"
+  ],
+  "handoff": {
+    "required_evidence": [
+      "test output",
+      "changed-file inventory"
+    ],
+    "open_questions": []
+  }
+}
