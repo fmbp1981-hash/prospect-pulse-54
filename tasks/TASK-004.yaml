@@ -22,7 +22,7 @@
   "ownership": {
     "architect": "claude",
     "executor": "claude",
-    "reviewer": "codex",
+    "reviewer": "claude-isolated",
     "domain_role": "backend-engineer"
   },
   "scope": {
@@ -103,14 +103,14 @@
     "worktree"
   ],
   "rollback": "Reverter o commit",
-  "notes": [],
+  "notes": [
+    "Decisão 2026-11-04: 'mesmo atendimento' = até 24 h após o registro da oposição; uma única mensagem de confirmação por oposição, depois o bloqueio é total."
+  ],
   "handoff": {
     "required_evidence": [
       "test output",
       "changed-file inventory"
     ],
-    "open_questions": [
-      "Como identificar 'mesmo atendimento' para a exceção da confirmação: janela de tempo ou id da mensagem de pedido?"
-    ]
+    "open_questions": []
   }
 }

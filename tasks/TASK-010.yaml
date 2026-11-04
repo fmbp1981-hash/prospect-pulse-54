@@ -24,7 +24,7 @@
   "ownership": {
     "architect": "claude",
     "executor": "claude",
-    "reviewer": "codex",
+    "reviewer": "claude-isolated",
     "domain_role": "release-manager"
   },
   "scope": {
@@ -99,7 +99,9 @@
     "staged_release"
   ],
   "rollback": "Rollback da migration (TASK-001) e git revert do merge; reabrir o risco LGPD-02",
-  "notes": [],
+  "notes": [
+    "Decisão 2026-11-04: criar o secret UNSUBSCRIBE_TOKEN_SECRET no staging e na produção antes do deploy (o usuário cria; o valor nunca passa pelo chat)."
+  ],
   "handoff": {
     "required_evidence": [
       "test output",

@@ -22,7 +22,7 @@
   "ownership": {
     "architect": "claude",
     "executor": "claude",
-    "reviewer": "codex",
+    "reviewer": "claude-isolated",
     "domain_role": "backend-engineer"
   },
   "scope": {
@@ -96,15 +96,14 @@
     "worktree"
   ],
   "rollback": "Reverter o commit; tokens emitidos deixam de valer",
-  "notes": [],
+  "notes": [
+    "Decisão 2026-11-04: o link não expira; token assinado por HMAC com secret novo do Worker (UNSUBSCRIBE_TOKEN_SECRET), separado da chave mestra dos conectores. Para evitar descadastro falso por antivírus/prévia de e-mail que abre links, o GET mostra a página com botão de confirmação e o registro acontece no POST; o e-mail também leva o cabeçalho List-Unsubscribe com List-Unsubscribe-Post (um clique, RFC 8058)."
+  ],
   "handoff": {
     "required_evidence": [
       "test output",
       "changed-file inventory"
     ],
-    "open_questions": [
-      "Validade do link (sem expiração ou N dias)?",
-      "Segredo do token: secret novo no Worker ou derivado da chave mestra?"
-    ]
+    "open_questions": []
   }
 }

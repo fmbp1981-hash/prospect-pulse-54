@@ -22,7 +22,7 @@
   "ownership": {
     "architect": "claude",
     "executor": "claude",
-    "reviewer": "codex",
+    "reviewer": "claude-isolated",
     "domain_role": "integration-engineer"
   },
   "scope": {
@@ -96,14 +96,14 @@
     "worktree"
   ],
   "rollback": "Reverter o commit",
-  "notes": [],
+  "notes": [
+    "Decisão 2026-11-04: termos de saída = sair, parar, pare, não quero mais receber, remover meu contato, stop, descadastrar (mensagem inteira, sem distinguir maiúsculas, acentos e pontuação)."
+  ],
   "handoff": {
     "required_evidence": [
       "test output",
       "changed-file inventory"
     ],
-    "open_questions": [
-      "Lista final de termos e variações (ex.: 'STOP', 'descadastrar')?"
-    ]
+    "open_questions": []
   }
 }

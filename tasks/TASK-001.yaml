@@ -24,7 +24,7 @@
   "ownership": {
     "architect": "claude",
     "executor": "claude",
-    "reviewer": "codex",
+    "reviewer": "claude-isolated",
     "domain_role": "database-engineer"
   },
   "scope": {
@@ -100,15 +100,14 @@
   ],
   "rollback": "Rodar o .down.sql depois de exportar as tabelas novas para scripts/legacy/backup-<data>-opt-outs.json",
   "notes": [
-    "RLS habilitado e FORCE RLS; escrita só via service_role ou função controlada; CHECK de origem (link_email, whatsapp_titular, agente_ia, usuario, importacao)"
+    "RLS habilitado e FORCE RLS; escrita só via service_role ou função controlada; CHECK de origem (link_email, whatsapp_titular, agente_ia, usuario, importacao)",
+    "Decisão 2026-11-04: telefone normalizado em E.164; número com 10 ou 11 dígitos sem DDI recebe +55; e-mail normalizado em minúsculas e sem espaços."
   ],
   "handoff": {
     "required_evidence": [
       "test output",
       "changed-file inventory"
     ],
-    "open_questions": [
-      "Normalização do telefone: E.164 com DDI 55 por padrão?"
-    ]
+    "open_questions": []
   }
 }
