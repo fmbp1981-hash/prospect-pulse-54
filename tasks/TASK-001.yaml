@@ -1,7 +1,7 @@
 {
   "id": "TASK-001",
   "title": "Contrato de dados da oposição por organização",
-  "status": "READY_FOR_ARCH_REVIEW",
+  "status": "READY",
   "objective": "Criar, por organização, o estado vigente da oposição (public.contact_opt_outs) e o histórico append-only (public.contact_opt_out_events), identificados por telefone E.164 e/ou e-mail normalizado, ligados ao lead quando existe e sobrevivendo à sua exclusão; leitura por membros da organização via RLS, escrita só pelo servidor; aplicar no banco compartilhado (staging = produção) com autorização no momento.",
   "source": {
     "prd": "docs/product/PRD.md",
@@ -149,7 +149,8 @@
     "Normalização (decisão 2026-11-04): E.164 com +55 para 10/11 dígitos sem DDI; e-mail lower+trim. O banco só valida o formato; a normalização em si é da TASK-002.",
     "Aplicação: no fim da task, com autorização explícita do usuário naquele momento, via apply_migration no projeto kzvnwqlcrtxwagxkghxq; backup prévio = registrar no scripts/legacy/backup-<data>-opt-outs.json que as tabelas não existiam (nenhuma linha existente é afetada). As tasks 002–009 dependem das tabelas existirem no banco compartilhado para os testes no staging.",
     "Revisão independente: subagente novo, somente-leitura (database-architect + security-reviewer), sem o contexto do executor, recebendo só o diff e este contrato.",
-    "Aprovação humana: review aprovado pelo usuário (fmbp1981-hash) no PR do GitHub fmbp1981-hash/prospect-pulse-54, contra o SHA completo do head; checks obrigatórios lint, typecheck, test, cf-build, secrets-scan, sast-scan, sca-scan. Texto de modelo não vale como aprovação."
+    "Aprovação humana: review aprovado pelo usuário (fmbp1981-hash) no PR do GitHub fmbp1981-hash/prospect-pulse-54, contra o SHA completo do head; checks obrigatórios lint, typecheck, test, cf-build, secrets-scan, sast-scan, sca-scan. Texto de modelo não vale como aprovação.",
+    "Aprovação arquitetural: usuário respondeu 'aprovo' no chat em 2026-11-04 (contrato no commit 0db19b0), incluindo aplicar a migration no fim desta task — a aplicação ainda exige nova autorização explícita no momento. Registro local de auditoria; não libera merge."
   ],
   "handoff": {
     "required_evidence": [
