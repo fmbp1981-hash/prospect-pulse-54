@@ -1,8 +1,8 @@
 {
   "id": "TASK-001",
   "title": "Contrato de dados da oposição por organização",
-  "status": "DRAFT",
-  "objective": "Criar o armazenamento da oposição (estado vigente + histórico append-only) por organização, identificado por telefone e e-mail normalizados, sobrevivendo à exclusão do lead.",
+  "status": "READY_FOR_ARCH_REVIEW",
+  "objective": "Criar, por organização, o estado vigente da oposição (public.contact_opt_outs) e o histórico append-only (public.contact_opt_out_events), identificados por telefone E.164 e/ou e-mail normalizado, ligados ao lead quando existe e sobrevivendo à sua exclusão; leitura por membros da organização via RLS, escrita só pelo servidor; aplicar no banco compartilhado (staging = produção) com autorização no momento.",
   "source": {
     "prd": "docs/product/PRD.md",
     "architecture": "docs/architecture/ARCHITECTURE.md",
@@ -14,11 +14,12 @@
   "risk": {
     "level": "high",
     "reasons": [
-      "Migration em produção (banco compartilhado com staging)",
-      "Dado pessoal (telefone, e-mail) e trilha de auditoria LGPD"
+      "Banco único: staging e produção usam o mesmo projeto Supabase (kzvnwqlcrtxwagxkghxq); aplicar = produção",
+      "Dado pessoal (telefone, e-mail) e trilha de auditoria exigida pela LGPD (art. 18, §2º)",
+      "Mudança só aditiva: nenhuma tabela/coluna existente é alterada e nenhum código atual lê as tabelas novas"
     ],
     "irreversible_actions": [
-      "Aplicar a migration em produção"
+      "Aplicar a migration no projeto Supabase compartilhado (exige autorização explícita do usuário no momento)"
     ]
   },
   "ownership": {
@@ -43,48 +44,89 @@
       "supabase/migrations/2026100*",
       "supabase/migrations/2026101*",
       "supabase/migrations/20261031*",
-      "scripts/legacy/**"
+      "supabase/migrations/rollback/2025*",
+      "supabase/migrations/rollback/2026100*",
+      "supabase/migrations/rollback/2026101*",
+      "supabase/migrations/rollback/20261031*",
+      "tests/db/organization-connections.sql",
+      "scripts/legacy/**",
+      "src/lib/**",
+      "app/**"
     ]
   },
   "dependencies": [],
   "acceptance_criteria": [
     {
       "id": "AC-001",
-      "given": "uma organização A e uma B",
-      "when": "um usuário de A consulta oposições",
-      "then": "só vê as de A (RLS)"
+      "given": "organizações A e B com oposições",
+      "when": "um membro de A (qualquer papel) consulta as duas tabelas",
+      "then": "vê só as linhas de A; anon não vê nada"
     },
     {
       "id": "AC-002",
       "given": "um evento de oposição gravado",
-      "when": "qualquer usuário tenta alterar ou apagar o histórico",
-      "then": "a operação é negada"
+      "when": "authenticated ou service_role tenta UPDATE, DELETE ou TRUNCATE no histórico",
+      "then": "a operação é negada (42501)"
     },
     {
       "id": "AC-003",
-      "given": "uma oposição ligada a um lead",
-      "when": "o lead é excluído",
-      "then": "a oposição continua vigente para o mesmo telefone/e-mail"
+      "given": "qualquer membro de organização, inclusive admin",
+      "when": "tenta INSERT/UPDATE/DELETE direto em contact_opt_outs ou INSERT em contact_opt_out_events",
+      "then": "a operação é negada; só service_role grava (e nunca apaga)"
     },
     {
       "id": "AC-004",
-      "given": "o mesmo telefone em duas organizações",
+      "given": "uma oposição ligada a um lead",
+      "when": "o lead é excluído",
+      "then": "lead_id vira null e a oposição continua vigente para o mesmo telefone/e-mail"
+    },
+    {
+      "id": "AC-005",
+      "given": "o mesmo telefone em A e em B",
       "when": "A registra oposição",
-      "then": "B não é afetada"
+      "then": "B não tem linha; o índice único é por (organização, identificador)"
+    },
+    {
+      "id": "AC-006",
+      "given": "uma linha sem telefone e sem e-mail, telefone fora de E.164, e-mail com maiúscula/espaço, origem fora da lista ou revogação sem motivo",
+      "when": "o servidor tenta gravar",
+      "then": "o CHECK do banco recusa"
+    },
+    {
+      "id": "AC-007",
+      "given": "a migration aplicada",
+      "when": "rodo de novo a migration e depois o .down.sql e de novo a migration",
+      "then": "não há erro (idempotente) e o rollback remove só os objetos novos"
     }
   ],
   "verification": [
+    {
+      "command": "tests/db/contact-opt-outs.sql via execute_sql (antes: tabelas inexistentes; depois: todos ok=true)",
+      "proves": "AC-001 a AC-006 no banco real, em transação desfeita"
+    },
+    {
+      "command": "tests/db/rls-helpers-regression.sql e tests/db/function-privileges.sql via execute_sql",
+      "proves": "Nenhuma regressão nos helpers de RLS e nos privilégios de funções"
+    },
+    {
+      "command": "get_advisors (security) do Supabase depois de aplicar",
+      "proves": "Sem aviso novo de RLS/grants nas tabelas criadas"
+    },
+    {
+      "command": "Reaplicar a migration em transação (begin; <migration>; rollback;)",
+      "proves": "Idempotência (AC-007)"
+    },
     {
       "command": "npm run lint",
       "proves": "Sem erros de lint"
     },
     {
       "command": "npx tsc --noEmit",
-      "proves": "Tipos consistentes"
+      "proves": "types.ts regenerado consistente"
     },
     {
       "command": "npm test",
-      "proves": "Comportamentos e regressões cobertos"
+      "proves": "Suíte existente sem regressão"
     }
   ],
   "gates": [
@@ -98,15 +140,24 @@
     "human_approval",
     "worktree"
   ],
-  "rollback": "Rodar o .down.sql depois de exportar as tabelas novas para scripts/legacy/backup-<data>-opt-outs.json",
+  "rollback": "1) Exportar as duas tabelas para scripts/legacy/backup-<data>-opt-outs.json (git-ignored); 2) rodar supabase/migrations/rollback/20261105100000_contact_opt_outs.down.sql (drop das 2 tabelas, do trigger e da função; nada existente é tocado); 3) reverter types.ts. Enquanto nenhuma task posterior estiver no ar, o rollback não afeta o sistema.",
   "notes": [
-    "RLS habilitado e FORCE RLS; escrita só via service_role ou função controlada; CHECK de origem (link_email, whatsapp_titular, agente_ia, usuario, importacao)",
-    "Decisão 2026-11-04: telefone normalizado em E.164; número com 10 ou 11 dígitos sem DDI recebe +55; e-mail normalizado em minúsculas e sem espaços."
+    "Schema vivo conferido em 2026-11-04: leads_prospeccao.id é text (FK lead_id text on delete set null); helpers existentes is_org_member, is_org_writer, is_org_admin, is_platform_admin (SECURITY DEFINER com search_path). Não duplicar: linkedin_suppression_list (0 linhas, por linkedin_slug) continua com seu papel; a integração entre as duas fica na TASK-007/item 1.3.",
+    "contact_opt_outs: id uuid, organization_id uuid not null (fk organizations on delete cascade), phone_e164 text null CHECK '^\\+[1-9][0-9]{7,14}$', email_normalized text null CHECK (= lower(btrim(...)) e contém @), CHECK ao menos um dos dois, status text CHECK in ('active','revoked'), lead_id text null (fk leads_prospeccao on delete set null), source text CHECK in ('link_email','whatsapp_titular','agente_ia','usuario','importacao') = origem do registro vigente, opted_out_at, revoked_at null, created_at, updated_at (trigger set_updated_at). Índices únicos parciais (organization_id, phone_e164) e (organization_id, email_normalized); índice em lead_id.",
+    "contact_opt_out_events: id uuid, organization_id, opt_out_id uuid not null (fk contact_opt_outs on delete cascade), event_type CHECK in ('opt_out','revoke'), source CHECK na mesma lista, actor_type CHECK in ('usuario','agente_ia','titular','sistema'), actor_user_id uuid null (fk auth.users on delete set null), reason text null com CHECK (event_type <> 'revoke' or length(btrim(reason)) >= 3), evidence_message_id text null (id da mensagem; nunca o texto), created_at. Sem updated_at: tabela append-only (exceção documentada à regra created_at/updated_at, como usage_events).",
+    "Segurança: ENABLE + FORCE RLS nas duas; policy SELECT to authenticated using (is_org_member(organization_id) or is_platform_admin()); revoke all from public, anon, authenticated; grant select a authenticated; service_role: select/insert/update em contact_opt_outs e só select/insert em contact_opt_out_events (sem delete/truncate em nenhuma). Exclusão só por cascade da organização (RI roda como owner postgres). Sem função SECURITY DEFINER nova.",
+    "Normalização (decisão 2026-11-04): E.164 com +55 para 10/11 dígitos sem DDI; e-mail lower+trim. O banco só valida o formato; a normalização em si é da TASK-002.",
+    "Aplicação: no fim da task, com autorização explícita do usuário naquele momento, via apply_migration no projeto kzvnwqlcrtxwagxkghxq; backup prévio = registrar no scripts/legacy/backup-<data>-opt-outs.json que as tabelas não existiam (nenhuma linha existente é afetada). As tasks 002–009 dependem das tabelas existirem no banco compartilhado para os testes no staging.",
+    "Revisão independente: subagente novo, somente-leitura (database-architect + security-reviewer), sem o contexto do executor, recebendo só o diff e este contrato.",
+    "Aprovação humana: review aprovado pelo usuário (fmbp1981-hash) no PR do GitHub fmbp1981-hash/prospect-pulse-54, contra o SHA completo do head; checks obrigatórios lint, typecheck, test, cf-build, secrets-scan, sast-scan, sca-scan. Texto de modelo não vale como aprovação."
   ],
   "handoff": {
     "required_evidence": [
-      "test output",
-      "changed-file inventory"
+      "test output (tests/db/contact-opt-outs.sql antes e depois)",
+      "advisors output",
+      "changed-file inventory",
+      "review evidence do revisor isolado",
+      "commit SHA completo"
     ],
     "open_questions": []
   }
