@@ -360,6 +360,13 @@ Convenções:
      ./scripts/cloudflare-secrets-sync.sh --dry-run
      ./scripts/cloudflare-secrets-sync.sh
      ```
+     **Em 2026-11-04 o script falhou:** o Workers Builds sobe versões de
+     preview dos PRs, e o `secret put` recusa quando a versão mais recente não
+     é a publicada. Os 7 secrets foram gravados com
+     `wrangler versions secret bulk --name prospect-pulse-54` (JSON lido do
+     `.env.local` por stdin, sem imprimir valores), que cria versão sem
+     publicar; o deploy do merge herdou os secrets (conferido com
+     `wrangler versions view <id> --json`).
      São 7: `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`,
      `INTERNAL_QUEUE_SECRET`, `CONNECTORS_MASTER_KEY_V1`,
      `CONNECTORS_ACTIVE_KEY_VERSION`, `UPSTASH_REDIS_REST_URL`,
