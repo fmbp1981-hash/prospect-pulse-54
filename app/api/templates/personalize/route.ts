@@ -2,26 +2,35 @@
  * POST /api/templates/personalize
  *
  * Personaliza um template de mensagem para um lead específico usando IA.
- * Lê a chave OpenAI do tenant via user_settings.
+ * A IA usa a conexão `llm` da organização do usuário; sem conexão →
+ * 409 LLM_NOT_CONFIGURED (sem fallback de chave).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
+import {
+  resolveLlmForUser,
+  runWithLlm,
+  recordLlmUsage,
+  LLM_NOT_CONFIGURED_ERROR,
+  type LlmUsage,
+} from '@/lib/ai/openai-key-context';
 
 export const runtime = 'nodejs';
 
-interface PersonalizeRequestBody {
-  templateBody: string;
-  channel: 'whatsapp' | 'email';
-  lead: {
-    empresa: string;
-    nome?: string;
-    categoria?: string;
-    cidade?: string;
-    website?: string;
-  };
-}
+const personalizeSchema = z.object({
+  templateBody: z.string().trim().min(1).max(20000),
+  channel: z.enum(['whatsapp', 'email']),
+  lead: z.object({
+    empresa: z.string().trim().min(1).max(300),
+    nome: z.string().max(300).optional(),
+    categoria: z.string().max(300).optional(),
+    cidade: z.string().max(300).optional(),
+    website: z.string().max(500).optional(),
+  }),
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,39 +42,24 @@ export async function POST(req: NextRequest) {
     }
     if (!(await requireWriter(user.id))) return forbiddenWriterResponse();
 
-    // 2. Read OpenAI key from user_settings, fallback to env
-    let openaiApiKey = process.env.OPENAI_API_KEY || '';
-
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('openai_api_key')
-      .eq('user_id', user.id)
-      .single();
-
-    if (settings?.openai_api_key) {
-      openaiApiKey = settings.openai_api_key as string;
-    }
-
-    if (!openaiApiKey) {
+    // 2. Parse request body
+    const parsed = personalizeSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'OpenAI API key not configured. Add it in settings or set OPENAI_API_KEY env var.' },
+        { error: { code: 'VALIDATION_ERROR', message: 'templateBody, channel e lead.empresa são obrigatórios.' } },
         { status: 400 }
       );
     }
+    const { templateBody, channel, lead } = parsed.data;
 
-    // 3. Parse request body
-    const body = await req.json() as PersonalizeRequestBody;
-    const { templateBody, channel, lead } = body;
-
-    if (!templateBody || !channel || !lead?.empresa) {
-      return NextResponse.json(
-        { error: 'templateBody, channel, and lead.empresa are required' },
-        { status: 400 }
-      );
+    // 3. IA pela conexão `llm` da organização do usuário
+    const llm = await resolveLlmForUser(user.id);
+    if (!llm) {
+      return NextResponse.json({ error: LLM_NOT_CONFIGURED_ERROR }, { status: 409 });
     }
 
     // 4. Build prompt
-    const systemPrompt = `You are a B2B sales assistant for IntelliX.AI, a Brazilian AI automation company.
+    const systemPrompt = `You are a B2B sales assistant.
 Personalize the following ${channel} template for a specific prospect.
 
 Lead data:
@@ -93,7 +87,7 @@ Instructions:
     const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
+        'Authorization': `Bearer ${llm.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -107,22 +101,24 @@ Instructions:
     });
 
     if (!openaiRes.ok) {
-      const errData = await openaiRes.json().catch(() => ({}));
-      console.error('[personalize] OpenAI error:', errData);
+      // Detalhe do provedor só no status: a mensagem pode citar trecho da credencial.
+      console.error('[personalize] OpenAI error:', openaiRes.status);
       return NextResponse.json(
-        { error: 'OpenAI API error', details: (errData as { error?: { message?: string } }).error?.message },
+        { error: { code: 'LLM_ERROR', message: 'Falha ao gerar a personalização com IA.' } },
         { status: 502 }
       );
     }
 
     const openaiData = await openaiRes.json() as {
       choices: Array<{ message: { content: string } }>;
+      usage?: LlmUsage;
     };
+    await runWithLlm(llm, () => recordLlmUsage(openaiData.usage, 'templates.personalize'));
     const personalizedBody = openaiData.choices?.[0]?.message?.content?.trim() || '';
 
     return NextResponse.json({ personalizedBody });
   } catch (err) {
-    console.error('[personalize] Unexpected error:', err);
+    console.error('[personalize] Unexpected error:', err instanceof Error ? err.message : 'erro');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

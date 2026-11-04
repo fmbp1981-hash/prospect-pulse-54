@@ -1,0 +1,6 @@
+# Falsos positivos revisados em 2026-11-03: JWT da chave anon do Supabase
+# (role=anon, pública por natureza; vai no bundle do navegador). Nunca
+# adicionar aqui um JWT com role=service_role.
+a2d3dadac37279f6f4fb306a2d5b7ba2b723ea24:worker-configuration.d.ts:jwt:7
+a2d3dadac37279f6f4fb306a2d5b7ba2b723ea24:worker-configuration.d.ts:jwt:27
+46b21436329abbea49ddbb512ac4c63a1f5524eb:wrangler.jsonc:jwt:62

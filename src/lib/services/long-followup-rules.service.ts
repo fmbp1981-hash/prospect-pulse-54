@@ -1,11 +1,15 @@
 /**
  * REGRAS DE FOLLOW-UP DE LONGO PRAZO
  *
- * Padrão (todas as organizações): low_revenue, no_response_long,
- *        qualified_not_closed, transferred_no_close, seasonal_reactivation
- * IntelliX — Campanha Encontro & Relacionamento:
- *   no_response_initial · qualified_not_scheduled · transferred_no_contact
- *   meeting_no_show · lost_reactivation · seasonal_reengage
+ * Régua padrão (todas as organizações), detectada por detectFollowUpScenario:
+ *   low_revenue · qualified_not_scheduled · transferred_no_contact ·
+ *   meeting_no_show · lost_reactivation · no_response_initial · seasonal_reactivation
+ * Sequências mantidas para schedules já gravados (não roteadas pela detecção):
+ *   no_response_long · qualified_not_closed · transferred_no_close ·
+ *   no_response_followup · goodbye · seasonal_reengage (disparo manual)
+ *
+ * Os textos são neutros (sem nome de pessoa ou empresa remetente): persona e
+ * tom por organização chegam no Sprint 2c.
  *
  * Regras globais anti-inconveniência (seção 2 da ESTRATEGIA):
  *   - Teto de 7 toques por lead (toda a jornada)
@@ -17,19 +21,19 @@
  */
 
 export type FollowUpScenario =
-  // ── Padrão (todas as organizações) ──────────────────────────────────────
+  // ── Régua genérica ───────────────────────────────────────────────────────
   | 'low_revenue'               // Fora do perfil no momento (ex.: porte abaixo do ICP)
   | 'no_response_short'         // Curto prazo (handled by follow-up.job.ts)
   | 'no_response_long'          // Sem resposta >3 dias
   | 'qualified_not_closed'      // Qualificado mas não fechou
   | 'transferred_no_close'      // Transferido mas consultor não fechou
   | 'seasonal_reactivation'     // Reativação sazonal
-  // ── IntelliX — Campanha Encontro & Relacionamento ─────────────────────────
+  // ── Régua de relacionamento (padrão para todas as organizações) ──────────
   | 'no_response_initial'       // Sem resposta: D+3, D+7, D+14, D+30 (4 passos)
   | 'no_response_followup'      // Legado — mantido para compatibilidade (não roteado)
   | 'goodbye'                   // Legado — mantido para compatibilidade (não roteado)
   | 'qualified_not_scheduled'   // Qualificado sem agendamento: D+1, D+3, D+7 (3 passos)
-  | 'transferred_no_contact'    // Transferido, Felipe não contatou: D+2, D+5 (2 passos)
+  | 'transferred_no_contact'    // Transferido, consultor não contatou: D+2, D+5 (2 passos)
   | 'meeting_no_show'           // Faltou à reunião: D+0, D+3 (2 passos)
   | 'lost_reactivation'         // Reativação trimestral: D+90, D+180, D+270 (3 ciclos)
   | 'seasonal_reengage'         // Reaquecimento por valor: 1 disparo manual/gatilho
@@ -171,42 +175,42 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
   },
 
   // ══════════════════════════════════════════════════════════════════════════
-  // IntelliX — Campanha Encontro & Relacionamento
-  // Canal exclusivo: WhatsApp oficial Meta Cloud API
+  // Régua de relacionamento — padrão para todas as organizações
+  // Passos [template] precisam de HSM aprovado (fora da janela de 24h do lead)
   // ══════════════════════════════════════════════════════════════════════════
 
   /**
    * Sem resposta após template inicial — 4 passos (D+3, D+7, D+14, D+30).
-   * Cada passo usa um ângulo diferente: prova social → dor → autoridade → despedida.
+   * Cada passo usa um ângulo diferente: prova social → dor → confiança → despedida.
    * Todos os passos = [template] (fora da janela de 24h do lead).
    */
   no_response_initial: {
     scenario: 'no_response_initial',
-    label: 'Sem resposta — régua completa (IntelliX)',
+    label: 'Sem resposta — régua completa',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 3,
         requiresTemplate: true,
-        message: `Oi, {{1}}! Voltando ao que conversamos no Encontro do Dirceu Cordeiro. Empresas parecidas com a {{2}} aqui no Nordeste estão reduzindo o tempo gasto com atendimento e follow-up repetitivo usando IA. Posso te mostrar em 2 minutos como? Se não for o momento, responda 'depois'.`,
+        message: `Oi, {{1}}! Voltando ao nosso último contato. Empresas parecidas com a {{2}} já estão resolvendo isso com a gente. Posso te mostrar em 2 minutos como? Se não for o momento, responda 'depois'.`,
       },
       {
         stepNumber: 2,
         daysAfterLastContact: 7,
         requiresTemplate: true,
-        message: `{{1}}, uma pergunta rápida: na {{2}}, o que mais toma tempo do time hoje — atendimento, cobrança, qualificação de lead ou relatório? Me diz só a palavra e eu te mando um caminho específico.`,
+        message: `{{1}}, uma pergunta rápida: na {{2}}, qual é hoje o maior desafio do time nessa área? Me diz em poucas palavras e eu te mando um caminho específico.`,
       },
       {
         stepNumber: 3,
         daysAfterLastContact: 14,
         requiresTemplate: true,
-        message: `{{1}}, sem cobrança nenhuma. A IntelliX tem um princípio: IA só vale quando gera resultado, e a gente fala quando NÃO vale. Se um dia quiser um diagnóstico honesto da {{2}}, é só me chamar.`,
+        message: `{{1}}, sem cobrança nenhuma. Nosso princípio é só recomendar o que gera resultado de verdade, e a gente fala quando NÃO vale a pena. Se um dia quiser uma avaliação honesta para a {{2}}, é só me chamar.`,
       },
       {
         stepNumber: 4,
         daysAfterLastContact: 30,
         requiresTemplate: true,
-        message: `{{1}}, vou encerrar o assunto por aqui para não te incomodar. Quando a {{2}} quiser entender onde a IA ajuda de verdade, é só responder. Fico à disposição. Abraço, Felipe — IntelliX.AI.`,
+        message: `{{1}}, vou encerrar o assunto por aqui para não te incomodar. Quando a {{2}} quiser retomar a conversa, é só responder. Fico à disposição. Abraço!`,
         updateStatus: 'Fechado Perdido',
         isFinal: true,
       },
@@ -216,12 +220,12 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
   /** Legado — não mais roteado. Mantido para compatibilidade com schedules existentes. */
   no_response_followup: {
     scenario: 'no_response_followup',
-    label: 'Sem resposta follow-up — legado (IntelliX)',
+    label: 'Sem resposta follow-up — legado',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 7,
-        message: `{{1}}, última tentativa. Qual processo na {{2}} mais toma tempo da equipe hoje: atendimento, cobrança, relatório ou prospecção? Me diz e eu te mando um resumo específico. Se não for o momento, responda "não agora".`,
+        message: `{{1}}, última tentativa. Qual é hoje o maior desafio da equipe na {{2}}? Me diz e eu te mando um resumo específico. Se não for o momento, responda "não agora".`,
       },
     ],
   },
@@ -229,12 +233,12 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
   /** Legado — não mais roteado. Mantido para compatibilidade com schedules existentes. */
   goodbye: {
     scenario: 'goodbye',
-    label: 'Despedida — legado (IntelliX)',
+    label: 'Despedida — legado',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 14,
-        message: `{{1}}, sem problema se não for a hora. Fico por aqui. Quando a {{2}} quiser entender como a IA pode ajudar de verdade, sem promessa exagerada, é só me chamar. Abraço, Felipe — IntelliX.AI.`,
+        message: `{{1}}, sem problema se não for a hora. Fico por aqui. Quando a {{2}} quiser retomar a conversa, sem compromisso, é só me chamar. Abraço!`,
         updateStatus: 'Inativo',
         isFinal: true,
       },
@@ -242,53 +246,53 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
   },
 
   /**
-   * Lead qualificado pela Bia mas sem horário marcado com o Felipe — 3 passos (D+1, D+3, D+7).
-   * Objetivo: conduzir ao agendamento de 20 min de diagnóstico.
+   * Lead qualificado pelo agente mas sem horário marcado com o consultor — 3 passos (D+1, D+3, D+7).
+   * Objetivo: conduzir ao agendamento de uma conversa de 20 min.
    */
   qualified_not_scheduled: {
     scenario: 'qualified_not_scheduled',
-    label: 'Qualificado sem agendamento (IntelliX)',
+    label: 'Qualificado sem agendamento',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 1,
-        message: `{{1}}, separei um espaço na agenda do Felipe essa semana para empresas que vieram do Encontro do Dirceu. São 20 minutos, ele analisa a operação da {{2}} ao vivo. Prefere de manhã ou à tarde?`,
+        message: `{{1}}, separei alguns horários esta semana para uma conversa rápida com o nosso consultor. São 20 minutos para entender a operação da {{2}}. Prefere de manhã ou à tarde?`,
       },
       {
         stepNumber: 2,
         daysAfterLastContact: 3,
         requiresTemplate: true,
-        message: `{{1}}, ainda dá para garantir um horário com o Felipe esta semana. Quer que eu reserve quinta ou sexta?`,
+        message: `{{1}}, ainda dá para garantir um horário com o nosso consultor esta semana. Quer que eu reserve quinta ou sexta?`,
       },
       {
         stepNumber: 3,
         daysAfterLastContact: 7,
         requiresTemplate: true,
-        message: `{{1}}, não quero te pressionar. Deixo o convite aberto: quando quiser os 20 minutos de diagnóstico da {{2}} com o Felipe, é só me dizer o dia. Abraço!`,
+        message: `{{1}}, não quero te pressionar. Deixo o convite aberto: quando quiser a conversa de 20 minutos sobre a {{2}}, é só me dizer o dia. Abraço!`,
         isFinal: true,
       },
     ],
   },
 
   /**
-   * Lead transferido para Felipe mas sem contato em 2 dias — 2 passos (D+2, D+5).
+   * Lead transferido para o consultor mas sem contato em 2 dias — 2 passos (D+2, D+5).
    * Protege o handoff: mantém o lead aquecido e alerta internamente sobre SLA breach.
    * O job deve registrar audit_logs com action='HANDOFF_SLA_BREACH' no passo 1.
    */
   transferred_no_contact: {
     scenario: 'transferred_no_contact',
-    label: 'Transferido sem contato do consultor (IntelliX)',
+    label: 'Transferido sem contato do consultor',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 2,
-        message: `{{1}}, o Felipe vai te chamar para aquela conversa rápida sobre a {{2}}. Confirma para mim: este WhatsApp é o melhor canal, ou prefere outro horário?`,
+        message: `{{1}}, nosso consultor vai te chamar para aquela conversa rápida sobre a {{2}}. Confirma para mim: este WhatsApp é o melhor canal, ou prefere outro horário?`,
       },
       {
         stepNumber: 2,
         daysAfterLastContact: 5,
         requiresTemplate: true,
-        message: `{{1}}, só garantindo que não perdi você. Quer que eu já deixe um horário reservado com o Felipe para esta semana?`,
+        message: `{{1}}, só garantindo que não perdi você. Quer que eu já deixe um horário reservado com o nosso consultor para esta semana?`,
         isFinal: true,
       },
     ],
@@ -300,7 +304,7 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
    */
   meeting_no_show: {
     scenario: 'meeting_no_show',
-    label: 'Não compareceu à reunião (IntelliX)',
+    label: 'Não compareceu à reunião',
     steps: [
       {
         stepNumber: 1,
@@ -311,7 +315,7 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
         stepNumber: 2,
         daysAfterLastContact: 3,
         requiresTemplate: true,
-        message: `{{1}}, fica fácil para você remarcar a conversa sobre a {{2}}? Me passa um dia e horário que eu ajusto com o Felipe.`,
+        message: `{{1}}, fica fácil para você remarcar a conversa sobre a {{2}}? Me passa um dia e horário que eu ajusto com o nosso consultor.`,
         isFinal: true,
       },
     ],
@@ -324,25 +328,25 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
    */
   lost_reactivation: {
     scenario: 'lost_reactivation',
-    label: 'Reativação trimestral (IntelliX)',
+    label: 'Reativação trimestral',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 90,
         requiresTemplate: true,
-        message: `Oi, {{1}}! Faz um tempo. A IntelliX lançou novidades que podem encaixar na {{2}}. Posso te mandar um resumo de 1 minuto? Se não fizer sentido, é só ignorar.`,
+        message: `Oi, {{1}}! Faz um tempo. Temos novidades que podem encaixar na {{2}}. Posso te mandar um resumo de 1 minuto? Se não fizer sentido, é só ignorar.`,
       },
       {
         stepNumber: 2,
         daysAfterLastContact: 180,
         requiresTemplate: true,
-        message: `{{1}}, ajudamos recentemente uma empresa parecida com a {{2}} a tirar tarefa repetitiva da mão do time. Quer ver como ficou? Sem compromisso.`,
+        message: `{{1}}, ajudamos recentemente uma empresa parecida com a {{2}} a resolver um desafio bem próximo do seu. Quer ver como ficou? Sem compromisso.`,
       },
       {
         stepNumber: 3,
         daysAfterLastContact: 270,
         requiresTemplate: true,
-        message: `{{1}}, última vez que te chamo por aqui para não virar incômodo. Se a IA entrar no radar da {{2}} algum dia, é só me responder. Abraço!`,
+        message: `{{1}}, última vez que te chamo por aqui para não virar incômodo. Se o assunto voltar ao radar da {{2}} algum dia, é só me responder. Abraço!`,
         updateStatus: 'Inativo',
         isFinal: true,
       },
@@ -356,13 +360,13 @@ export const FOLLOW_UP_SEQUENCES: Record<FollowUpScenario, FollowUpSequence> = {
    */
   seasonal_reengage: {
     scenario: 'seasonal_reengage',
-    label: 'Reaquecimento sazonal (IntelliX)',
+    label: 'Reaquecimento sazonal',
     steps: [
       {
         stepNumber: 1,
         daysAfterLastContact: 0,
         requiresTemplate: true,
-        message: `Oi, {{1}}! A IntelliX vai estar no próximo Encontro & Relacionamento. Aproveitando: preparei um material curto sobre [gatilho] que pode ser útil para a {{2}}. Quer que eu te envie?`,
+        message: `Oi, {{1}}! Preparei um material curto que pode ser útil para a {{2}}. Quer que eu te envie?`,
         isFinal: true,
       },
     ],
@@ -416,13 +420,44 @@ export function isWithinBusinessHours(now: Date = new Date()): boolean {
   return brtDay >= 1 && brtDay <= 5 && brtHour >= 9 && brtHour < 18;
 }
 
+// ── Placeholders ───────────────────────────────────────────────────────────
+
+const PLACEHOLDER = /\{\{\s*\d+\s*\}\}/;
+
+/** true se o texto ainda tem algum `{{n}}` não resolvido. */
+export function hasUnresolvedPlaceholder(text: string): boolean {
+  return PLACEHOLDER.test(text);
+}
+
+/**
+ * Preenche `{{1}}` (primeiro nome do contato) e `{{2}}` (empresa) com os dados
+ * reais do lead. Sem nome: "Oi, {{1}}!" vira "Oi!" e os demais `{{1}}` viram
+ * "Olá"; sem empresa: "sua empresa". Sobrou algum `{{n}}` → null (não enviar).
+ */
+export function renderFollowUpMessage(
+  template: string,
+  lead: { contato?: string | null; empresa?: string | null }
+): string | null {
+  const firstName = (lead.contato ?? '').trim().split(/\s+/)[0] ?? '';
+  const empresa = (lead.empresa ?? '').trim();
+
+  let text = template;
+  if (firstName) {
+    text = text.replace(/\{\{1\}\}/g, firstName);
+  } else {
+    text = text.replace(/\bOi, \{\{1\}\}!/g, 'Oi!').replace(/\{\{1\}\}/g, 'Olá');
+  }
+  text = text.replace(/\{\{2\}\}/g, empresa || 'sua empresa');
+
+  return hasUnresolvedPlaceholder(text) ? null : text;
+}
+
 // ── Detecção de cenário ────────────────────────────────────────────────────
 
 /**
  * Determina o cenário de follow-up de longo prazo para um lead.
  *
- * Para IntelliX: mapeia para os cenários da campanha Encontro & Relacionamento.
- * Demais organizações: régua padrão genérica.
+ * Mesma régua para todas as organizações (sem desvio por tenant).
  *
  * Retorna null se nenhum follow-up deve ser disparado (opt_out, teto atingido,
  * lead respondeu, cenário não identificado).
@@ -432,7 +467,6 @@ export function detectFollowUpScenario(lead: {
   estagio_pipeline: string | null;
   data_ultima_interacao: string | null;
   follow_up_count: number | null;
-  tenant_id?: string | null;
   opt_out?: boolean | null;
 }): FollowUpScenario | null {
   // Regra global: opt_out → nunca mais
@@ -444,77 +478,53 @@ export function detectFollowUpScenario(lead: {
   const status = lead.status_msg_wa ?? '';
   const estagio = lead.estagio_pipeline ?? '';
 
-  if (lead.tenant_id === 'intellix') {
-    const lastContact = lead.data_ultima_interacao
-      ? new Date(lead.data_ultima_interacao)
-      : null;
-    const daysSince = lastContact
-      ? (Date.now() - lastContact.getTime()) / (1000 * 60 * 60 * 24)
-      : 999;
+  const lastContact = lead.data_ultima_interacao
+    ? new Date(lead.data_ultima_interacao)
+    : null;
+  const daysSince = lastContact
+    ? (Date.now() - lastContact.getTime()) / (1000 * 60 * 60 * 24)
+    : 999;
 
-    // Qualificado pela Bia mas sem horário marcado
-    if (
-      (status === 'Qualificado' || estagio === 'Qualificação') &&
-      estagio !== 'Transferido para Consultor'
-    ) {
-      return 'qualified_not_scheduled';
-    }
-
-    // Transferido para Felipe mas sem contato em 2+ dias
-    if (status === 'Transferido' || estagio === 'Transferido para Consultor') {
-      return 'transferred_no_contact';
-    }
-
-    // Lead faltou à reunião
-    if (status === 'no_show' || estagio === 'Reunião Não Realizada') {
-      return 'meeting_no_show';
-    }
-
-    // Lead em Fechado Perdido → reativação trimestral (a partir de 90 dias)
-    if (
-      (status === 'Fechado Perdido' || estagio === 'Fechado Perdido') &&
-      daysSince >= 90
-    ) {
-      return 'lost_reactivation';
-    }
-
-    // Sem resposta após template (Contato Inicial / Follow-up) → régua completa
-    if (
-      (status === 'Sem Resposta' ||
-        status === 'Follow-up' ||
-        estagio === 'Contato Inicial' ||
-        estagio === 'Follow-up') &&
-      daysSince >= 3
-    ) {
-      return 'no_response_initial';
-    }
-
-    return null;
-  }
-
-  // ── Régua padrão (demais organizações) ──────────────────────────────────
-
+  // Fora do perfil no momento (ex.: faturamento abaixo do ICP)
   if (status === 'Follow-up' && estagio.toLowerCase().includes('faturamento')) {
     return 'low_revenue';
   }
 
-  if (status === 'Follow-up' || status === 'Sem Resposta') {
-    const lastContact = lead.data_ultima_interacao
-      ? new Date(lead.data_ultima_interacao)
-      : null;
-    if (lastContact) {
-      const daysSince =
-        (Date.now() - lastContact.getTime()) / (1000 * 60 * 60 * 24);
-      return daysSince >= 3 ? 'no_response_long' : null;
-    }
+  // Qualificado pelo agente mas sem horário marcado
+  if (
+    (status === 'Qualificado' || estagio === 'Qualificação') &&
+    estagio !== 'Transferido para Consultor'
+  ) {
+    return 'qualified_not_scheduled';
   }
 
-  if (status === 'Qualificado' || estagio === 'Qualificação') {
-    return 'qualified_not_closed';
-  }
-
+  // Transferido para o consultor mas sem contato em 2+ dias
   if (status === 'Transferido' || estagio === 'Transferido para Consultor') {
-    return 'transferred_no_close';
+    return 'transferred_no_contact';
+  }
+
+  // Lead faltou à reunião
+  if (status === 'no_show' || estagio === 'Reunião Não Realizada') {
+    return 'meeting_no_show';
+  }
+
+  // Lead em Fechado Perdido → reativação trimestral (a partir de 90 dias)
+  if (
+    (status === 'Fechado Perdido' || estagio === 'Fechado Perdido') &&
+    daysSince >= 90
+  ) {
+    return 'lost_reactivation';
+  }
+
+  // Sem resposta após o contato inicial / follow-up → régua completa
+  if (
+    (status === 'Sem Resposta' ||
+      status === 'Follow-up' ||
+      estagio === 'Contato Inicial' ||
+      estagio === 'Follow-up') &&
+    daysSince >= 3
+  ) {
+    return 'no_response_initial';
   }
 
   if (status === 'Inativo') {

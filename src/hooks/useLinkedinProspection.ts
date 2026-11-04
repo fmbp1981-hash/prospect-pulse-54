@@ -105,7 +105,7 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
 
       const json = await res.json();
       if (!res.ok) {
-        toast.error(typeof json.error === "string" ? json.error : "Erro ao buscar no LinkedIn", { id: loadingToast });
+        toast.error(typeof json.error === "string" ? json.error : json.error?.message || "Erro ao buscar no LinkedIn", { id: loadingToast });
         return;
       }
 
@@ -161,7 +161,7 @@ export function useLinkedinProspection(options?: UseLinkedinProspectionOptions) 
       const res = await fetch(`/api/contacts/${contact.id}/enrich`, { method: "POST" });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(typeof json.error === "string" ? json.error : "Erro ao enriquecer contato");
+        toast.error(typeof json.error === "string" ? json.error : json.error?.message || "Erro ao enriquecer contato");
         return;
       }
       const data = json.data as { contact: { email: string | null; phone: string | null }; emailFound: boolean; phoneFound: boolean };

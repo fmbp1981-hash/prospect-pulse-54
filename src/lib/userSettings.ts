@@ -24,10 +24,6 @@ export interface UserSettings {
   agent_enabled?: boolean;
   // Chave de API OpenAI por tenant (sobrepõe variável de ambiente OPENAI_API_KEY)
   openai_api_key?: string;
-  // Chave Resend por tenant (sobrepõe variável de ambiente RESEND_API_KEY)
-  resend_api_key?: string;
-  // Endereço de remetente de e-mail por tenant (ex: contato@intellixai.com.br)
-  from_email?: string;
   // Chave de API Firecrawl por tenant (sobrepõe FIRECRAWL_API_KEY) — enriquecimento de site
   firecrawl_api_key?: string;
   // Chave de API Apify por tenant (sobrepõe APIFY_API_KEY) — conector LinkedIn
@@ -80,7 +76,11 @@ export const userSettingsService = {
   },
 
   /**
-   * Salvar ou atualizar configurações do usuário
+   * Salvar ou atualizar configurações do usuário.
+   *
+   * Só grava campos editáveis pelo cliente (empresa, consultor, agente). As
+   * credenciais/instância/provedor de integração não são mais escritas aqui:
+   * vivem em organization_connections, configuradas pelo admin da plataforma.
    */
   async saveUserSettings(settings: Partial<UserSettings>): Promise<UserSettings> {
     try {
@@ -104,19 +104,8 @@ export const userSettingsService = {
           .from("user_settings")
           .update({
             company_name: settings.company_name,
-            provider: settings.provider,
-            evolution_api_url: settings.evolution_api_url,
-            evolution_api_key: settings.evolution_api_key,
-            business_phone_number_id: settings.business_phone_number_id,
-            business_access_token: settings.business_access_token,
-            meta_verify_token: settings.meta_verify_token,
             consultant_whatsapp: settings.consultant_whatsapp,
             agent_enabled: settings.agent_enabled ?? true,
-            openai_api_key: settings.openai_api_key ?? null,
-            resend_api_key: settings.resend_api_key ?? null,
-            from_email: settings.from_email ?? null,
-            firecrawl_api_key: settings.firecrawl_api_key ?? null,
-            apify_api_key: settings.apify_api_key ?? null,
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", user.id)
@@ -133,19 +122,8 @@ export const userSettingsService = {
           .insert({
             user_id: user.id,
             company_name: settings.company_name,
-            provider: settings.provider || 'evolution',
-            evolution_api_url: settings.evolution_api_url,
-            evolution_api_key: settings.evolution_api_key,
-            business_phone_number_id: settings.business_phone_number_id,
-            business_access_token: settings.business_access_token,
-            meta_verify_token: settings.meta_verify_token,
             consultant_whatsapp: settings.consultant_whatsapp,
             agent_enabled: settings.agent_enabled ?? true,
-            openai_api_key: settings.openai_api_key ?? null,
-            resend_api_key: settings.resend_api_key ?? null,
-            from_email: settings.from_email ?? null,
-            firecrawl_api_key: settings.firecrawl_api_key ?? null,
-            apify_api_key: settings.apify_api_key ?? null,
           })
           .select()
           .single();

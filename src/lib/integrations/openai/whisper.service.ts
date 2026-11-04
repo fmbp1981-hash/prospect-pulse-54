@@ -3,14 +3,13 @@
  * Equivalente nativo ao node "Transcrever Áudio" (OpenAI Whisper) do n8n.
  */
 
-import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+import { getCurrentLlm, recordLlmUsage, type LlmUsage } from '@/lib/ai/openai-key-context';
 
 export async function transcribeAudio(
   audioBuffer: Buffer,
   mimetype = 'audio/ogg'
 ): Promise<string> {
-  const OPENAI_API_KEY = getCurrentOpenAIKey();
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
+  const { apiKey } = getCurrentLlm();
 
   const extension = mimetype.split('/')[1]?.split(';')[0] || 'ogg';
   const filename = `audio.${extension}`;
@@ -23,7 +22,7 @@ export async function transcribeAudio(
 
   const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+    headers: { Authorization: `Bearer ${apiKey}` },
     body: formData,
   });
 
@@ -32,6 +31,8 @@ export async function transcribeAudio(
     throw new Error(`Whisper API error: ${response.status} ${err}`);
   }
 
-  const data = (await response.json()) as { text: string };
+  // whisper-1 cobra por duração; `usage` em tokens só vem nos modelos novos de transcrição.
+  const data = (await response.json()) as { text: string; usage?: LlmUsage };
+  await recordLlmUsage(data.usage, 'audio.transcriptions');
   return data.text;
 }

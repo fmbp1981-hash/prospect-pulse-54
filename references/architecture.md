@@ -33,8 +33,9 @@ pede, só que com os diretórios dentro de `src/lib/` em vez de `src/` raiz.
 ## Problema de arquitetura
 
 Um lead pode ser criado por 3 caminhos diferentes:
-1. Scrap — Edge Function `supabase/functions/prospection/index.ts` (Deno, isolado,
-   não importa código de `src/`)
+1. Scrap — `POST /api/prospecting/places` -> `src/lib/services/places-prospecting.service.ts`
+   (Next.js/Node, pela conexão `prospecting/google_places` da organização; substituiu a
+   antiga Edge Function `prospection`)
 2. Import de CSV — `src/lib/import/import-service.ts` (Next.js/Node)
 3. Criação manual — `LeadEditModal.tsx` -> Supabase client direto (Next.js/browser)
 

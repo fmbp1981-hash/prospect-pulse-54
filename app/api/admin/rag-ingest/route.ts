@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, type User } from '@supabase/supabase-js';
 import { ingestDocument } from '@/lib/ai/rag/rag.service';
-import { withOpenAIKey } from '@/lib/ai/openai-key-context';
+import { resolveLlmForUser, runWithLlm, LLM_NOT_CONFIGURED_ERROR } from '@/lib/ai/openai-key-context';
 import { verifyCronRequest } from '@/lib/auth/cron-auth';
 import {
   RAG_INST_01_IDENTIDADE_TOM_DE_VOZ as DOC_INST01,
@@ -73,22 +73,10 @@ export async function POST(req: NextRequest) {
 
   const userId = authUser.id;
 
-  // 2. Busca user_settings pelo user_id resolvido
-  const { data: settingsRow } = await supabase
-    .from('user_settings')
-    .select('openai_api_key')
-    .eq('user_id', userId)
-    .single();
-
-  const openaiKey = (settingsRow?.openai_api_key as string | null)
-    ?? process.env.OPENAI_API_KEY
-    ?? '';
-
-  if (!openaiKey) {
-    return NextResponse.json(
-      { error: 'No OpenAI key found for IntelliX tenant. Set openai_api_key in user_settings.' },
-      { status: 422 }
-    );
+  // 2. IA pela conexão `llm` da organização do usuário (sem fallback de chave)
+  const llm = await resolveLlmForUser(userId);
+  if (!llm) {
+    return NextResponse.json({ error: LLM_NOT_CONFIGURED_ERROR }, { status: 409 });
   }
 
   // 2. Resolve agent_config_id ativo para IntelliX
@@ -119,7 +107,7 @@ export async function POST(req: NextRequest) {
     (existingDocs ?? []).map((d: { filename: string }) => d.filename)
   );
 
-  // 4. Ingere cada doc com a chave OpenAI do tenant
+  // 4. Ingere cada doc com a conexão de LLM da organização
   const results: Array<{
     filename: string;
     status: string;
@@ -127,7 +115,7 @@ export async function POST(req: NextRequest) {
     error?: string;
   }> = [];
 
-  await withOpenAIKey(openaiKey, async () => {
+  await runWithLlm(llm, async () => {
     for (const doc of RAG_DOCS) {
       if (alreadyIngested.has(doc.filename)) {
         results.push({ filename: doc.filename, status: 'skipped — already ingested' });

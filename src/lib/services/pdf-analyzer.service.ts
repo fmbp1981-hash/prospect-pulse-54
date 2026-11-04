@@ -12,7 +12,7 @@
 // que tenta ler 'test/data/05-versions-space.pdf' durante o build do Next.js
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require('pdf-parse/lib/pdf-parse.js') as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
-import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+import { getCurrentLlm, recordLlmUsage, type LlmUsage } from '@/lib/ai/openai-key-context';
 
 const MAX_CHARS_TO_GPT = 8000; // Limita o texto enviado ao GPT (~2k tokens)
 
@@ -36,17 +36,14 @@ export async function analyzePdf(pdfBuffer: Buffer): Promise<string> {
     : extractedText;
 
   // 2. Resume com GPT
-  const OPENAI_API_KEY = getCurrentOpenAIKey();
-  if (!OPENAI_API_KEY) {
-    // Sem chave OpenAI: retorna o texto bruto resumido
-    return `[DOCUMENTO]: ${extractedText.slice(0, 500)}`;
-  }
+  // Sem conexão de LLM no contexto lança ConnectionNotConfiguredError (sem fallback de chave).
+  const { apiKey } = getCurrentLlm();
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -73,7 +70,9 @@ export async function analyzePdf(pdfBuffer: Buffer): Promise<string> {
 
     const data = (await response.json()) as {
       choices: Array<{ message: { content: string } }>;
+      usage?: LlmUsage;
     };
+    await recordLlmUsage(data.usage, 'pdf.summary');
 
     return data.choices[0]?.message?.content ?? `[DOCUMENTO]: ${extractedText.slice(0, 500)}`;
   } catch (err) {

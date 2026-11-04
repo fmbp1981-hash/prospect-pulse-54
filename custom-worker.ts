@@ -4,21 +4,28 @@
  * Cloudflare (Vercel Cron não existe aqui; ver CLOUDFLARE_MIGRATION_PLAN.md,
  * Fase 2). Cada cron dispara uma requisição interna pro Route Handler
  * correspondente, autenticada com o mesmo CRON_SECRET que as rotas já
- * validam hoje.
+ * validam hoje. O consumidor da fila usa o segredo dedicado
+ * INTERNAL_QUEUE_SECRET (rota /api/internal/follow-up/process).
  */
 // @ts-ignore `.open-next/worker.js` é gerado em build time (npm run cf:build)
 import { default as handler } from './.open-next/worker.js';
+import { handleFollowUpBatch } from './src/worker/follow-up-consumer';
+import type { FollowUpMessage } from './src/lib/jobs/follow-up.contract';
 
 // Mapeamento schedule (cron do wrangler.jsonc) -> rota interna do Next.js
 const CRON_ROUTES: Record<string, string> = {
   '* * * * *': '/api/cron/follow-up',
   '0 12 * * 1-5': '/api/cron/long-followup',
   '0 * * * *': '/api/cron/rescue-human-mode',
-  '0 0 */5 * *': '/api/cron/keepalive',
 };
 
 export default {
   fetch: handler.fetch,
+
+  // Consumidor da fila de follow-up (follow-up-sends)
+  async queue(batch: MessageBatch<FollowUpMessage>, env: Env, ctx: ExecutionContext) {
+    await handleFollowUpBatch(batch, (req) => handler.fetch(req, env, ctx), env.INTERNAL_QUEUE_SECRET);
+  },
 
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
     const path = CRON_ROUTES[event.cron];

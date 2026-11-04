@@ -9,7 +9,6 @@ import { QuickStats } from "@/components/QuickStats";
 import { ProspectionFormData, ProspectionSearch } from "@/types/prospection";
 import { Rocket, TrendingUp, Database, Zap, Radar } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { historyService } from "@/lib/history";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -144,7 +143,7 @@ export default function HomePage() {
       });
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(typeof json.error === "string" ? json.error : "Erro ao reprocessar busca no LinkedIn");
+        throw new Error(typeof json.error === "string" ? json.error : json.error?.message || "Erro ao reprocessar busca no LinkedIn");
       }
 
       const summary = json.data as { found: number; created: number };
@@ -193,20 +192,25 @@ export default function HomePage() {
     });
 
     try {
-      const { data, error } = await supabase.functions.invoke('prospection', {
-        body: {
+      const res = await fetch('/api/prospecting/places', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           niche: search.niche,
           location: search.location,
-          quantity: search.quantity,
-          user_id: user?.id,
-        },
+          // A prospecção aceita até 60 por busca; históricos antigos podem ter mais.
+          quantity: Math.min(Math.max(search.quantity || 1, 1), 60),
+        }),
       });
-
-      if (error) throw error;
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.data) {
+        throw new Error(json?.error?.message || 'Erro desconhecido na prospecção');
+      }
+      const data = json.data as { total: number };
 
       toast.success("Prospecção reprocessada com sucesso!", {
         id: loadingToast,
-        description: `${data.count} leads encontrados e salvos no banco de dados.`,
+        description: `${data.total} leads encontrados e salvos no banco de dados.`,
         duration: 5000,
       });
 

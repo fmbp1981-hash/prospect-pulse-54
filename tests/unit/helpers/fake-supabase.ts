@@ -76,6 +76,7 @@ export function createFakeSupabase(handler: FakeHandler) {
       ilike: filter('ilike'),
       in: filter('in'),
       is: filter('is'),
+      not: filter('not'),
       or: (value: string) => { call.filters.push({ kind: 'or', column: '', value }); return builder; },
       order: () => builder,
       limit: () => builder,

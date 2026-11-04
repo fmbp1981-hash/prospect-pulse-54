@@ -1,7 +1,10 @@
 /**
  * Interface de abstração para provedores WhatsApp.
- * Permite trocar de Evolution API → Meta Cloud API apenas com variáveis de ambiente.
+ * Cada provedor recebe as credenciais da conexão da organização (sem variáveis de ambiente).
  */
+
+/** Tempo máximo de um envio (texto/mídia); estourou → envio falho, nunca exceção. */
+export const WHATSAPP_SEND_TIMEOUT_MS = 10_000;
 
 export interface SendTextResult {
   success: boolean;
@@ -22,7 +25,7 @@ export interface SendSequenceResult {
 }
 
 export interface MediaDownloadResult {
-  buffer: Buffer;
+  buffer: Uint8Array;
   mimetype: string;
   base64: string;
 }
@@ -80,24 +83,4 @@ export interface IWhatsAppProvider {
    * Fire-and-forget — provedores que não suportam podem ser no-op.
    */
   markAsRead(instanceOrPhoneId: string, to: string, messageId: string): Promise<void>;
-
-  /**
-   * Normaliza o payload recebido no webhook para o formato padrão.
-   * Cada provedor tem seu próprio formato de webhook.
-   */
-  normalizeWebhookPayload(payload: unknown): NormalizedWebhookPayload | null;
-}
-
-export interface NormalizedWebhookPayload {
-  remoteJid: string;     // número sem formatação
-  pushName: string;
-  fromMe: boolean;
-  messageType: 'text' | 'audio' | 'image' | 'document' | 'unknown';
-  content: string;
-  mediaId?: string;
-  mediaMimetype?: string;
-  mediaBase64?: string;
-  instanceName: string;
-  messageId: string;
-  timestamp: string;
 }

@@ -6,7 +6,7 @@
  */
 
 import { apifyClient, extractDiscoveredEmail, type LinkedInProfileResult } from '../integrations/apify-client';
-import { apiKeysService } from './api-keys.service';
+import { resolveProspectingConnectionForUser } from '../connectors/prospecting/source';
 import { companiesRepository } from '../repositories/companies.repository';
 import { contactsRepository } from '../repositories/contacts.repository';
 import { linkedinRawRepository } from '../repositories/linkedin-raw.repository';
@@ -169,7 +169,8 @@ async function upsertCompanyForProfile(userId: string, apiKey: string, position:
 export const linkedinProspectingService = {
   async searchPeople(userId: string, rawInput: unknown): Promise<LinkedinSearchSummary> {
     const input: LinkedinSearchInput = linkedinSearchSchema.parse(rawInput);
-    const apiKey = await apiKeysService.getApifyApiKey(userId);
+    // Conexão prospecting/apify da organização; sem ela → ConnectionNotConfiguredError.
+    const apiKey = (await resolveProspectingConnectionForUser(userId, 'apify')).secret.apiToken;
 
     const job = await prospectingJobsRepository.create(userId, input as unknown as Json);
 

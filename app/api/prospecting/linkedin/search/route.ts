@@ -5,6 +5,10 @@ import { ZodError } from 'zod';
 import { linkedinSearchSchema } from '@/lib/validations/linkedin-search.validation';
 import { linkedinProspectingService } from '@/lib/services/linkedin-prospecting.service';
 import { requireWriter, forbiddenWriterResponse } from '@/lib/auth/require-writer';
+import {
+  PROSPECTING_SOURCE_NOT_CONFIGURED_ERROR,
+  isProspectingSourceNotConfigured,
+} from '@/lib/connectors/prospecting/source';
 
 export const runtime = 'nodejs';
 
@@ -25,6 +29,9 @@ export async function POST(req: NextRequest) {
     const summary = await linkedinProspectingService.searchPeople(user.id, parsed);
     return NextResponse.json({ data: summary });
   } catch (err) {
+    if (isProspectingSourceNotConfigured(err)) {
+      return NextResponse.json({ error: PROSPECTING_SOURCE_NOT_CONFIGURED_ERROR }, { status: 409 });
+    }
     if (err instanceof ZodError) {
       return NextResponse.json({ error: { code: 'BAD_REQUEST', details: err.flatten() } }, { status: 400 });
     }

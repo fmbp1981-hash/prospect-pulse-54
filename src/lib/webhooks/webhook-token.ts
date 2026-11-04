@@ -1,12 +1,12 @@
 /**
- * Utilitários de autenticação do webhook do WhatsApp (F-02).
+ * Utilitários de autenticação dos webhooks do WhatsApp.
  *
- * O token do webhook é gerado no banco (user_settings.webhook_token,
- * 64 caracteres hex minúsculos) e vai no path da URL configurada na Evolution:
- *   POST /api/webhooks/evolution/<webhook_token>
+ * Tokens/chaves de webhook têm 64 caracteres hex minúsculos (gerados no banco):
+ *   - user_settings.webhook_token           → /api/webhooks/evolution/<token> (legado)
+ *   - organization_connections.webhook_key  → /api/webhooks/whatsapp/<key>
+ *
+ * Só Web Crypto (sem node:crypto/Buffer): roda em Node 18+ e Cloudflare Workers.
  */
-
-import { createHmac, timingSafeEqual } from 'crypto';
 
 const WEBHOOK_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 
@@ -15,25 +15,46 @@ export function isWellFormedWebhookToken(token: unknown): token is string {
   return typeof token === 'string' && WEBHOOK_TOKEN_PATTERN.test(token);
 }
 
-/** Comparação em tempo constante de duas strings (false se tamanhos diferem). */
+/**
+ * Comparação em tempo constante de duas strings (bytes UTF-8).
+ * Tamanhos diferentes → false (o tamanho não é segredo).
+ */
 export function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, 'utf8');
-  const bufB = Buffer.from(b, 'utf8');
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
+  const enc = new TextEncoder();
+  const bytesA = enc.encode(a);
+  const bytesB = enc.encode(b);
+  if (bytesA.length !== bytesB.length) return false;
+  let diff = 0;
+  for (let i = 0; i < bytesA.length; i++) diff |= bytesA[i] ^ bytesB[i];
+  return diff === 0;
+}
+
+function toHex(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let out = '';
+  for (const b of bytes) out += b.toString(16).padStart(2, '0');
+  return out;
 }
 
 /**
  * Valida o header X-Hub-Signature-256 da Meta Cloud API:
  * "sha256=" + HMAC-SHA256(corpo bruto, app secret) em hex.
+ * A comparação final é em tempo constante.
  */
-export function verifyMetaSignature(
+export async function verifyMetaSignature(
   rawBody: string,
   signatureHeader: string | null,
   appSecret: string
-): boolean {
+): Promise<boolean> {
   if (!signatureHeader || !appSecret) return false;
-  const expected =
-    'sha256=' + createHmac('sha256', appSecret).update(rawBody, 'utf8').digest('hex');
-  return safeEqual(signatureHeader, expected);
+  const enc = new TextEncoder();
+  const key = await globalThis.crypto.subtle.importKey(
+    'raw',
+    enc.encode(appSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const mac = await globalThis.crypto.subtle.sign('HMAC', key, enc.encode(rawBody));
+  return safeEqual(signatureHeader, `sha256=${toHex(mac)}`);
 }

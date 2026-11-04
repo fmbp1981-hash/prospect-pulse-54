@@ -15,6 +15,8 @@ interface OrganicLeadInput {
   clienteWhatsApp: string;
   clienteTelefone: string;
   userId: string;
+  /** Organização da conexão que recebeu a mensagem (tenant do lead novo). */
+  organizationId: string;
 }
 
 function generateOrganicId(): string {
@@ -83,6 +85,7 @@ export const leadService = {
       status_msg_wa: 'not_sent',
       follow_up_count: 0,
       user_id: input.userId,
+      organization_id: input.organizationId,
       data_ultima_interacao: new Date().toISOString(),
     } as Database['public']['Tables']['leads_prospeccao']['Insert']);
 

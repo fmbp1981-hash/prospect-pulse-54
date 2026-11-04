@@ -3,14 +3,13 @@
  * Equivalente nativo ao node "Analise Imagem" (GPT-4 Vision) do n8n.
  */
 
-import { getCurrentOpenAIKey } from '@/lib/ai/openai-key-context';
+import { getCurrentLlm, recordLlmUsage, type LlmUsage } from '@/lib/ai/openai-key-context';
 
 export async function analyzeImage(
   imageBuffer: Buffer,
   mimetype = 'image/jpeg'
 ): Promise<string> {
-  const OPENAI_API_KEY = getCurrentOpenAIKey();
-  if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not configured');
+  const { apiKey } = getCurrentLlm();
 
   const base64 = imageBuffer.toString('base64');
   const dataUrl = `data:${mimetype};base64,${base64}`;
@@ -18,7 +17,7 @@ export async function analyzeImage(
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -49,7 +48,9 @@ export async function analyzeImage(
 
   const data = (await response.json()) as {
     choices: Array<{ message: { content: string } }>;
+    usage?: LlmUsage;
   };
+  await recordLlmUsage(data.usage, 'vision');
 
   return data.choices[0]?.message?.content ?? '[Não foi possível analisar a imagem]';
 }

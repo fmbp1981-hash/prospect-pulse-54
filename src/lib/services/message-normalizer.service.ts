@@ -1,3 +1,5 @@
+import type { InboundMessageEvent } from '@/lib/webhooks/normalizers/inbound-event';
+
 /**
  * FLUXO 1 - NORMALIZAR DADOS
  * Equivalente nativo ao node "NORMALIZAR DADOS" do workflow n8n.
@@ -15,7 +17,8 @@ export interface NormalizedMessage {
   // Conteúdo da mensagem
   mensagem: string;
   messageType: MessageType;
-  messageId?: string;      // key.id — usado para baixar mídia via API
+  messageId?: string;      // id da mensagem no provedor (marcar como lida; download na Evolution)
+  mediaId?: string;        // id da mídia para download (Meta: id na Graph API; Evolution: = messageId)
   mediaUrl?: string;
   mediaBase64?: string;
   mediaMimetype?: string;
@@ -204,5 +207,47 @@ export function normalizeMessage(
     isBusinessAccount,
     isAutomatedMessage: detectAutomatedMessage(mensagem, isBusinessAccount),
     _raw: process.env.NODE_ENV !== 'production' ? data : undefined,
+  };
+}
+
+const INBOUND_PLACEHOLDER: Record<'audio' | 'image' | 'document', string> = {
+  audio: '[ÁUDIO]',
+  image: '[IMAGEM]',
+  document: '[DOCUMENTO]',
+};
+
+/**
+ * Converte o evento de entrada (já autenticado pela conexão) no formato do
+ * workflow. Vídeo e tipos não suportados viram `unknown` (ignorados).
+ */
+export function normalizeInboundEvent(event: InboundMessageEvent): NormalizedMessage {
+  const { phone: whatsApp, isBusinessAccount } = extractPhoneNumber(event.from);
+  const type: MessageType =
+    event.type === 'text' || event.type === 'audio' || event.type === 'image' || event.type === 'document'
+      ? event.type
+      : 'unknown';
+
+  const mensagem =
+    type === 'text'
+      ? event.text ?? ''
+      : type === 'unknown'
+        ? '[TIPO NÃO SUPORTADO]'
+        : (type !== 'audio' && event.text) || INBOUND_PLACEHOLDER[type];
+
+  return {
+    clienteNome: event.pushName || 'Desconhecido',
+    clienteTelefone: formatPhoneDisplay(whatsApp),
+    clienteWhatsApp: whatsApp,
+    mensagem,
+    messageType: type,
+    messageId: event.messageId || undefined,
+    mediaId: event.mediaId,
+    mediaBase64: event.mediaBase64,
+    mediaMimetype: event.mimetype,
+    fromMe: event.fromMe ?? false,
+    instanceName: event.recipientId ?? '',
+    timestamp: new Date(event.timestamp * 1000).toISOString(),
+    isBusinessAccount,
+    isAutomatedMessage: detectAutomatedMessage(mensagem, isBusinessAccount),
   };
 }

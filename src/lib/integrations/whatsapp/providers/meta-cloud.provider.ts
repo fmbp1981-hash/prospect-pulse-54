@@ -3,17 +3,8 @@
  *
  * Documentação: https://developers.facebook.com/docs/whatsapp/cloud-api
  *
- * Para ativar: definir no .env:
- *   WHATSAPP_PROVIDER=meta
- *   META_WA_TOKEN=EAA...              (System User Token ou Page Access Token)
- *   META_WA_PHONE_NUMBER_ID=123456789 (ID do número de telefone no Meta)
- *   META_WA_VERSION=v20.0             (versão da Graph API, padrão: v20.0)
- *
- * Para receber webhooks da Meta, configure o endpoint:
- *   POST /api/webhooks/evolution/<webhook_token>  (mesmo endpoint da Evolution,
- *        normalizeWebhookPayload diferencia; token em Configurações)
- *   Verificação: GET /api/webhooks/evolution/<webhook_token>?hub.verify_token=...
- *   Assinatura: defina META_APP_SECRET para validar X-Hub-Signature-256
+ * Recebe as credenciais da conexão da organização (accessToken, phoneNumberId,
+ * apiVersion, appSecret, verifyToken); não lê variáveis de ambiente.
  */
 
 import type {
@@ -23,23 +14,26 @@ import type {
   SendSequenceResult,
   MediaDownloadResult,
   MediaAttachment,
-  NormalizedWebhookPayload,
 } from '../whatsapp-provider.interface';
-import { metaCircuit, withRetry } from '@/lib/utils/resilience';
+import {
+  withRetry,
+  getProviderCircuit,
+  countsAsProviderFailure,
+  ProviderHttpError,
+  type CircuitBreaker,
+} from '@/lib/utils/resilience';
 import { delay } from '@/lib/utils/delay';
+import { recordUsage } from '@/lib/connectors/usage';
+import { WHATSAPP_SEND_TIMEOUT_MS } from '../whatsapp-provider.interface';
 
-function getMetaConfig() {
-  return {
-    token: process.env.META_WA_TOKEN!,
-    phoneNumberId: process.env.META_WA_PHONE_NUMBER_ID!,
-    version: process.env.META_WA_VERSION || 'v20.0',
-    verifyToken: process.env.META_WA_VERIFY_TOKEN || '',
-  };
-}
-
-function metaApiUrl(path: string) {
-  const { version } = getMetaConfig();
-  return `https://graph.facebook.com/${version}${path}`;
+export interface MetaCloudProviderOptions {
+  accessToken: string;
+  phoneNumberId: string;
+  apiVersion: string;
+  appSecret: string;
+  verifyToken: string;
+  /** Quando informado, envios bem-sucedidos registram consumo da organização. */
+  usage?: { organizationId: string; connectionId: string };
 }
 
 function normalizePhoneForMeta(phone: string): string {
@@ -47,20 +41,92 @@ function normalizePhoneForMeta(phone: string): string {
   return phone.replace(/\D/g, '').replace(/^0+/, '');
 }
 
+function sendErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.name === 'TimeoutError') {
+    return `Timeout após ${WHATSAPP_SEND_TIMEOUT_MS} ms`;
+  }
+  return err instanceof Error ? err.message : String(err);
+}
+
 export class MetaCloudProvider implements IWhatsAppProvider {
   readonly name = 'meta-cloud';
+  // Campos privados de verdade (#): não aparecem em JSON, inspect nem Object.keys.
+  // appSecret/verifyToken ficam guardados para a validação do webhook (Task 6).
+  readonly #token: string;
+  readonly #phoneNumberId: string;
+  readonly #apiVersion: string;
+  readonly #appSecret: string;
+  readonly #verifyToken: string;
+  readonly #usage?: { organizationId: string; connectionId: string };
+  /** Circuito desta conexão (T5-ISO-01): falhas de uma org não bloqueiam as outras. */
+  readonly #circuit: CircuitBreaker;
+
+  constructor(options: MetaCloudProviderOptions) {
+    this.#token = options.accessToken;
+    this.#phoneNumberId = options.phoneNumberId;
+    this.#apiVersion = options.apiVersion;
+    this.#appSecret = options.appSecret;
+    this.#verifyToken = options.verifyToken;
+    this.#usage = options.usage;
+    this.#circuit = getProviderCircuit(
+      'meta',
+      options.usage?.connectionId ?? `phone:${options.phoneNumberId}`,
+      options.usage?.connectionId ?? 'sem-conexao'
+    );
+  }
+
+  /** Serialização/log nunca expõe credenciais. */
+  toJSON(): { name: string } {
+    return { name: this.name };
+  }
+
+  [Symbol.for('nodejs.util.inspect.custom')](): string {
+    return `MetaCloudProvider { name: '${this.name}' }`;
+  }
+
+  private apiUrl(path: string): string {
+    return `https://graph.facebook.com/${this.#apiVersion}${path}`;
+  }
+
+  /**
+   * Registro de consumo fire-and-forget: não atrasa o envio e uma falha
+   * nunca transforma um envio bem-sucedido em falha.
+   */
+  private trackSend(operation: 'send_text' | 'send_media'): void {
+    const usage = this.#usage;
+    if (!usage) return;
+    void Promise.resolve()
+      .then(() =>
+        recordUsage({
+          organizationId: usage.organizationId,
+          connectionId: usage.connectionId,
+          category: 'whatsapp',
+          provider: 'meta_cloud',
+          operation,
+          quantity: 1,
+          unit: 'messages',
+        })
+      )
+      .catch(() => {
+        console.error('[whatsapp] falha ao registrar consumo', {
+          organization_id: usage.organizationId,
+          code: 'usage_record_failed',
+        });
+      });
+  }
 
   async sendText(
-    _instanceOrPhoneId: string, // ignorado — usa META_WA_PHONE_NUMBER_ID
+    _instanceOrPhoneId: string, // ignorado — usa o phoneNumberId da conexão
     to: string,
     text: string
   ): Promise<SendTextResult> {
-    const { token, phoneNumberId } = getMetaConfig();
+    const token = this.#token;
+    const phoneNumberId = this.#phoneNumberId;
 
-    return metaCircuit.call(() =>
+    return this.#circuit.call(() =>
       withRetry(async () => {
         const response = await fetch(
-          metaApiUrl(`/${phoneNumberId}/messages`),
+          this.apiUrl(`/${phoneNumberId}/messages`),
           {
             method: 'POST',
             headers: {
@@ -74,12 +140,13 @@ export class MetaCloudProvider implements IWhatsAppProvider {
               type: 'text',
               text: { preview_url: false, body: text },
             }),
+            signal: AbortSignal.timeout(WHATSAPP_SEND_TIMEOUT_MS),
           }
         );
 
         if (!response.ok) {
           const err = await response.text();
-          throw new Error(`Meta sendText failed: ${response.status} ${err}`);
+          throw new ProviderHttpError(`Meta sendText failed: ${response.status} ${err}`, response.status);
         }
 
         const data = (await response.json()) as {
@@ -87,11 +154,19 @@ export class MetaCloudProvider implements IWhatsAppProvider {
           error?: { message: string };
         };
 
-        if (data.error) throw new Error(data.error.message);
+        if (data.error) throw new ProviderHttpError(data.error.message, 400);
 
         return { success: true, messageId: data.messages?.[0]?.id };
-      }, { maxAttempts: 2, initialDelayMs: 1000 })
-    ).catch((err: Error) => ({ success: false, error: err.message }));
+      }, { maxAttempts: 2, initialDelayMs: 1000, shouldRetry: countsAsProviderFailure }),
+      countsAsProviderFailure
+    )
+      .then(
+        (result): SendTextResult => {
+          this.trackSend('send_text');
+          return result;
+        },
+        (err: unknown): SendTextResult => ({ success: false, error: sendErrorMessage(err) })
+      );
   }
 
   async sendMedia(
@@ -99,16 +174,17 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     to: string,
     media: MediaAttachment
   ): Promise<SendMediaResult> {
-    const { token, phoneNumberId } = getMetaConfig();
+    const token = this.#token;
+    const phoneNumberId = this.#phoneNumberId;
 
     if (!media.url) {
       return { success: false, error: 'Meta Cloud API requer URL pública para envio de mídia. Faça upload da imagem em um servidor público primeiro.' };
     }
 
-    return metaCircuit.call(() =>
+    return this.#circuit.call(() =>
       withRetry(async () => {
         const response = await fetch(
-          metaApiUrl(`/${phoneNumberId}/messages`),
+          this.apiUrl(`/${phoneNumberId}/messages`),
           {
             method: 'POST',
             headers: {
@@ -125,23 +201,32 @@ export class MetaCloudProvider implements IWhatsAppProvider {
                 ...(media.caption ? { caption: media.caption } : {}),
               },
             }),
+            signal: AbortSignal.timeout(WHATSAPP_SEND_TIMEOUT_MS),
           }
         );
 
         if (!response.ok) {
           const err = await response.text();
-          throw new Error(`Meta sendMedia failed: ${response.status} ${err}`);
+          throw new ProviderHttpError(`Meta sendMedia failed: ${response.status} ${err}`, response.status);
         }
 
         const data = (await response.json()) as {
           messages?: Array<{ id: string }>;
           error?: { message: string };
         };
-        if (data.error) throw new Error(data.error.message);
+        if (data.error) throw new ProviderHttpError(data.error.message, 400);
 
         return { success: true, messageId: data.messages?.[0]?.id };
-      }, { maxAttempts: 2, initialDelayMs: 1000 })
-    ).catch((err: Error) => ({ success: false, error: err.message }));
+      }, { maxAttempts: 2, initialDelayMs: 1000, shouldRetry: countsAsProviderFailure }),
+      countsAsProviderFailure
+    )
+      .then(
+        (result): SendMediaResult => {
+          this.trackSend('send_media');
+          return result;
+        },
+        (err: unknown): SendMediaResult => ({ success: false, error: sendErrorMessage(err) })
+      );
   }
 
   async sendMessageSequence(
@@ -187,10 +272,10 @@ export class MetaCloudProvider implements IWhatsAppProvider {
     _instanceOrPhoneId: string,
     mediaId: string
   ): Promise<MediaDownloadResult> {
-    const { token } = getMetaConfig();
+    const token = this.#token;
 
     // 1. Obter URL do media
-    const urlResponse = await fetch(metaApiUrl(`/${mediaId}`), {
+    const urlResponse = await fetch(this.apiUrl(`/${mediaId}`), {
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -212,97 +297,11 @@ export class MetaCloudProvider implements IWhatsAppProvider {
       throw new Error(`Meta downloadMedia failed: ${mediaResponse.status}`);
     }
 
-    const buffer = Buffer.from(await mediaResponse.arrayBuffer());
-    const base64 = buffer.toString('base64');
+    const buffer = new Uint8Array(await mediaResponse.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < buffer.length; i++) bin += String.fromCharCode(buffer[i]);
+    const base64 = btoa(bin);
 
     return { buffer, mimetype: urlData.mime_type, base64 };
-  }
-
-  /**
-   * Normaliza payload do webhook da Meta Cloud API.
-   *
-   * Formato Meta:
-   * {
-   *   object: "whatsapp_business_account",
-   *   entry: [{ changes: [{ value: { messages: [...], metadata: {...} } }] }]
-   * }
-   */
-  normalizeWebhookPayload(payload: unknown): NormalizedWebhookPayload | null {
-    const data = payload as {
-      object?: string;
-      entry?: Array<{
-        changes?: Array<{
-          value?: {
-            messages?: Array<{
-              id: string;
-              from: string;
-              timestamp: string;
-              type: string;
-              text?: { body: string };
-              audio?: { id: string; mime_type: string };
-              image?: { id: string; mime_type: string; caption?: string };
-              document?: { id: string; mime_type: string; filename?: string };
-            }>;
-            contacts?: Array<{ profile?: { name?: string } }>;
-            metadata?: { display_phone_number: string; phone_number_id: string };
-          };
-        }>;
-      }>;
-    };
-
-    if (data.object !== 'whatsapp_business_account') return null;
-
-    const change = data.entry?.[0]?.changes?.[0]?.value;
-    const message = change?.messages?.[0];
-    if (!message) return null;
-
-    const pushName = change?.contacts?.[0]?.profile?.name || 'Desconhecido';
-    const instanceName = change?.metadata?.phone_number_id || '';
-
-    let messageType: NormalizedWebhookPayload['messageType'] = 'unknown';
-    let content = '';
-    let mediaId: string | undefined;
-    let mediaMimetype: string | undefined;
-
-    switch (message.type) {
-      case 'text':
-        messageType = 'text';
-        content = message.text?.body || '';
-        break;
-      case 'audio':
-        messageType = 'audio';
-        content = '[ÁUDIO]';
-        mediaId = message.audio?.id;
-        mediaMimetype = message.audio?.mime_type;
-        break;
-      case 'image':
-        messageType = 'image';
-        content = message.image?.caption || '[IMAGEM]';
-        mediaId = message.image?.id;
-        mediaMimetype = message.image?.mime_type;
-        break;
-      case 'document':
-        messageType = 'document';
-        content = message.document?.filename || '[DOCUMENTO]';
-        mediaId = message.document?.id;
-        mediaMimetype = message.document?.mime_type;
-        break;
-    }
-
-    const phone = message.from;
-    const normalizedPhone = phone.startsWith('55') ? `+${phone}` : `+55${phone}`;
-
-    return {
-      remoteJid: normalizedPhone,
-      pushName,
-      fromMe: false, // Meta não entrega mensagens enviadas pelo bot via webhook de recebimento
-      messageType,
-      content,
-      mediaId,
-      mediaMimetype,
-      instanceName,
-      messageId: message.id,
-      timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-    };
   }
 }

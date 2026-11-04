@@ -7,11 +7,14 @@
  * Fluxo:
  * 1. Busca schedules com due_at <= agora e status = 'pending'
  * 2. Para cada schedule: busca lead, valida cenário ainda aplicável
- * 3. Humaniza a mensagem template
- * 4. Envia via WhatsApp provider, pela instância do DONO do schedule
- *    (resolveInstanceForUser). A coluna followup_schedules.instance_name é
+ * 3. Humaniza a mensagem template (IA pela conexão `llm` da organização do lead;
+ *    sem conexão, envia o texto do passo sem humanizar)
+ * 4. Envia pela conexão de WhatsApp ativa da organização do lead
+ *    (getWhatsAppForOrganization). A coluna followup_schedules.instance_name é
  *    ignorada: é gravável pelo dono via REST e podia apontar para a instância
- *    de outra organização (achado F-11).
+ *    de outra organização (achado F-11). Org sem conexão → NÃO é terminal:
+ *    o schedule continua `pending`, adiado 1 dia (`whatsapp_not_configured`
+ *    no log), sem envio — p.ex. durante o corte, antes de ativar a conexão.
  * 5. Agenda próximo step (se houver) ou marca como concluído
  */
 
@@ -19,15 +22,19 @@ import { createClient } from '@supabase/supabase-js';
 import {
   FOLLOW_UP_SEQUENCES,
   detectFollowUpScenario,
+  hasUnresolvedPlaceholder,
   isWithinBusinessHours,
+  renderFollowUpMessage,
   normalizeToBusinessHours,
 } from '../services/long-followup-rules.service';
 import type { FollowUpScenario } from '../services/long-followup-rules.service';
-import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
+import { getWhatsAppForOrganization, type OrgWhatsApp } from '../integrations/whatsapp/org-whatsapp';
+import { ConnectionNotConfiguredError } from '../connectors/types';
+import { resolveLeadOrganizationId } from '../connectors/org-context';
 import { humanizeResponse } from '../services/message-humanizer.service';
+import { withLlmForOrganization } from '../ai/openai-key-context';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
 import { leadRepository } from '../repositories/lead.repository';
-import { resolveInstanceForUser } from '../services/tenant-resolver.service';
 import { delay } from '../utils/delay';
 import { randomUUID } from 'crypto';
 
@@ -81,15 +88,21 @@ export async function runLongFollowUpJob(): Promise<void> {
   }
 
   logger.info(`Processing ${schedules.length} schedules`);
-  let provider: ReturnType<typeof getWhatsAppProvider>;
-  try {
-    provider = getWhatsAppProvider();
-  } catch (err) {
-    logger.error('WhatsApp provider unavailable — follow-ups mantidos pendentes', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
+
+  // Cache por execução: uma resolução de conexão por organização (null = sem conexão ativa).
+  const whatsappByOrg = new Map<string, Promise<OrgWhatsApp | null>>();
+  const whatsappFor = (organizationId: string): Promise<OrgWhatsApp | null> => {
+    let cached = whatsappByOrg.get(organizationId);
+    if (!cached) {
+      cached = getWhatsAppForOrganization(organizationId).catch((err: unknown) => {
+        if (err instanceof ConnectionNotConfiguredError) return null;
+        whatsappByOrg.delete(organizationId);
+        throw err;
+      });
+      whatsappByOrg.set(organizationId, cached);
+    }
+    return cached;
+  };
 
   for (const schedule of schedules as FollowUpScheduleRow[]) {
     try {
@@ -109,7 +122,6 @@ export async function runLongFollowUpJob(): Promise<void> {
         estagio_pipeline: lead.estagio_pipeline,
         data_ultima_interacao: lead.data_ultima_interacao,
         follow_up_count: lead.follow_up_count as number | null,
-        tenant_id: (leadRecord.tenant_id as string | null) ?? null,
         opt_out: (leadRecord.opt_out as boolean | null) ?? null,
       });
 
@@ -128,19 +140,61 @@ export async function runLongFollowUpJob(): Promise<void> {
         continue;
       }
 
-      // 5. Instância do dono do schedule — nunca a coluna instance_name da linha
-      const instanceName = await resolveInstanceForUser(schedule.user_id);
-      if (!instanceName) {
-        await markSchedule(supabase, schedule.id, 'skipped', 'Usuário sem instância WhatsApp configurada');
+      // 4b. Passo que exige template aprovado (HSM): texto livre não é enviado.
+      //     HSM por organização fica para depois → skipped.
+      if (step.requiresTemplate) {
+        logger.info('Schedule skipped — step requires template', { scheduleId: schedule.id, code: 'template_required' });
+        await markSchedule(supabase, schedule.id, 'skipped', 'template_required');
         continue;
       }
 
-      // 6. Humaniza a mensagem
-      const messages = await humanizeResponse(step.message).catch(() => [step.message]);
+      // 4c. Preenche {{1}}/{{2}} com os dados do lead; nada com `{{n}}` é enviado.
+      const stepMessage = renderFollowUpMessage(step.message, {
+        contato: leadRecord.contato as string | null | undefined,
+        empresa: leadRecord.empresa as string | null | undefined,
+      });
+      if (!stepMessage) {
+        logger.warn('Schedule skipped — unresolved placeholder', { scheduleId: schedule.id, code: 'unresolved_placeholder' });
+        await markSchedule(supabase, schedule.id, 'skipped', 'unresolved_placeholder');
+        continue;
+      }
+
+      // 5. Conexão da organização do lead — nunca a coluna instance_name da linha
+      const organizationId = await resolveLeadOrganizationId(lead);
+      if (!organizationId) {
+        logger.warn('Lead sem organização — follow-up não enviado', {
+          scheduleId: schedule.id,
+          code: 'lead_without_organization',
+        });
+        await markSchedule(supabase, schedule.id, 'skipped', 'lead_without_organization');
+        continue;
+      }
+      const whatsapp = await whatsappFor(organizationId);
+      if (!whatsapp) {
+        // Não terminal (ex.: janela de corte antes de ativar a conexão): fica
+        // `pending` e volta amanhã, sem ocupar o lote das próximas execuções.
+        logger.warn('WhatsApp não configurado para a organização — follow-up adiado', {
+          scheduleId: schedule.id,
+          organization_id: organizationId,
+          code: 'whatsapp_not_configured',
+        });
+        await deferSchedule(supabase, schedule.id);
+        continue;
+      }
+
+      // 6. Humaniza a mensagem com a IA da organização; sem conexão `llm`
+      //    (ou falha) envia o texto do passo como está — nunca bloqueia o envio.
+      const messages = await withLlmForOrganization(organizationId, () => humanizeResponse(stepMessage))
+        .catch(() => [stepMessage]);
+      if (messages.length === 0 || messages.some(hasUnresolvedPlaceholder)) {
+        logger.warn('Schedule skipped — unresolved placeholder', { scheduleId: schedule.id, code: 'unresolved_placeholder' });
+        await markSchedule(supabase, schedule.id, 'skipped', 'unresolved_placeholder');
+        continue;
+      }
 
       // 7. Envia
-      const { sent } = await provider.sendMessageSequence(
-        instanceName,
+      const { sent } = await whatsapp.provider.sendMessageSequence(
+        whatsapp.target,
         lead.whatsapp,
         messages,
         2000
@@ -171,7 +225,7 @@ export async function runLongFollowUpJob(): Promise<void> {
               step_number: nextStep.stepNumber,
               due_at: nextDue.toISOString(),
               status: 'pending',
-              instance_name: instanceName,
+              instance_name: whatsapp.target, // coluna legada (NOT NULL); ignorada no envio
               user_id: schedule.user_id,
             });
           }
@@ -211,6 +265,20 @@ export async function runLongFollowUpJob(): Promise<void> {
   }
 
   logger.info('Long follow-up job completed', { processed: schedules.length });
+}
+
+/**
+ * Adia um schedule sem mudar o status (continua `pending`): próximo dia útil
+ * dentro da janela BRT. Usado quando a falta de pré-requisito é temporária.
+ */
+async function deferSchedule(supabase: ReturnType<typeof getServiceClient>, id: string) {
+  const next = new Date();
+  next.setDate(next.getDate() + 1);
+  await supabase
+    .from('followup_schedules')
+    .update({ due_at: normalizeToBusinessHours(next).toISOString() })
+    .eq('id', id)
+    .eq('status', 'pending');
 }
 
 async function markSchedule(

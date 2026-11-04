@@ -1257,6 +1257,68 @@ export type Database = {
           },
         ]
       }
+      organization_connections: {
+        Row: {
+          category: string
+          config: Json
+          configured_by: string | null
+          created_at: string
+          credential_source: string
+          id: string
+          last_test_ok: boolean
+          last_test_result: string | null
+          last_tested_at: string | null
+          organization_id: string
+          provider: string
+          secret: Json | null
+          status: string
+          updated_at: string
+          webhook_key: string | null
+        }
+        Insert: {
+          category: string
+          config?: Json
+          configured_by?: string | null
+          created_at?: string
+          credential_source: string
+          id?: string
+          last_test_ok?: boolean
+          last_test_result?: string | null
+          last_tested_at?: string | null
+          organization_id: string
+          provider: string
+          secret?: Json | null
+          status?: string
+          updated_at?: string
+          webhook_key?: string | null
+        }
+        Update: {
+          category?: string
+          config?: Json
+          configured_by?: string | null
+          created_at?: string
+          credential_source?: string
+          id?: string
+          last_test_ok?: boolean
+          last_test_result?: string | null
+          last_tested_at?: string | null
+          organization_id?: string
+          provider?: string
+          secret?: Json | null
+          status?: string
+          updated_at?: string
+          webhook_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_connections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organization_members: {
         Row: {
           created_at: string
@@ -1322,6 +1384,36 @@ export type Database = {
         Update: {
           created_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      platform_credentials: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          provider: string
+          secret: Json
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          provider: string
+          secret: Json
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          provider?: string
+          secret?: Json
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -1624,6 +1716,57 @@ export type Database = {
           timestamp?: string | null
         }
         Relationships: []
+      }
+      usage_events: {
+        Row: {
+          category: string
+          connection_id: string | null
+          created_at: string
+          id: string
+          operation: string
+          organization_id: string
+          provider: string
+          quantity: number
+          unit: string
+        }
+        Insert: {
+          category: string
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          operation: string
+          organization_id: string
+          provider: string
+          quantity: number
+          unit: string
+        }
+        Update: {
+          category?: string
+          connection_id?: string | null
+          created_at?: string
+          id?: string
+          operation?: string
+          organization_id?: string
+          provider?: string
+          quantity?: number
+          unit?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_events_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "organization_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "usage_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_settings: {
         Row: {

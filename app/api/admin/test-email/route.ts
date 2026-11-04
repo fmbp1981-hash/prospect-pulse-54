@@ -2,16 +2,21 @@
  * POST /api/admin/test-email  (Authorization: Bearer CRON_SECRET)
  * Body: { "to": "email@exemplo.com" }
  *
- * Envia um email de teste com as credenciais Resend do tenant IntelliX.
+ * Envia um email de teste com a credencial Resend da PLATAFORMA (IntelliX),
+ * a mesma usada nos e-mails de sistema (getPlatformEmailSender).
  * Útil para validar a integração sem precisar disparar uma campanha real.
  *
  * LGPD-S1-01: o destinatário (dado pessoal) vem no corpo, validado por Zod, e
  * não na query string (que fica em logs de acesso e de proxy). GET não existe.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient, type User } from '@supabase/supabase-js';
 import * as z from 'zod';
 import { verifyCronRequest } from '@/lib/auth/cron-auth';
+import {
+  getPlatformEmailSender,
+  PlatformEmailNotConfiguredError,
+  type EmailSender,
+} from '@/lib/connectors/email/get-email-sender';
 
 export const runtime = 'nodejs';
 
@@ -32,31 +37,25 @@ export async function POST(req: NextRequest) {
   }
   const { to } = parsed.data;
 
-  const db = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
-  // Busca credenciais do tenant IntelliX
-  const { data } = await db.auth.admin.listUsers({ perPage: 1000 });
-  const users = data.users as User[];
-  const authUser = users.find(u => u.email === 'contato@intellixai.com.br');
-  if (!authUser) return NextResponse.json({ error: 'Tenant IntelliX não encontrado' }, { status: 404 });
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: settings } = await (db as any)
-    .from('user_settings')
-    .select('resend_api_key, from_email, company_name')
-    .eq('user_id', authUser.id)
-    .single();
-
-  const resendKey   = (settings?.resend_api_key as string | null) ?? process.env.RESEND_API_KEY;
-  const fromEmail   = (settings?.from_email    as string | null) ?? 'noreply@example.com';
-  const companyName = (settings?.company_name  as string | null) ?? 'IntelliX.AI';
-
-  if (!resendKey) {
-    return NextResponse.json({ error: 'resend_api_key não configurada para o tenant IntelliX' }, { status: 422 });
+  let sender: EmailSender;
+  try {
+    sender = await getPlatformEmailSender();
+  } catch (err) {
+    if (err instanceof PlatformEmailNotConfiguredError) {
+      return NextResponse.json(
+        { error: { code: 'PLATFORM_EMAIL_NOT_CONFIGURED', message: 'Credencial de e-mail da plataforma não configurada.' } },
+        { status: 422 }
+      );
+    }
+    console.error('[admin/test-email] falha ao resolver credencial da plataforma', {
+      code: 'platform_email_error',
+    });
+    return NextResponse.json(
+      { error: { code: 'PROVIDER_UNAVAILABLE', message: 'E-mail indisponível no momento' } },
+      { status: 503 }
+    );
   }
+  const companyName = 'IntelliX.AI';
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -78,8 +77,7 @@ export async function POST(req: NextRequest) {
               via integração <strong>Resend</strong>.
             </p>
             <div style="background:#f8fafc;border-left:3px solid #6366f1;border-radius:4px;padding:14px 18px;margin:20px 0;font-size:13px;color:#334155;line-height:1.6;">
-              <strong>Tenant:</strong> ${companyName}<br/>
-              <strong>Remetente:</strong> ${fromEmail}<br/>
+              <strong>Remetente:</strong> ${sender.from.replace(/</g, '&lt;')}<br/>
               <strong>Destinatário:</strong> ${to}<br/>
               <strong>Data/Hora:</strong> ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Recife' })} (BRT)
             </div>
@@ -105,30 +103,21 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`;
 
-  const resendRes = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${resendKey}`,
-      'Content-Type':  'application/json',
-    },
-    body: JSON.stringify({
-      from:    `${companyName} <${fromEmail}>`,
-      to:      [to],
-      subject: `✅ Teste de email — ${companyName} via LeadFinder Pro`,
-      html,
-    }),
-  });
+  const result = await sender.sendBatch([
+    { to, subject: `✅ Teste de email — ${companyName} via LeadFinder Pro`, html },
+  ]);
 
-  const result = await resendRes.json() as { id?: string; error?: { message: string; name: string } };
-
-  if (!resendRes.ok) {
-    return NextResponse.json({ error: result.error?.message ?? 'Erro Resend', detail: result }, { status: 502 });
+  if (result.sent === 0) {
+    return NextResponse.json(
+      { error: { code: 'EMAIL_SEND_FAILED', message: 'Falha ao enviar pelo provedor de e-mail.' } },
+      { status: 502 }
+    );
   }
 
   return NextResponse.json({
     ok: true,
-    messageId: result.id,
-    from: `${companyName} <${fromEmail}>`,
+    messageId: result.ids[0],
+    from: sender.from,
     to,
     sentAt: new Date().toISOString(),
   });

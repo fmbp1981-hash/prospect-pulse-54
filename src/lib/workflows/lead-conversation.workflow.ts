@@ -6,7 +6,7 @@
  */
 
 import type { NormalizedMessage } from '../services/message-normalizer.service';
-import { resolveTenantByInstance, isFinalizationCommand } from '../services/tenant-resolver.service';
+import { isFinalizationCommand } from '../services/tenant-resolver.service';
 import type { TenantContext } from '../services/tenant-resolver.service';
 import { leadService } from '../services/lead.service';
 import { processMessageByType } from '../handlers/message-type.handler';
@@ -16,13 +16,14 @@ import { executeAIAgent } from '../ai/ai-agent.service';
 import { humanizeResponse } from '../services/message-humanizer.service';
 import { leadRepository } from '../repositories/lead.repository';
 import { WorkflowLogger } from '../workflow-engine/workflow.logger';
-import { getWhatsAppProvider } from '../integrations/whatsapp/whatsapp.factory';
+import { getWhatsAppForOrganization, type OrgWhatsApp } from '../integrations/whatsapp/org-whatsapp';
+import { ConnectionNotConfiguredError } from '../connectors/types';
+import { resolveLeadOrganizationId } from '../connectors/org-context';
 import { withTimeout } from '../utils/resilience';
-import { withOpenAIKey } from '../ai/openai-key-context';
+import { resolveLlmForOrganization, runWithLlm, type LlmContext } from '../ai/openai-key-context';
 import { randomUUID } from 'crypto';
 
 const STEP_TIMEOUTS = {
-  tenant: 5_000,
   lead: 8_000,
   media: 30_000,
   agent: 60_000,
@@ -31,34 +32,24 @@ const STEP_TIMEOUTS = {
 } as const;
 
 /**
- * @param resolvedTenant tenant já autenticado pelo chamador (webhook resolve
- *   pelo token secreto). Quando informado, o campo `instanceName` do payload
- *   NÃO é usado para descobrir o tenant.
+ * @param tenant contexto de atendimento já resolvido pelo chamador (webhook:
+ *   a partir da organização da conexão autenticada). Nada do payload
+ *   (instância, número) escolhe o tenant.
+ * @param organizationId organização da conexão que recebeu a mensagem; vira
+ *   o organization_id do lead orgânico criado.
  */
 export async function runLeadConversationWorkflow(
   normalized: NormalizedMessage,
-  resolvedTenant?: TenantContext
+  tenant: TenantContext,
+  organizationId: string
 ): Promise<void> {
   const correlationId = randomUUID();
   const logger = new WorkflowLogger('LeadConversation', correlationId);
 
   logger.info('Workflow started', {
-    whatsapp: normalized.clienteWhatsApp,
     type: normalized.messageType,
     instance: normalized.instanceName,
   });
-
-  // ── STEP 1: RESOLVER TENANT ──────────────────────────────────────────────
-  const tenant = resolvedTenant ?? await withTimeout(
-    resolveTenantByInstance(normalized.instanceName),
-    STEP_TIMEOUTS.tenant,
-    'resolveTenant'
-  ).catch((err) => {
-    logger.error('Tenant resolution failed', { error: err.message });
-    return null;
-  });
-
-  if (!tenant) return;
   logger.info('Tenant resolved', { userId: tenant.userId });
 
   // ── STEP 1A: VERIFICAR SE O AGENTE ESTÁ ATIVO ────────────────────────────
@@ -67,19 +58,19 @@ export async function runLeadConversationWorkflow(
     return;
   }
 
-  // ── STEP 1B: DEFINIR CHAVE OPENAI DO TENANT ──────────────────────────────
-  // withOpenAIKey propaga a chave para todos os serviços OpenAI via AsyncLocalStorage
-  // (whisper, vision, pdf, agent, humanizer, embeddings) sem mudar assinaturas.
-  const openaiKey = tenant.openaiApiKey || process.env.OPENAI_API_KEY!;
-  return withOpenAIKey(openaiKey, () => runWorkflowSteps(normalized, tenant, logger, correlationId));
+  return runWorkflowSteps(normalized, tenant, organizationId, logger, correlationId);
 }
 
+type WorkflowLead = Awaited<ReturnType<typeof leadService.findOrCreate>>['lead'];
+
 /**
- * Steps 2-10 do workflow, executados dentro do contexto da chave OpenAI do tenant.
+ * Steps 2-4: comando, lead, bot, modo humano; depois resolve as conexões da
+ * organização do lead (WhatsApp + LLM) e roda o agente no contexto do LLM.
  */
 async function runWorkflowSteps(
   normalized: NormalizedMessage,
   tenant: TenantContext,
+  connectionOrganizationId: string,
   logger: WorkflowLogger,
   correlationId: string
 ): Promise<void> {
@@ -98,6 +89,7 @@ async function runWorkflowSteps(
       clienteWhatsApp: normalized.clienteWhatsApp,
       clienteTelefone: normalized.clienteTelefone,
       userId: tenant.userId,
+      organizationId: connectionOrganizationId,
     }),
     STEP_TIMEOUTS.lead,
     'findOrCreate'
@@ -137,8 +129,6 @@ async function runWorkflowSteps(
         logger.info('Business JID — resolved send target to prospection lead', {
           orgLeadId: lead.id,
           prospectionLeadId: prospectionLead.id,
-          empresa: prospectionLead.empresa,
-          sendTarget: sendTargetWhatsApp,
         });
       } else {
         logger.warn('Business JID — no recent prospection lead found, will attempt with original JID', {
@@ -172,9 +162,70 @@ async function runWorkflowSteps(
     }
   }
 
+  // ── STEP 4B: CONEXÕES DA ORGANIZAÇÃO DO LEAD (WhatsApp + LLM) ──────────
+  // Mídia e resposta saem pela conexão de WhatsApp ativa da organização e a
+  // IA usa a conexão `llm` dela (Sprint 2b). Sem organização ou sem LLM, a
+  // mensagem do lead é salva e o agente não responde.
+  const saveRawInbound = () =>
+    conversationRepository.saveLeadMessage({
+      lead_id: lead.id,
+      message: normalized.mensagem || '[Mídia não processada]',
+      from_lead: true,
+      ai_generated: false,
+      user_id: tenant.userId,
+    }).catch((err) => logger.warn('Save lead message failed', { error: err.message }));
+
+  const organizationId = await resolveLeadOrganizationId(lead).catch(() => null);
+  if (!organizationId) {
+    logger.warn('Lead sem organização — resposta não enviada', {
+      leadId: lead.id,
+      code: 'lead_without_organization',
+    });
+    await saveRawInbound();
+    return;
+  }
+
+  const whatsapp = await resolveOrgWhatsApp(organizationId, lead.id, logger);
+
+  let llm: LlmContext;
+  try {
+    llm = await resolveLlmForOrganization(organizationId);
+  } catch (err) {
+    logger.warn('IA indisponível para a organização — agente não responde', {
+      leadId: lead.id,
+      organization_id: organizationId,
+      code: err instanceof ConnectionNotConfiguredError ? 'llm_not_configured' : 'llm_connection_error',
+    });
+    await saveRawInbound();
+    return;
+  }
+
+  await runWithLlm(llm, () =>
+    runAgentSteps({ normalized, tenant, logger, correlationId, lead, isNew, whatsapp, sendTargetWhatsApp })
+  );
+}
+
+interface AgentStepsInput {
+  normalized: NormalizedMessage;
+  tenant: TenantContext;
+  logger: WorkflowLogger;
+  correlationId: string;
+  lead: WorkflowLead;
+  isNew: boolean;
+  whatsapp: OrgWhatsApp | null;
+  sendTargetWhatsApp: string;
+}
+
+/**
+ * Steps 5-10 (mídia → agente → humanização → envio → persistência), sempre
+ * dentro do contexto de LLM da organização do lead (runWithLlm).
+ */
+async function runAgentSteps(input: AgentStepsInput): Promise<void> {
+  const { normalized, tenant, logger, correlationId, lead, isNew, whatsapp, sendTargetWhatsApp } = input;
+
   // ── STEP 5: PROCESSAR MÍDIA ──────────────────────────────────────────────
   const processed = await withTimeout(
-    processMessageByType(normalized, normalized.instanceName, normalized.messageId),
+    processMessageByType(normalized, whatsapp, normalized.mediaId ?? normalized.messageId),
     STEP_TIMEOUTS.media,
     'processMedia'
   ).catch((err) => {
@@ -190,6 +241,8 @@ async function runWorkflowSteps(
     ai_generated: false,
     user_id: tenant.userId,
   }).catch((err) => logger.warn('Save lead message failed', { error: err.message }));
+
+  if (!whatsapp) return;
 
   // ── STEP 7: MONTAR CONTEXTO + EXECUTAR AGENTE ────────────────────────────
   const agentCtx = await buildAgentContext(normalized, processed, lead, isNew, tenant, normalized.isAutomatedMessage);
@@ -225,20 +278,12 @@ async function runWorkflowSteps(
   // A Evolution API gerencia o delay do typing internamente via o param `delay`.
   // Remover os await setTimeout reduz o tempo de resposta de 15-70s → 5-20s,
   // evitando timeout da Evolution API (≈10s) que causava webhooks não respondidos.
-  let provider: ReturnType<typeof getWhatsAppProvider>;
-  try {
-    provider = getWhatsAppProvider();
-  } catch (err) {
-    logger.error('WhatsApp provider unavailable — resposta não enviada', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
+  const { provider, target } = whatsapp;
   const totalChars = messages.map(m => m.length).reduce((a, b) => a + b, 0);
   const typingMs = Math.min(Math.max(Math.round(totalChars / 4.5 * 1000), 3000), 12000);
 
-  provider.markAsRead(normalized.instanceName, normalized.clienteWhatsApp, normalized.messageId ?? '').catch(() => {});
-  provider.sendTyping(normalized.instanceName, sendTargetWhatsApp, typingMs).catch(() => {});
+  provider.markAsRead(target, normalized.clienteWhatsApp, normalized.messageId ?? '').catch(() => {});
+  provider.sendTyping(target, sendTargetWhatsApp, typingMs).catch(() => {});
 
   // ── STEP 9: ENVIAR VIA WHATSAPP PROVIDER ────────────────────────────────
   // Princípio: se o lead recebeu a msg de prospecção, ele TEM um número válido.
@@ -248,11 +293,11 @@ async function runWorkflowSteps(
   let sentCount = 0;
 
   const firstAttempt = await withTimeout(
-    provider.sendMessageSequence(normalized.instanceName, sendTargetWhatsApp, messages, 3000),
+    provider.sendMessageSequence(target, sendTargetWhatsApp, messages, 3000),
     STEP_TIMEOUTS.send,
     'sendMessages'
   ).catch((err) => {
-    logger.error('Send messages failed (attempt 1)', { error: err.message, target: sendTargetWhatsApp });
+    logger.error('Send messages failed (attempt 1)', { error: err.message, code: 'whatsapp_send_failed' });
     return { sent: 0, failed: messages.length };
   });
 
@@ -270,17 +315,15 @@ async function runWorkflowSteps(
 
     if (prospectionLead?.whatsapp && prospectionLead.whatsapp !== sendTargetWhatsApp) {
       logger.info('Fallback: retrying with prospection lead number', {
-        original: sendTargetWhatsApp,
-        fallback: prospectionLead.whatsapp,
-        empresa: prospectionLead.empresa,
+        prospectionLeadId: prospectionLead.id,
       });
 
       const fallbackAttempt = await withTimeout(
-        provider.sendMessageSequence(normalized.instanceName, prospectionLead.whatsapp, messages, 3000),
+        provider.sendMessageSequence(target, prospectionLead.whatsapp, messages, 3000),
         STEP_TIMEOUTS.send,
         'sendMessages-fallback'
       ).catch((err) => {
-        logger.error('Send messages failed (fallback)', { error: err.message, target: prospectionLead.whatsapp });
+        logger.error('Send messages failed (fallback)', { error: err.message, code: 'whatsapp_send_failed' });
         return { sent: 0, failed: messages.length };
       });
 
@@ -300,4 +343,25 @@ async function runWorkflowSteps(
   }
 
   logger.info('Workflow completed', { sent, correlationId });
+}
+
+/**
+ * Conexão de WhatsApp da organização do lead. Sem conexão ativa → null + log
+ * `whatsapp_not_configured`.
+ */
+async function resolveOrgWhatsApp(
+  organizationId: string,
+  leadId: string,
+  logger: WorkflowLogger
+): Promise<OrgWhatsApp | null> {
+  try {
+    return await getWhatsAppForOrganization(organizationId);
+  } catch (err) {
+    logger.warn('WhatsApp indisponível para a organização — resposta não enviada', {
+      leadId,
+      organization_id: organizationId,
+      code: err instanceof ConnectionNotConfiguredError ? 'whatsapp_not_configured' : 'whatsapp_connection_error',
+    });
+    return null;
+  }
 }

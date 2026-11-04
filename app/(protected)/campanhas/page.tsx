@@ -23,6 +23,7 @@ import {
   FileText, Eye, Pencil, ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import { NotConfiguredNotice } from "@/components/connections/NotConfiguredNotice";
 import {
   INTELLIX_EMAIL_TEMPLATES,
   type EmailTemplate,
@@ -226,6 +227,12 @@ export default function CampanhasPage() {
         </div>
       </div>
 
+      {/* Avisos: envio depende das integrações da organização */}
+      <div className="space-y-2">
+        <NotConfiguredNotice category="whatsapp" />
+        <NotConfiguredNotice category="email" />
+      </div>
+
       {/* Tabela */}
       <Card>
         <CardContent className="p-0">
@@ -371,6 +378,7 @@ export default function CampanhasPage() {
                   <SelectItem value="email">📧 Email</SelectItem>
                 </SelectContent>
               </Select>
+              <NotConfiguredNotice category={form.channel} className="mt-2" />
             </div>
 
             {/* ── WHATSAPP: Template Picker ── */}

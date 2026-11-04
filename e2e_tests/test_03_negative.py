@@ -32,7 +32,6 @@ method_tests = [
     ("/api/agent/config",       "PATCH",  [405, 401, 403]),
     ("/api/cron/follow-up",     "POST",   [405, 401, 403]),
     ("/api/cron/long-followup", "POST",   [405, 401, 403]),
-    ("/api/cron/keepalive",     "POST",   [405, 401, 403]),
 ]
 
 for path, method, expected in method_tests:
@@ -101,7 +100,6 @@ print("\n[4] Cron sem Authorization (deve ser 401 apos deploy):")
 cron_routes = [
     "/api/cron/follow-up",
     "/api/cron/long-followup",
-    "/api/cron/keepalive",
     "/api/cron/rescue-human-mode",
 ]
 for route in cron_routes:

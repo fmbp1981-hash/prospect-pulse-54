@@ -11,8 +11,19 @@ import { supabaseCRM } from "@/lib/supabaseCRM";
 import { auditWhatsAppDispatch } from "@/lib/audit";
 import { leadAutomation } from "@/lib/leadAutomation";
 import { toast } from "sonner";
+import { NotConfiguredNotice } from "@/components/connections/NotConfiguredNotice";
 
 type MediaMode = 'none' | 'upload' | 'url';
+
+/** /api/whatsapp/send devolve `error` como texto ou como `{ code, message }` (ex.: 409 WHATSAPP_NOT_CONFIGURED). */
+function sendErrorMessage(result: { error?: unknown }, status: number): string {
+  const err = result?.error;
+  if (typeof err === 'string' && err) return err;
+  if (err && typeof err === 'object' && typeof (err as { message?: unknown }).message === 'string') {
+    return (err as { message: string }).message;
+  }
+  return `Erro ${status}`;
+}
 
 interface DispatchStatus {
   leadId: string;
@@ -168,7 +179,7 @@ export const WhatsAppDispatchModal = ({
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || `Erro ${response.status}`);
+        throw new Error(sendErrorMessage(result, response.status));
       }
 
       setStatuses([{
@@ -262,7 +273,7 @@ export const WhatsAppDispatchModal = ({
             ? {
               ...s,
               status: isSuccess ? "sent" : "failed",
-              error: isSuccess ? undefined : (result.error || `Erro ${response.status}`),
+              error: isSuccess ? undefined : sendErrorMessage(result, response.status),
               message: messageToSend,
             }
             : s
@@ -302,6 +313,8 @@ export const WhatsAppDispatchModal = ({
         <DialogHeader>
           <DialogTitle>Envio de Mensagens WhatsApp</DialogTitle>
         </DialogHeader>
+
+        <NotConfiguredNotice category="whatsapp" />
 
         {/* Avisos */}
         {(leadsWithoutWhatsApp.length > 0 || leadsWithoutMessage.length > 0 || alreadySent.length > 0) && (

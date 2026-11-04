@@ -6,7 +6,7 @@ Mapa do fluxo que recebe uma mensagem de WhatsApp, identifica a organização e 
 
 `POST /api/webhooks/evolution` — `app/api/webhooks/evolution/route.ts`
 
-1. O provider WhatsApp (`src/lib/integrations/whatsapp/whatsapp.factory.ts`) normaliza o payload (Evolution API v2 ou Meta Cloud API).
+1. O payload é normalizado pelo formato do provedor (`normalizeEvolutionWebhookPayload` / `normalizeMetaWebhookPayload` em `src/lib/integrations/whatsapp/providers/`).
 2. Ignora eventos de status (ack/entrega), mensagens de grupo e tipos desconhecidos.
 3. `fromMe = true`: trata como possível intervenção do consultor (salva no histórico se o lead estiver em modo humano) e não aciona o agente — `src/lib/guards/anti-loop.guard.ts`.
 4. Responde `200` imediatamente e mantém a execução viva com `waitUntil` chamando `runLeadConversationWorkflow(normalized)`.
@@ -30,7 +30,7 @@ Mapa do fluxo que recebe uma mensagem de WhatsApp, identifica a organização e 
 | 6 | Salva a mensagem do lead | `conversation.repository.ts` |
 | 7 | Monta o contexto (dados do lead + histórico) e executa o agente | `src/lib/services/agent-context-builder.service.ts`, `src/lib/ai/ai-agent.service.ts` |
 | 8 | Humaniza a resposta (divide em mensagens curtas, read receipt, digitando) | `src/lib/services/message-humanizer.service.ts` |
-| 9 | Envia pelo provider WhatsApp | `src/lib/integrations/evolution/messaging.client.ts` |
+| 9 | Envia pela conexão de WhatsApp da organização do lead (sem conexão ativa: não responde) | `src/lib/integrations/whatsapp/org-whatsapp.ts` (`getWhatsAppForOrganization`) |
 | 10 | Persiste a resposta do agente | `conversation.repository.ts` |
 
 ## Agente de IA
@@ -48,7 +48,6 @@ Mapa do fluxo que recebe uma mensagem de WhatsApp, identifica a organização e 
 | `/api/cron/follow-up` | Follow-up de curto prazo (sem resposta) | `src/lib/jobs/follow-up.job.ts` |
 | `/api/cron/long-followup` | Régua de longo prazo por cenário | `src/lib/jobs/long-followup.job.ts` + `src/lib/services/long-followup-rules.service.ts` |
 | `/api/cron/rescue-human-mode` | Devolve ao bot leads esquecidos em modo humano | `app/api/cron/rescue-human-mode/route.ts` |
-| `/api/cron/keepalive` | Mantém o projeto Supabase ativo | `app/api/cron/keepalive/route.ts` |
 
 ## Configuração necessária por organização
 
