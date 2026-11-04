@@ -55,19 +55,42 @@ antes de ativar WhatsApp) · LGPD-03 amostra de planilha sem máscara para a Ope
 retenção · E2E: JSON malformado → 500 (19 rotas), sem HSTS (sem efeito em `.dev`), GET com
 efeito colateral em `admin/register-templates` e `admin/rag-ingest`.
 
+### LGPD-02 ampliado (verificado em 2026-11-03)
+
+O opt-out não existe no sistema: `leads_prospeccao` não tem coluna `opt_out`, o
+`long-followup.job.ts:125` lê um campo sempre vazio, a ferramenta `update-lead` não tem o
+campo e o prompt `system-prompt.intellix.v1.ts:54` manda o agente "marcar opt-out" e
+confirmar a remoção ao titular. Nenhum envio (campanha, e-mail em massa, WhatsApp,
+follow-up) respeita oposição. Exposição atual: 1 campanha cadastrada, nunca enviada;
+WhatsApp desligado (A3).
+
+## Aceitação formal de risco (2026-11-03)
+
+Responsável: o usuário dono do projeto (autorização dada no chat em 2026-11-03).
+
+| Item | Justificativa | Condição / prazo |
+|---|---|---|
+| DEP-01 | Mesmas versões já em produção; críticos não se aplicam no OpenNext | Sprint de atualização do Next (e zod, troca do xlsx) até 2026-11-30 |
+| ENV-01 | Desenho do runbook; Access, sem crons/filas, follow-up desligado | Rota `workers.dev` do staging desligada fora das janelas de teste; revisão até 2026-12-15 |
+| ENV-02 | B7 não altera schema; rollback da migration do B3 existe | Teste de restore até 2026-11-17 |
+| F-01 | Exposição igual à atual; só usuários das 3 orgs conhecidas | Rate limit e cota por org até 2026-11-17 |
+| LGPD-01 | Comportamento igual ao da edge function antiga | Supressão na prospecção Google até 2026-11-17 |
+| LGPD-02 (ampliado) | Pré-existente; nenhum envio em massa ocorrido; WhatsApp desligado | Opt-out completo **antes** de ligar WhatsApp ou enviar campanha/e-mail em massa; prazo 2026-11-17 |
+
 ## Registro
 
 ```text
 CRITICAL_OPEN: 0
-HIGH_OPEN: 1 (DEP-01, pré-existente)
+HIGH_OPEN: 1 (DEP-01, pré-existente, risco aceito até 2026-11-30)
 MEDIUM_OPEN: 4 (F-01, LGPD-01, LGPD-02, ARQ-01 não explorável hoje)
-RESTORE_VERIFIED: false
+RESTORE_VERIFIED: false (risco aceito, teste até 2026-11-17)
 STAGING_VALIDATED: true (B4, B5, test-report-2026-11-03)
 INDEPENDENT_REVIEW_COMPLETE: true
 RUNTIME_TESTS_COMPLETE: true (sem stress: banco de produção)
 ATTACK_VALIDATION_COMPLETE: parcial (negativos, cron, cross-org admin, proxy de imagem)
 ATTACK_EVIDENCE_REVISION: ea21e61
 ROLLBACK_READY: true (B7, Vercel pausada e não deletada)
-EXPLICIT_AUTHORIZATION: pendente
-SECURITY_GATE: FAIL até aceitação formal de DEP-01, ENV-01, ENV-02 (ou correção)
+RISK_ACCEPTANCE: registrada em 2026-11-03 (tabela acima)
+EXPLICIT_AUTHORIZATION: pendente — o B7 pede [auth] no momento da virada
+SECURITY_GATE: PASS com aceitação formal de risco
 ```

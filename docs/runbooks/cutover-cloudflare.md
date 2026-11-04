@@ -322,6 +322,12 @@ Convenções:
 - **Ação:** rodar `intellix:test-e2e` (smoke dos fluxos do B4 e B5) e
   `devsecops:security-gate`.
 - **Verificação:** **os dois precisam dar PASS.** Qualquer FAIL bloqueia o B7.
+- **Feito em 2026-11-03:** E2E em `tests/reports/test-report-2026-11-03.md` (sem
+  regressão; 1 negativo Low pré-existente); security gate em
+  `docs/security/security-gate-2026-11-03-b6.md`: PASS com aceitação formal de risco
+  (DEP-01, ENV-01, ENV-02, F-01, LGPD-01, LGPD-02) e prazos registrados. Condição que
+  pesa no pós-virada: opt-out completo antes de ligar WhatsApp ou enviar campanha/e-mail
+  em massa.
 - **Rollback:** não se aplica (só leitura).
 
 ## B7. Virada — [auth]
