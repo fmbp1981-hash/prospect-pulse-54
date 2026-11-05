@@ -120,7 +120,7 @@
       "Dado pessoal (telefone, e-mail) e prova LGPD (art. 18): o evento precisa existir sempre que a situa\u00e7\u00e3o mudar"
     ]
   },
-  "rollback": "1) Reverter o commit (c\u00f3digo n\u00e3o tem outro consumidor at\u00e9 a TASK-003); 2) exportar as tabelas de oposi\u00e7\u00e3o para scripts/legacy/backup-<data>-opt-out-rpcs.json; 3) rodar supabase/migrations/rollback/20261105120000_contact_opt_out_rpcs.down.sql (s\u00f3 remove as 2 fun\u00e7\u00f5es; n\u00e3o toca dados); 4) supabase migration repair --status reverted 20261105120000; 5) reverter types.ts e a matriz de function-privileges.",
+  "rollback": "1) Reverter o commit (c\u00f3digo n\u00e3o tem outro consumidor at\u00e9 a TASK-003); 2) exportar as tabelas de oposi\u00e7\u00e3o para scripts/legacy/backup-<data>-opt-out-rpcs.json; 3) rodar supabase/migrations/rollback/20261105130000_contact_opt_out_rpcs_fixes.down.sql (volta register \u00e0 vers\u00e3o anterior) e depois supabase/migrations/rollback/20261105120000_contact_opt_out_rpcs.down.sql (s\u00f3 remove as 2 fun\u00e7\u00f5es; n\u00e3o toca dados); 4) supabase migration repair --status reverted 20261105120000; 5) reverter types.ts e a matriz de function-privileges.",
   "scope": {
     "create": [
       "supabase/migrations/20261105120000_contact_opt_out_rpcs.sql",
@@ -132,7 +132,9 @@
       "tests/unit/opt-out.service.spec.ts",
       "tests/unit/opt-out.validation.spec.ts",
       "tasks/evidence/TASK-002.review.json",
-      "tasks/evidence/TASK-002.approval.json"
+      "tasks/evidence/TASK-002.approval.json",
+      "supabase/migrations/20261105130000_contact_opt_out_rpcs_fixes.sql",
+      "supabase/migrations/rollback/20261105130000_contact_opt_out_rpcs_fixes.down.sql"
     ],
     "forbidden": [
       ".env*",

@@ -23,7 +23,8 @@ import {
   type ActiveOptOutMatch,
 } from '@/lib/repositories/opt-out.repository';
 import {
-  lookupOptOutSchema,
+  OPT_OUT_LOOKUP_MAX,
+  lookupTargetSchema,
   registerOptOutSchema,
   revokeOptOutSchema,
   type OptOutLookupTarget,
@@ -60,6 +61,8 @@ export interface OptOutLookupResult {
   blocked: boolean;
   /** Oposições ativas que bateram (lead, telefone ou e-mail). */
   optOutIds: string[];
+  /** Destinatário que não passou na validação: volta bloqueado, sem consulta. */
+  invalid?: true;
 }
 
 /** Origens que cada tipo de autor pode declarar. */
@@ -157,32 +160,45 @@ export const optOutService = {
   /**
    * Para cada destinatário (na mesma ordem), diz se há oposição ativa na
    * organização pelo lead, telefone ou e-mail. Até OPT_OUT_LOOKUP_MAX itens.
+   * Destinatário inválido (ex.: telefone que não normaliza) volta
+   * { blocked: true, invalid: true } sem derrubar os demais.
    */
   async checkBlocked(organizationId: string, targets: OptOutLookupTarget[]): Promise<OptOutLookupResult[]> {
     requireOrganization(organizationId);
 
-    const parsed = lookupOptOutSchema.safeParse(targets);
-    if (!parsed.success) throw validationError(parsed.error);
-    const items = parsed.data;
-    if (items.length === 0) return [];
+    if (!Array.isArray(targets) || targets.length > OPT_OUT_LOOKUP_MAX) {
+      throw new OptOutError(400, 'VALIDATION_ERROR', `Informe até ${OPT_OUT_LOOKUP_MAX} destinatários`);
+    }
+    if (targets.length === 0) return [];
+
+    // Cada destinatário é validado em separado: um cadastro ruim não derruba o
+    // lote; ele volta bloqueado e marcado como inválido (falha fechada).
+    const items = targets.map((target) => {
+      const parsed = lookupTargetSchema.safeParse(target);
+      return parsed.success ? parsed.data : null;
+    });
 
     const leadIds: string[] = [];
     const phones: string[] = [];
     const emails: string[] = [];
     for (const item of items) {
+      if (item === null) continue;
       if (item.leadId !== undefined) leadIds.push(item.leadId);
       if (item.phone !== undefined) phones.push(item.phone);
       if (item.email !== undefined) emails.push(item.email);
     }
 
-    let matches: ActiveOptOutMatch[];
-    try {
-      matches = await optOutRepository.findActiveMatches(organizationId, { leadIds, phones, emails });
-    } catch (error) {
-      throw mapDbError(error);
+    let matches: ActiveOptOutMatch[] = [];
+    if (leadIds.length + phones.length + emails.length > 0) {
+      try {
+        matches = await optOutRepository.findActiveMatches(organizationId, { leadIds, phones, emails });
+      } catch (error) {
+        throw mapDbError(error);
+      }
     }
 
-    return items.map((item) => {
+    return items.map((item): OptOutLookupResult => {
+      if (item === null) return { blocked: true, optOutIds: [], invalid: true };
       const optOutIds = matches
         .filter(
           (m) =>

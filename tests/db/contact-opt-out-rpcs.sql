@@ -6,6 +6,8 @@
 --   ok = null   usuário/organização de teste não encontrado (ver detalhe)
 -- Antes da migration as funções não existem: os cenários que as chamam vêm
 -- com ok = false e detalhe 42883 (function ... does not exist).
+-- Cenários 18, 23, 24 e 25 cobrem as correções de 20261105130000 (revisão
+-- independente): com só 20261105120000 aplicada, eles vêm ok = false.
 --
 -- Usuários e organizações de teste (mesma escolha de tests/db/contact-opt-outs.sql):
 --   teste.adm    admin de uma organização A, que NÃO é admin da plataforma
@@ -17,7 +19,8 @@
 --
 -- Fixtures (gravadas como postgres e desfeitas no rollback final): um lead
 -- sintético em A e outro em B e quatro oposições em A (revogada, ativa só com
--- telefone, e um par revogado telefone/e-mail em linhas separadas) e uma em B.
+-- telefone, um par revogado telefone/e-mail em linhas separadas, uma ativa e
+-- uma revogada com telefone e e-mail) e uma em B.
 -- Telefones e e-mails são sintéticos (+55119999901xx, *@teste.invalid).
 --
 -- Concorrência (AC-011) não é reproduzível numa sessão só: a garantia vem do
@@ -97,6 +100,8 @@ declare
   v_sep_p uuid := gen_random_uuid();   -- A, revogada, só telefone +5511999990113
   v_sep_e uuid := gen_random_uuid();   -- A, revogada, só e-mail sep@teste.invalid
   v_ob uuid := gen_random_uuid();      -- B, ativa, +5511999990114
+  v_full uuid := gen_random_uuid();    -- A, ativa, +5511999990115 + full@teste.invalid
+  v_full_rev uuid := gen_random_uuid(); -- A, revogada, +5511999990116 + fullrev@teste.invalid
   v_lead text := 'teste-optout-rpc-' || replace(gen_random_uuid()::text, '-', '');
   v_lead_b text := 'teste-optout-rpc-b-' || replace(gen_random_uuid()::text, '-', '');
   v_res text;
@@ -114,7 +119,7 @@ declare
   c_pre_b text[];
 begin
   if v_adm is null or v_org_a is null or v_org_b is null then
-    for v_n in 1..22 loop
+    for v_n in 1..25 loop
       perform set_config('teste.c' || v_n || '_ok', '', true);
       perform set_config('teste.c' || v_n || '_det',
         'sem admin de org (fora de platform_admins) e uma segunda organização', true);
@@ -135,7 +140,9 @@ begin
          (v_ph, v_org_a, '+5511999990112', null, 'active', 'usuario', null),
          (v_sep_p, v_org_a, '+5511999990113', null, 'revoked', 'usuario', now()),
          (v_sep_e, v_org_a, null, 'sep@teste.invalid', 'revoked', 'usuario', now()),
-         (v_ob, v_org_b, '+5511999990114', null, 'active', 'link_email', null);
+         (v_ob, v_org_b, '+5511999990114', null, 'active', 'link_email', null),
+         (v_full, v_org_a, '+5511999990115', 'full@teste.invalid', 'active', 'usuario', null),
+         (v_full_rev, v_org_a, '+5511999990116', 'fullrev@teste.invalid', 'revoked', 'usuario', now());
   insert into public.contact_opt_out_events (organization_id, opt_out_id, event_type, source, actor_type)
   values (v_org_a, v_rev, 'opt_out', 'usuario', 'usuario'),
          (v_org_a, v_ph, 'opt_out', 'usuario', 'usuario'),
@@ -343,18 +350,15 @@ begin
   perform set_config('teste.c17_ok', (v_res like '42501%')::text, true);
   perform set_config('teste.c17_det', v_res, true);
 
-  -- 18. lead de B numa oposição de A → 23503 e nada gravado
-  v_res := pg_temp.tentar(null, 'service_role', array[format(
-    'do $t$ begin '
-      'begin perform %s; raise exception ''nao_recusou''; '
-      'exception when foreign_key_violation then null; end; '
-      'if exists (select 1 from public.contact_opt_outs where phone_e164 = %L) then '
-        'raise exception ''linha_ficou''; end if; '
-    'end $t$',
-    format(c_reg, v_org_a, '+5511999990160', null, 'usuario', 'usuario', v_adm, v_lead_b, null),
-    '+5511999990160')]);
+  -- 18. lead de B numa oposição de A é ignorado: oposição gravada sem lead (M-1)
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format(c_sim, format('(select changed from %s)',
+      format(c_reg, v_org_a, '+5511999990160', null, 'usuario', 'usuario', v_adm, v_lead_b, null))),
+    format(c_sim, format(
+      'select count(*) = 1 from public.contact_opt_outs where organization_id = %L and phone_e164 = %L '
+      'and status = ''active'' and lead_id is null', v_org_a, '+5511999990160'))]);
   perform set_config('teste.c18_ok', (v_res = 'aceito')::text, true);
-  perform set_config('teste.c18_det', case when v_res = 'aceito' then '23503 e nenhuma linha' else v_res end, true);
+  perform set_config('teste.c18_det', case when v_res = 'aceito' then 'gravada ativa, lead nulo' else v_res end, true);
 
   -- 19. parâmetros inválidos → 22023 (sem identificador; autor usuario sem id)
   v_res := pg_temp.tentar(null, 'service_role', array[
@@ -390,6 +394,50 @@ begin
       'where o.phone_e164 = %L and e.created_at = now()', '+5511999990180'))]);
   perform set_config('teste.c22_ok', (v_res = 'aceito')::text, true);
   perform set_config('teste.c22_det', case when v_res = 'aceito' then 'created_at = now()' else v_res end, true);
+
+  -- 23. telefone novo + e-mail de uma linha que já tem outro telefone: o
+  --     telefone novo ganha linha própria ativa com evento (H-1)
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format(c_sim, format('(select opt_out_id <> %L and changed from %s)', v_full,
+      format(c_reg, v_org_a, '+5511999990190', 'full@teste.invalid', 'whatsapp_titular', 'titular', null, null, null))),
+    format(c_sim, format(
+      'select count(*) = 1 from public.contact_opt_outs o where o.organization_id = %L and o.phone_e164 = %L '
+      'and o.email_normalized is null and o.status = ''active'' '
+      'and exists (select 1 from public.contact_opt_out_events e where e.opt_out_id = o.id and e.event_type = ''opt_out'')',
+      v_org_a, '+5511999990190')),
+    format(c_sim, format(
+      'select phone_e164 = %L and email_normalized = %L and status = ''active'' from public.contact_opt_outs where id = %L',
+      '+5511999990115', 'full@teste.invalid', v_full)),
+    format(c_sim, format('select count(*) = 0 from public.contact_opt_out_events where opt_out_id = %L', v_full))]);
+  perform set_config('teste.c23_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c23_det', case when v_res = 'aceito' then 'telefone novo bloqueado em linha própria' else v_res end, true);
+
+  -- 24. telefone de uma linha revogada (com outro e-mail) + e-mail novo: a
+  --     linha volta a ativa e o e-mail novo ganha linha própria (H-1)
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format(c_sim, format('(select opt_out_id = %L and changed from %s)', v_full_rev,
+      format(c_reg, v_org_a, '+5511999990116', 'novo24@teste.invalid', 'link_email', 'titular', null, null, null))),
+    format(c_sim, format(
+      'select status = ''active'' and email_normalized = %L from public.contact_opt_outs where id = %L',
+      'fullrev@teste.invalid', v_full_rev)),
+    format(c_sim, format(
+      'select count(*) = 1 from public.contact_opt_outs where organization_id = %L and email_normalized = %L '
+      'and phone_e164 is null and status = ''active''', v_org_a, 'novo24@teste.invalid')),
+    format(c_sim, format(
+      'select count(*) = 2 from public.contact_opt_out_events e join public.contact_opt_outs o on o.id = e.opt_out_id '
+      'where o.id = %L or o.email_normalized = %L', v_full_rev, 'novo24@teste.invalid'))]);
+  perform set_config('teste.c24_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c24_det', case when v_res = 'aceito' then 'linha reativada + e-mail novo, 2 eventos' else v_res end, true);
+
+  -- 25. lead inexistente: oposição gravada sem lead (M-1)
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format(c_sim, format('(select changed from %s)',
+      format(c_reg, v_org_a, '+5511999990191', null, 'link_email', 'titular', null, 'lead-que-nao-existe', null))),
+    format(c_sim, format(
+      'select count(*) = 1 from public.contact_opt_outs where organization_id = %L and phone_e164 = %L '
+      'and status = ''active'' and lead_id is null', v_org_a, '+5511999990191'))]);
+  perform set_config('teste.c25_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c25_det', case when v_res = 'aceito' then 'gravada ativa, lead nulo' else v_res end, true);
 end $$;
 
 select c.cenario,
@@ -413,11 +461,14 @@ from (values
   (15, '15. autor operador não revoga → 42501 (AC-003)'),
   (16, '16. visualizador não registra (42501); operador registra'),
   (17, '17. autor de outra organização não registra → 42501'),
-  (18, '18. lead de outra organização → 23503, nada gravado'),
+  (18, '18. lead de outra organização é ignorado, oposição gravada (M-1)'),
   (19, '19. parâmetros inválidos → 22023'),
   (20, '20. revogar id inexistente → P0002'),
   (21, '21. SECURITY INVOKER e search_path fixo'),
-  (22, '22. created_at do evento é o do banco')
+  (22, '22. created_at do evento é o do banco'),
+  (23, '23. telefone novo + e-mail de outra linha: telefone bloqueado (H-1)'),
+  (24, '24. telefone de linha revogada + e-mail novo: ambos ativos (H-1)'),
+  (25, '25. lead inexistente: oposição gravada sem lead (M-1)')
 ) as c(n, cenario)
 order by c.n;
 

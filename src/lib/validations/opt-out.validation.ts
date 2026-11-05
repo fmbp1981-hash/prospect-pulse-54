@@ -105,7 +105,8 @@ export const revokeOptOutSchema = z.object({
 export type RevokeOptOutInput = z.input<typeof revokeOptOutSchema>;
 export type RevokeOptOutData = z.output<typeof revokeOptOutSchema>;
 
-const lookupTargetSchema = z
+/** Um destinatário da consulta (o serviço valida cada um em separado). */
+export const lookupTargetSchema = z
   .object({
     leadId: leadIdField.optional(),
     phone: phoneField.optional(),

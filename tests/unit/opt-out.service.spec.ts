@@ -301,6 +301,30 @@ describe('checkBlocked (AC-010)', () => {
     expect(fake.calls).toHaveLength(0);
   });
 
+  it('destinatário inválido volta bloqueado e marcado, sem derrubar o lote', async () => {
+    handlerImpl = lookupHandler;
+    const result = await optOutService.checkBlocked(ORG_A, [
+      { phone: '123' },
+      { phone: '11988887777' },
+      {},
+      { email: 'A,B(c)@Exemplo.com' },
+    ]);
+    expect(result).toEqual([
+      { blocked: true, optOutIds: [], invalid: true },
+      { blocked: false, optOutIds: [] },
+      { blocked: true, optOutIds: [], invalid: true },
+      { blocked: true, optOutIds: ['opt-email'] },
+    ]);
+    expect(fake.calls).toHaveLength(2);
+  });
+
+  it('lote só com inválidos não consulta o banco e bloqueia todos', async () => {
+    handlerImpl = lookupHandler;
+    const result = await optOutService.checkBlocked(ORG_A, [{ phone: 'abc' }, { email: 'sem-arroba' }]);
+    expect(result.every((r) => r.blocked && r.invalid)).toBe(true);
+    expect(fake.calls).toHaveLength(0);
+  });
+
   it('isBlocked consulta um destinatário', async () => {
     handlerImpl = lookupHandler;
     expect(await optOutService.isBlocked(ORG_A, { email: 'a,b(c)@exemplo.com' })).toEqual({
