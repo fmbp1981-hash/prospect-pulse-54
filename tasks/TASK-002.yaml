@@ -1,7 +1,7 @@
 {
   "id": "TASK-002",
   "title": "Serviço de oposição (registrar, revogar, consultar)",
-  "status": "DRAFT",
+  "status": "READY",
   "objective": "Domínio e acesso a dados da oposição: registrar com origem e autor, revogar só por admin com motivo, consultar se uma pessoa (lead, telefone ou e-mail) está bloqueada na organização, um a um ou em lote. Registro e revogação mudam a situação e gravam o evento numa única transação (funções no banco).",
   "source": {
     "prd": "docs/product/PRD.md",
@@ -37,7 +37,9 @@
       "src/lib/services/opt-out.service.ts",
       "src/lib/validations/opt-out.validation.ts",
       "tests/unit/opt-out.service.spec.ts",
-      "tests/unit/opt-out.validation.spec.ts"
+      "tests/unit/opt-out.validation.spec.ts",
+      "tasks/evidence/TASK-002.review.json",
+      "tasks/evidence/TASK-002.approval.json"
     ],
     "modify": [
       "src/integrations/supabase/types.ts",
@@ -67,9 +69,7 @@
       "src/lib/normalizePhone.ts"
     ]
   },
-  "dependencies": [
-    "TASK-001"
-  ],
+  "dependencies": [],
   "acceptance_criteria": [
     {
       "id": "AC-001",
@@ -184,7 +184,8 @@
     "Autorização no serviço: registrar = requireWriter ou ator sistema/titular/agente_ia; revogar = requireOrgAdmin (src/lib/auth/require-writer.ts). A organização vem resolvida pelo chamador (rota/job), nunca do corpo da requisição.",
     "Consulta em lote usa três .in() separados (lead_id, phone_e164, email_normalized), nunca .or() com texto: e-mail pode ter vírgula ou parêntese (o CHECK aceita) e quebraria o filtro do PostgREST.",
     "Data confiável da prova: contact_opt_out_events.created_at (INFO-2 da TASK-001).",
-    "Plano completo em 2026-11-05; fica em DRAFT até a TASK-001 sair dos estados que reservam fileset (merge do PR #22), porque as duas alteram src/integrations/supabase/types.ts. Depois: READY_FOR_ARCH_REVIEW."
+    "Dependência formal da TASK-001 removida em 2026-11-05 (decisão do usuário): o código dela está na main (PR #22, e138b1e), mas o framework não reconhece a TASK-001 como satisfeita (fechada por reconciliação manual).",
+    "Arquitetura aprovada pelo usuário em 2026-11-05 ('aprovado plano'): duas funções transacionais no banco, 10 arquivos de código/SQL + 2 de evidência."
   ],
   "handoff": {
     "required_evidence": [
