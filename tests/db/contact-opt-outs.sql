@@ -2,6 +2,7 @@
 --
 -- Retorna UMA LINHA POR CENÁRIO (colunas: cenario, ok, detalhe).
 --   ok = true   comportamento esperado DEPOIS de 20261105100000_contact_opt_outs
+--               e 20261105110000_contact_opt_outs_hardening
 --   ok = false  falha
 --   ok = null   usuário/organização de teste não encontrado (ver detalhe)
 -- Antes da migration as tabelas não existem: o script falha com 42P01.
@@ -10,10 +11,15 @@
 --   teste.adm    admin de uma organização A, que NÃO é admin da plataforma
 --   teste.org_a  organização do teste.adm
 --   teste.org_b  outra organização qualquer (≠ A) da qual o teste.adm não é membro
+--   teste.pa     um admin da plataforma (cenário 25; null se não houver)
+--
+-- Perfis operador e visualizador (cenários 23 e 24): o banco pode não ter
+-- membros com esses papéis, então o teste troca o papel do teste.adm dentro
+-- da subtransação (desfeito junto com ela).
 --
 -- Fixtures (gravadas como postgres e desfeitas no rollback final): um lead
--- sintético em A, uma oposição em A (ligada ao lead) e uma em B, com um evento
--- cada. Telefones e e-mails são sintéticos (+55119999900xx, *@teste.invalid).
+-- sintético em A e outro em B, uma oposição em A (ligada ao lead de A) e uma
+-- em B, com um evento cada. Telefones e e-mails são sintéticos (+55119999900xx, *@teste.invalid).
 --
 -- Isolamento: tudo dentro de begin; ... rollback;. Cada tentativa roda num
 -- sub-bloco encerrado pela exceção sentinela 'teste_desfaz', que desfaz a
@@ -39,6 +45,8 @@ select set_config('teste.org_b', coalesce((
                     where om.organization_id = organizations.id
                       and om.user_id::text = current_setting('teste.adm'))
   order by created_at limit 1), ''), true);
+select set_config('teste.pa', coalesce((
+  select user_id::text from public.platform_admins order by user_id limit 1), ''), true);
 
 -- Executa os comandos como p_role ('authenticated' com sub = p_uid, 'anon',
 -- 'service_role' ou 'postgres' = sem trocar de role) e desfaz tudo.
@@ -73,14 +81,49 @@ begin
   return v_res;
 end $$;
 
+-- Como tentar(..., 'authenticated', ...), mas com o papel do membro trocado
+-- para p_papel ('operador', 'visualizador') durante a tentativa.
+create function pg_temp.tentar_papel(p_uid uuid, p_papel text, p_sqls text[])
+returns text
+language plpgsql
+as $$
+declare
+  v_res text;
+  v_sql text;
+begin
+  begin
+    begin
+      update public.organization_members set role = p_papel where user_id = p_uid;
+      perform set_config('request.jwt.claims',
+        json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
+      perform set_config('role', 'authenticated', true);
+      foreach v_sql in array p_sqls loop
+        execute v_sql;
+      end loop;
+      v_res := 'aceito';
+    exception when others then
+      if sqlerrm = 'teste_desfaz' then raise; end if;
+      v_res := sqlstate || ' ' || sqlerrm;
+    end;
+    raise exception 'teste_desfaz';
+  exception when others then
+    if sqlerrm <> 'teste_desfaz' then v_res := 'erro ' || sqlstate || ' ' || sqlerrm; end if;
+  end;
+  return v_res;
+end $$;
+
 do $$
 declare
   v_adm uuid := nullif(current_setting('teste.adm'), '')::uuid;
   v_org_a uuid := nullif(current_setting('teste.org_a'), '')::uuid;
   v_org_b uuid := nullif(current_setting('teste.org_b'), '')::uuid;
+  v_pa uuid := nullif(current_setting('teste.pa'), '')::uuid;
   v_opt_a uuid := gen_random_uuid();
   v_opt_b uuid := gen_random_uuid();
   v_lead text := 'teste-optout-' || replace(gen_random_uuid()::text, '-', '');
+  v_lead_b text := 'teste-optout-b-' || replace(gen_random_uuid()::text, '-', '');
+  -- leitura: A visível e B invisível para o membro de A
+  v_le_a_nao_b text[];
   v_res text;
   v_n int;
   -- oposição: (organização, telefone, e-mail, origem)
@@ -97,7 +140,7 @@ declare
   c_zero constant text := 'select 1 / (case when (%s) = 0 then 1 else 0 end)';
 begin
   if v_adm is null or v_org_a is null or v_org_b is null then
-    for v_n in 1..22 loop
+    for v_n in 1..38 loop
       perform set_config('teste.c' || v_n || '_ok', '', true);
       perform set_config('teste.c' || v_n || '_det',
         'sem admin de org (fora de platform_admins) e uma segunda organização', true);
@@ -107,7 +150,8 @@ begin
 
   -- Fixtures (postgres)
   insert into public.leads_prospeccao (id, lead, empresa, organization_id)
-  values (v_lead, v_lead, 'Empresa Teste Opt-out', v_org_a);
+  values (v_lead, v_lead, 'Empresa Teste Opt-out', v_org_a),
+         (v_lead_b, v_lead_b, 'Empresa Teste Opt-out B', v_org_b);
   insert into public.contact_opt_outs (id, organization_id, phone_e164, email_normalized, source, lead_id)
   values (v_opt_a, v_org_a, '+5511999990001', 'titular.a@teste.invalid', 'usuario', v_lead),
          (v_opt_b, v_org_b, '+5511999990002', null, 'link_email', null);
@@ -264,6 +308,151 @@ begin
   end if;
   perform set_config('teste.c22_ok', (v_res like '23514%')::text, true);
   perform set_config('teste.c22_det', v_res, true);
+
+  v_le_a_nao_b := array[
+    format(c_um, format('select count(*) from public.contact_opt_outs where id = %L', v_opt_a)),
+    format(c_zero, format('select count(*) from public.contact_opt_outs where id = %L', v_opt_b)),
+    format(c_um, format('select count(*) from public.contact_opt_out_events where opt_out_id = %L', v_opt_a)),
+    format(c_zero, format('select count(*) from public.contact_opt_out_events where opt_out_id = %L', v_opt_b))];
+
+  -- 23. operador lê só a própria organização
+  v_res := pg_temp.tentar_papel(v_adm, 'operador', v_le_a_nao_b);
+  perform set_config('teste.c23_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c23_det', case when v_res = 'aceito' then 'A=1, B=0' else v_res end, true);
+
+  -- 24. visualizador lê só a própria organização
+  v_res := pg_temp.tentar_papel(v_adm, 'visualizador', v_le_a_nao_b);
+  perform set_config('teste.c24_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c24_det', case when v_res = 'aceito' then 'A=1, B=0' else v_res end, true);
+
+  -- 25. admin da plataforma lê oposições e histórico de A e de B
+  if v_pa is null then
+    perform set_config('teste.c25_ok', '', true);
+    perform set_config('teste.c25_det', 'sem admin da plataforma', true);
+  else
+    v_res := pg_temp.tentar(v_pa, 'authenticated', array[
+      format('select 1 / (case when (select count(*) from public.contact_opt_outs where id in (%L, %L)) = 2 then 1 else 0 end)', v_opt_a, v_opt_b),
+      format('select 1 / (case when (select count(*) from public.contact_opt_out_events where opt_out_id in (%L, %L)) = 2 then 1 else 0 end)', v_opt_a, v_opt_b)]);
+    perform set_config('teste.c25_ok', (v_res = 'aceito')::text, true);
+    perform set_config('teste.c25_det', case when v_res = 'aceito' then 'A e B' else v_res end, true);
+  end if;
+
+  -- 26. membro não trunca nenhuma das duas tabelas → 42501
+  v_res := pg_temp.tentar(v_adm, 'authenticated', array['truncate public.contact_opt_out_events']);
+  if v_res like '42501%' then
+    v_res := pg_temp.tentar(v_adm, 'authenticated', array['truncate public.contact_opt_outs cascade']);
+  end if;
+  perform set_config('teste.c26_ok', (v_res like '42501%')::text, true);
+  perform set_config('teste.c26_det', v_res, true);
+
+  -- 27. servidor não trunca as oposições → 42501
+  v_res := pg_temp.tentar(null, 'service_role', array['truncate public.contact_opt_outs cascade']);
+  perform set_config('teste.c27_ok', (v_res like '42501%')::text, true);
+  perform set_config('teste.c27_det', v_res, true);
+
+  -- 28. status e revoked_at incoerentes → 23514
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format('update public.contact_opt_outs set status = ''revoked'' where id = %L', v_opt_b)]);
+  if v_res like '23514%' then
+    v_res := pg_temp.tentar(null, 'service_role', array[
+      format('update public.contact_opt_outs set revoked_at = now() where id = %L', v_opt_b)]);
+  end if;
+  perform set_config('teste.c28_ok', (v_res like '23514%')::text, true);
+  perform set_config('teste.c28_det', v_res, true);
+
+  -- 29. evento com tipo, autor ou origem fora da lista → 23514
+  v_res := pg_temp.tentar(null, 'service_role', array[format(
+    'insert into public.contact_opt_out_events (organization_id, opt_out_id, event_type, source, actor_type) '
+    'values (%L, %L, ''apagar'', ''usuario'', ''usuario'')', v_org_a, v_opt_a)]);
+  if v_res like '23514%' then
+    v_res := pg_temp.tentar(null, 'service_role', array[format(
+      'insert into public.contact_opt_out_events (organization_id, opt_out_id, event_type, source, actor_type) '
+      'values (%L, %L, ''opt_out'', ''usuario'', ''robo'')', v_org_a, v_opt_a)]);
+  end if;
+  if v_res like '23514%' then
+    v_res := pg_temp.tentar(null, 'service_role', array[format(
+      'insert into public.contact_opt_out_events (organization_id, opt_out_id, event_type, source, actor_type) '
+      'values (%L, %L, ''opt_out'', ''planilha'', ''usuario'')', v_org_a, v_opt_a)]);
+  end if;
+  perform set_config('teste.c29_ok', (v_res like '23514%')::text, true);
+  perform set_config('teste.c29_det', v_res, true);
+
+  -- 30. RLS ativo e forçado nas duas tabelas
+  v_res := pg_temp.tentar(null, 'postgres', array[
+    'select 1 / (case when (select count(*) from pg_class where oid in '
+    '(''public.contact_opt_outs''::regclass, ''public.contact_opt_out_events''::regclass) '
+    'and relrowsecurity and relforcerowsecurity) = 2 then 1 else 0 end)']);
+  perform set_config('teste.c30_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c30_det', case when v_res = 'aceito' then 'ENABLE + FORCE' else v_res end, true);
+
+  -- 31. evento de B apontando para oposição de A → 23503
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format(c_evt, v_org_b, v_opt_a, 'opt_out', null)]);
+  perform set_config('teste.c31_ok', (v_res like '23503%')::text, true);
+  perform set_config('teste.c31_det', v_res, true);
+
+  -- 32. oposição de A ligada a lead de B (inserção ou atualização) → 23503
+  v_res := pg_temp.tentar(null, 'service_role', array[format(
+    'insert into public.contact_opt_outs (organization_id, phone_e164, source, lead_id) '
+    'values (%L, ''+5511999990007'', ''usuario'', %L)', v_org_a, v_lead_b)]);
+  if v_res like '23503%' then
+    v_res := pg_temp.tentar(null, 'service_role', array[
+      format('update public.contact_opt_outs set lead_id = %L where id = %L', v_lead_b, v_opt_a)]);
+  end if;
+  perform set_config('teste.c32_ok', (v_res like '23503%')::text, true);
+  perform set_config('teste.c32_det', v_res, true);
+
+  -- 33. servidor não troca organização nem created_at da oposição → 42501
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format('update public.contact_opt_outs set organization_id = %L where id = %L', v_org_b, v_opt_a)]);
+  if v_res like '42501%' then
+    v_res := pg_temp.tentar(null, 'service_role', array[
+      format('update public.contact_opt_outs set created_at = now() - interval ''1 day'' where id = %L', v_opt_a)]);
+  end if;
+  perform set_config('teste.c33_ok', (v_res like '42501%')::text, true);
+  perform set_config('teste.c33_det', v_res, true);
+
+  -- 34. servidor não troca nem apaga telefone/e-mail já registrado → 23514
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format('update public.contact_opt_outs set phone_e164 = ''+5511999990008'' where id = %L', v_opt_a)]);
+  if v_res like '23514%' then
+    v_res := pg_temp.tentar(null, 'service_role', array[
+      format('update public.contact_opt_outs set email_normalized = null where id = %L', v_opt_a)]);
+  end if;
+  perform set_config('teste.c34_ok', (v_res like '23514%')::text, true);
+  perform set_config('teste.c34_det', v_res, true);
+
+  -- 35. servidor preenche identificador vazio (e-mail da oposição de B)
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format('update public.contact_opt_outs set email_normalized = ''titular.b@teste.invalid'' where id = %L', v_opt_b)]);
+  perform set_config('teste.c35_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c35_det', v_res, true);
+
+  -- 36. created_at do evento é sempre o do banco (data informada é ignorada)
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format('insert into public.contact_opt_out_events (organization_id, opt_out_id, event_type, source, actor_type, created_at) '
+           'values (%L, %L, ''opt_out'', ''usuario'', ''usuario'', ''2000-01-01'')', v_org_a, v_opt_a),
+    format(c_zero, format('select count(*) from public.contact_opt_out_events where opt_out_id = %L '
+           'and created_at < ''2001-01-01''', v_opt_a))]);
+  perform set_config('teste.c36_ok', (v_res = 'aceito')::text, true);
+  perform set_config('teste.c36_det', case when v_res = 'aceito' then 'created_at = now()' else v_res end, true);
+
+  -- 37. motivo acima de 500 caracteres ou id de mensagem fora do formato → 23514
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format(c_evt, v_org_a, v_opt_a, 'revoke', repeat('a', 501))]);
+  if v_res like '23514%' then
+    v_res := pg_temp.tentar(null, 'service_role', array[format(
+      'insert into public.contact_opt_out_events (organization_id, opt_out_id, event_type, source, actor_type, evidence_message_id) '
+      'values (%L, %L, ''opt_out'', ''whatsapp_titular'', ''titular'', ''quero sair da lista'')', v_org_a, v_opt_a)]);
+  end if;
+  perform set_config('teste.c37_ok', (v_res like '23514%')::text, true);
+  perform set_config('teste.c37_det', v_res, true);
+
+  -- 38. revogação com motivo só de tabs/quebras de linha → 23514
+  v_res := pg_temp.tentar(null, 'service_role', array[
+    format(c_evt, v_org_a, v_opt_a, 'revoke', E'\t\t\n')]);
+  perform set_config('teste.c38_ok', (v_res like '23514%')::text, true);
+  perform set_config('teste.c38_det', v_res, true);
 end $$;
 
 select c.cenario,
@@ -291,7 +480,23 @@ from (values
   (19, '19. telefone fora de E.164 → 23514'),
   (20, '20. e-mail não normalizado → 23514'),
   (21, '21. origem fora da lista → 23514'),
-  (22, '22. revogação sem motivo → 23514')
+  (22, '22. revogação sem motivo → 23514'),
+  (23, '23. operador lê só a própria organização'),
+  (24, '24. visualizador lê só a própria organização'),
+  (25, '25. admin da plataforma lê A e B'),
+  (26, '26. membro não trunca as tabelas → 42501'),
+  (27, '27. servidor não trunca as oposições → 42501'),
+  (28, '28. status e revoked_at incoerentes → 23514'),
+  (29, '29. evento com tipo/autor/origem fora da lista → 23514'),
+  (30, '30. RLS ativo e forçado nas duas tabelas'),
+  (31, '31. evento de B para oposição de A → 23503'),
+  (32, '32. oposição de A ligada a lead de B → 23503'),
+  (33, '33. servidor não troca organização nem created_at → 42501'),
+  (34, '34. servidor não troca nem apaga identificador → 23514'),
+  (35, '35. servidor preenche identificador vazio'),
+  (36, '36. created_at do evento é sempre o do banco'),
+  (37, '37. motivo > 500 ou id de mensagem inválido → 23514'),
+  (38, '38. revogação com motivo só de tabs → 23514')
 ) as c(n, cenario)
 order by c.n;
 

@@ -41,6 +41,24 @@
       "id": "AC-007",
       "then": "n\u00e3o h\u00e1 erro (idempotente) e o rollback remove s\u00f3 os objetos novos",
       "when": "rodo de novo a migration e depois o .down.sql e de novo a migration"
+    },
+    {
+      "given": "uma oposi\u00e7\u00e3o da organiza\u00e7\u00e3o A",
+      "id": "AC-008",
+      "then": "o banco recusa (23503)",
+      "when": "o servidor grava um evento com organization_id de B para ela, ou liga a oposi\u00e7\u00e3o de A a um lead de B"
+    },
+    {
+      "given": "uma oposi\u00e7\u00e3o com telefone ou e-mail preenchido",
+      "id": "AC-009",
+      "then": "o banco recusa (42501 para colunas sem permiss\u00e3o; 23514 para identificador); identificador vazio pode ser preenchido",
+      "when": "o servidor tenta trocar a organiza\u00e7\u00e3o, o created_at, ou trocar/apagar o identificador preenchido"
+    },
+    {
+      "given": "um evento novo",
+      "id": "AC-010",
+      "then": "created_at vira now() e os demais s\u00e3o recusados (23514)",
+      "when": "o servidor informa created_at no passado, motivo com mais de 500 caracteres ou s\u00f3 espa\u00e7os/tabs, ou evidence_message_id fora do formato de id"
     }
   ],
   "dependencies": [],
@@ -75,7 +93,10 @@
     "Aplica\u00e7\u00e3o: no fim da task, com autoriza\u00e7\u00e3o expl\u00edcita do usu\u00e1rio naquele momento, via apply_migration no projeto kzvnwqlcrtxwagxkghxq; backup pr\u00e9vio = registrar no scripts/legacy/backup-<data>-opt-outs.json que as tabelas n\u00e3o existiam (nenhuma linha existente \u00e9 afetada). As tasks 002\u2013009 dependem das tabelas existirem no banco compartilhado para os testes no staging.",
     "Revis\u00e3o independente: subagente novo, somente-leitura (database-architect + security-reviewer), sem o contexto do executor, recebendo s\u00f3 o diff e este contrato.",
     "Aprova\u00e7\u00e3o humana: review aprovado pelo usu\u00e1rio (fmbp1981-hash) no PR do GitHub fmbp1981-hash/prospect-pulse-54, contra o SHA completo do head; checks obrigat\u00f3rios lint, typecheck, test, cf-build, secrets-scan, sast-scan, sca-scan. Texto de modelo n\u00e3o vale como aprova\u00e7\u00e3o.",
-    "Aprova\u00e7\u00e3o arquitetural: usu\u00e1rio respondeu 'aprovo' no chat em 2026-11-04 (contrato no commit 0db19b0), incluindo aplicar a migration no fim desta task \u2014 a aplica\u00e7\u00e3o ainda exige nova autoriza\u00e7\u00e3o expl\u00edcita no momento. Registro local de auditoria; n\u00e3o libera merge."
+    "Aprova\u00e7\u00e3o arquitetural: usu\u00e1rio respondeu 'aprovo' no chat em 2026-11-04 (contrato no commit 0db19b0), incluindo aplicar a migration no fim desta task \u2014 a aplica\u00e7\u00e3o ainda exige nova autoriza\u00e7\u00e3o expl\u00edcita no momento. Registro local de auditoria; n\u00e3o libera merge.",
+    "Revis\u00e3o isolada 2026-11-04 (database-architect: MUDAN\u00c7AS SOLICITADAS; security-reviewer: APROVADO): M1/SEC-001, M2/SEC-002, SEC-003, SEC-004, L1-L4 tratados na migration nova 20261105110000_contact_opt_outs_hardening (a 20261105100000 j\u00e1 estava aplicada). Escopo ampliado com aprova\u00e7\u00e3o do usu\u00e1rio em 2026-11-04.",
+    "Decis\u00f5es do usu\u00e1rio (2026-11-04): (1) lead de outra organiza\u00e7\u00e3o bloqueado por trigger, sem alterar leads_prospeccao; (2) actor_user_id mant\u00e9m on delete set null: \u00e9 a \u00fanica altera\u00e7\u00e3o poss\u00edvel no hist\u00f3rico, para n\u00e3o reter o v\u00ednculo com usu\u00e1rio exclu\u00eddo; (3) exigir evento a cada mudan\u00e7a de status fica no servidor (TASK-002), numa \u00fanica opera\u00e7\u00e3o de registro/revoga\u00e7\u00e3o.",
+    "Perfis operador e visualizador s\u00e3o testados trocando o papel do admin de teste dentro da subtransa\u00e7\u00e3o (o banco n\u00e3o tem membros com esses pap\u00e9is)."
   ],
   "objective": "Criar, por organiza\u00e7\u00e3o, o estado vigente da oposi\u00e7\u00e3o (public.contact_opt_outs) e o hist\u00f3rico append-only (public.contact_opt_out_events), identificados por telefone E.164 e/ou e-mail normalizado, ligados ao lead quando existe e sobrevivendo \u00e0 sua exclus\u00e3o; leitura por membros da organiza\u00e7\u00e3o via RLS, escrita s\u00f3 pelo servidor; aplicar no banco compartilhado (staging = produ\u00e7\u00e3o) com autoriza\u00e7\u00e3o no momento.",
   "ownership": {
@@ -95,12 +116,14 @@
       "Mudan\u00e7a s\u00f3 aditiva: nenhuma tabela/coluna existente \u00e9 alterada e nenhum c\u00f3digo atual l\u00ea as tabelas novas"
     ]
   },
-  "rollback": "1) Exportar as duas tabelas para scripts/legacy/backup-<data>-opt-outs.json (git-ignored); 2) rodar supabase/migrations/rollback/20261105100000_contact_opt_outs.down.sql (drop das 2 tabelas, do trigger e da fun\u00e7\u00e3o; nada existente \u00e9 tocado); 3) reverter types.ts. Enquanto nenhuma task posterior estiver no ar, o rollback n\u00e3o afeta o sistema.",
+  "rollback": "1) Exportar as duas tabelas para scripts/legacy/backup-<data>-opt-outs.json (git-ignored); 2) rodar supabase/migrations/rollback/20261105110000_contact_opt_outs_hardening.down.sql (remove triggers, fun\u00e7\u00f5es, constraints e \u00edndices do refor\u00e7o; devolve o UPDATE amplo); 3) rodar supabase/migrations/rollback/20261105100000_contact_opt_outs.down.sql (drop das 2 tabelas; recusa se houver linhas, salvo set app.confirm_drop_opt_out_evidence = 'yes'); 4) marcar as vers\u00f5es como revertidas em supabase_migrations.schema_migrations (supabase migration repair --status reverted <vers\u00e3o>); 5) reverter types.ts. Nada existente \u00e9 tocado.",
   "scope": {
     "create": [
       "supabase/migrations/20261105100000_contact_opt_outs.sql",
       "supabase/migrations/rollback/20261105100000_contact_opt_outs.down.sql",
-      "tests/db/contact-opt-outs.sql"
+      "tests/db/contact-opt-outs.sql",
+      "supabase/migrations/20261105110000_contact_opt_outs_hardening.sql",
+      "supabase/migrations/rollback/20261105110000_contact_opt_outs_hardening.down.sql"
     ],
     "forbidden": [
       ".env*",
@@ -134,8 +157,8 @@
   "title": "Contrato de dados da oposi\u00e7\u00e3o por organiza\u00e7\u00e3o",
   "verification": [
     {
-      "command": "tests/db/contact-opt-outs.sql via execute_sql (antes: tabelas inexistentes; depois: todos ok=true)",
-      "proves": "AC-001 a AC-006 no banco real, em transa\u00e7\u00e3o desfeita"
+      "command": "tests/db/contact-opt-outs.sql (antes: tabelas inexistentes; depois das 2 migrations: todos ok=true)",
+      "proves": "AC-001 a AC-006 e AC-008 a AC-010 no banco real, em transa\u00e7\u00e3o desfeita"
     },
     {
       "command": "tests/db/rls-helpers-regression.sql e tests/db/function-privileges.sql via execute_sql",
@@ -146,8 +169,8 @@
       "proves": "Sem aviso novo de RLS/grants nas tabelas criadas"
     },
     {
-      "command": "Reaplicar a migration em transa\u00e7\u00e3o (begin; <migration>; rollback;)",
-      "proves": "Idempot\u00eancia (AC-007)"
+      "command": "Ciclo em transa\u00e7\u00e3o desfeita: refor\u00e7o 2x; down do refor\u00e7o; down da base; base; refor\u00e7o; testes",
+      "proves": "Idempot\u00eancia e rollback (AC-007)"
     },
     {
       "command": "npm run lint",
