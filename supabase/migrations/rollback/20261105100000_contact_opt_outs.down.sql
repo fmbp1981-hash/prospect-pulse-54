@@ -14,7 +14,9 @@
 -- Ordem: rode antes rollback/20261105110000_contact_opt_outs_hardening.down.sql.
 -- Trava: recusa se houver qualquer linha, a menos que a sessão confirme
 --   set app.confirm_drop_opt_out_evidence = 'yes';
--- (só depois do export). Histórico de migrations: depois de rodar, marque a
+-- (só depois do export). Rode como postgres (BYPASSRLS): outro papel recebe
+-- 42501 "query would be affected by row-level security policy" mesmo com a
+-- confirmação, porque a trava conta as linhas sem RLS. Histórico de migrations: depois de rodar, marque a
 -- versão como revertida (supabase migration repair --status reverted
 -- 20261105100000, ou o delete equivalente em supabase_migrations.schema_migrations).
 

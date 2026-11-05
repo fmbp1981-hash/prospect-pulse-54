@@ -5,7 +5,11 @@ Uso:
     python3 tests/db/contact-opt-outs-rollback-cycle.py > /tmp/ciclo.sql
     (colar no SQL editor do Supabase ou rodar com psql como postgres)
 
-Pré-condição: 20261105100000 e 20261105110000 já aplicadas.
+Pré-condição: 20261105100000 e 20261105110000 já aplicadas e as duas tabelas
+VAZIAS. Com uma oposição real gravada, a trava do down da base recusa e o
+ciclo aborta. Os DROPs seguram ACCESS EXCLUSIVE nas duas tabelas até o fim da
+transação: em banco compartilhado (staging = produção), rodar em janela sem uso
+do opt-out ou num banco local/branch.
 
 O SQL gerado roda inteiro numa transação e termina com
 `raise exception 'RESULTADO_TESTE ...'`, que desfaz tudo (inclusive os DROPs):
@@ -53,12 +57,20 @@ def trava_do_down_base() -> str:
     return trava
 
 
+def conferir_delimitadores() -> None:
+    """Os delimitadores do SQL montado não podem aparecer nos arquivos incluídos."""
+    for delimitador in ("$g$", "$ciclo$", "$res$"):
+        for texto in (BASE, REFORCO, DOWN_BASE, DOWN_REFORCO, TESTE):
+            assert delimitador not in texto, delimitador
+
+
 def tentar_trava(papel: str, uid: str, confirmar: bool) -> str:
     prefixo = "'select set_config(''app.confirm_drop_opt_out_evidence'', ''yes'', true)', " if confirmar else ""
     return f"pg_temp.tentar({uid}, '{papel}', array[{prefixo}$g${trava_do_down_base()}$g$])"
 
 
 def montar() -> str:
+    conferir_delimitadores()
     resultados = [f"c{n}" for n in range(1, N_CENARIOS + 1)] + CICLO
     lista = ", ".join(f"'{r}'" for r in resultados)
     partes = [
@@ -90,7 +102,8 @@ def montar() -> str:
         "declare v_res text; v_org uuid; v_uid uuid;",
         "begin",
         "  select id into v_org from public.organizations order by created_at limit 1;",
-        "  select user_id into v_uid from public.organization_members limit 1;",
+        "  -- teste.adm (definido pelo corpo do teste): determinístico",
+        "  v_uid := nullif(current_setting('teste.adm', true), '')::uuid;",
         "  insert into public.contact_opt_outs (organization_id, phone_e164, source)",
         "  values (v_org, '+5511999990009', 'usuario');",
         f"  v_res := {tentar_trava('postgres', 'null', False)};",
@@ -100,7 +113,8 @@ def montar() -> str:
         "  perform set_config('teste.k4_ok', (v_res = 'aceito')::text, true);",
         "  perform set_config('teste.k4_det', v_res, true);",
         f"  v_res := {tentar_trava('authenticated', 'v_uid', False)};",
-        "  perform set_config('teste.k5_ok', (v_res <> 'aceito' and v_res not like 'erro%')::text, true);",
+        "  -- só o 42501 de RLS prova a falha fechada (P0001 viria da trava antiga)",
+        "  perform set_config('teste.k5_ok', (v_res like '42501%row-level security%')::text, true);",
         "  perform set_config('teste.k5_det', v_res, true);",
         "end $ciclo$;",
         "do $res$",
