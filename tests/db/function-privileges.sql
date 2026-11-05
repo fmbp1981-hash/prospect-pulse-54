@@ -14,6 +14,8 @@
 -- como "função da matriz não encontrada".
 -- Idem para set_connection_webhook_key (grupo A, Sprint 2b): até a migration
 -- 20261031100000_organization_connections ser aplicada.
+-- Idem para register_contact_opt_out e revoke_contact_opt_out (grupo C,
+-- TASK-002 do opt-out): até a migration 20261105120000_contact_opt_out_rpcs.
 --
 -- Matriz (fonte: task-5-brief.md):
 --   A  só trigger            anon ✗  authenticated ✗  service_role ✓
@@ -59,6 +61,8 @@ with matriz(grupo, nome) as (
     ('C', 'generate_user_webhook_url'),
     ('C', 'get_user_by_webhook_url'),
     ('C', 'claim_due_follow_ups'),
+    ('C', 'register_contact_opt_out'),               -- 20261105120000 (opt-out, TASK-002)
+    ('C', 'revoke_contact_opt_out'),                 -- 20261105120000 (opt-out, TASK-002)
     ('D', 'criar_lead_organico'),
     ('D', 'atualizar_lead_por_whatsapp'),
     ('T', 'handle_updated_at'),
