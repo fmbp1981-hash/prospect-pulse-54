@@ -1,0 +1,13 @@
+{
+  "id": "deployment",
+  "version": 1,
+  "rules": {
+    "production_requires_human_approval": true,
+    "required_artifacts": ["release-notes", "migration-plan", "rollback-plan", "verification-plan"],
+    "high_risk_requires_staged_release": true,
+    "critical_risk_requires_staged_release": true,
+    "post_deploy": ["health-check", "smoke-test", "metrics-check", "error-budget-check"],
+    "rollback_triggers_must_be_defined": true,
+    "deployment_identity_must_be_auditable": true
+  }
+}

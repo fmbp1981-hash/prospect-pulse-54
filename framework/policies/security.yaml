@@ -1,0 +1,15 @@
+{
+  "id": "security",
+  "version": 1,
+  "rules": {
+    "secret_scanning": true,
+    "dependency_review": true,
+    "least_privilege": true,
+    "deny_plaintext_secrets": true,
+    "threat_model_for": ["auth", "payments", "pii", "public-api", "file-upload", "admin", "infrastructure"],
+    "mandatory_security_review_risk": ["high", "critical"],
+    "human_approval_for": ["production-secrets", "data-deletion", "privilege-change", "production-migration", "public-release"],
+    "lgpd_evidence_required_when_personal_data": true,
+    "waivers": {"allowed": true, "expires": true, "requires_owner": true, "requires_compensating_controls": true}
+  }
+}

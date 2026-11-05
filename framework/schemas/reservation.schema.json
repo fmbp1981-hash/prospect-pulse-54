@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "task_id", "task_digest", "repository", "worktree_path", "branch", "base_commit", "writable_globs", "owner", "state", "created_at", "updated_at"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["1.0.0"]},
+    "task_id": {"type": "string", "pattern": "^TASK-[0-9]{3,}$"},
+    "task_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "repository": {"type": "string", "minLength": 1},
+    "worktree_path": {"type": "string", "minLength": 1},
+    "branch": {"type": "string", "minLength": 1},
+    "base_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "writable_globs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "owner": {"type": "string", "minLength": 1},
+    "state": {"type": "string", "enum": ["reserving", "reserved", "released"]},
+    "created_at": {"type": "string", "minLength": 1},
+    "updated_at": {"type": "string", "minLength": 1},
+    "reason": {"type": ["string", "null"]}
+  }
+}

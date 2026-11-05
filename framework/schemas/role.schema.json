@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["id", "purpose", "may", "must_not", "required_inputs", "required_outputs"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]+$"},
+    "purpose": {"type": "string", "minLength": 10},
+    "may": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "must_not": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "required_inputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "required_outputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "gates": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  }
+}

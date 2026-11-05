@@ -1,0 +1,116 @@
+{
+  "id": "TASK-004",
+  "title": "Bloqueio nos envios manuais e em massa",
+  "status": "DRAFT",
+  "objective": "WhatsApp avulso, e-mail em massa, disparo de campanha e resposta manual no Inbox recusam ou pulam pessoas com oposição e informam quantas foram puladas; exceção da mensagem de confirmação de remoção.",
+  "source": {
+    "prd": "docs/product/PRD.md",
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "spec": "SPEC.md",
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ]
+  },
+  "risk": {
+    "level": "high",
+    "reasons": [
+      "Envio a pessoa física",
+      "Rotas reescritas com formato de resposta legado"
+    ],
+    "irreversible_actions": []
+  },
+  "ownership": {
+    "architect": "claude",
+    "executor": "claude",
+    "reviewer": "claude-isolated",
+    "domain_role": "backend-engineer"
+  },
+  "scope": {
+    "create": [
+      "tests/unit/send-opt-out.spec.ts"
+    ],
+    "modify": [
+      "app/api/whatsapp/send/route.ts",
+      "app/api/email/send-bulk/route.ts",
+      "app/api/campaigns/[id]/send/route.ts",
+      "app/api/inbox/send-message/route.ts",
+      "tests/unit/send-bulk-route.spec.ts",
+      "tests/unit/campaign-send-route.spec.ts",
+      "tests/unit/whatsapp-send-route.spec.ts"
+    ],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "scripts/legacy/**"
+    ]
+  },
+  "dependencies": [
+    "TASK-002"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "given": "um público de campanha com 3 pessoas, 1 com oposição",
+      "when": "a campanha é disparada",
+      "then": "2 envios; resultado informa 1 pulado por oposição"
+    },
+    {
+      "id": "AC-002",
+      "given": "uma conversa com oposição",
+      "when": "o atendente envia mensagem",
+      "then": "o envio é recusado com motivo"
+    },
+    {
+      "id": "AC-003",
+      "given": "o titular pediu para sair no atendimento",
+      "when": "a confirmação de remoção é enviada no mesmo atendimento",
+      "then": "ela sai uma única vez"
+    },
+    {
+      "id": "AC-004",
+      "given": "um envio bloqueado",
+      "when": "o log é gravado",
+      "then": "contém só ids, nunca telefone, e-mail ou texto"
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "Tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "Comportamentos e regressões cobertos"
+    }
+  ],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree"
+  ],
+  "rollback": "Reverter o commit",
+  "notes": [
+    "Decisão 2026-11-04: 'mesmo atendimento' = até 24 h após o registro da oposição; uma única mensagem de confirmação por oposição, depois o bloqueio é total."
+  ],
+  "handoff": {
+    "required_evidence": [
+      "test output",
+      "changed-file inventory"
+    ],
+    "open_questions": []
+  }
+}

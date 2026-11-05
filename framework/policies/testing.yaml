@@ -1,0 +1,15 @@
+{
+  "id": "testing",
+  "version": 1,
+  "rules": {
+    "acceptance_criteria_traceability": true,
+    "changed_behavior_requires_test": true,
+    "test_layers": ["static", "unit", "integration", "contract", "e2e", "security"],
+    "minimum_for_low": ["static", "unit"],
+    "minimum_for_medium": ["static", "unit", "integration"],
+    "minimum_for_high": ["static", "unit", "integration", "contract", "security"],
+    "minimum_for_critical": ["static", "unit", "integration", "contract", "e2e", "security"],
+    "flaky_tests_must_not_be_silently_retried": true,
+    "evidence_retention": true
+  }
+}

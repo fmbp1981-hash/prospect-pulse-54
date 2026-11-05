@@ -360,6 +360,13 @@ Convenções:
      ./scripts/cloudflare-secrets-sync.sh --dry-run
      ./scripts/cloudflare-secrets-sync.sh
      ```
+     **Em 2026-11-04 o script falhou:** o Workers Builds sobe versões de
+     preview dos PRs, e o `secret put` recusa quando a versão mais recente não
+     é a publicada. Os 7 secrets foram gravados com
+     `wrangler versions secret bulk --name prospect-pulse-54` (JSON lido do
+     `.env.local` por stdin, sem imprimir valores), que cria versão sem
+     publicar; o deploy do merge herdou os secrets (conferido com
+     `wrangler versions view <id> --json`).
      São 7: `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`,
      `INTERNAL_QUEUE_SECRET`, `CONNECTORS_MASTER_KEY_V1`,
      `CONNECTORS_ACTIVE_KEY_VERSION`, `UPSTASH_REDIS_REST_URL`,
@@ -419,6 +426,13 @@ Convenções:
      ```
      As credenciais de provedor vivem em `platform_credentials` e
      `organization_connections` desde o B5.
+- **Feito em 2026-11-04 (UTC):** Vercel pausada e n8n desligado (U); secrets
+  via `versions secret bulk`; merge #21 → #20 → `main` (`d6d7c61`); deploy
+  `820863e9` às 02:04; pós-build ok (CORS, Supabase real, sem placeholder);
+  cron `* * * * *` ok às 02:13, 02:15, 02:16 em modo `queue` (visto pelo
+  `wrangler tail`; a consulta de Workers Logs não mostrou `scheduled`); 8
+  secrets antigos apagados (versão `71acac83`), restam os 7; cron ok às 02:19.
+  Indisponibilidade ~01:58–02:04. Item 7 (comunicar URL) com o usuário.
 - **Verificação:** build verde; conferência pós-build do item 5 ok;
   `npx wrangler secret list` mostra só as 7 chaves (depois do item 8); itens 2
   a 6 concluídos sem erro; `follow-up-sends-dlq` vazia.
@@ -446,6 +460,11 @@ Convenções:
   `active` na tela de Integrações de produção. Smokes que escrevem dados ou
   gastam crédito só com **[auth]**, em organização de teste, uma busca mínima
   (como no B5).
+- **Feito em 2026-11-04 (UTC):** sem login, cron (sem bearer e bearer falso),
+  rota interna da fila e APIs → 401; `/dashboard` → `/login`. Logado no admin
+  da IntelliX.AI: 9 telas e 9 APIs de leitura 200, rotas de admin de plataforma
+  403, 5 conexões `active`, tabela com os 111 leads. Sem smoke pago (feito no B5,
+  mesmo banco).
 - **Verificação:** smoke sem erro; `GET /api/cron/follow-up` **sem bearer
   responde 401**; `POST /api/internal/follow-up/process` de fora responde 401
   (sem o segredo) ou 403 (host externo); Integrações em produção mostra as

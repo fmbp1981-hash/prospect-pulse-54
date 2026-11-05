@@ -1,0 +1,116 @@
+{
+  "id": "TASK-002",
+  "title": "Serviço de oposição (registrar, revogar, consultar)",
+  "status": "DRAFT",
+  "objective": "Domínio e acesso a dados da oposição: registrar com origem e autor, revogar só por admin com motivo, consultar se uma pessoa (lead, telefone ou e-mail) está bloqueada na organização.",
+  "source": {
+    "prd": "docs/product/PRD.md",
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "spec": "SPEC.md",
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ]
+  },
+  "risk": {
+    "level": "medium",
+    "reasons": [
+      "Regra central usada por todos os envios"
+    ],
+    "irreversible_actions": []
+  },
+  "ownership": {
+    "architect": "claude",
+    "executor": "claude",
+    "reviewer": "claude-isolated",
+    "domain_role": "backend-engineer"
+  },
+  "scope": {
+    "create": [
+      "src/lib/repositories/opt-out.repository.ts",
+      "src/lib/services/opt-out.service.ts",
+      "src/lib/opt-out/normalize-contact.ts",
+      "src/lib/validations/opt-out.validation.ts",
+      "tests/unit/opt-out.service.spec.ts",
+      "tests/unit/normalize-contact.spec.ts"
+    ],
+    "modify": [],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "scripts/legacy/**"
+    ]
+  },
+  "dependencies": [
+    "TASK-001"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "given": "um lead sem oposição",
+      "when": "register é chamado com origem e autor",
+      "then": "a pessoa passa a constar como bloqueada e um evento é gravado"
+    },
+    {
+      "id": "AC-002",
+      "given": "uma oposição vigente",
+      "when": "register é chamado de novo",
+      "then": "não há duplicidade; o estado continua bloqueado"
+    },
+    {
+      "id": "AC-003",
+      "given": "um operador",
+      "when": "tenta revogar",
+      "then": "a revogação é recusada"
+    },
+    {
+      "id": "AC-004",
+      "given": "um admin sem motivo",
+      "when": "tenta revogar",
+      "then": "a revogação é recusada por validação"
+    },
+    {
+      "id": "AC-005",
+      "given": "telefones em formatos diferentes do mesmo número",
+      "when": "a consulta é feita",
+      "then": "o resultado é o mesmo"
+    }
+  ],
+  "verification": [
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "Tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "Comportamentos e regressões cobertos"
+    }
+  ],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree"
+  ],
+  "rollback": "Reverter o commit; sem efeito em dados",
+  "notes": [],
+  "handoff": {
+    "required_evidence": [
+      "test output",
+      "changed-file inventory"
+    ],
+    "open_questions": []
+  }
+}

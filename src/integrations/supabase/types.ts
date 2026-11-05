@@ -501,6 +501,117 @@ export type Database = {
           },
         ]
       }
+      contact_opt_out_events: {
+        Row: {
+          actor_type: string
+          actor_user_id: string | null
+          created_at: string
+          event_type: string
+          evidence_message_id: string | null
+          id: string
+          opt_out_id: string
+          organization_id: string
+          reason: string | null
+          source: string
+        }
+        Insert: {
+          actor_type: string
+          actor_user_id?: string | null
+          created_at?: string
+          event_type: string
+          evidence_message_id?: string | null
+          id?: string
+          opt_out_id: string
+          organization_id: string
+          reason?: string | null
+          source: string
+        }
+        Update: {
+          actor_type?: string
+          actor_user_id?: string | null
+          created_at?: string
+          event_type?: string
+          evidence_message_id?: string | null
+          id?: string
+          opt_out_id?: string
+          organization_id?: string
+          reason?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_opt_out_events_opt_out_id_fkey"
+            columns: ["opt_out_id"]
+            isOneToOne: false
+            referencedRelation: "contact_opt_outs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_opt_out_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_opt_outs: {
+        Row: {
+          created_at: string
+          email_normalized: string | null
+          id: string
+          lead_id: string | null
+          opted_out_at: string
+          organization_id: string
+          phone_e164: string | null
+          revoked_at: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email_normalized?: string | null
+          id?: string
+          lead_id?: string | null
+          opted_out_at?: string
+          organization_id: string
+          phone_e164?: string | null
+          revoked_at?: string | null
+          source: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email_normalized?: string | null
+          id?: string
+          lead_id?: string | null
+          opted_out_at?: string
+          organization_id?: string
+          phone_e164?: string | null
+          revoked_at?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_opt_outs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_prospeccao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_opt_outs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contacts: {
         Row: {
           channel: string

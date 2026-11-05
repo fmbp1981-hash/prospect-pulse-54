@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["schema_version", "provider", "source", "repository", "revision", "required_checks", "observed_checks", "decision", "reasons", "queried_at"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["1.0.0"]},
+    "provider": {"type": "string", "enum": ["github"]},
+    "source": {"type": "string", "enum": ["github-api"]},
+    "repository": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"},
+    "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "required_checks": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "observed_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "head_sha", "status", "conclusion", "details_url", "completed_at"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "status": {"type": "string", "minLength": 1},
+          "conclusion": {"type": ["string", "null"]},
+          "details_url": {"type": ["string", "null"]},
+          "completed_at": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "decision": {"type": "string", "enum": ["eligible", "blocked", "indeterminate"]},
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "queried_at": {"type": "string", "minLength": 1}
+  }
+}

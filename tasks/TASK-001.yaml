@@ -1,0 +1,192 @@
+{
+  "acceptance_criteria": [
+    {
+      "given": "organiza\u00e7\u00f5es A e B com oposi\u00e7\u00f5es",
+      "id": "AC-001",
+      "then": "v\u00ea s\u00f3 as linhas de A; anon n\u00e3o v\u00ea nada",
+      "when": "um membro de A (qualquer papel) consulta as duas tabelas"
+    },
+    {
+      "given": "um evento de oposi\u00e7\u00e3o gravado",
+      "id": "AC-002",
+      "then": "a opera\u00e7\u00e3o \u00e9 negada (42501)",
+      "when": "authenticated ou service_role tenta UPDATE, DELETE ou TRUNCATE no hist\u00f3rico"
+    },
+    {
+      "given": "qualquer membro de organiza\u00e7\u00e3o, inclusive admin",
+      "id": "AC-003",
+      "then": "a opera\u00e7\u00e3o \u00e9 negada; s\u00f3 service_role grava (e nunca apaga)",
+      "when": "tenta INSERT/UPDATE/DELETE direto em contact_opt_outs ou INSERT em contact_opt_out_events"
+    },
+    {
+      "given": "uma oposi\u00e7\u00e3o ligada a um lead",
+      "id": "AC-004",
+      "then": "lead_id vira null e a oposi\u00e7\u00e3o continua vigente para o mesmo telefone/e-mail",
+      "when": "o lead \u00e9 exclu\u00eddo"
+    },
+    {
+      "given": "o mesmo telefone em A e em B",
+      "id": "AC-005",
+      "then": "B n\u00e3o tem linha; o \u00edndice \u00fanico \u00e9 por (organiza\u00e7\u00e3o, identificador)",
+      "when": "A registra oposi\u00e7\u00e3o"
+    },
+    {
+      "given": "uma linha sem telefone e sem e-mail, telefone fora de E.164, e-mail com mai\u00fascula/espa\u00e7o, origem fora da lista ou revoga\u00e7\u00e3o sem motivo",
+      "id": "AC-006",
+      "then": "o CHECK do banco recusa",
+      "when": "o servidor tenta gravar"
+    },
+    {
+      "given": "a migration aplicada",
+      "id": "AC-007",
+      "then": "n\u00e3o h\u00e1 erro (idempotente) e o rollback remove s\u00f3 os objetos novos",
+      "when": "rodo de novo a migration e depois o .down.sql e de novo a migration"
+    },
+    {
+      "given": "uma oposi\u00e7\u00e3o da organiza\u00e7\u00e3o A",
+      "id": "AC-008",
+      "then": "o banco recusa (23503)",
+      "when": "o servidor grava um evento com organization_id de B para ela, ou liga a oposi\u00e7\u00e3o de A a um lead de B"
+    },
+    {
+      "given": "uma oposi\u00e7\u00e3o com telefone ou e-mail preenchido",
+      "id": "AC-009",
+      "then": "o banco recusa (42501 para colunas sem permiss\u00e3o; 23514 para identificador); identificador vazio pode ser preenchido",
+      "when": "o servidor tenta trocar a organiza\u00e7\u00e3o, o created_at, ou trocar/apagar o identificador preenchido"
+    },
+    {
+      "given": "um evento novo",
+      "id": "AC-010",
+      "then": "created_at vira now() e os demais s\u00e3o recusados (23514)",
+      "when": "o servidor informa created_at no passado, motivo com mais de 500 caracteres ou s\u00f3 espa\u00e7os/tabs, ou evidence_message_id fora do formato de id"
+    }
+  ],
+  "dependencies": [],
+  "gates": [
+    "schema",
+    "fileset",
+    "lint",
+    "tests",
+    "security_review",
+    "independent_review",
+    "rollback_plan",
+    "human_approval",
+    "worktree"
+  ],
+  "handoff": {
+    "open_questions": [],
+    "required_evidence": [
+      "test output (tests/db/contact-opt-outs.sql antes e depois)",
+      "advisors output",
+      "changed-file inventory",
+      "review evidence do revisor isolado",
+      "commit SHA completo"
+    ]
+  },
+  "id": "TASK-001",
+  "notes": [
+    "Schema vivo conferido em 2026-11-04: leads_prospeccao.id \u00e9 text (FK lead_id text on delete set null); helpers existentes is_org_member, is_org_writer, is_org_admin, is_platform_admin (SECURITY DEFINER com search_path). N\u00e3o duplicar: linkedin_suppression_list (0 linhas, por linkedin_slug) continua com seu papel; a integra\u00e7\u00e3o entre as duas fica na TASK-007/item 1.3.",
+    "contact_opt_outs: id uuid, organization_id uuid not null (fk organizations on delete cascade), phone_e164 text null CHECK '^\\+[1-9][0-9]{7,14}$', email_normalized text null CHECK (= lower(btrim(...)) e cont\u00e9m @), CHECK ao menos um dos dois, status text CHECK in ('active','revoked'), lead_id text null (fk leads_prospeccao on delete set null), source text CHECK in ('link_email','whatsapp_titular','agente_ia','usuario','importacao') = origem do registro vigente, opted_out_at, revoked_at null, created_at, updated_at (trigger set_updated_at). \u00cdndices \u00fanicos parciais (organization_id, phone_e164) e (organization_id, email_normalized); \u00edndice em lead_id.",
+    "contact_opt_out_events: id uuid, organization_id, opt_out_id uuid not null (fk contact_opt_outs on delete cascade), event_type CHECK in ('opt_out','revoke'), source CHECK na mesma lista, actor_type CHECK in ('usuario','agente_ia','titular','sistema'), actor_user_id uuid null (fk auth.users on delete set null), reason text null com CHECK (event_type <> 'revoke' or length(btrim(reason)) >= 3), evidence_message_id text null (id da mensagem; nunca o texto), created_at. Sem updated_at: tabela append-only (exce\u00e7\u00e3o documentada \u00e0 regra created_at/updated_at, como usage_events).",
+    "Seguran\u00e7a: ENABLE + FORCE RLS nas duas; policy SELECT to authenticated using (is_org_member(organization_id) or is_platform_admin()); revoke all from public, anon, authenticated; grant select a authenticated; service_role: select/insert/update em contact_opt_outs e s\u00f3 select/insert em contact_opt_out_events (sem delete/truncate em nenhuma). Exclus\u00e3o s\u00f3 por cascade da organiza\u00e7\u00e3o (RI roda como owner postgres). Sem fun\u00e7\u00e3o SECURITY DEFINER nova.",
+    "Normaliza\u00e7\u00e3o (decis\u00e3o 2026-11-04): E.164 com +55 para 10/11 d\u00edgitos sem DDI; e-mail lower+trim. O banco s\u00f3 valida o formato; a normaliza\u00e7\u00e3o em si \u00e9 da TASK-002.",
+    "Aplica\u00e7\u00e3o: no fim da task, com autoriza\u00e7\u00e3o expl\u00edcita do usu\u00e1rio naquele momento, via apply_migration no projeto kzvnwqlcrtxwagxkghxq; backup pr\u00e9vio = registrar no scripts/legacy/backup-<data>-opt-outs.json que as tabelas n\u00e3o existiam (nenhuma linha existente \u00e9 afetada). As tasks 002\u2013009 dependem das tabelas existirem no banco compartilhado para os testes no staging.",
+    "Revis\u00e3o independente: subagente novo, somente-leitura (database-architect + security-reviewer), sem o contexto do executor, recebendo s\u00f3 o diff e este contrato.",
+    "Aprova\u00e7\u00e3o humana: review aprovado pelo usu\u00e1rio (fmbp1981-hash) no PR do GitHub fmbp1981-hash/prospect-pulse-54, contra o SHA completo do head; checks obrigat\u00f3rios lint, typecheck, test, cf-build, secrets-scan, sast-scan, sca-scan. Texto de modelo n\u00e3o vale como aprova\u00e7\u00e3o.",
+    "Aprova\u00e7\u00e3o arquitetural: usu\u00e1rio respondeu 'aprovo' no chat em 2026-11-04 (contrato no commit 0db19b0), incluindo aplicar a migration no fim desta task \u2014 a aplica\u00e7\u00e3o ainda exige nova autoriza\u00e7\u00e3o expl\u00edcita no momento. Registro local de auditoria; n\u00e3o libera merge.",
+    "Revis\u00e3o isolada 2026-11-04 (database-architect: MUDAN\u00c7AS SOLICITADAS; security-reviewer: APROVADO): M1/SEC-001, M2/SEC-002, SEC-003, SEC-004, L1-L4 tratados na migration nova 20261105110000_contact_opt_outs_hardening (a 20261105100000 j\u00e1 estava aplicada). Escopo ampliado com aprova\u00e7\u00e3o do usu\u00e1rio em 2026-11-04.",
+    "Decis\u00f5es do usu\u00e1rio (2026-11-04): (1) lead de outra organiza\u00e7\u00e3o bloqueado por trigger, sem alterar leads_prospeccao; (2) actor_user_id mant\u00e9m on delete set null: \u00e9 a \u00fanica altera\u00e7\u00e3o poss\u00edvel no hist\u00f3rico, para n\u00e3o reter o v\u00ednculo com usu\u00e1rio exclu\u00eddo; (3) exigir evento a cada mudan\u00e7a de status fica no servidor (TASK-002), numa \u00fanica opera\u00e7\u00e3o de registro/revoga\u00e7\u00e3o.",
+    "Perfis operador e visualizador s\u00e3o testados trocando o papel do admin de teste dentro da subtransa\u00e7\u00e3o (o banco n\u00e3o tem membros com esses pap\u00e9is).",
+    "Revis\u00e3o isolada 2 (2026-11-04, database-architect): APROVADO, sem Critical/High/Medium. LOW-1..LOW-4 corrigidos a pedido do usu\u00e1rio: cabe\u00e7alho da base exige reaplicar o refor\u00e7o depois dela; trava do down da base conta com row_security off (falha fechada); ciclo de rollback versionado em tests/db/contact-opt-outs-rollback-cycle.py; cen\u00e1rio 39 exercita o trigger (organiza\u00e7\u00e3o/created_at) e o 34 confere a mensagem.",
+    "Limite conhecido (LOW-5, aceito pela decis\u00e3o de n\u00e3o alterar leads_prospeccao): o trigger confere a organiza\u00e7\u00e3o do lead no momento do v\u00ednculo, sem travar a linha do lead; se o lead mudar de organiza\u00e7\u00e3o depois, a oposi\u00e7\u00e3o continua apontando para ele. O filtro de envio (TASK-003+) deve usar organization_id da oposi\u00e7\u00e3o, nunca a do lead.",
+    "Para a TASK-002 (INFO-1 da revis\u00e3o): n\u00e3o usar upsert do supabase-js nessas tabelas; ele gera DO UPDATE SET organization_id (sem grant, 42501) e o PostgREST n\u00e3o aponta \u00edndice \u00fanico parcial no on_conflict. Usar insert e update separados ou uma RPC. INFO-2: s\u00f3 contact_opt_out_events.created_at \u00e9 data confi\u00e1vel da prova."
+  ],
+  "objective": "Criar, por organiza\u00e7\u00e3o, o estado vigente da oposi\u00e7\u00e3o (public.contact_opt_outs) e o hist\u00f3rico append-only (public.contact_opt_out_events), identificados por telefone E.164 e/ou e-mail normalizado, ligados ao lead quando existe e sobrevivendo \u00e0 sua exclus\u00e3o; leitura por membros da organiza\u00e7\u00e3o via RLS, escrita s\u00f3 pelo servidor; aplicar no banco compartilhado (staging = produ\u00e7\u00e3o) com autoriza\u00e7\u00e3o no momento.",
+  "ownership": {
+    "architect": "claude",
+    "domain_role": "database-engineer",
+    "executor": "claude",
+    "reviewer": "claude-isolated"
+  },
+  "risk": {
+    "irreversible_actions": [
+      "Aplicar a migration no projeto Supabase compartilhado (exige autoriza\u00e7\u00e3o expl\u00edcita do usu\u00e1rio no momento)"
+    ],
+    "level": "high",
+    "reasons": [
+      "Banco \u00fanico: staging e produ\u00e7\u00e3o usam o mesmo projeto Supabase (kzvnwqlcrtxwagxkghxq); aplicar = produ\u00e7\u00e3o",
+      "Dado pessoal (telefone, e-mail) e trilha de auditoria exigida pela LGPD (art. 18, \u00a72\u00ba)",
+      "Mudan\u00e7a s\u00f3 aditiva: nenhuma tabela/coluna existente \u00e9 alterada e nenhum c\u00f3digo atual l\u00ea as tabelas novas"
+    ]
+  },
+  "rollback": "1) Exportar as duas tabelas para scripts/legacy/backup-<data>-opt-outs.json (git-ignored); 2) rodar supabase/migrations/rollback/20261105110000_contact_opt_outs_hardening.down.sql (remove triggers, fun\u00e7\u00f5es, constraints e \u00edndices do refor\u00e7o; devolve o UPDATE amplo); 3) rodar supabase/migrations/rollback/20261105100000_contact_opt_outs.down.sql (drop das 2 tabelas; recusa se houver linhas, salvo set app.confirm_drop_opt_out_evidence = 'yes'); 4) marcar as vers\u00f5es como revertidas em supabase_migrations.schema_migrations (supabase migration repair --status reverted <vers\u00e3o>); 5) reverter types.ts. Nada existente \u00e9 tocado.",
+  "scope": {
+    "create": [
+      "supabase/migrations/20261105100000_contact_opt_outs.sql",
+      "supabase/migrations/rollback/20261105100000_contact_opt_outs.down.sql",
+      "tests/db/contact-opt-outs.sql",
+      "supabase/migrations/20261105110000_contact_opt_outs_hardening.sql",
+      "supabase/migrations/rollback/20261105110000_contact_opt_outs_hardening.down.sql",
+      "tests/db/contact-opt-outs-rollback-cycle.py"
+    ],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "supabase/migrations/rollback/2025*",
+      "supabase/migrations/rollback/2026100*",
+      "supabase/migrations/rollback/2026101*",
+      "supabase/migrations/rollback/20261031*",
+      "tests/db/organization-connections.sql",
+      "scripts/legacy/**",
+      "src/lib/**",
+      "app/**"
+    ],
+    "modify": [
+      "src/integrations/supabase/types.ts"
+    ]
+  },
+  "source": {
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ],
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "prd": "docs/product/PRD.md",
+    "spec": "SPEC.md"
+  },
+  "status": "IN_REVIEW",
+  "title": "Contrato de dados da oposi\u00e7\u00e3o por organiza\u00e7\u00e3o",
+  "verification": [
+    {
+      "command": "tests/db/contact-opt-outs.sql (antes: tabelas inexistentes; depois das 2 migrations: todos ok=true)",
+      "proves": "AC-001 a AC-006 e AC-008 a AC-010 no banco real (39 cen\u00e1rios), em transa\u00e7\u00e3o desfeita"
+    },
+    {
+      "command": "tests/db/rls-helpers-regression.sql e tests/db/function-privileges.sql via execute_sql",
+      "proves": "Nenhuma regress\u00e3o nos helpers de RLS e nos privil\u00e9gios de fun\u00e7\u00f5es"
+    },
+    {
+      "command": "get_advisors (security) do Supabase depois de aplicar",
+      "proves": "Sem aviso novo de RLS/grants nas tabelas criadas"
+    },
+    {
+      "command": "python3 tests/db/contact-opt-outs-rollback-cycle.py > ciclo.sql; rodar como postgres (transa\u00e7\u00e3o desfeita)",
+      "proves": "AC-007: idempot\u00eancia, base reaplicada ap\u00f3s o refor\u00e7o, rollback completo, trava do rollback (recusa, confirma\u00e7\u00e3o e falha fechada sem BYPASSRLS) e os 39 cen\u00e1rios depois do ciclo"
+    },
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "types.ts regenerado consistente"
+    },
+    {
+      "command": "npm test",
+      "proves": "Su\u00edte existente sem regress\u00e3o"
+    }
+  ]
+}
