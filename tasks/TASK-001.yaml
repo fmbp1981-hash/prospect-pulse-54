@@ -96,7 +96,10 @@
     "Aprova\u00e7\u00e3o arquitetural: usu\u00e1rio respondeu 'aprovo' no chat em 2026-11-04 (contrato no commit 0db19b0), incluindo aplicar a migration no fim desta task \u2014 a aplica\u00e7\u00e3o ainda exige nova autoriza\u00e7\u00e3o expl\u00edcita no momento. Registro local de auditoria; n\u00e3o libera merge.",
     "Revis\u00e3o isolada 2026-11-04 (database-architect: MUDAN\u00c7AS SOLICITADAS; security-reviewer: APROVADO): M1/SEC-001, M2/SEC-002, SEC-003, SEC-004, L1-L4 tratados na migration nova 20261105110000_contact_opt_outs_hardening (a 20261105100000 j\u00e1 estava aplicada). Escopo ampliado com aprova\u00e7\u00e3o do usu\u00e1rio em 2026-11-04.",
     "Decis\u00f5es do usu\u00e1rio (2026-11-04): (1) lead de outra organiza\u00e7\u00e3o bloqueado por trigger, sem alterar leads_prospeccao; (2) actor_user_id mant\u00e9m on delete set null: \u00e9 a \u00fanica altera\u00e7\u00e3o poss\u00edvel no hist\u00f3rico, para n\u00e3o reter o v\u00ednculo com usu\u00e1rio exclu\u00eddo; (3) exigir evento a cada mudan\u00e7a de status fica no servidor (TASK-002), numa \u00fanica opera\u00e7\u00e3o de registro/revoga\u00e7\u00e3o.",
-    "Perfis operador e visualizador s\u00e3o testados trocando o papel do admin de teste dentro da subtransa\u00e7\u00e3o (o banco n\u00e3o tem membros com esses pap\u00e9is)."
+    "Perfis operador e visualizador s\u00e3o testados trocando o papel do admin de teste dentro da subtransa\u00e7\u00e3o (o banco n\u00e3o tem membros com esses pap\u00e9is).",
+    "Revis\u00e3o isolada 2 (2026-11-04, database-architect): APROVADO, sem Critical/High/Medium. LOW-1..LOW-4 corrigidos a pedido do usu\u00e1rio: cabe\u00e7alho da base exige reaplicar o refor\u00e7o depois dela; trava do down da base conta com row_security off (falha fechada); ciclo de rollback versionado em tests/db/contact-opt-outs-rollback-cycle.py; cen\u00e1rio 39 exercita o trigger (organiza\u00e7\u00e3o/created_at) e o 34 confere a mensagem.",
+    "Limite conhecido (LOW-5, aceito pela decis\u00e3o de n\u00e3o alterar leads_prospeccao): o trigger confere a organiza\u00e7\u00e3o do lead no momento do v\u00ednculo, sem travar a linha do lead; se o lead mudar de organiza\u00e7\u00e3o depois, a oposi\u00e7\u00e3o continua apontando para ele. O filtro de envio (TASK-003+) deve usar organization_id da oposi\u00e7\u00e3o, nunca a do lead.",
+    "Para a TASK-002 (INFO-1 da revis\u00e3o): n\u00e3o usar upsert do supabase-js nessas tabelas; ele gera DO UPDATE SET organization_id (sem grant, 42501) e o PostgREST n\u00e3o aponta \u00edndice \u00fanico parcial no on_conflict. Usar insert e update separados ou uma RPC. INFO-2: s\u00f3 contact_opt_out_events.created_at \u00e9 data confi\u00e1vel da prova."
   ],
   "objective": "Criar, por organiza\u00e7\u00e3o, o estado vigente da oposi\u00e7\u00e3o (public.contact_opt_outs) e o hist\u00f3rico append-only (public.contact_opt_out_events), identificados por telefone E.164 e/ou e-mail normalizado, ligados ao lead quando existe e sobrevivendo \u00e0 sua exclus\u00e3o; leitura por membros da organiza\u00e7\u00e3o via RLS, escrita s\u00f3 pelo servidor; aplicar no banco compartilhado (staging = produ\u00e7\u00e3o) com autoriza\u00e7\u00e3o no momento.",
   "ownership": {
@@ -123,7 +126,8 @@
       "supabase/migrations/rollback/20261105100000_contact_opt_outs.down.sql",
       "tests/db/contact-opt-outs.sql",
       "supabase/migrations/20261105110000_contact_opt_outs_hardening.sql",
-      "supabase/migrations/rollback/20261105110000_contact_opt_outs_hardening.down.sql"
+      "supabase/migrations/rollback/20261105110000_contact_opt_outs_hardening.down.sql",
+      "tests/db/contact-opt-outs-rollback-cycle.py"
     ],
     "forbidden": [
       ".env*",
@@ -153,12 +157,12 @@
     "prd": "docs/product/PRD.md",
     "spec": "SPEC.md"
   },
-  "status": "IN_REVIEW",
+  "status": "IN_PROGRESS",
   "title": "Contrato de dados da oposi\u00e7\u00e3o por organiza\u00e7\u00e3o",
   "verification": [
     {
       "command": "tests/db/contact-opt-outs.sql (antes: tabelas inexistentes; depois das 2 migrations: todos ok=true)",
-      "proves": "AC-001 a AC-006 e AC-008 a AC-010 no banco real, em transa\u00e7\u00e3o desfeita"
+      "proves": "AC-001 a AC-006 e AC-008 a AC-010 no banco real (39 cen\u00e1rios), em transa\u00e7\u00e3o desfeita"
     },
     {
       "command": "tests/db/rls-helpers-regression.sql e tests/db/function-privileges.sql via execute_sql",
@@ -169,8 +173,8 @@
       "proves": "Sem aviso novo de RLS/grants nas tabelas criadas"
     },
     {
-      "command": "Ciclo em transa\u00e7\u00e3o desfeita: refor\u00e7o 2x; down do refor\u00e7o; down da base; base; refor\u00e7o; testes",
-      "proves": "Idempot\u00eancia e rollback (AC-007)"
+      "command": "python3 tests/db/contact-opt-outs-rollback-cycle.py > ciclo.sql; rodar como postgres (transa\u00e7\u00e3o desfeita)",
+      "proves": "AC-007: idempot\u00eancia, base reaplicada ap\u00f3s o refor\u00e7o, rollback completo, trava do rollback (recusa, confirma\u00e7\u00e3o e falha fechada sem BYPASSRLS) e os 39 cen\u00e1rios depois do ciclo"
     },
     {
       "command": "npm run lint",

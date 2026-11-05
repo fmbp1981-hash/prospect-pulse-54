@@ -22,13 +22,19 @@ do $$
 declare
   v_tabela text;
   v_tem_linhas boolean := false;
+  v_row_security text := current_setting('row_security');
 begin
+  -- Sem RLS na contagem: um papel sem BYPASSRLS enxergaria as tabelas vazias
+  -- (FORCE RLS) e a trava liberaria. Com row_security off, esse papel recebe
+  -- erro e a trava falha fechada.
+  perform set_config('row_security', 'off', true);
   -- SQL dinâmico: as tabelas podem não existir (rollback reexecutado)
   foreach v_tabela in array array['public.contact_opt_outs', 'public.contact_opt_out_events'] loop
     if not v_tem_linhas and to_regclass(v_tabela) is not null then
       execute format('select exists (select 1 from %s)', v_tabela) into v_tem_linhas;
     end if;
   end loop;
+  perform set_config('row_security', v_row_security, true);
   if v_tem_linhas
      and coalesce(current_setting('app.confirm_drop_opt_out_evidence', true), '') <> 'yes' then
     raise exception 'rollback recusado: há oposições/histórico (prova LGPD). Exporte e rode set app.confirm_drop_opt_out_evidence = ''yes'' antes.';

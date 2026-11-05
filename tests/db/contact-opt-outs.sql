@@ -26,6 +26,8 @@
 -- escrita e o SET ROLE / request.jwt.claims locais.
 --
 -- Rodar como postgres (SQL editor / execute_sql). Não deixa nenhuma alteração.
+-- Ciclo de reaplicação/rollback e trava do rollback: ver
+-- tests/db/contact-opt-outs-rollback-cycle.py.
 
 begin;
 
@@ -140,7 +142,7 @@ declare
   c_zero constant text := 'select 1 / (case when (%s) = 0 then 1 else 0 end)';
 begin
   if v_adm is null or v_org_a is null or v_org_b is null then
-    for v_n in 1..38 loop
+    for v_n in 1..39 loop
       perform set_config('teste.c' || v_n || '_ok', '', true);
       perform set_config('teste.c' || v_n || '_det',
         'sem admin de org (fora de platform_admins) e uma segunda organização', true);
@@ -415,11 +417,14 @@ begin
   -- 34. servidor não troca nem apaga telefone/e-mail já registrado → 23514
   v_res := pg_temp.tentar(null, 'service_role', array[
     format('update public.contact_opt_outs set phone_e164 = ''+5511999990008'' where id = %L', v_opt_a)]);
-  if v_res like '23514%' then
+  -- confere a mensagem do trigger (outro 23514, de CHECK, seria falso positivo)
+  if v_res like '23514%telefone já registrado%' then
     v_res := pg_temp.tentar(null, 'service_role', array[
       format('update public.contact_opt_outs set email_normalized = null where id = %L', v_opt_a)]);
+    perform set_config('teste.c34_ok', (v_res like '23514%e-mail já registrado%')::text, true);
+  else
+    perform set_config('teste.c34_ok', 'false', true);
   end if;
-  perform set_config('teste.c34_ok', (v_res like '23514%')::text, true);
   perform set_config('teste.c34_det', v_res, true);
 
   -- 35. servidor preenche identificador vazio (e-mail da oposição de B)
@@ -453,6 +458,19 @@ begin
     format(c_evt, v_org_a, v_opt_a, 'revoke', E'\t\t\n')]);
   perform set_config('teste.c38_ok', (v_res like '23514%')::text, true);
   perform set_config('teste.c38_det', v_res, true);
+
+  -- 39. o trigger barra troca de organização e created_at mesmo sem o grant
+  --     (como postgres, que tem UPDATE em todas as colunas) → 23514
+  v_res := pg_temp.tentar(null, 'postgres', array[
+    format('update public.contact_opt_outs set organization_id = %L where id = %L', v_org_b, v_opt_a)]);
+  if v_res like '23514%organization_id não pode mudar%' then
+    v_res := pg_temp.tentar(null, 'postgres', array[
+      format('update public.contact_opt_outs set created_at = now() - interval ''1 day'' where id = %L', v_opt_a)]);
+    perform set_config('teste.c39_ok', (v_res like '23514%created_at não pode mudar%')::text, true);
+  else
+    perform set_config('teste.c39_ok', 'false', true);
+  end if;
+  perform set_config('teste.c39_det', v_res, true);
 end $$;
 
 select c.cenario,
@@ -496,7 +514,8 @@ from (values
   (35, '35. servidor preenche identificador vazio'),
   (36, '36. created_at do evento é sempre o do banco'),
   (37, '37. motivo > 500 ou id de mensagem inválido → 23514'),
-  (38, '38. revogação com motivo só de tabs → 23514')
+  (38, '38. revogação com motivo só de tabs → 23514'),
+  (39, '39. trigger barra troca de organização e created_at → 23514')
 ) as c(n, cenario)
 order by c.n;
 

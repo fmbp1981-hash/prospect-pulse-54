@@ -29,7 +29,11 @@
 --     exclusão da organização remove as linhas (cascade, executado como owner).
 --   * O histórico não tem updated_at: é append-only, como usage_events.
 --
--- Idempotente: pode ser reaplicada sem erro.
+-- Idempotente: pode ser reaplicada sem erro, MAS os grants daqui são os de
+-- antes do reforço (UPDATE amplo de service_role). Se reaplicar esta base
+-- depois de 20261105110000_contact_opt_outs_hardening, reaplique o reforço em
+-- seguida: ele volta o UPDATE de service_role às colunas de situação.
+-- (tests/db/contact-opt-outs-rollback-cycle.py cobre essa sequência.)
 
 -- ---------------------------------------------------------------------------
 -- 1. contact_opt_outs (situação vigente)
