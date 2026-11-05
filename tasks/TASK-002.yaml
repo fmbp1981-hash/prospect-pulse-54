@@ -2,7 +2,7 @@
   "id": "TASK-002",
   "title": "Serviço de oposição (registrar, revogar, consultar)",
   "status": "DRAFT",
-  "objective": "Domínio e acesso a dados da oposição: registrar com origem e autor, revogar só por admin com motivo, consultar se uma pessoa (lead, telefone ou e-mail) está bloqueada na organização.",
+  "objective": "Domínio e acesso a dados da oposição: registrar com origem e autor, revogar só por admin com motivo, consultar se uma pessoa (lead, telefone ou e-mail) está bloqueada na organização, um a um ou em lote. Registro e revogação mudam a situação e gravam o evento numa única transação (funções no banco).",
   "source": {
     "prd": "docs/product/PRD.md",
     "architecture": "docs/architecture/ARCHITECTURE.md",
@@ -12,11 +12,15 @@
     ]
   },
   "risk": {
-    "level": "medium",
+    "level": "high",
     "reasons": [
-      "Regra central usada por todos os envios"
+      "Regra central consultada por todos os envios (TASK-003 a 007)",
+      "Migration nova (2 funções) no banco único: staging = produção",
+      "Dado pessoal (telefone, e-mail) e prova LGPD (art. 18): o evento precisa existir sempre que a situação mudar"
     ],
-    "irreversible_actions": []
+    "irreversible_actions": [
+      "Aplicar a migration 20261105120000 no projeto Supabase compartilhado (exige autorização explícita do usuário no momento)"
+    ]
   },
   "ownership": {
     "architect": "claude",
@@ -26,14 +30,19 @@
   },
   "scope": {
     "create": [
+      "supabase/migrations/20261105120000_contact_opt_out_rpcs.sql",
+      "supabase/migrations/rollback/20261105120000_contact_opt_out_rpcs.down.sql",
+      "tests/db/contact-opt-out-rpcs.sql",
       "src/lib/repositories/opt-out.repository.ts",
       "src/lib/services/opt-out.service.ts",
-      "src/lib/opt-out/normalize-contact.ts",
       "src/lib/validations/opt-out.validation.ts",
       "tests/unit/opt-out.service.spec.ts",
-      "tests/unit/normalize-contact.spec.ts"
+      "tests/unit/opt-out.validation.spec.ts"
     ],
-    "modify": [],
+    "modify": [
+      "src/integrations/supabase/types.ts",
+      "tests/db/function-privileges.sql"
+    ],
     "forbidden": [
       ".env*",
       "wrangler.jsonc",
@@ -41,7 +50,21 @@
       "supabase/migrations/2026100*",
       "supabase/migrations/2026101*",
       "supabase/migrations/20261031*",
-      "scripts/legacy/**"
+      "supabase/migrations/20261105100000*",
+      "supabase/migrations/20261105110000*",
+      "supabase/migrations/rollback/2025*",
+      "supabase/migrations/rollback/2026100*",
+      "supabase/migrations/rollback/2026101*",
+      "supabase/migrations/rollback/20261031*",
+      "supabase/migrations/rollback/20261105100000*",
+      "supabase/migrations/rollback/20261105110000*",
+      "scripts/legacy/**",
+      "app/**",
+      "src/components/**",
+      "lib/supabase/**",
+      "src/lib/jobs/**",
+      "src/lib/ai/**",
+      "src/lib/normalizePhone.ts"
     ]
   },
   "dependencies": [
@@ -50,47 +73,95 @@
   "acceptance_criteria": [
     {
       "id": "AC-001",
-      "given": "um lead sem oposição",
-      "when": "register é chamado com origem e autor",
-      "then": "a pessoa passa a constar como bloqueada e um evento é gravado"
+      "given": "uma pessoa sem oposição na organização",
+      "when": "register é chamado com telefone e/ou e-mail, origem e autor",
+      "then": "a oposição fica ativa e um evento opt_out é gravado na mesma transação"
     },
     {
       "id": "AC-002",
-      "given": "uma oposição vigente",
-      "when": "register é chamado de novo",
-      "then": "não há duplicidade; o estado continua bloqueado"
+      "given": "uma oposição ativa",
+      "when": "register é chamado de novo (mesmo telefone em outro formato, ou mesmo e-mail)",
+      "then": "não há linha nem evento novos; o resultado diz que nada mudou e a pessoa continua bloqueada"
     },
     {
       "id": "AC-003",
-      "given": "um operador",
+      "given": "um operador ou visualizador",
       "when": "tenta revogar",
-      "then": "a revogação é recusada"
+      "then": "o serviço recusa antes de chamar o banco (erro de permissão)"
     },
     {
       "id": "AC-004",
-      "given": "um admin sem motivo",
-      "when": "tenta revogar",
-      "then": "a revogação é recusada por validação"
+      "given": "um admin",
+      "when": "revoga sem motivo, com motivo só de espaços ou com mais de 500 caracteres",
+      "then": "a revogação é recusada por validação e nada é gravado"
     },
     {
       "id": "AC-005",
-      "given": "telefones em formatos diferentes do mesmo número",
-      "when": "a consulta é feita",
-      "then": "o resultado é o mesmo"
+      "given": "o mesmo número em formatos diferentes ((11) 99999-0000, +55 11 99999-0000, 011999990000, 5511999990000)",
+      "when": "register ou a consulta é feita",
+      "then": "todos viram +5511999990000 e o resultado é o mesmo; número que não normaliza é recusado por validação"
+    },
+    {
+      "id": "AC-006",
+      "given": "uma oposição revogada",
+      "when": "register é chamado de novo",
+      "then": "a mesma linha volta a ativa (sem duplicar) e um evento opt_out novo é gravado"
+    },
+    {
+      "id": "AC-007",
+      "given": "oposições na organização A",
+      "when": "register, revoke ou consulta rodam para a organização B",
+      "then": "nada de A é lido nem alterado; revogar id de A informando B dá não encontrado"
+    },
+    {
+      "id": "AC-008",
+      "given": "um evento que o banco recusa (ex.: evidence_message_id inválido)",
+      "when": "register ou revoke é chamado",
+      "then": "a situação da oposição não muda (transação inteira desfeita)"
+    },
+    {
+      "id": "AC-009",
+      "given": "as funções novas",
+      "when": "anon ou authenticated tentam executá-las",
+      "then": "42501; só service_role executa; function-privileges com 0 violações"
+    },
+    {
+      "id": "AC-010",
+      "given": "uma lista de destinatários (até 1000)",
+      "when": "a consulta em lote é feita",
+      "then": "retorna quais estão bloqueados com no máximo 3 consultas (lead_id, telefone, e-mail via .in), sem filtro montado por texto"
+    },
+    {
+      "id": "AC-011",
+      "given": "duas chamadas simultâneas de register para o mesmo telefone",
+      "when": "ambas rodam",
+      "then": "fica uma linha e um evento; a segunda retorna sem mudança"
     }
   ],
   "verification": [
+    {
+      "command": "tests/db/contact-opt-out-rpcs.sql no SQL Editor (antes da migration: funções inexistentes; depois: todos ok=true), transação desfeita",
+      "proves": "AC-001, AC-002, AC-006 a AC-009 e AC-011 no banco real"
+    },
+    {
+      "command": "tests/db/function-privileges.sql via execute_sql",
+      "proves": "Funções novas classificadas no grupo C, search_path fixo, 0 violações"
+    },
+    {
+      "command": "get_advisors (security) depois de aplicar",
+      "proves": "Nenhum aviso novo"
+    },
     {
       "command": "npm run lint",
       "proves": "Sem erros de lint"
     },
     {
       "command": "npx tsc --noEmit",
-      "proves": "Tipos consistentes"
+      "proves": "types.ts com as funções novas e tipos consistentes"
     },
     {
       "command": "npm test",
-      "proves": "Comportamentos e regressões cobertos"
+      "proves": "AC-003, AC-004, AC-005 e AC-010 (serviço e validação com repositório simulado) e regressões"
     }
   ],
   "gates": [
@@ -104,12 +175,25 @@
     "human_approval",
     "worktree"
   ],
-  "rollback": "Reverter o commit; sem efeito em dados",
-  "notes": [],
+  "rollback": "1) Reverter o commit (código não tem outro consumidor até a TASK-003); 2) exportar as tabelas de oposição para scripts/legacy/backup-<data>-opt-out-rpcs.json; 3) rodar supabase/migrations/rollback/20261105120000_contact_opt_out_rpcs.down.sql (só remove as 2 funções; não toca dados); 4) supabase migration repair --status reverted 20261105120000; 5) reverter types.ts e a matriz de function-privileges.",
+  "notes": [
+    "Decisão de arquitetura (plan 2026-11-05): registro/revogação + evento numa transação exige função no banco; supabase-js não tem transação e service_role não tem DELETE para compensar. Funções SECURITY INVOKER (rodam como service_role, que já tem os grants por coluna), search_path = public, pg_temp, EXECUTE só para service_role, grupo C da matriz.",
+    "Sem upsert do supabase-js (INFO-1 da revisão da TASK-001): as funções procuram a linha por (organização, telefone) ou (organização, e-mail) com FOR UPDATE e tratam unique_violation da corrida relendo a linha.",
+    "Reaproveitar normalizeBRPhone (src/lib/normalizePhone.ts) na validação; aceitar E.164 internacional já com '+'. O arquivo normalize-contact.ts do /break foi dispensado para não duplicar normalização.",
+    "Pedido repetido com a oposição já ativa não grava evento novo (não muda situação); se trouxer identificador que falta na linha (ex.: e-mail), a função o preenche quando não houver outra linha com ele.",
+    "Autorização no serviço: registrar = requireWriter ou ator sistema/titular/agente_ia; revogar = requireOrgAdmin (src/lib/auth/require-writer.ts). A organização vem resolvida pelo chamador (rota/job), nunca do corpo da requisição.",
+    "Consulta em lote usa três .in() separados (lead_id, phone_e164, email_normalized), nunca .or() com texto: e-mail pode ter vírgula ou parêntese (o CHECK aceita) e quebraria o filtro do PostgREST.",
+    "Data confiável da prova: contact_opt_out_events.created_at (INFO-2 da TASK-001).",
+    "Plano completo em 2026-11-05; fica em DRAFT até a TASK-001 sair dos estados que reservam fileset (merge do PR #22), porque as duas alteram src/integrations/supabase/types.ts. Depois: READY_FOR_ARCH_REVIEW."
+  ],
   "handoff": {
     "required_evidence": [
-      "test output",
-      "changed-file inventory"
+      "test output (tests/db/contact-opt-out-rpcs.sql antes e depois)",
+      "function-privileges e advisors",
+      "npm test",
+      "changed-file inventory",
+      "review evidence do painel isolado",
+      "commit SHA completo"
     ],
     "open_questions": []
   }
