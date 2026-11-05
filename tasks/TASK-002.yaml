@@ -57,7 +57,7 @@
     {
       "given": "uma lista de destinat\u00e1rios (at\u00e9 1000)",
       "id": "AC-010",
-      "then": "retorna quais est\u00e3o bloqueados com no m\u00e1ximo 3 consultas (lead_id, telefone, e-mail via .in), sem filtro montado por texto",
+      "then": "retorna quais est\u00e3o bloqueados com um .in() por coluna (lead_id, telefone, e-mail), sem filtro montado por texto; listas grandes s\u00e3o fatiadas pelo tamanho da URL (lote comum: at\u00e9 3 consultas; 1000 e-mails: mais de uma por coluna). Diverg\u00eancia aceita pelo usu\u00e1rio em 2026-11-05 (op\u00e7\u00e3o A, sem terceira fun\u00e7\u00e3o no banco)",
       "when": "a consulta em lote \u00e9 feita"
     },
     {
