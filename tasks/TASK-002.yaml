@@ -1,98 +1,73 @@
 {
-  "id": "TASK-002",
-  "title": "Serviço de oposição (registrar, revogar, consultar)",
-  "status": "DRAFT",
-  "objective": "Domínio e acesso a dados da oposição: registrar com origem e autor, revogar só por admin com motivo, consultar se uma pessoa (lead, telefone ou e-mail) está bloqueada na organização.",
-  "source": {
-    "prd": "docs/product/PRD.md",
-    "architecture": "docs/architecture/ARCHITECTURE.md",
-    "spec": "SPEC.md",
-    "adrs": [
-      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
-    ]
-  },
-  "risk": {
-    "level": "medium",
-    "reasons": [
-      "Regra central usada por todos os envios"
-    ],
-    "irreversible_actions": []
-  },
-  "ownership": {
-    "architect": "claude",
-    "executor": "claude",
-    "reviewer": "claude-isolated",
-    "domain_role": "backend-engineer"
-  },
-  "scope": {
-    "create": [
-      "src/lib/repositories/opt-out.repository.ts",
-      "src/lib/services/opt-out.service.ts",
-      "src/lib/opt-out/normalize-contact.ts",
-      "src/lib/validations/opt-out.validation.ts",
-      "tests/unit/opt-out.service.spec.ts",
-      "tests/unit/normalize-contact.spec.ts"
-    ],
-    "modify": [],
-    "forbidden": [
-      ".env*",
-      "wrangler.jsonc",
-      "supabase/migrations/2025*",
-      "supabase/migrations/2026100*",
-      "supabase/migrations/2026101*",
-      "supabase/migrations/20261031*",
-      "scripts/legacy/**"
-    ]
-  },
-  "dependencies": [
-    "TASK-001"
-  ],
   "acceptance_criteria": [
     {
+      "given": "uma pessoa sem oposi\u00e7\u00e3o na organiza\u00e7\u00e3o",
       "id": "AC-001",
-      "given": "um lead sem oposição",
-      "when": "register é chamado com origem e autor",
-      "then": "a pessoa passa a constar como bloqueada e um evento é gravado"
+      "then": "a oposi\u00e7\u00e3o fica ativa e um evento opt_out \u00e9 gravado na mesma transa\u00e7\u00e3o",
+      "when": "register \u00e9 chamado com telefone e/ou e-mail, origem e autor"
     },
     {
+      "given": "uma oposi\u00e7\u00e3o ativa",
       "id": "AC-002",
-      "given": "uma oposição vigente",
-      "when": "register é chamado de novo",
-      "then": "não há duplicidade; o estado continua bloqueado"
+      "then": "n\u00e3o h\u00e1 linha nem evento novos; o resultado diz que nada mudou e a pessoa continua bloqueada",
+      "when": "register \u00e9 chamado de novo (mesmo telefone em outro formato, ou mesmo e-mail)"
     },
     {
+      "given": "um operador ou visualizador",
       "id": "AC-003",
-      "given": "um operador",
-      "when": "tenta revogar",
-      "then": "a revogação é recusada"
+      "then": "o servi\u00e7o recusa antes de chamar o banco (erro de permiss\u00e3o)",
+      "when": "tenta revogar"
     },
     {
+      "given": "um admin",
       "id": "AC-004",
-      "given": "um admin sem motivo",
-      "when": "tenta revogar",
-      "then": "a revogação é recusada por validação"
+      "then": "a revoga\u00e7\u00e3o \u00e9 recusada por valida\u00e7\u00e3o e nada \u00e9 gravado",
+      "when": "revoga sem motivo, com motivo s\u00f3 de espa\u00e7os ou com mais de 500 caracteres"
     },
     {
+      "given": "o mesmo n\u00famero em formatos diferentes ((11) 99999-0000, +55 11 99999-0000, 011999990000, 5511999990000)",
       "id": "AC-005",
-      "given": "telefones em formatos diferentes do mesmo número",
-      "when": "a consulta é feita",
-      "then": "o resultado é o mesmo"
-    }
-  ],
-  "verification": [
-    {
-      "command": "npm run lint",
-      "proves": "Sem erros de lint"
+      "then": "todos viram +5511999990000 e o resultado \u00e9 o mesmo; n\u00famero que n\u00e3o normaliza \u00e9 recusado por valida\u00e7\u00e3o",
+      "when": "register ou a consulta \u00e9 feita"
     },
     {
-      "command": "npx tsc --noEmit",
-      "proves": "Tipos consistentes"
+      "given": "uma oposi\u00e7\u00e3o revogada",
+      "id": "AC-006",
+      "then": "a mesma linha volta a ativa (sem duplicar) e um evento opt_out novo \u00e9 gravado",
+      "when": "register \u00e9 chamado de novo"
     },
     {
-      "command": "npm test",
-      "proves": "Comportamentos e regressões cobertos"
+      "given": "oposi\u00e7\u00f5es na organiza\u00e7\u00e3o A",
+      "id": "AC-007",
+      "then": "nada de A \u00e9 lido nem alterado; revogar id de A informando B d\u00e1 n\u00e3o encontrado",
+      "when": "register, revoke ou consulta rodam para a organiza\u00e7\u00e3o B"
+    },
+    {
+      "given": "um evento que o banco recusa (ex.: evidence_message_id inv\u00e1lido)",
+      "id": "AC-008",
+      "then": "a situa\u00e7\u00e3o da oposi\u00e7\u00e3o n\u00e3o muda (transa\u00e7\u00e3o inteira desfeita)",
+      "when": "register ou revoke \u00e9 chamado"
+    },
+    {
+      "given": "as fun\u00e7\u00f5es novas",
+      "id": "AC-009",
+      "then": "42501; s\u00f3 service_role executa; function-privileges com 0 viola\u00e7\u00f5es",
+      "when": "anon ou authenticated tentam execut\u00e1-las"
+    },
+    {
+      "given": "uma lista de destinat\u00e1rios (at\u00e9 1000)",
+      "id": "AC-010",
+      "then": "retorna quais est\u00e3o bloqueados com um .in() por coluna (lead_id, telefone, e-mail), sem filtro montado por texto; listas grandes s\u00e3o fatiadas pelo tamanho da URL (lote comum: at\u00e9 3 consultas; 1000 e-mails: mais de uma por coluna). Diverg\u00eancia aceita pelo usu\u00e1rio em 2026-11-05 (op\u00e7\u00e3o A, sem terceira fun\u00e7\u00e3o no banco)",
+      "when": "a consulta em lote \u00e9 feita"
+    },
+    {
+      "given": "duas chamadas simult\u00e2neas de register para o mesmo telefone",
+      "id": "AC-011",
+      "then": "fica uma linha e um evento; a segunda retorna sem mudan\u00e7a",
+      "when": "ambas rodam"
     }
   ],
+  "dependencies": [],
   "gates": [
     "schema",
     "fileset",
@@ -104,13 +79,126 @@
     "human_approval",
     "worktree"
   ],
-  "rollback": "Reverter o commit; sem efeito em dados",
-  "notes": [],
   "handoff": {
+    "open_questions": [],
     "required_evidence": [
-      "test output",
-      "changed-file inventory"
+      "test output (tests/db/contact-opt-out-rpcs.sql antes e depois)",
+      "function-privileges e advisors",
+      "npm test",
+      "changed-file inventory",
+      "review evidence do painel isolado",
+      "commit SHA completo"
+    ]
+  },
+  "id": "TASK-002",
+  "notes": [
+    "Decis\u00e3o de arquitetura (plan 2026-11-05): registro/revoga\u00e7\u00e3o + evento numa transa\u00e7\u00e3o exige fun\u00e7\u00e3o no banco; supabase-js n\u00e3o tem transa\u00e7\u00e3o e service_role n\u00e3o tem DELETE para compensar. Fun\u00e7\u00f5es SECURITY INVOKER (rodam como service_role, que j\u00e1 tem os grants por coluna), search_path = public, pg_temp, EXECUTE s\u00f3 para service_role, grupo C da matriz.",
+    "Sem upsert do supabase-js (INFO-1 da revis\u00e3o da TASK-001): as fun\u00e7\u00f5es procuram a linha por (organiza\u00e7\u00e3o, telefone) ou (organiza\u00e7\u00e3o, e-mail) com FOR UPDATE e tratam unique_violation da corrida relendo a linha.",
+    "Reaproveitar normalizeBRPhone (src/lib/normalizePhone.ts) na valida\u00e7\u00e3o; aceitar E.164 internacional j\u00e1 com '+'. O arquivo normalize-contact.ts do /break foi dispensado para n\u00e3o duplicar normaliza\u00e7\u00e3o.",
+    "Pedido repetido com a oposi\u00e7\u00e3o j\u00e1 ativa n\u00e3o grava evento novo (n\u00e3o muda situa\u00e7\u00e3o); se trouxer identificador que falta na linha (ex.: e-mail), a fun\u00e7\u00e3o o preenche quando n\u00e3o houver outra linha com ele.",
+    "Autoriza\u00e7\u00e3o no servi\u00e7o: registrar = requireWriter ou ator sistema/titular/agente_ia; revogar = requireOrgAdmin (src/lib/auth/require-writer.ts). A organiza\u00e7\u00e3o vem resolvida pelo chamador (rota/job), nunca do corpo da requisi\u00e7\u00e3o.",
+    "Consulta em lote usa tr\u00eas .in() separados (lead_id, phone_e164, email_normalized), nunca .or() com texto: e-mail pode ter v\u00edrgula ou par\u00eantese (o CHECK aceita) e quebraria o filtro do PostgREST.",
+    "Data confi\u00e1vel da prova: contact_opt_out_events.created_at (INFO-2 da TASK-001).",
+    "Depend\u00eancia formal da TASK-001 removida em 2026-11-05 (decis\u00e3o do usu\u00e1rio): o c\u00f3digo dela est\u00e1 na main (PR #22, e138b1e), mas o framework n\u00e3o reconhece a TASK-001 como satisfeita (fechada por reconcilia\u00e7\u00e3o manual).",
+    "Arquitetura aprovada pelo usu\u00e1rio em 2026-11-05 ('aprovado plano'): duas fun\u00e7\u00f5es transacionais no banco, 10 arquivos de c\u00f3digo/SQL + 2 de evid\u00eancia.",
+    "Revis\u00e3o independente 2026-11-06 (aprovado com ressalvas, sem CRITICAL/HIGH): achados 3, 4 e 7 corrigidos no c\u00f3digo (zero do DDD, padr\u00e3o do leadId, uuid de organiza\u00e7\u00e3o/usu\u00e1rio \u2192 400). Achados 2 (papel conferido por organiza\u00e7\u00e3o no servi\u00e7o) e 5 (banco exigir p_actor_user_id nulo quando autor n\u00e3o \u00e9 usuario) ficam para a TASK-003. AC-011 sem prova executada (ver verification[0])."
+  ],
+  "objective": "Dom\u00ednio e acesso a dados da oposi\u00e7\u00e3o: registrar com origem e autor, revogar s\u00f3 por admin com motivo, consultar se uma pessoa (lead, telefone ou e-mail) est\u00e1 bloqueada na organiza\u00e7\u00e3o, um a um ou em lote. Registro e revoga\u00e7\u00e3o mudam a situa\u00e7\u00e3o e gravam o evento numa \u00fanica transa\u00e7\u00e3o (fun\u00e7\u00f5es no banco).",
+  "ownership": {
+    "architect": "claude",
+    "domain_role": "backend-engineer",
+    "executor": "claude",
+    "reviewer": "claude-isolated"
+  },
+  "risk": {
+    "irreversible_actions": [
+      "Aplicar a migration 20261105120000 no projeto Supabase compartilhado (exige autoriza\u00e7\u00e3o expl\u00edcita do usu\u00e1rio no momento)"
     ],
-    "open_questions": []
-  }
+    "level": "high",
+    "reasons": [
+      "Regra central consultada por todos os envios (TASK-003 a 007)",
+      "Migration nova (2 fun\u00e7\u00f5es) no banco \u00fanico: staging = produ\u00e7\u00e3o",
+      "Dado pessoal (telefone, e-mail) e prova LGPD (art. 18): o evento precisa existir sempre que a situa\u00e7\u00e3o mudar"
+    ]
+  },
+  "rollback": "1) Reverter o commit (c\u00f3digo n\u00e3o tem outro consumidor at\u00e9 a TASK-003); 2) exportar as tabelas de oposi\u00e7\u00e3o para scripts/legacy/backup-<data>-opt-out-rpcs.json; 3) rodar supabase/migrations/rollback/20261105130000_contact_opt_out_rpcs_fixes.down.sql (volta register \u00e0 vers\u00e3o anterior) e depois supabase/migrations/rollback/20261105120000_contact_opt_out_rpcs.down.sql (s\u00f3 remove as 2 fun\u00e7\u00f5es; n\u00e3o toca dados); 4) supabase migration repair --status reverted 20261105120000; 5) reverter types.ts e a matriz de function-privileges.",
+  "scope": {
+    "create": [
+      "supabase/migrations/20261105120000_contact_opt_out_rpcs.sql",
+      "supabase/migrations/rollback/20261105120000_contact_opt_out_rpcs.down.sql",
+      "tests/db/contact-opt-out-rpcs.sql",
+      "src/lib/repositories/opt-out.repository.ts",
+      "src/lib/services/opt-out.service.ts",
+      "src/lib/validations/opt-out.validation.ts",
+      "tests/unit/opt-out.service.spec.ts",
+      "tests/unit/opt-out.validation.spec.ts",
+      "tasks/evidence/TASK-002.review.json",
+      "tasks/evidence/TASK-002.approval.json",
+      "supabase/migrations/20261105130000_contact_opt_out_rpcs_fixes.sql",
+      "supabase/migrations/rollback/20261105130000_contact_opt_out_rpcs_fixes.down.sql"
+    ],
+    "forbidden": [
+      ".env*",
+      "wrangler.jsonc",
+      "supabase/migrations/2025*",
+      "supabase/migrations/2026100*",
+      "supabase/migrations/2026101*",
+      "supabase/migrations/20261031*",
+      "supabase/migrations/20261105100000*",
+      "supabase/migrations/20261105110000*",
+      "supabase/migrations/rollback/2025*",
+      "supabase/migrations/rollback/2026100*",
+      "supabase/migrations/rollback/2026101*",
+      "supabase/migrations/rollback/20261031*",
+      "supabase/migrations/rollback/20261105100000*",
+      "supabase/migrations/rollback/20261105110000*",
+      "scripts/legacy/**",
+      "app/**",
+      "src/components/**",
+      "lib/supabase/**",
+      "src/lib/jobs/**",
+      "src/lib/ai/**",
+      "src/lib/normalizePhone.ts"
+    ],
+    "modify": [
+      "src/integrations/supabase/types.ts",
+      "tests/db/function-privileges.sql"
+    ]
+  },
+  "source": {
+    "adrs": [
+      "docs/adr/0001-agendamento-cron-triggers-e-queues.md"
+    ],
+    "architecture": "docs/architecture/ARCHITECTURE.md",
+    "prd": "docs/product/PRD.md",
+    "spec": "SPEC.md"
+  },
+  "status": "IN_REVIEW",
+  "title": "Servi\u00e7o de oposi\u00e7\u00e3o (registrar, revogar, consultar)",
+  "verification": [
+    {
+      "command": "tests/db/contact-opt-out-rpcs.sql no SQL Editor (antes da migration: fun\u00e7\u00f5es inexistentes; depois: todos ok=true), transa\u00e7\u00e3o desfeita",
+      "proves": "AC-001, AC-002, AC-006 a AC-009 no banco real (25/25 ok=true em 2026-11-06). AC-011 N\u00c3O \u00e9 provado por este arquivo: a corrida n\u00e3o se reproduz numa sess\u00e3o s\u00f3; a garantia \u00e9 de desenho (\u00edndice \u00fanico + releitura em unique_violation) e a prova \u00e9 manual, com duas sess\u00f5es, descrita no cabe\u00e7alho do arquivo"
+    },
+    {
+      "command": "tests/db/function-privileges.sql via execute_sql",
+      "proves": "Fun\u00e7\u00f5es novas classificadas no grupo C, search_path fixo, 0 viola\u00e7\u00f5es"
+    },
+    {
+      "command": "get_advisors (security) depois de aplicar",
+      "proves": "Nenhum aviso novo"
+    },
+    {
+      "command": "npm run lint",
+      "proves": "Sem erros de lint"
+    },
+    {
+      "command": "npx tsc --noEmit",
+      "proves": "types.ts com as fun\u00e7\u00f5es novas e tipos consistentes"
+    },
+    {
+      "command": "npm test",
+      "proves": "AC-003, AC-004, AC-005 e AC-010 (servi\u00e7o e valida\u00e7\u00e3o com reposit\u00f3rio simulado) e regress\u00f5es"
+    }
+  ]
 }

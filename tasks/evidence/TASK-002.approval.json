@@ -1,0 +1,121 @@
+{
+  "actor": "controlling-session-human-process-evidence",
+  "branch": "claude/opt-out",
+  "completion_ci": {
+    "decision": "eligible",
+    "observed_checks": [
+      {
+        "completed_at": "2026-11-06T21:53:44Z",
+        "conclusion": "success",
+        "details_url": "https://dash.cloudflare.com/28be9a8d4f5ac08d986060a6bc4ad306/workers/services/view/prospect-pulse-54/production/builds/9e2675c3-667a-4799-9dbe-afaf0f5c9753",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "Workers Builds: prospect-pulse-54"
+      },
+      {
+        "completed_at": "2026-11-06T21:52:30Z",
+        "conclusion": "success",
+        "details_url": "https://github.com/fmbp1981-hash/prospect-pulse-54/runs/128175848506",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "Trivy"
+      },
+      {
+        "completed_at": "2026-11-06T21:52:19Z",
+        "conclusion": "success",
+        "details_url": "https://github.com/fmbp1981-hash/prospect-pulse-54/actions/runs/42300206104/job/128175705334",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "secrets-scan"
+      },
+      {
+        "completed_at": "2026-11-06T21:52:45Z",
+        "conclusion": "success",
+        "details_url": "https://github.com/fmbp1981-hash/prospect-pulse-54/actions/runs/42300206104/job/128175705356",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "sast-scan"
+      },
+      {
+        "completed_at": "2026-11-06T21:52:38Z",
+        "conclusion": "success",
+        "details_url": "https://github.com/fmbp1981-hash/prospect-pulse-54/actions/runs/42300206104/job/128175704920",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "sca-scan"
+      },
+      {
+        "completed_at": "2026-11-06T21:53:16Z",
+        "conclusion": "success",
+        "details_url": "https://github.com/fmbp1981-hash/prospect-pulse-54/actions/runs/42300204089/job/128175698237",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "typecheck"
+      },
+      {
+        "completed_at": "2026-11-06T21:53:22Z",
+        "conclusion": "success",
+        "details_url": "https://github.com/fmbp1981-hash/prospect-pulse-54/actions/runs/42300204089/job/128175697655",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "lint"
+      },
+      {
+        "completed_at": "2026-11-06T21:53:34Z",
+        "conclusion": "success",
+        "details_url": "https://github.com/fmbp1981-hash/prospect-pulse-54/actions/runs/42300204089/job/128175698048",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "test"
+      },
+      {
+        "completed_at": "2026-11-06T21:53:52Z",
+        "conclusion": "success",
+        "details_url": "https://github.com/fmbp1981-hash/prospect-pulse-54/actions/runs/42300204089/job/128175698189",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "cf-build"
+      },
+      {
+        "completed_at": "2026-11-06T21:52:09Z",
+        "conclusion": "success",
+        "details_url": "https://dashboard.gitguardian.com",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "GitGuardian Security Checks"
+      },
+      {
+        "completed_at": "2026-11-06T21:52:06Z",
+        "conclusion": "success",
+        "details_url": "https://vercel.com/github",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "Vercel Preview Comments"
+      },
+      {
+        "completed_at": "0001-01-01T00:00:00Z",
+        "conclusion": "failure",
+        "details_url": "https://vercel.com/felipe-maranhaos-projects/prospect-pulse-54/9pKFZgbcjQs2bGzu57Ay3faQKajK",
+        "head_sha": "c68963ad7aa492335f7debe8df16cda89054132d",
+        "name": "Vercel"
+      }
+    ],
+    "provider": "github",
+    "queried_at": "2026-11-06T22:26:00.200616+00:00",
+    "reasons": [
+      "Única falha: Vercel 'Deployment was blocked' — projeto Vercel legado (deploy migrou para Cloudflare), mesma falha no PR #22; não é checagem obrigatória (main sem branch protection). Decisão do usuário em 2026-11-06: manter até a virada."
+    ],
+    "repository": "fmbp1981-hash/prospect-pulse-54",
+    "revision": "c68963ad7aa492335f7debe8df16cda89054132d"
+  },
+  "decision": "approved",
+  "evidence": [
+    "tasks/evidence/TASK-002.review.json",
+    "PR #23 https://github.com/fmbp1981-hash/prospect-pulse-54/pull/23 — CI na revisão revisada"
+  ],
+  "gate": "technical_completion",
+  "human_decision": {
+    "decided_at": "2026-11-06T22:26:00.200616+00:00",
+    "limitations": "Só conclusão técnica; sem autoridade de merge, deploy, release, credencial, permissão ou produção. Merge na main só na virada.",
+    "origin": "controlling-session",
+    "reference": "Mensagem do usuário: '1 - A' em resposta a 'Aprovar a conclusão técnica da TASK-002', após o CI do PR #23 ser reportado."
+  },
+  "phase_base": "bfdd984",
+  "post_contract_digest": "sha256:94c67040aef05250448a677589c75c41ef22b06ba550efc64e5bf8daec63acdd",
+  "pre_contract_digest": "sha256:e718a1086196850f7c19f11e2bf672c25098c97e9203b7423eb1a42ec68cfe98",
+  "review_digest": "sha256:49e64778aeba648149a27ff9364cc1c89b646d2c0b5d2b3b848cf51192f6522c",
+  "review_ref": "tasks/evidence/TASK-002.review.json",
+  "reviewed_revision": "c68963ad7aa492335f7debe8df16cda89054132d",
+  "schema_version": "1.0.0",
+  "task": "TASK-002",
+  "timestamp": "2026-11-06T22:26:00.200616+00:00"
+}

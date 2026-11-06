@@ -1,0 +1,110 @@
+{
+  "access": "read-only",
+  "branch": "claude/opt-out",
+  "decision": "approved",
+  "diff_ref": "bfdd984835297ec31b6c069340a0ef856e2fd53f..35352b60f2fc03d36e547ec0b90f713ed297fe31",
+  "evidence": [
+    "Rodada 1 (bfdd984..be3ea87): APROVADO COM RESSALVAS, sem CRITICAL/HIGH; 1 MEDIUM (AC-011 sem teste automatizado), 4 LOW, 4 INFO.",
+    "Rodada 2 (commit 35352b6, correções dos achados 3, 4 e 7): APROVADO, sem regressão; revisor rodou 81 testes de opt-out, tsc e bateria de normalizeOptOutPhone.",
+    "Sessão controladora: npm test 763/763, tsc --noEmit ok, lint 0 erros em 35352b6.",
+    "Banco de produção (kzvnwqlcrtxwagxkghxq), 2026-11-06, autorizado pelo usuário: tests/db/contact-opt-out-rpcs.sql 25/25 ok=true, transação desfeita, 0 resíduo conferido depois.",
+    "tests/db/function-privileges.sql: 0 linhas. get_advisors security: nenhum aviso novo (4 avisos preexistentes, nenhum sobre as funções de oposição)."
+  ],
+  "executor_identity": "claude-session-controladora",
+  "findings": [
+    {
+      "id": "1",
+      "severity": "MEDIUM",
+      "status": "accepted",
+      "summary": "AC-011 (concorrência) sem prova executada; garantia de desenho (índice único + releitura em unique_violation). Contrato corrigido em verification[0]."
+    },
+    {
+      "id": "2",
+      "severity": "LOW",
+      "status": "deferred:TASK-003",
+      "summary": "requireWriter/requireOrgAdmin conferem papel em qualquer organização; o banco barra (42501)."
+    },
+    {
+      "id": "3",
+      "severity": "LOW",
+      "status": "fixed:35352b6",
+      "summary": "Telefone fixo com zero do DDD era recusado."
+    },
+    {
+      "id": "4",
+      "severity": "LOW",
+      "status": "fixed:35352b6",
+      "summary": "leadId com aspas/barra invertida derrubava o lote da consulta."
+    },
+    {
+      "id": "5",
+      "severity": "LOW",
+      "status": "deferred:TASK-003",
+      "summary": "Banco não exige p_actor_user_id nulo quando o autor não é usuario; actor nunca pode vir do cliente."
+    },
+    {
+      "id": "6",
+      "severity": "INFO",
+      "status": "open",
+      "summary": "createClient do repositório sem persistSession/autoRefreshToken false."
+    },
+    {
+      "id": "7",
+      "severity": "INFO",
+      "status": "fixed:35352b6",
+      "summary": "Organização/usuário malformados viravam 500; agora 400 antes do banco."
+    },
+    {
+      "id": "8",
+      "severity": "INFO",
+      "status": "open",
+      "summary": "chunkInValues subestima ~2 caracteres por valor com aspas; folga grande, sem impacto."
+    },
+    {
+      "id": "9",
+      "severity": "INFO",
+      "status": "backlog",
+      "summary": "Celular com e sem nono dígito viram linhas diferentes."
+    },
+    {
+      "id": "R2-1",
+      "severity": "LOW",
+      "status": "deferred:TASK-003",
+      "summary": "No registro, leadId fora do padrão recusa o pedido inteiro (400) mesmo com telefone/e-mail válidos; considerar descartar o leadId."
+    },
+    {
+      "id": "R2-2",
+      "severity": "INFO",
+      "status": "deferred:TASK-003",
+      "summary": "+55 (011) 3333-4444 continua null: o caminho com '+' não tira o zero do DDD."
+    }
+  ],
+  "limitations": [
+    "Revisores com ferramentas somente leitura; não rodaram o teste de banco.",
+    "CI do GitHub ainda não rodou: commits só locais, sem push.",
+    "Identidade do revisor local é evidência de processo, não autenticação."
+  ],
+  "phase_base": "bfdd984835297ec31b6c069340a0ef856e2fd53f",
+  "reviewed_at": "2026-11-06T22:10:00-03:00",
+  "reviewed_files": [
+    "src/integrations/supabase/types.ts",
+    "src/lib/repositories/opt-out.repository.ts",
+    "src/lib/services/opt-out.service.ts",
+    "src/lib/validations/opt-out.validation.ts",
+    "supabase/migrations/20261105120000_contact_opt_out_rpcs.sql",
+    "supabase/migrations/20261105130000_contact_opt_out_rpcs_fixes.sql",
+    "supabase/migrations/rollback/20261105120000_contact_opt_out_rpcs.down.sql",
+    "supabase/migrations/rollback/20261105130000_contact_opt_out_rpcs_fixes.down.sql",
+    "tasks/TASK-002.yaml",
+    "tests/db/contact-opt-out-rpcs.sql",
+    "tests/db/function-privileges.sql",
+    "tests/unit/opt-out.service.spec.ts",
+    "tests/unit/opt-out.validation.spec.ts"
+  ],
+  "reviewed_revision": "35352b60f2fc03d36e547ec0b90f713ed297fe31",
+  "reviewer_assignment": "claude-independent",
+  "reviewer_identity": "claude-independent-read-only (2 rodadas: be3ea87 e 35352b6)",
+  "schema_version": "1.0.0",
+  "task": "TASK-002",
+  "task_digest": "sha256:e718a1086196850f7c19f11e2bf672c25098c97e9203b7423eb1a42ec68cfe98"
+}

@@ -2255,6 +2255,34 @@ export type Database = {
         }[]
       }
       purge_expired_raw_payloads: { Args: never; Returns: undefined }
+      register_contact_opt_out: {
+        Args: {
+          p_actor_type: string
+          p_actor_user_id?: string
+          p_email_normalized?: string
+          p_evidence_message_id?: string
+          p_lead_id?: string
+          p_organization_id: string
+          p_phone_e164?: string
+          p_source: string
+        }
+        Returns: {
+          changed: boolean
+          opt_out_id: string
+        }[]
+      }
+      revoke_contact_opt_out: {
+        Args: {
+          p_actor_user_id: string
+          p_opt_out_id: string
+          p_organization_id: string
+          p_reason: string
+        }
+        Returns: {
+          changed: boolean
+          opt_out_id: string
+        }[]
+      }
     }
     Enums: {
       user_role: "admin" | "operador" | "visualizador"
