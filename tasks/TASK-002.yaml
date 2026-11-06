@@ -100,7 +100,8 @@
     "Consulta em lote usa tr\u00eas .in() separados (lead_id, phone_e164, email_normalized), nunca .or() com texto: e-mail pode ter v\u00edrgula ou par\u00eantese (o CHECK aceita) e quebraria o filtro do PostgREST.",
     "Data confi\u00e1vel da prova: contact_opt_out_events.created_at (INFO-2 da TASK-001).",
     "Depend\u00eancia formal da TASK-001 removida em 2026-11-05 (decis\u00e3o do usu\u00e1rio): o c\u00f3digo dela est\u00e1 na main (PR #22, e138b1e), mas o framework n\u00e3o reconhece a TASK-001 como satisfeita (fechada por reconcilia\u00e7\u00e3o manual).",
-    "Arquitetura aprovada pelo usu\u00e1rio em 2026-11-05 ('aprovado plano'): duas fun\u00e7\u00f5es transacionais no banco, 10 arquivos de c\u00f3digo/SQL + 2 de evid\u00eancia."
+    "Arquitetura aprovada pelo usu\u00e1rio em 2026-11-05 ('aprovado plano'): duas fun\u00e7\u00f5es transacionais no banco, 10 arquivos de c\u00f3digo/SQL + 2 de evid\u00eancia.",
+    "Revis\u00e3o independente 2026-11-06 (aprovado com ressalvas, sem CRITICAL/HIGH): achados 3, 4 e 7 corrigidos no c\u00f3digo (zero do DDD, padr\u00e3o do leadId, uuid de organiza\u00e7\u00e3o/usu\u00e1rio \u2192 400). Achados 2 (papel conferido por organiza\u00e7\u00e3o no servi\u00e7o) e 5 (banco exigir p_actor_user_id nulo quando autor n\u00e3o \u00e9 usuario) ficam para a TASK-003. AC-011 sem prova executada (ver verification[0])."
   ],
   "objective": "Dom\u00ednio e acesso a dados da oposi\u00e7\u00e3o: registrar com origem e autor, revogar s\u00f3 por admin com motivo, consultar se uma pessoa (lead, telefone ou e-mail) est\u00e1 bloqueada na organiza\u00e7\u00e3o, um a um ou em lote. Registro e revoga\u00e7\u00e3o mudam a situa\u00e7\u00e3o e gravam o evento numa \u00fanica transa\u00e7\u00e3o (fun\u00e7\u00f5es no banco).",
   "ownership": {
@@ -177,7 +178,7 @@
   "verification": [
     {
       "command": "tests/db/contact-opt-out-rpcs.sql no SQL Editor (antes da migration: fun\u00e7\u00f5es inexistentes; depois: todos ok=true), transa\u00e7\u00e3o desfeita",
-      "proves": "AC-001, AC-002, AC-006 a AC-009 e AC-011 no banco real"
+      "proves": "AC-001, AC-002, AC-006 a AC-009 no banco real (25/25 ok=true em 2026-11-06). AC-011 N\u00c3O \u00e9 provado por este arquivo: a corrida n\u00e3o se reproduz numa sess\u00e3o s\u00f3; a garantia \u00e9 de desenho (\u00edndice \u00fanico + releitura em unique_violation) e a prova \u00e9 manual, com duas sess\u00f5es, descrita no cabe\u00e7alho do arquivo"
     },
     {
       "command": "tests/db/function-privileges.sql via execute_sql",

@@ -343,3 +343,36 @@ describe('chunkInValues', () => {
     expect(chunks.flat()).toEqual(many);
   });
 });
+
+describe('ids malformados viram 400 antes do banco (revisão, achado 7)', () => {
+  it.each(['org-1', '123', 'not-a-uuid'])('organização %j', async (org) => {
+    await expectOptOutError(
+      optOutService.register(org, { phone: '11999990000', source: 'usuario' }, { type: 'usuario', userId: USER }),
+      'VALIDATION_ERROR',
+      400
+    );
+    await expectOptOutError(
+      optOutService.revoke(org, { optOutId: OPT_OUT_ID, reason: 'novo consentimento' }, { userId: USER }),
+      'VALIDATION_ERROR',
+      400
+    );
+    await expectOptOutError(optOutService.checkBlocked(org, [{ leadId: 'Lead-001' }]), 'VALIDATION_ERROR', 400);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('usuário autor malformado', async () => {
+    await expectOptOutError(
+      optOutService.register(ORG_A, { phone: '11999990000', source: 'usuario' }, { type: 'usuario', userId: 'u1' }),
+      'VALIDATION_ERROR',
+      400
+    );
+    await expectOptOutError(
+      optOutService.revoke(ORG_A, { optOutId: OPT_OUT_ID, reason: 'novo consentimento' }, { userId: 'u1' }),
+      'VALIDATION_ERROR',
+      400
+    );
+    expect(requireWriter).not.toHaveBeenCalled();
+    expect(requireOrgAdmin).not.toHaveBeenCalled();
+    expect(fake.calls).toHaveLength(0);
+  });
+});

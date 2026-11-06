@@ -8,6 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
   OPT_OUT_LOOKUP_MAX,
   lookupOptOutSchema,
+  lookupTargetSchema,
   normalizeOptOutEmail,
   normalizeOptOutPhone,
   registerOptOutSchema,
@@ -28,11 +29,15 @@ describe('normalizeOptOutPhone (AC-005)', () => {
     expect(normalizeOptOutPhone('(11) 3333-4444')).toBe('+551133334444');
   });
 
+  it.each(['(011) 3333-4444', '011 3333-4444', '01133334444'])('aceita fixo com zero do DDD: %s', (raw) => {
+    expect(normalizeOptOutPhone(raw)).toBe('+551133334444');
+  });
+
   it('aceita E.164 internacional com "+"', () => {
     expect(normalizeOptOutPhone('+1 (415) 555-2671')).toBe('+14155552671');
   });
 
-  it.each(['', 'abc', '12345', '+55 11 1234', '+55 (01) 99999-0000', '01199999000', '+0 123 4567 890'])(
+  it.each(['', 'abc', '12345', '+55 11 1234', '+55 (01) 99999-0000', '0119999900', '+0 123 4567 890'])(
     'recusa %j',
     (raw) => {
       expect(normalizeOptOutPhone(raw)).toBeNull();
@@ -133,5 +138,16 @@ describe('lookupOptOutSchema', () => {
 
   it('recusa telefone que não normaliza (AC-005)', () => {
     expect(lookupOptOutSchema.safeParse([{ phone: 'abc' }]).success).toBe(false);
+  });
+});
+
+describe('leadId (consulta em lote)', () => {
+  it.each(['Lead-001', 'abc_DEF-123', '30000000-0000-4000-8000-000000000001'])('aceita %s', (leadId) => {
+    expect(lookupTargetSchema.safeParse({ leadId }).success).toBe(true);
+  });
+
+  it.each(['lead"1', 'lead\\1', 'lead,1', 'lead(1)', 'lead 1', 'lead.1', 'x'.repeat(201)])('recusa %j', (leadId) => {
+    expect(lookupTargetSchema.safeParse({ leadId }).success).toBe(false);
+    expect(registerOptOutSchema.safeParse({ leadId, source: 'usuario' }).success).toBe(false);
   });
 });

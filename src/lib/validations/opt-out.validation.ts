@@ -3,13 +3,16 @@
  *
  * O banco só confere o formato (CHECK de contact_opt_outs); normalizar é
  * daqui, para que o mesmo número em formatos diferentes caia na mesma linha:
- *   - telefone: E.164. Sem "+", segue normalizeBRPhone ((11) 99999-0000,
- *     011999990000, 5511999990000 → +5511999990000). Com "+", aceita E.164
+ *   - telefone: E.164. Sem "+", tira o zero do DDD e segue normalizeBRPhone
+ *     ((11) 99999-0000, 011999990000, 5511999990000 → +5511999990000;
+ *     (011) 3333-4444 → +551133334444). Com "+", aceita E.164
  *     internacional; "+55" exige DDD válido e 8 ou 9 dígitos.
  *   - e-mail: minúsculas, sem espaços em volta. A regra de formato é a do
  *     CHECK (permissiva de propósito: recusar um e-mail que o banco aceita
  *     impediria atender o pedido de oposição), menos aspas duplas e barra
  *     invertida, que quebrariam o filtro .in() da consulta em lote.
+ *   - lead: só letras, números, "_" e "-" (formato de leads_prospeccao.id),
+ *     pelo mesmo motivo do e-mail.
  */
 
 import { z } from 'zod';
@@ -31,6 +34,7 @@ const E164 = /^\+[1-9]\d{7,14}$/;
 const BR_E164 = /^\+55[1-9]{2}\d{8,9}$/;
 const EMAIL = /^[^@\s"\\]+@[^@\s"\\]+$/;
 const MESSAGE_ID = /^[A-Za-z0-9._:@=+/-]+$/;
+const LEAD_ID = /^[A-Za-z0-9_-]+$/;
 
 /** Telefone em E.164, ou null se não normalizar. */
 export function normalizeOptOutPhone(raw: string): string | null {
@@ -41,7 +45,11 @@ export function normalizeOptOutPhone(raw: string): string | null {
     const digits = trimmed.replace(/\D/g, '');
     phone = `+${digits}`;
   } else {
-    phone = normalizeBRPhone(trimmed);
+    // Zero do DDD: normalizeBRPhone testa "10 ou 11 dígitos" antes de tirá-lo,
+    // e (011) 3333-4444 (11 dígitos) viraria +5501133334444.
+    const digits = trimmed.replace(/\D/g, '');
+    const local = digits.startsWith('0') && (digits.length === 11 || digits.length === 12) ? digits.slice(1) : digits;
+    phone = normalizeBRPhone(local);
   }
 
   if (!phone || !E164.test(phone)) return null;
@@ -74,7 +82,7 @@ const emailField = z.string().transform((value, ctx) => {
   return email;
 });
 
-const leadIdField = z.string().trim().min(1).max(200);
+const leadIdField = z.string().trim().min(1).max(200).regex(LEAD_ID, 'Lead inválido');
 
 export const registerOptOutSchema = z
   .object({

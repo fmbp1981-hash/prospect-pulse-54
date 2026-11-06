@@ -30,7 +30,7 @@ import {
   type OptOutLookupTarget,
   type OptOutSource,
 } from '@/lib/validations/opt-out.validation';
-import type { ZodError } from 'zod';
+import { z, type ZodError } from 'zod';
 
 export type OptOutActor =
   | { type: 'usuario'; userId: string }
@@ -77,9 +77,21 @@ function validationError(error: ZodError): OptOutError {
   return new OptOutError(400, 'VALIDATION_ERROR', error.issues[0]?.message ?? 'Dados inválidos');
 }
 
+const uuid = z.string().uuid();
+
 function requireOrganization(organizationId: string): void {
   if (!organizationId) {
     throw new OptOutError(400, 'VALIDATION_ERROR', 'Organização não resolvida');
+  }
+  if (!uuid.safeParse(organizationId).success) {
+    throw new OptOutError(400, 'VALIDATION_ERROR', 'Organização inválida');
+  }
+}
+
+/** Id malformado viraria 22P02 no banco (500); aqui vira 400 antes de tudo. */
+function requireUserId(userId: string): void {
+  if (!uuid.safeParse(userId).success) {
+    throw new OptOutError(400, 'VALIDATION_ERROR', 'Usuário inválido');
   }
 }
 
@@ -104,6 +116,7 @@ function mapDbError(error: unknown): OptOutError {
 export const optOutService = {
   async register(organizationId: string, input: unknown, actor: OptOutActor): Promise<OptOutResult> {
     requireOrganization(organizationId);
+    if (actor.type === 'usuario') requireUserId(actor.userId);
 
     if (actor.type === 'usuario' && !(await requireWriter(actor.userId))) {
       throw new OptOutError(403, 'FORBIDDEN', 'Seu papel não permite esta ação.');
@@ -136,6 +149,7 @@ export const optOutService = {
 
   async revoke(organizationId: string, input: unknown, actor: { userId: string }): Promise<OptOutResult> {
     requireOrganization(organizationId);
+    requireUserId(actor.userId);
 
     if (!(await requireOrgAdmin(actor.userId))) {
       throw new OptOutError(403, 'FORBIDDEN', 'Apenas administradores da organização podem revogar.');
